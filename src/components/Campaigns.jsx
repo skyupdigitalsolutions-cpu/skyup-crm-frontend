@@ -61,7 +61,7 @@ function LeadDrawer({ campaign, onClose }) {
     setLoading(true);
     if (campaign._isMeta) {
       // ✅ FIX 1: was fetch(`/api/leads?campaign=...`) — relative URL hit localhost:5173
-      api.get(`/lead?campaign=${encodeURIComponent(campaign.name)}`)
+      api.get(`/lead/by-campaign?campaign=${encodeURIComponent(campaign.name)}`)
         .then((res) => setLeads(Array.isArray(res.data) ? res.data : (res.data?.data || [])))
         .catch(() => setLeads([]))
         .finally(() => setLoading(false));
