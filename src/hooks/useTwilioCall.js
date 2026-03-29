@@ -15,7 +15,16 @@ export function useTwilioCall(identity = 'crm_user') {
     async function setup() {
       try {
         const { data } = await axios.get(`${API_BASE}/token?identity=${identity}`);
-        const device = new Device(data.token, { logLevel: 1 });
+        const device = new Device(data.token, {
+          logLevel: 1,
+          // Disable conflicting audio constraints that cause AcquisitionFailedError (31402)
+          // on certain browsers, OS, or hardware setups
+          audioConstraints: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+        });
 
         device.on('registered', () => console.log('Twilio Device ready'));
         device.on('error', (err) => setError(err.message));
