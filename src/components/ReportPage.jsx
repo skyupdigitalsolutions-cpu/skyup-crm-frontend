@@ -127,7 +127,8 @@ function AddLeadModal({ agents, onClose, onAdd }) {
     // Build the payload the backend expects
     const payload = {
       name:     form.name.trim(),
-      mobile:   Number(form.phone.trim()),
+      // mobile:   Number(form.phone.trim()), commented for +91
+      mobile:   form.phone.trim(),
       source:   form.source,
       campaign: form.campaign.trim() || null,
       status:   form.status,
