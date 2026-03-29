@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import api from "../data/axiosConfig"; // ✅ ADDED
 
 // ── Channel / status style maps ───────────────────────────────────────────────
 const CHANNEL_STYLE = {
@@ -58,11 +59,10 @@ function LeadDrawer({ campaign, onClose }) {
   useEffect(() => {
     if (!campaign) return;
     setLoading(true);
-    // For Meta campaigns fetch real leads; for static ones use leads_list
     if (campaign._isMeta) {
-      fetch(`/api/leads?campaign=${encodeURIComponent(campaign.name)}`)
-        .then((r) => r.json())
-        .then((d) => setLeads(Array.isArray(d) ? d : (d.data || [])))
+      // ✅ FIX 1: was fetch(`/api/leads?campaign=...`) — relative URL hit localhost:5173
+      api.get(`/lead?campaign=${encodeURIComponent(campaign.name)}`)
+        .then((res) => setLeads(Array.isArray(res.data) ? res.data : (res.data?.data || [])))
         .catch(() => setLeads([]))
         .finally(() => setLoading(false));
     } else {
@@ -128,7 +128,6 @@ function LeadDrawer({ campaign, onClose }) {
           ) : (
             <div className="space-y-2">
               {leads.map((l, i) => {
-                // normalise — static leads_list vs real Lead docs
                 const name   = l.name   || "Unknown";
                 const phone  = l.phone  || l.mobile || "—";
                 const agent  = l.agent  || (l.user && (l.user.name || "Assigned")) || "Unassigned";
@@ -174,7 +173,7 @@ function CreateModal({ onClose, onCreated }) {
     pageAccessToken: "",
     appSecret:       "",
     verifyToken:     "",
-    graphApiVersion: "v19.0",
+    graphApiVersion: "v25.0",
     formIds:         "",
     defaultStatus:   "New",
     defaultRemark:   "Lead from Meta Campaign",
@@ -197,31 +196,26 @@ function CreateModal({ onClose, onCreated }) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/meta-config", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          campaignName:    form.campaignName.trim(),
-          pageId:          form.pageId.trim(),
-          pageAccessToken: form.pageAccessToken.trim(),
-          formIds:         form.formIds ? form.formIds.split(",").map((s) => s.trim()).filter(Boolean) : [],
-          defaultStatus:   form.defaultStatus || "New",
-          defaultRemark:   form.defaultRemark || "Lead from Meta Campaign",
-          graphApiVersion: form.graphApiVersion.trim() || "v19.0",
-          // env fields stored server-side via _meta key
-          _meta: {
-            META_APP_SECRET:        form.appSecret.trim(),
-            META_VERIFY_TOKEN:      form.verifyToken.trim(),
-            META_GRAPH_API_VERSION: form.graphApiVersion.trim(),
-          },
-        }),
+      // ✅ FIX 2: was fetch("/api/meta-config", { method: "POST", ... }) — relative URL
+      const res = await api.post("/meta-config", {
+        campaignName:    form.campaignName.trim(),
+        pageId:          form.pageId.trim(),
+        pageAccessToken: form.pageAccessToken.trim(),
+        formIds:         form.formIds ? form.formIds.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        defaultStatus:   form.defaultStatus || "New",
+        defaultRemark:   form.defaultRemark || "Lead from Meta Campaign",
+        graphApiVersion: form.graphApiVersion.trim() || "v25.0",
+        _meta: {
+          META_APP_SECRET:        form.appSecret.trim(),
+          META_VERIFY_TOKEN:      form.verifyToken.trim(),
+          META_GRAPH_API_VERSION: form.graphApiVersion.trim(),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to connect campaign");
       setSuccess(true);
-      onCreated && onCreated(data.data); // notify parent to refresh list
+      onCreated && onCreated(res.data.data);
     } catch (err) {
-      setError(err.message);
+      // axios puts error response in err.response.data
+      setError(err.response?.data?.message || err.message || "Failed to connect campaign");
     } finally {
       setLoading(false);
     }
@@ -355,7 +349,7 @@ function CreateModal({ onClose, onCreated }) {
                     Graph API Version
                     <span className="ml-1 text-[10px] font-normal text-[#8B92A9]">(META_GRAPH_API_VERSION)</span>
                   </label>
-                  <input type="text" value={form.graphApiVersion} onChange={set("graphApiVersion")} placeholder="v19.0" className={FIELD_CLS} />
+                  <input type="text" value={form.graphApiVersion} onChange={set("graphApiVersion")} placeholder="v25.0" className={FIELD_CLS} />
                 </div>
               </div>
 
@@ -407,32 +401,29 @@ function CreateModal({ onClose, onCreated }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Campaigns() {
-  const [campaigns, setCampaigns]   = useState([]);
+  const [campaigns, setCampaigns]     = useState([]);
   const [pageLoading, setPageLoading] = useState(true);
-  const [selected, setSelected]     = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [filter, setFilter]         = useState("All");
-  const [search, setSearch]         = useState("");
+  const [selected, setSelected]       = useState(null);
+  const [showCreate, setShowCreate]   = useState(false);
+  const [filter, setFilter]           = useState("All");
+  const [search, setSearch]           = useState("");
 
-  // ── Fetch Meta configs from backend and shape them as campaign cards ─────────
+  // ── Fetch Meta configs from backend ─────────────────────────────────────────
   const fetchCampaigns = useCallback(async () => {
     setPageLoading(true);
     try {
-      const res  = await fetch("/api/meta-config");
-      const data = await res.json();
+      // ✅ FIX 3: was fetch("/api/meta-config") — relative URL hit localhost:5173
+      const res  = await api.get("/meta-config");
+      const data = res.data;
       const list = Array.isArray(data) ? data : (data.data || []);
 
-      // Also fetch lead counts per campaign from /api/leads/counts if available
-      // Fallback: count from /api/leads?campaign=X is too slow per-card; use 0
       const shaped = list.map((cfg, idx) => ({
-        // identity
         _id:       cfg._id,
         _isMeta:   true,
         id:        cfg._id,
         name:      cfg.campaignName,
         channel:   "Meta",
         status:    cfg.isActive ? "Active" : "Paused",
-        // stats — real counts if backend returns them, else placeholders
         sent:      cfg.sent      ?? 0,
         leads:     cfg.leads     ?? 0,
         converted: cfg.converted ?? 0,
@@ -440,7 +431,6 @@ export default function Campaigns() {
         date:      fmtDate(cfg.createdAt),
         createdAt: cfg.createdAt,
         color:     META_COLORS[idx % META_COLORS.length],
-        // extra meta
         pageId:    cfg.pageId,
         company:   cfg.company,
         isActive:  cfg.isActive,
@@ -461,8 +451,9 @@ export default function Campaigns() {
   const handleToggle = async (e, campaign) => {
     e.stopPropagation();
     try {
-      await fetch(`/api/meta-config/${campaign._id}/toggle`, { method: "PATCH" });
-      fetchCampaigns(); // re-fetch to reflect new state
+      // ✅ FIX 4: was fetch(`/api/meta-config/${id}/toggle`, { method: "PATCH" })
+      await api.patch(`/meta-config/${campaign._id}/toggle`);
+      fetchCampaigns();
     } catch (err) {
       console.error("Toggle failed:", err);
     }
@@ -473,7 +464,8 @@ export default function Campaigns() {
     e.stopPropagation();
     if (!window.confirm(`Disconnect "${campaign.name}"? This cannot be undone.`)) return;
     try {
-      await fetch(`/api/meta-config/${campaign._id}`, { method: "DELETE" });
+      // ✅ FIX 5: was fetch(`/api/meta-config/${id}`, { method: "DELETE" })
+      await api.delete(`/meta-config/${campaign._id}`);
       fetchCampaigns();
     } catch (err) {
       console.error("Delete failed:", err);
@@ -669,8 +661,8 @@ export default function Campaigns() {
       )}
 
       {/* Drawers / modals */}
-      {selected    && <LeadDrawer  campaign={selected}  onClose={() => setSelected(null)} />}
-      {showCreate  && <CreateModal onClose={() => setShowCreate(false)} onCreated={fetchCampaigns} />}
+      {selected   && <LeadDrawer  campaign={selected}  onClose={() => setSelected(null)} />}
+      {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={fetchCampaigns} />}
     </div>
   );
 }
