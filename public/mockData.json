@@ -1,0 +1,23 @@
+{
+  "agents": [
+    { "name": "Rahul Sharma",  "avatar": "RS", "color": "#2563EB" },
+    { "name": "Priya Mehta",   "avatar": "PM", "color": "#7C3AED" },
+    { "name": "Arjun Kumar",   "avatar": "AK", "color": "#0891B2" },
+    { "name": "Sneha Tiwari",  "avatar": "ST", "color": "#059669" },
+    { "name": "Vikram Joshi",  "avatar": "VJ", "color": "#D97706" }
+  ],
+  "leads": [
+    { "id": 1,  "name": "Amit Verma",     "phone": "9876543210", "source": "Google Ads",   "campaign": "Brand Search",   "agent": "Rahul Sharma",  "status": "Converted",      "date": "25 Mar 2026", "remark": "Very interested, closed" },
+    { "id": 2,  "name": "Priya Shah",     "phone": "9845001122", "source": "Campaign",     "campaign": "Summer Sale",    "agent": "Priya Mehta",   "status": "In Progress",    "date": "20 Mar 2026", "remark": "Callback scheduled" },
+    { "id": 3,  "name": "Ravi Kumar",     "phone": "9900112233", "source": "Facebook Ads", "campaign": "Retargeting",    "agent": "Arjun Kumar",   "status": "Converted",      "date": "13 Mar 2026", "remark": "Paid and onboarded" },
+    { "id": 4,  "name": "Sunita Patel",   "phone": "9123456789", "source": "Web Form",     "campaign": "—",              "agent": "Sneha Tiwari",  "status": "Not Interested", "date": "14 Mar 2026", "remark": "Budget constraint" },
+    { "id": 5,  "name": "Deepak Nair",    "phone": "9988776655", "source": "Google Ads",   "campaign": "Competitor KW",  "agent": "Vikram Joshi",  "status": "New",            "date": "14 Mar 2026", "remark": "Awaiting first call" },
+    { "id": 6,  "name": "Kavya Reddy",    "phone": "9765432100", "source": "Campaign",     "campaign": "Diwali Blast",   "agent": "Rahul Sharma",  "status": "Converted",      "date": "15 Mar 2026", "remark": "Signed contract" },
+    { "id": 7,  "name": "Mohit Singh",    "phone": "9654321098", "source": "Referral",     "campaign": "—",              "agent": "Priya Mehta",   "status": "In Progress",    "date": "15 Mar 2026", "remark": "Demo done, follow up" },
+    { "id": 8,  "name": "Ananya Iyer",    "phone": "9543210987", "source": "Google Ads",   "campaign": "Brand Search",   "agent": "Arjun Kumar",   "status": "New",            "date": "16 Mar 2026", "remark": "Called, no answer" },
+    { "id": 9,  "name": "Suresh Babu",    "phone": "9432109876", "source": "Facebook Ads", "campaign": "Retargeting",    "agent": "Sneha Tiwari",  "status": "Not Interested", "date": "16 Mar 2026", "remark": "Already using competitor" },
+    { "id": 10, "name": "Nisha Gupta",    "phone": "9321098765", "source": "Web Form",     "campaign": "—",              "agent": "Vikram Joshi",  "status": "In Progress",    "date": "17 Mar 2026", "remark": "Needs pricing details" },
+    { "id": 11, "name": "Aryan Chopra",   "phone": "9210987654", "source": "Campaign",     "campaign": "Summer Sale",    "agent": "Rahul Sharma",  "status": "Converted",      "date": "17 Mar 2026", "remark": "Closed deal" },
+    { "id": 12, "name": "Meera Das",      "phone": "9109876543", "source": "Referral",     "campaign": "—",              "agent": "Priya Mehta",   "status": "New",            "date": "18 Mar 2026", "remark": "New inquiry" }
+  ]
+}
