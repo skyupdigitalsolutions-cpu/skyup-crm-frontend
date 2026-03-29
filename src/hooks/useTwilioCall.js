@@ -9,103 +9,59 @@ export function useTwilioCall(identity = 'crm_user') {
   const deviceRef = useRef(null);
   const [callStatus, setCallStatus] = useState('idle');
   const [activeCall, setActiveCall] = useState(null);
-  const [error, setError]           = useState(null);
-  const [ready, setReady]           = useState(false); // ✅ track device readiness
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     async function setup() {
       try {
-        // ✅ Request mic permission BEFORE initializing the Device
-        // This prevents AcquisitionFailedError (31402)
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-
         const { data } = await axios.get(`${API_BASE}/token?identity=${identity}`);
+        const device = new Device(data.token, { logLevel: 1 });
 
-        const device = new Device(data.token, {
-          logLevel: 1,
-          codecPreferences: ['opus', 'pcmu'], // ✅ explicit codec order
-          sounds: {},                          // ✅ disable sounds to avoid extra media constraints
-        });
-
-        device.on('registered', () => {
-          console.log('Twilio Device ready ✅');
-          setReady(true);
-          setError(null);
-        });
-
-        device.on('error', (err) => {
-          console.error('Twilio Device error:', err);
-          setError(err.message);
-          setReady(false);
-        });
-
-        device.on('unregistered', () => {
-          setReady(false);
-        });
+        device.on('registered', () => console.log('Twilio Device ready'));
+        device.on('error', (err) => setError(err.message));
 
         await device.register();
         deviceRef.current = device;
       } catch (err) {
-        // ✅ Friendly message for mic permission denial
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          setError('Microphone access denied. Please allow mic permission in your browser and refresh.');
-        } else if (err.name === 'NotFoundError') {
-          setError('No microphone found. Please connect a microphone and refresh.');
-        } else {
-          setError('Failed to initialize call device. Please refresh and try again.');
-        }
-        console.error('Twilio setup error:', err);
+        setError('Failed to initialize Twilio device');
+        console.error(err);
       }
     }
-
     setup();
 
-    return () => {
-      deviceRef.current?.destroy();
-      deviceRef.current = null;
-    };
+    return () => deviceRef.current?.destroy();
   }, [identity]);
 
-  const makeCall = async (toNumber, onCallEnd) => {
-    if (!deviceRef.current) {
-      setError('Call device not ready. Please refresh the page.');
-      return;
-    }
-
-    // ✅ Re-check mic before every call attempt
+  // makeCall now accepts: phoneNumber (E.164) + leadId (for backend logging)
+  const makeCall = async (phoneNumber, leadId, onCallEnd) => {
+    if (!deviceRef.current) return;
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (err) {
-      setError('Microphone access denied. Please allow mic permission and try again.');
-      return;
-    }
-
-    try {
-      setError(null);
       setCallStatus('connecting');
+      setError(null);
+
+      // Ensure E.164 format — Twilio REQUIRES this or it sends HANGUP 31005
+      const e164 = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
 
       const call = await deviceRef.current.connect({
-        params: { To: toNumber },
+        params: {
+          To:     e164,    // ✅ must be a real E.164 phone number — not a MongoDB ID
+          LeadId: leadId,  // passed to /voice for server-side logging only
+        },
       });
 
-      call.on('accept', () => setCallStatus('active'));
-
+      call.on('accept',     () => setCallStatus('active'));
       call.on('disconnect', () => {
         setCallStatus('ended');
-        if (onCallEnd) onCallEnd(call.parameters?.CallSid);
+        if (onCallEnd) onCallEnd(call.parameters.CallSid);
         setActiveCall(null);
       });
-
       call.on('error', (err) => {
-        console.error('Call error:', err);
         setError(err.message);
         setCallStatus('idle');
-        setActiveCall(null);
       });
 
       setActiveCall(call);
     } catch (err) {
-      console.error('makeCall error:', err);
       setError(err.message);
       setCallStatus('idle');
     }
@@ -119,5 +75,5 @@ export function useTwilioCall(identity = 'crm_user') {
 
   const mute = (muted) => activeCall?.mute(muted);
 
-  return { callStatus, makeCall, hangUp, mute, error, ready };
+  return { callStatus, makeCall, hangUp, mute, error };
 }

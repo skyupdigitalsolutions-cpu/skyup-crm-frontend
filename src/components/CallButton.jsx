@@ -10,8 +10,8 @@ export default function CallButton({ contactId, contactName, contactNumber, onCa
   const handleMute   = () => { mute(!isMuted); setIsMuted(p => !p); };
   const handleHangUp = () => { hangUp(); onCallEnd?.(); };
 
-  // ✅ Send contactId as destination — backend resolves real number
-  const handleCall = () => makeCall(contactId);
+  // ✅ Send real phone number as To (E.164) + contactId for backend logging
+  const handleCall = () => makeCall(contactNumber, contactId, onCallEnd);
 
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
@@ -47,7 +47,6 @@ export default function CallButton({ contactId, contactName, contactNumber, onCa
           <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">
             {contactName || 'Unknown Contact'}
           </p>
-          {/* ✅ Masked: +91••••••••89 */}
           <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] truncate font-mono tracking-wide">
             {maskPhone(contactNumber)}
           </p>
@@ -70,9 +69,9 @@ export default function CallButton({ contactId, contactName, contactNumber, onCa
 
       {/* Idle / Ended */}
       {(callStatus === 'idle' || callStatus === 'ended') && (
-        <button onClick={handleCall} disabled={!contactId}
+        <button onClick={handleCall} disabled={!contactNumber}
           className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-semibold transition
-            ${!contactId
+            ${!contactNumber
               ? 'bg-[#F1F4FF] dark:bg-[#262A38] text-[#8B92A9] cursor-not-allowed'
               : 'bg-[#059669] hover:bg-emerald-700 active:scale-[0.98] text-white cursor-pointer'}`}>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
