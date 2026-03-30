@@ -175,12 +175,15 @@ const RANGE_LABELS = { today:"Today", week:"This week", month:"This month", quar
 export default function Dashboard() {
 const [activeCallSid, setActiveCallSid] = useState(null);
 
-  const [allLeads,   setAllLeads]   = useState([]);
-  const [agents,     setAgents]     = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState(null);
-  const [range,      setRange]      = useState("week");
-  const [superStats, setSuperStats] = useState(null); // only for superadmin
+  const [allLeads,    setAllLeads]    = useState([]);
+  const [agents,      setAgents]      = useState([]);
+  const [dbAdmins,    setDbAdmins]    = useState([]);   // admins from DB for UserManagement
+  const [dbUsers,     setDbUsers]     = useState([]);   // users from DB for UserManagement
+  const [companyPlan, setCompanyPlan] = useState("basic");
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [range,       setRange]       = useState("week");
+  const [superStats,  setSuperStats]  = useState(null); // only for superadmin
 
   const contacts = allLeads
   .filter(l => l.mobile)
@@ -194,7 +197,7 @@ const [activeCallSid, setActiveCallSid] = useState(null);
 
   // ── Fetch data ──────────────────────────────────────────────────────────────
  const loadData = () => {
-  // ✅ Regular users have no dashboard data to fetch
+  // Regular users have no dashboard data to fetch
   if (role === "user") {
     setLoading(false);
     return;
@@ -202,6 +205,8 @@ const [activeCallSid, setActiveCallSid] = useState(null);
 
   setLoading(true);
   setError(null);
+
+  // ── Fetch leads + agent stats (admin & superadmin) ───────────────────────
   fetchAll()
     .then(({ agents, leads, stats }) => {
       setAgents(agents || []);
@@ -212,6 +217,23 @@ const [activeCallSid, setActiveCallSid] = useState(null);
       setError(err.response?.data?.message || "Failed to load dashboard data.");
     })
     .finally(() => setLoading(false));
+
+  // ── Fetch real admin list + user list + company plan (admin only) ────────
+  if (role === "admin") {
+    import("../data/axiosConfig").then(({ default: api }) => {
+      Promise.all([
+        api.get("/admin/"),            // all admins in this company
+        api.get("/admin/company/users"), // all users in this company
+        api.get("/admin/company/me"),    // company info (plan)
+      ]).then(([adminsRes, usersRes, companyRes]) => {
+        setDbAdmins(adminsRes.data  || []);
+        setDbUsers(usersRes.data    || []);
+        setCompanyPlan(companyRes.data?.plan || "basic");
+      }).catch(() => {
+        // Non-fatal — UserManagement will just start empty
+      });
+    });
+  }
 };
 
   useEffect(() => { loadData(); }, []);
@@ -483,7 +505,11 @@ const [activeCallSid, setActiveCallSid] = useState(null);
 
       </div>
       <AdminChat />
-      <UserManagement />
+      <UserManagement
+        currentPlan={companyPlan}
+        existingAdmins={dbAdmins}
+        existingUsers={dbUsers}
+      />
     </div>
   );
 }

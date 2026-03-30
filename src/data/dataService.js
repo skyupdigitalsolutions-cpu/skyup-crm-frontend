@@ -11,7 +11,7 @@ export function getStoredUser() {
 
 export function getRole() {
   const user = getStoredUser();
-  return user?.role || "user"; // ✅ fixed default from "admin" to "user"
+  return user?.role || "user";
 }
 
 // ── Fetch all data based on role ───────────────────────────────────────────
@@ -21,7 +21,7 @@ export async function fetchAll() {
   if (role === "superadmin") return fetchSuperAdminData();
   if (role === "admin")      return fetchAdminData();
 
-  // ✅ "user" role — no admin API calls, return empty safely
+  // "user" role — no admin API calls
   return { leads: [], agents: [] };
 }
 
