@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../data/axiosConfig";
 
@@ -8,7 +8,21 @@ export default function UserLogin() {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
   const navigate = useNavigate();
+
+  // ── Auto-fill credentials if a new user was just created ──────────────────
+  useEffect(() => {
+    const savedEmail    = sessionStorage.getItem("newUserEmail");
+    const savedPassword = sessionStorage.getItem("newUserPassword");
+    if (savedEmail && savedPassword) {
+      setEmail(savedEmail);
+      setPassword(savedPassword);
+      setAutoFilled(true);
+      sessionStorage.removeItem("newUserEmail");
+      sessionStorage.removeItem("newUserPassword");
+    }
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -64,6 +78,18 @@ export default function UserLogin() {
 
         <h1 className="login-title text-[26px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Welcome back</h1>
         <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mb-7">Sign in to your user account</p>
+
+        {/* Auto-filled notice */}
+        {autoFilled && (
+          <div className="mb-5 px-4 py-3 rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 flex items-center gap-2">
+            <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+            <p className="text-[12px] font-medium text-green-700 dark:text-green-400">
+              Account created! Your credentials have been pre-filled — click Sign in to continue.
+            </p>
+          </div>
+        )}
 
         {/* Error */}
         {error && (

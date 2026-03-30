@@ -177,6 +177,8 @@ const [activeCallSid, setActiveCallSid] = useState(null);
 
   const [allLeads,   setAllLeads]   = useState([]);
   const [agents,     setAgents]     = useState([]);
+  const [admins,     setAdmins]     = useState([]);
+  const [companyPlan, setCompanyPlan] = useState("base");
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(null);
   const [range,      setRange]      = useState("week");
@@ -212,6 +214,21 @@ const [activeCallSid, setActiveCallSid] = useState(null);
       setError(err.response?.data?.message || "Failed to load dashboard data.");
     })
     .finally(() => setLoading(false));
+
+  // ── Fetch admins + company plan (admin only) ─────────────────────────────
+  if (role === "admin") {
+    import("../data/axiosConfig").then(({ default: api }) => {
+      Promise.all([
+        api.get("/admin/"),
+        api.get("/admin/company/users"),
+        api.get("/admin/company/me"),
+      ]).then(([adminsRes, usersRes, companyRes]) => {
+        setAdmins(adminsRes.data || []);
+        setAgents(usersRes.data || []);
+        setCompanyPlan(companyRes.data?.plan || "base");
+      }).catch(() => {});
+    });
+  }
 };
 
   useEffect(() => { loadData(); }, []);
@@ -483,7 +500,11 @@ const [activeCallSid, setActiveCallSid] = useState(null);
 
       </div>
       <AdminChat />
-      <UserManagement />
+      <UserManagement
+        currentPlan={companyPlan}
+        existingAdmins={admins}
+        existingUsers={agents}
+      />
     </div>
   );
 }

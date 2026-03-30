@@ -1,4 +1,6 @@
 import { useState } from "react";
+import api from "../data/axiosConfig";
+import { getStoredUser } from "../data/dataService";
 
 const PLANS = {
   base: { label: "Base", maxAdmins: 1,  maxUsers: 10, price: "₹999/mo",   badgeColor: "bg-slate-500",  borderColor: "border-slate-500",  bgColor: "bg-slate-50   dark:bg-slate-900/30", textColor: "text-slate-700 dark:text-slate-300",  statColor: "text-slate-600 dark:text-slate-400",  dividerColor: "bg-slate-300 dark:bg-slate-700" },
@@ -33,11 +35,19 @@ function avatarHex(id) { return AVATAR_HEX[Math.abs(id) % AVATAR_HEX.length]; }
 // ── Credentials Modal ─────────────────────────────────────────────────────────
 function CredentialsModal({ member, onClose }) {
   const [copied, setCopied] = useState(null);
+  const isUser = member.role === "user";
   const copy = (text, key) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(key);
       setTimeout(() => setCopied(null), 1800);
     });
+  };
+
+  const handleGoToLogin = () => {
+    // Pre-fill credentials in sessionStorage for auto-fill on login page
+    sessionStorage.setItem("newUserEmail",    member.email);
+    sessionStorage.setItem("newUserPassword", member.password);
+    window.location.href = "/login";
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -79,9 +89,22 @@ function CredentialsModal({ member, onClose }) {
         <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] text-center mb-4">
           ⚠️ Share these credentials securely. Password can be reset later.
         </p>
-        <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#2563EB] text-white text-xs font-semibold hover:bg-blue-700 transition">
-          Done
-        </button>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-xs font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
+            Done
+          </button>
+          {isUser && (
+            <button
+              onClick={handleGoToLogin}
+              className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-xs font-semibold hover:bg-blue-700 transition flex items-center justify-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14"/>
+              </svg>
+              Login as User
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -89,27 +112,32 @@ function CredentialsModal({ member, onClose }) {
 
 // ── Add Member Modal ──────────────────────────────────────────────────────────
 function AddMemberModal({ role, onClose, onAdd }) {
-  const [name,  setName]  = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [error, setError] = useState("");
+  const [name,    setName]    = useState("");
+  const [email,   setEmail]   = useState("");
+  const [phone,   setPhone]   = useState("");
+  const [error,   setError]   = useState("");
+  const [loading, setLoading] = useState(false);
   const isAdmin = role === "admin";
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!name.trim()) return setError("Name is required.");
     if (!email.trim() || !email.includes("@")) return setError("Valid email is required.");
     setError("");
-    onAdd({
-      id: Date.now(),
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      role,
-      username: usernameFromName(name),
-      password: generatePassword(),
-      isDefault: false,
-      addedOn: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-    });
+    setLoading(true);
+    const password = generatePassword();
+    try {
+      await onAdd({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        role,
+        password,
+      });
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to create account. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -184,9 +212,12 @@ function AddMemberModal({ role, onClose, onAdd }) {
           </button>
           <button
             onClick={handleAdd}
-            className={`flex-1 py-2 rounded-xl text-white text-xs font-semibold transition ${isAdmin ? "bg-[#2563EB] hover:bg-blue-700" : "bg-[#059669] hover:bg-emerald-700"}`}
+            disabled={loading}
+            className={`flex-1 py-2 rounded-xl text-white text-xs font-semibold transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${isAdmin ? "bg-[#2563EB] hover:bg-blue-700" : "bg-[#059669] hover:bg-emerald-700"}`}
           >
-            Create Account
+            {loading ? (
+              <><svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Creating...</>
+            ) : "Create Account"}
           </button>
         </div>
       </div>
@@ -299,10 +330,63 @@ export default function UserManagement({
     setModal(role);
   };
 
-  const addMember = (member) => {
-    if (member.role === "admin") setAdmins(a => [...a, member]);
-    else                         setUsers(u  => [...u, member]);
-    setCredsFor(member);
+  const addMember = async (memberData) => {
+    const currentUser = getStoredUser();
+    const username = usernameFromName(memberData.name);
+
+    if (memberData.role === "admin") {
+      // POST /admin/ (protected — uses logged-in admin's token + company)
+      const res = await api.post("/admin/", {
+        name:     memberData.name,
+        email:    memberData.email,
+        password: memberData.password,
+      });
+      const created = res.data;
+      const member = {
+        id:        created._id,
+        name:      created.name,
+        email:     created.email,
+        phone:     memberData.phone,
+        role:      "admin",
+        username,
+        password:  memberData.password,
+        isDefault: false,
+        addedOn:   new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+      };
+      setAdmins(a => [...a, member]);
+      setModal(null);
+      setCredsFor(member);
+    } else {
+      // POST /auth/register — needs companyId from logged-in admin
+      const companyId = currentUser?.company;
+      const res = await api.post("/auth/register", {
+        name:      memberData.name,
+        email:     memberData.email,
+        password:  memberData.password,
+        companyId,
+      });
+      const created = res.data;
+      const member = {
+        id:        created._id,
+        name:      created.name,
+        email:     created.email,
+        phone:     memberData.phone,
+        role:      "user",
+        username,
+        password:  memberData.password,
+        isDefault: false,
+        addedOn:   new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+      };
+      setUsers(u => [...u, member]);
+      setModal(null);
+      setCredsFor(member);
+
+      // ── Auto-login the newly created user ────────────────────────────────
+      // Store credentials so the user can log in immediately via the login page
+      // We save them in sessionStorage so they can be pre-filled on the login page
+      sessionStorage.setItem("newUserEmail",    created.email);
+      sessionStorage.setItem("newUserPassword", memberData.password);
+    }
   };
 
   const removeMember = (id, role) => {
