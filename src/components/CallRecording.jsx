@@ -1,6 +1,8 @@
-// components/AdminRecordings.jsx
+// components/CallRecording.jsx
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+
+const API_BASE = 'https://skyup-crm-backend.onrender.com/api/twilio';
 
 export default function CallRecording() {
   const [recordings, setRecordings] = useState([]);
@@ -8,7 +10,7 @@ export default function CallRecording() {
   const [search, setSearch]         = useState('');
 
   useEffect(() => {
-    axios.get('https://skyup-crm-backend.onrender.com/api/twilio/admin/recordings')
+    axios.get(`${API_BASE}/admin/recordings`)
       .then(res => setRecordings(res.data))
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -103,10 +105,13 @@ export default function CallRecording() {
                 </span>
               </div>
 
-              {/* Player or pending */}
-              {rec.recordingUrl ? (
-                <audio controls src={rec.recordingUrl}
-                  className="w-full h-8 rounded-xl accent-[#2563EB]"/>
+              {/* FIX: Audio proxied through backend so Twilio auth is handled server-side */}
+              {rec.recordingSid ? (
+                <audio
+                  controls
+                  src={`${API_BASE}/recording/${rec.recordingSid}/audio`}
+                  className="w-full h-8 rounded-xl accent-[#2563EB]"
+                />
               ) : (
                 <div className="flex items-center gap-2 py-2">
                   <svg className="w-3.5 h-3.5 animate-spin text-[#8B92A9]" fill="none" viewBox="0 0 24 24">
