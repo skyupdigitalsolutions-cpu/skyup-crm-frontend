@@ -77,127 +77,155 @@ import { useDateFilter } from "../components/dataFilter";
     );
   }
 
-  // ── Add Lead Modal ────────────────────────────────────────────────────────────
- // ── Add Lead Modal ────────────────────────────────────────────────────────────
+ // ── Add Lead Modal (supports single + bulk) ───────────────────────────────────
 function AddLeadModal({ agents, onClose, onAdd }) {
   const today = todayAsCustomDate();
 
-  const [form, setForm] = useState({
-    name: "", phone: "", source: "Google Ads", campaign: "",
-    agent: agents[0]?.name || "", status: "New", date: today, remark: "",
+  const emptyRow = () => ({
+    _key:     Math.random().toString(36).slice(2),
+    name:     "",
+    phone:    "",
+    campaign: "",
+    remark:   "",
+    source:   "Google Ads",
+    agent:    agents[0]?.name || "",
+    status:   "New",
+    date:     today,
   });
 
-  const [errors, setErrors] = useState({});
-  const set = (k, v) => {
-    setForm(f => ({ ...f, [k]: v }));
-    // Clear error on change
-    setErrors(e => ({ ...e, [k]: "" }));
+  const [rows, setRows]         = useState([emptyRow()]);
+  const [rowErrors, setRowErrors] = useState([{}]);
+  const [submitError, setSubmitError] = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
+
+  const updateRow  = (i, k, v) => {
+    setRows(rs => rs.map((r, idx) => idx === i ? { ...r, [k]: v } : r));
+    setRowErrors(es => es.map((e, idx) => idx === i ? { ...e, [k]: "" } : e));
+  };
+  const addRow     = () => { setRows(rs => [...rs, emptyRow()]); setRowErrors(es => [...es, {}]); };
+  const removeRow  = (i) => {
+    if (rows.length === 1) return;
+    setRows(rs => rs.filter((_, idx) => idx !== i));
+    setRowErrors(es => es.filter((_, idx) => idx !== i));
   };
 
-  // ── Validation ──────────────────────────────────────────────────────────────
-  const validate = () => {
-    const newErrors = {};
-
-    if (!form.name.trim() || form.name.trim().length < 2)
-      newErrors.name = "Name must be at least 2 characters.";
-
-    if (!form.phone.trim())
-      newErrors.phone = "Phone is required.";
-    else if (!/^\d{10}$/.test(form.phone.trim()))
-      newErrors.phone = "Phone must be exactly 10 digits.";
-
-    if (!form.date.trim())
-      newErrors.date = "Date is required.";
-    else if (!/^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(form.date.trim()))
-      newErrors.date = 'Use format: 25 Mar 2026';
-
-    return newErrors;
+  const validateRows = () => {
+    let valid = true;
+    const newErrors = rows.map(row => {
+      const e = {};
+      if (!row.name.trim() || row.name.trim().length < 2)
+        e.name = "Min 2 chars";
+      if (!row.phone.trim() || !/^\d{10}$/.test(row.phone.trim()))
+        e.phone = "10 digits";
+      if (!row.date.trim() || !/^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(row.date.trim()))
+        e.date = "DD Mon YYYY";
+      if (Object.keys(e).length) valid = false;
+      return e;
+    });
+    setRowErrors(newErrors);
+    return valid;
   };
+
+  const buildPayload = (row) => {
+    const agentObj = agents.find(a => a.name === row.agent) ?? null;
+    return {
+      name:     row.name.trim(),
+      mobile:   row.phone.trim(),
+      source:   row.source,
+      campaign: row.campaign.trim() || null,
+      status:   row.status,
+      date:     new Date(row.date),
+      remark:   row.remark.trim() || "Manually added",
+      ...(agentObj?.id ? { user: agentObj.id } : {}),
+      ...(getRole() === "superadmin" && agentObj?.company ? { companyId: agentObj.company } : {}),
+    };
+  };
+
+  const formatSaved = (saved, row) => ({
+    id:       saved._id,
+    name:     saved.name,
+    mobile:   saved.mobile,
+    phone:    saved.mobile,
+    source:   saved.source   || "Web Form",
+    campaign: saved.campaign || "—",
+    status:   saved.status,
+    date:     new Date(saved.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    remark:   saved.remark,
+    agent:    row.agent,
+    company:  saved.company,
+  });
 
   const handleSubmit = async () => {
-    const newErrors = validate();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+    if (!validateRows()) return;
+    setLoading(true);
+    setSubmitError("");
 
-    // Resolve agent name → _id
-    const agentObj = agents.find(a => a.name === form.agent) ?? null;
-
-    // Build the payload the backend expects
-    const payload = {
-      name:     form.name.trim(),
-      // mobile:   Number(form.phone.trim()), commented for +91
-      mobile:   form.phone.trim(),
-      source:   form.source,
-      campaign: form.campaign.trim() || null,
-      status:   form.status,
-      date:     new Date(form.date),
-      remark:   form.remark.trim() || "Manually added",
-      ...(agentObj?.id ? { user: agentObj.id } : {}),
-      // SuperAdmin has no company — pass it from the selected agent's company
-      ...(getRole() === "superadmin" && agentObj?.company
-        ? { companyId: agentObj.company }
-        : {}),
-    };
-
-    // Pick the right endpoint based on role
     const role = getRole();
-    const endpoint =
-      role === "superadmin" ? "/lead/superadmin/create" :
-      role === "admin"      ? "/lead/admin/create" :
-                              "/lead";
 
     try {
-      const res = await api.post(endpoint, payload);
-      // Format the saved lead the same way fetchAll does
-      const saved = res.data;
-      onAdd({
-        id:       saved._id,
-        name:     saved.name,
-        mobile:   saved.mobile,
-        source:   saved.source   || "Web Form",
-        campaign: saved.campaign || "—",
-        status:   saved.status,
-        date:     new Date(saved.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-        remark:   saved.remark,
-        agent:    form.agent,
-        company:  saved.company,
-      });
+      if (rows.length === 1) {
+        // ── Single lead path (unchanged behaviour) ────────────────────────────
+        const endpoint =
+          role === "superadmin" ? "/lead/superadmin/create" :
+          role === "admin"      ? "/lead/admin/create" :
+                                  "/lead";
+        const res  = await api.post(endpoint, buildPayload(rows[0]));
+        onAdd(formatSaved(res.data, rows[0]));
+      } else {
+        // ── Bulk path ─────────────────────────────────────────────────────────
+        const endpoint =
+          role === "superadmin" ? "/lead/superadmin/bulk-create" :
+                                  "/lead/admin/bulk-create";
+
+        const res  = await api.post(endpoint, { leads: rows.map(buildPayload) });
+        const data = res.data; // { saved, errors, savedCount, errorCount }
+
+        data.saved.forEach((saved, idx) => {
+          onAdd(formatSaved(saved, rows[idx] || rows[0]));
+        });
+
+        if (data.errorCount > 0) {
+          setSubmitError(
+            `${data.savedCount} lead(s) saved. ${data.errorCount} failed: ` +
+            data.errors.map(e => `Row ${e.index + 1}: ${e.message}`).join("; ")
+          );
+          setLoading(false);
+          return; // keep modal open so user sees errors
+        }
+      }
       onClose();
     } catch (err) {
-      const msg = err.response?.data?.message || "Failed to save lead. Please try again.";
-      setErrors({ submit: msg });
+      setSubmitError(err.response?.data?.message || "Failed to save. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // ── Field configs ───────────────────────────────────────────────────────────
-  const textFields = [
-    { label: "Lead Name *", key: "name",     placeholder: "Full name" },
-    { label: "Phone *",     key: "phone",    placeholder: "10-digit number" },
-    { label: "Campaign",    key: "campaign", placeholder: "Campaign name" },
-    { label: "Remark",      key: "remark",   placeholder: "Notes" },
-  ];
+  const inputCls = (err) =>
+    `w-full px-2.5 py-1.5 rounded-lg border text-[12px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
+    ${err ? "border-red-400 dark:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`;
 
-  const selectFields = [
-    { label: "Source", key: "source", options: ALL_SOURCES },
-    { label: "Agent",  key: "agent",  options: agents.map(a => a.name) },
-    { label: "Status", key: "status", options: ALL_STATUSES },
-  ];
-
-  const inputCls = (key) =>
-    `px-3 py-2 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
-    ${errors[key]
-      ? "border-red-400 dark:border-red-500 focus:border-red-500"
-      : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`;
+  const selCls = `w-full px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
-        
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className={`bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl flex flex-col
+        ${bulkMode ? "w-full max-w-5xl max-h-[90vh]" : "w-full max-w-md"}`}>
+
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Add New Lead</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] shrink-0">
+          <div className="flex items-center gap-3">
+            <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+              {bulkMode ? `Add Multiple Leads (${rows.length})` : "Add New Lead"}
+            </h2>
+            <button
+              onClick={() => { setBulkMode(b => !b); }}
+              className="px-3 py-1 rounded-full text-[11px] font-semibold border border-[#2563EB] text-[#2563EB] hover:bg-[#2563EB] hover:text-white transition"
+            >
+              {bulkMode ? "Single mode" : "+ Bulk mode"}
+            </button>
+          </div>
           <button onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -206,89 +234,186 @@ function AddLeadModal({ agents, onClose, onAdd }) {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {/* Text fields */}
-          {textFields.map(f => (
-            <div key={f.key} className="flex flex-col gap-1">
-              <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">
-                {f.label}
-              </label>
-              <input
-                type="text"
-                placeholder={f.placeholder}
-                value={form[f.key]}
-                onChange={e => set(f.key, e.target.value)}
-                className={inputCls(f.key)}
-              />
-              {errors[f.key] && (
-                <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
-                  <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                  </svg>
-                  {errors[f.key]}
-                </span>
-              )}
+        {/* Body */}
+        {bulkMode ? (
+          /* ── BULK TABLE MODE ─────────────────────────────────────────────── */
+          <div className="overflow-auto flex-1 px-4 py-3">
+            <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mb-3">
+              Fill in each row — campaign, agent &amp; status are shared defaults but can be changed per row.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px] border-separate border-spacing-y-1.5">
+                <thead>
+                  <tr className="text-[10px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">
+                    <th className="px-1 text-left w-6">#</th>
+                    <th className="px-1 text-left min-w-[130px]">Name *</th>
+                    <th className="px-1 text-left min-w-[110px]">Phone *</th>
+                    <th className="px-1 text-left min-w-[120px]">Campaign</th>
+                    <th className="px-1 text-left min-w-[100px]">Remark</th>
+                    <th className="px-1 text-left min-w-[110px]">Source</th>
+                    <th className="px-1 text-left min-w-[120px]">Agent</th>
+                    <th className="px-1 text-left min-w-[110px]">Status</th>
+                    <th className="px-1 text-left min-w-[110px]">Date *</th>
+                    <th className="px-1 w-8"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, i) => (
+                    <tr key={row._key} className="align-top">
+                      <td className="px-1 pt-1.5 text-[#8B92A9] dark:text-[#565C75] text-center">{i + 1}</td>
+                      <td className="px-1">
+                        <input type="text" value={row.name} placeholder="Full name"
+                          onChange={e => updateRow(i, "name", e.target.value)}
+                          className={inputCls(rowErrors[i]?.name)} />
+                        {rowErrors[i]?.name && <p className="text-[10px] text-red-500 mt-0.5">{rowErrors[i].name}</p>}
+                      </td>
+                      <td className="px-1">
+                        <input type="text" value={row.phone} placeholder="10 digits"
+                          onChange={e => updateRow(i, "phone", e.target.value)}
+                          className={inputCls(rowErrors[i]?.phone)} />
+                        {rowErrors[i]?.phone && <p className="text-[10px] text-red-500 mt-0.5">{rowErrors[i].phone}</p>}
+                      </td>
+                      <td className="px-1">
+                        <input type="text" value={row.campaign} placeholder="Optional"
+                          onChange={e => updateRow(i, "campaign", e.target.value)}
+                          className={inputCls(false)} />
+                      </td>
+                      <td className="px-1">
+                        <input type="text" value={row.remark} placeholder="Notes"
+                          onChange={e => updateRow(i, "remark", e.target.value)}
+                          className={inputCls(false)} />
+                      </td>
+                      <td className="px-1">
+                        <select value={row.source} onChange={e => updateRow(i, "source", e.target.value)} className={selCls}>
+                          {ALL_SOURCES.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-1">
+                        <select value={row.agent} onChange={e => updateRow(i, "agent", e.target.value)} className={selCls}>
+                          {agents.map(a => <option key={a.name}>{a.name}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-1">
+                        <select value={row.status} onChange={e => updateRow(i, "status", e.target.value)} className={selCls}>
+                          {ALL_STATUSES.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-1">
+                        <input type="text" value={row.date} placeholder="25 Mar 2026"
+                          onChange={e => updateRow(i, "date", e.target.value)}
+                          className={inputCls(rowErrors[i]?.date)} />
+                        {rowErrors[i]?.date && <p className="text-[10px] text-red-500 mt-0.5">{rowErrors[i].date}</p>}
+                      </td>
+                      <td className="px-1 pt-1">
+                        <button onClick={() => removeRow(i)} disabled={rows.length === 1}
+                          className="w-6 h-6 flex items-center justify-center rounded-md text-[#8B92A9] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-30 transition">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
-
-          {/* Select fields */}
-          {selectFields.map(f => (
-            <div key={f.key} className="flex flex-col gap-1">
-              <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">
-                {f.label}
-              </label>
-              <select
-                value={form[f.key]}
-                onChange={e => set(f.key, e.target.value)}
-                className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none">
-                {f.options.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-          ))}
-
-          {/* Date field */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">
-              Date *
-            </label>
-            <input
-              type="text"
-              value={form.date}
-              onChange={e => set("date", e.target.value)}
-              placeholder="25 Mar 2026"
-              className={inputCls("date")}
-            />
-            {errors.date && (
-              <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
-                <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+            {rows.length < 50 && (
+              <button onClick={addRow}
+                className="mt-3 flex items-center gap-1.5 text-[12px] font-semibold text-[#2563EB] hover:text-blue-700 transition">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
                 </svg>
-                {errors.date}
-              </span>
+                Add another row {rows.length >= 50 ? "(max 50)" : `(${rows.length}/50)`}
+              </button>
             )}
           </div>
-        </div>
-
-        {/* Submit error */}
-        {errors.submit && (
-          <p className="text-[12px] text-red-500 mt-3 text-center">{errors.submit}</p>
+        ) : (
+          /* ── SINGLE FORM MODE (original layout) ──────────────────────────── */
+          <div className="px-6 py-4">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: "Lead Name *", key: "name",     placeholder: "Full name" },
+                { label: "Phone *",     key: "phone",    placeholder: "10-digit number" },
+                { label: "Campaign",    key: "campaign", placeholder: "Campaign name" },
+                { label: "Remark",      key: "remark",   placeholder: "Notes" },
+              ].map(f => (
+                <div key={f.key} className="flex flex-col gap-1">
+                  <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
+                  <input type="text" placeholder={f.placeholder} value={rows[0][f.key]}
+                    onChange={e => updateRow(0, f.key, e.target.value)}
+                    className={`px-3 py-2 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
+                      ${rowErrors[0]?.[f.key] ? "border-red-400 dark:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`} />
+                  {rowErrors[0]?.[f.key] && (
+                    <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
+                      <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                      </svg>
+                      {rowErrors[0][f.key]}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {[
+                { label: "Source", key: "source", options: ALL_SOURCES },
+                { label: "Agent",  key: "agent",  options: agents.map(a => a.name) },
+                { label: "Status", key: "status", options: ALL_STATUSES },
+              ].map(f => (
+                <div key={f.key} className="flex flex-col gap-1">
+                  <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
+                  <select value={rows[0][f.key]} onChange={e => updateRow(0, f.key, e.target.value)}
+                    className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none">
+                    {f.options.map(o => <option key={o}>{o}</option>)}
+                  </select>
+                </div>
+              ))}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Date *</label>
+                <input type="text" value={rows[0].date} onChange={e => updateRow(0, "date", e.target.value)}
+                  placeholder="25 Mar 2026"
+                  className={`px-3 py-2 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
+                    ${rowErrors[0]?.date ? "border-red-400" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`} />
+                {rowErrors[0]?.date && (
+                  <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
+                    <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                    </svg>
+                    {rowErrors[0].date}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
-        {/* Actions */}
-        <div className="flex gap-2 mt-5">
-          <button onClick={onClose}
-            className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
-            Cancel
-          </button>
-          <button onClick={handleSubmit}
-            className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
-            Add Lead
-          </button>
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-[#E4E7EF] dark:border-[#262A38] shrink-0">
+          {submitError && (
+            <p className="text-[12px] text-red-500 mb-3 text-center">{submitError}</p>
+          )}
+          <div className="flex gap-2">
+            <button onClick={onClose}
+              className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
+              Cancel
+            </button>
+            <button onClick={handleSubmit} disabled={loading}
+              className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 flex items-center justify-center gap-2">
+              {loading && (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+              )}
+              {loading ? "Saving…" : bulkMode ? `Add ${rows.length} Lead${rows.length > 1 ? "s" : ""}` : "Add Lead"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+
+
 
   // ── Edit Lead Modal ───────────────────────────────────────────────────────────
   function EditLeadModal({ lead, agents, onClose, onSave }) {

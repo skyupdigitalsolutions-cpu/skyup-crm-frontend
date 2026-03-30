@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../data/axiosConfig";
 import { getStoredUser } from "../data/dataService";
 
@@ -58,7 +59,7 @@ function generatePassword(length = 14) {
 }
 
 // ── Credentials Modal ─────────────────────────────────────────────────────────
-function CredentialsModal({ member, onClose }) {
+function CredentialsModal({ member, onClose, navigate }) {
   const [copied, setCopied] = useState(null);
   const isUser = member.role === "user";
 
@@ -72,7 +73,7 @@ function CredentialsModal({ member, onClose }) {
   const handleLoginAsUser = () => {
     sessionStorage.setItem("newUserEmail",    member.email);
     sessionStorage.setItem("newUserPassword", member.password);
-    window.location.href = "/login";
+    navigate("/login");
   };
 
   return (
@@ -403,6 +404,7 @@ export default function UserManagement({
   existingUsers  = [],
 }) {
   const cfg = PLANS[currentPlan] || PLANS.basic;
+  const navigate = useNavigate();
 
   const [admins, setAdmins] = useState([]);
   const [users,  setUsers]  = useState([]);
@@ -515,7 +517,7 @@ export default function UserManagement({
   return (
     <div className="mt-8">
       {modal    && <AddMemberModal  role={modal}  onClose={() => setModal(null)}    onAdd={addMember} />}
-      {credsFor && <CredentialsModal member={credsFor} onClose={() => setCredsFor(null)} />}
+      {credsFor && <CredentialsModal member={credsFor} onClose={() => setCredsFor(null)} navigate={navigate} />}
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
@@ -583,7 +585,7 @@ export default function UserManagement({
                 Cancel
               </button>
               <button
-                onClick={() => { setUpgradeAlert(""); window.location.href = "/upgrade-plan"; }}
+                onClick={() => { setUpgradeAlert(""); navigate("/upgrade-plan"); }}
                 className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

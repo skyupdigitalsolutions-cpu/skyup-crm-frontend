@@ -66,7 +66,7 @@ export default function App() {
             <AppLayout><Dailyreport /></AppLayout>
           </ProtectedRoute>
         }/>
-        <Route path="/upgrade-plan" element={
+        <Route path="/upgrade-plan" element={ 
           <ProtectedRoute>
             <AppLayout><UpgradePlan /></AppLayout>
           </ProtectedRoute>
