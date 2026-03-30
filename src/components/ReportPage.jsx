@@ -417,8 +417,59 @@ function AddLeadModal({ agents, onClose, onAdd }) {
 
   // ── Edit Lead Modal ───────────────────────────────────────────────────────────
   function EditLeadModal({ lead, agents, onClose, onSave }) {
-    const [form, setForm] = useState({ ...lead });
+    const [form, setForm]       = useState({ ...lead });
+    const [loading, setLoading] = useState(false);
+    const [error, setError]     = useState("");
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+    const handleSave = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const role = getRole();
+        // Pick the right endpoint based on role
+        const endpoint =
+          role === "superadmin" ? `/lead/superadmin/${lead.id}` :
+          role === "admin"      ? `/lead/admin/${lead.id}` :
+                                  `/lead/${lead.id}`;
+
+        const payload = {
+          name:     form.name,
+          mobile:   form.phone || form.mobile,
+          source:   form.source,
+          campaign: form.campaign || null,
+          status:   form.status,
+          date:     form.date ? new Date(form.date) : undefined,
+          remark:   form.remark,
+        };
+
+        // Resolve agent name → user id if changed
+        const agentObj = agents.find(a => a.name === form.agent);
+        if (agentObj?.id) payload.user = agentObj.id;
+
+        const res = await api.put(endpoint, payload);
+        const saved = res.data;
+
+        // Normalise the returned lead into the same shape the table uses
+        onSave({
+          ...lead,           // keep local fields like agent name
+          ...form,
+          id:       saved._id || lead.id,
+          mobile:   saved.mobile,
+          phone:    saved.mobile,
+          source:   saved.source,
+          campaign: saved.campaign || "—",
+          status:   saved.status,
+          date:     new Date(saved.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+          remark:   saved.remark,
+        });
+        onClose();
+      } catch (err) {
+        setError(err.response?.data?.message || "Failed to save. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -439,7 +490,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
             ].map(f => (
               <div key={f.key} className="flex flex-col gap-1">
                 <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
-                <input type="text" value={form[f.key]} onChange={e => set(f.key, e.target.value)}
+                <input type="text" value={form[f.key] ?? ""} onChange={e => set(f.key, e.target.value)}
                   className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]" />
               </div>
             ))}
@@ -457,9 +508,14 @@ function AddLeadModal({ agents, onClose, onAdd }) {
               </div>
             ))}
           </div>
+          {error && <p className="text-[12px] text-red-500 mt-3 text-center">{error}</p>}
           <div className="flex gap-2 mt-5">
             <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-            <button onClick={() => { onSave(form); onClose(); }} className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">Save Changes</button>
+            <button onClick={handleSave} disabled={loading}
+              className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 flex items-center justify-center gap-2">
+              {loading && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>}
+              {loading ? "Saving…" : "Save Changes"}
+            </button>
           </div>
         </div>
       </div>
@@ -530,7 +586,25 @@ function AddLeadModal({ agents, onClose, onAdd }) {
 
     const addLead    = lead    => { setLeads(ls => [lead, ...ls]); setPage(1); };
     const saveLead   = updated => setLeads(ls => ls.map(l => l.id === updated.id ? updated : l));
-    const deleteLead = id      => { setLeads(ls => ls.filter(l => l.id !== id)); setDeleteConfirm(null); };
+
+    const confirmDelete = async () => {
+      const lead = deleteConfirm;
+      // Optimistically remove from UI first
+      setLeads(ls => ls.filter(l => l.id !== lead.id));
+      setDeleteConfirm(null);
+      try {
+        const role = getRole();
+        const endpoint =
+          role === "superadmin" ? `/lead/superadmin/${lead.id}` :
+          role === "admin"      ? `/lead/admin/${lead.id}` :
+                                  `/lead/${lead.id}`;
+        await api.delete(endpoint);
+      } catch (err) {
+        // If API call fails, restore the lead back into state
+        setLeads(ls => [lead, ...ls]);
+        console.error("Delete failed:", err.response?.data?.message || err.message);
+      }
+    };
 
     // ✅ FIXED: display date — handle both "DD Mon YYYY" and ISO fallback gracefully
     const displayDate = (dateStr) => {
@@ -591,7 +665,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
               </p>
               <div className="flex gap-2">
                 <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-                <button onClick={() => deleteLead(deleteConfirm.id)} className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition">Delete</button>
+                <button onClick={confirmDelete} className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition">Delete</button>
               </div>
             </div>
           </div>

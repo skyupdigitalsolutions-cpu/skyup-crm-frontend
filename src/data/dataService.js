@@ -68,9 +68,10 @@ async function fetchSuperAdminData() {
 // ── Format lead from DB to dashboard format ────────────────────────────────
 function formatLead(lead) {
   return {
-    id:       lead._id,
+    id:       String(lead._id),   // stringify so === comparisons work reliably
     name:     lead.name,
     mobile:   lead.mobile,
+    phone:    lead.mobile,        // table reads lead.phone — keep both in sync
     source:   lead.source   || "Web Form",
     campaign: lead.campaign || "—",
     status:   lead.status,
