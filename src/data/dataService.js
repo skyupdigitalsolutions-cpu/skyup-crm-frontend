@@ -72,6 +72,7 @@ function formatLead(lead) {
     name:     lead.name,
     mobile:   lead.mobile,
     phone:    lead.mobile,        // table reads lead.phone — keep both in sync
+    email:    lead.email || "",   // ← ADDED: was missing — Meta leads always have email
     source:   lead.source   || "Web Form",
     campaign: lead.campaign || "—",
     status:   lead.status,

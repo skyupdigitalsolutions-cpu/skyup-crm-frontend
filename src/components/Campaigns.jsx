@@ -130,6 +130,7 @@ function LeadDrawer({ campaign, onClose }) {
               {leads.map((l, i) => {
                 const name   = l.name   || "Unknown";
                 const phone  = l.phone  || l.mobile || "—";
+                const email  = l.email  || "";
                 const agent  = l.agent  || (l.user && (l.user.name || "Assigned")) || "Unassigned";
                 const status = l.status || "New";
                 const remark = l.remark || "—";
@@ -144,6 +145,7 @@ function LeadDrawer({ campaign, onClose }) {
                         <div>
                           <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{name}</div>
                           <div className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{phone}</div>
+                          {email && <div className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">{email}</div>}
                         </div>
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${ls.bg} ${ls.text}`}>{status}</span>
