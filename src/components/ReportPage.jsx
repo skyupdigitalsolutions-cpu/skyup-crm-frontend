@@ -85,6 +85,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
     _key:     Math.random().toString(36).slice(2),
     name:     "",
     phone:    "",
+    email:    "",
     campaign: "",
     remark:   "",
     source:   "Google Ads",
@@ -132,6 +133,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
     return {
       name:     row.name.trim(),
       mobile:   row.phone.trim(),
+      email:    row.email?.trim() || "",
       source:   row.source,
       campaign: row.campaign.trim() || null,
       status:   row.status,
@@ -147,6 +149,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
     name:     saved.name,
     mobile:   saved.mobile,
     phone:    saved.mobile,
+    email:    saved.email || row.email || "",
     source:   saved.source   || "Web Form",
     campaign: saved.campaign || "—",
     status:   saved.status,
@@ -248,6 +251,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
                     <th className="px-1 text-left w-6">#</th>
                     <th className="px-1 text-left min-w-[130px]">Name *</th>
                     <th className="px-1 text-left min-w-[110px]">Phone *</th>
+                    <th className="px-1 text-left min-w-[150px]">Email</th>
                     <th className="px-1 text-left min-w-[120px]">Campaign</th>
                     <th className="px-1 text-left min-w-[100px]">Remark</th>
                     <th className="px-1 text-left min-w-[110px]">Source</th>
@@ -272,6 +276,11 @@ function AddLeadModal({ agents, onClose, onAdd }) {
                           onChange={e => updateRow(i, "phone", e.target.value)}
                           className={inputCls(rowErrors[i]?.phone)} />
                         {rowErrors[i]?.phone && <p className="text-[10px] text-red-500 mt-0.5">{rowErrors[i].phone}</p>}
+                      </td>
+                      <td className="px-1">
+                        <input type="text" value={row.email || ""} placeholder="email@example.com"
+                          onChange={e => updateRow(i, "email", e.target.value)}
+                          className={inputCls()} />
                       </td>
                       <td className="px-1">
                         <input type="text" value={row.campaign} placeholder="Optional"
@@ -334,6 +343,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
               {[
                 { label: "Lead Name *", key: "name",     placeholder: "Full name" },
                 { label: "Phone *",     key: "phone",    placeholder: "10-digit number" },
+                { label: "Email",       key: "email",    placeholder: "email@example.com" },
                 { label: "Campaign",    key: "campaign", placeholder: "Campaign name" },
                 { label: "Remark",      key: "remark",   placeholder: "Notes" },
               ].map(f => (
@@ -436,6 +446,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
         const payload = {
           name:     form.name,
           mobile:   form.phone || form.mobile,
+          email:    form.email || "",
           source:   form.source,
           campaign: form.campaign || null,
           status:   form.status,
@@ -457,6 +468,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
           id:       saved._id || lead.id,
           mobile:   saved.mobile,
           phone:    saved.mobile,
+          email:    saved.email || form.email || "",
           source:   saved.source,
           campaign: saved.campaign || "—",
           status:   saved.status,
@@ -484,6 +496,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
             {[
               { label: "Lead Name", key: "name" },
               { label: "Phone",     key: "phone" },
+              { label: "Email",     key: "email" },
               { label: "Campaign",  key: "campaign" },
               { label: "Remark",    key: "remark" },
               { label: "Date",      key: "date" },
@@ -573,7 +586,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
         if (!isWithinRange(l.date)) return false;
         const q = search.toLowerCase();
         return (
-          (!q || l.name.toLowerCase().includes(q) || l.phone.includes(q) || l.campaign.toLowerCase().includes(q)) &&
+          (!q || l.name.toLowerCase().includes(q) || l.phone.includes(q) || l.campaign.toLowerCase().includes(q) || (l.email || "").toLowerCase().includes(q)) &&
           (statusFilter === "All" || l.status === statusFilter) &&
           (agentFilter  === "All" || l.agent  === agentFilter)
         );
@@ -617,9 +630,9 @@ function AddLeadModal({ agents, onClose, onAdd }) {
     };
 
     const exportCSV = () => {
-      const headers = ["#", "Name", "Phone", "Source", "Campaign", "Agent", "Status", "Date", "Remark"];
+      const headers = ["#", "Name", "Phone", "Email", "Source", "Campaign", "Agent", "Status", "Date", "Remark"];
       const rows = filtered.map((l, i) =>
-        [i + 1, l.name, l.phone, l.source, l.campaign, l.agent, l.status, l.date, l.remark]
+        [i + 1, l.name, l.phone, l.email || "", l.source, l.campaign, l.agent, l.status, l.date, l.remark]
           .map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")
       );
       const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv" });
@@ -811,14 +824,14 @@ function AddLeadModal({ agents, onClose, onAdd }) {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                  {["#", "Lead Name", "Phone", "Source", "Campaign", "Agent", "Status", "Date", "Remark", "Actions"].map(h => (
+                  {["#", "Lead Name", "Phone", "Email", "Source", "Campaign", "Agent", "Status", "Date", "Remark", "Actions"].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {paged.length === 0 ? (
-                  <tr><td colSpan={10} className="px-4 py-12 text-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads match your filters.</td></tr>
+                  <tr><td colSpan={11} className="px-4 py-12 text-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads match your filters.</td></tr>
                 ) : paged.map((lead, i) => {
                   const st = STATUS_STYLE[lead.status];
                   return (
@@ -833,6 +846,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.phone}</td>
+                      <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.email || "—"}</td>
                       <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.source}</td>
                       <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB]">{lead.campaign}</td>
                       <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.agent}</td>
