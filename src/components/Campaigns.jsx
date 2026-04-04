@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "../data/axiosConfig"; // ✅ ADDED
+import VoiceBotPanel from "./VoiceBotPanel";
 
 // ── Channel / status style maps ───────────────────────────────────────────────
 const CHANNEL_STYLE = {
@@ -21,6 +22,13 @@ const LEAD_STATUS_STYLE = {
   "In Progress":    { bg: "bg-[#FFFBEB] dark:bg-[#2D1F00]", text: "text-[#D97706] dark:text-[#FCD34D]" },
   "Not Interested": { bg: "bg-[#FEF2F2] dark:bg-[#2D0A0A]", text: "text-[#DC2626] dark:text-[#F87171]" },
   "New":            { bg: "bg-[#EEF3FF] dark:bg-[#1A2540]", text: "text-[#2563EB] dark:text-[#4F8EF7]" },
+};
+
+// Lead temperature (auto-set by voice bot)
+const LEAD_TEMP_STYLE = {
+  "Hot":  { bg: "bg-[#FEF2F2] dark:bg-[#2D0A0A]", text: "text-[#DC2626] dark:text-[#F87171]", icon: "🔥" },
+  "Warm": { bg: "bg-[#FFFBEB] dark:bg-[#2D1F00]", text: "text-[#D97706] dark:text-[#FCD34D]", icon: "☀️" },
+  "Cold": { bg: "bg-[#EEF3FF] dark:bg-[#1A2540]", text: "text-[#2563EB] dark:text-[#4F8EF7]", icon: "❄️" },
 };
 
 // colour palette for Meta campaign cards (cycles if more than 6)
@@ -72,6 +80,14 @@ function LeadDrawer({ campaign, onClose }) {
   }, [campaign]);
 
   if (!campaign) return null;
+
+  const normalizedLeads = leads.map(l => ({
+  ...l,
+  id: l._id || l.id,
+  phone: l.mobile || l.phone,
+}));
+
+
   const channel   = campaign.channel || "Meta";
   const ch        = CHANNEL_STYLE[channel] || CHANNEL_STYLE.Meta;
   const st        = STATUS_STYLE[campaign.status] || STATUS_STYLE.Active;
@@ -130,11 +146,12 @@ function LeadDrawer({ campaign, onClose }) {
               {leads.map((l, i) => {
                 const name   = l.name   || "Unknown";
                 const phone  = l.phone  || l.mobile || "—";
-                const email  = l.email  || "";
                 const agent  = l.agent  || (l.user && (l.user.name || "Assigned")) || "Unassigned";
                 const status = l.status || "New";
                 const remark = l.remark || "—";
+                const temp   = l.temperature || null;
                 const ls     = LEAD_STATUS_STYLE[status] || LEAD_STATUS_STYLE["New"];
+                const lt     = temp ? (LEAD_TEMP_STYLE[temp] || null) : null;
                 return (
                   <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3 border border-[#E4E7EF] dark:border-[#262A38]">
                     <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -145,10 +162,16 @@ function LeadDrawer({ campaign, onClose }) {
                         <div>
                           <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{name}</div>
                           <div className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{phone}</div>
-                          {email && <div className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">{email}</div>}
                         </div>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${ls.bg} ${ls.text}`}>{status}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {lt && (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${lt.bg} ${lt.text}`}>
+                            {lt.icon} {temp}
+                          </span>
+                        )}
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${ls.bg} ${ls.text}`}>{status}</span>
+                      </div>
                     </div>
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="text-[#8B92A9] dark:text-[#565C75]">
@@ -162,6 +185,12 @@ function LeadDrawer({ campaign, onClose }) {
             </div>
           )}
         </div>
+
+        {/* Voice Bot auto-call & lead temperature section */}
+       {/* Voice Bot auto-call & lead temperature section */}
+<div className="px-6 pb-6">
+  <VoiceBotPanel leads={normalizedLeads} campaignName={campaign.name} />
+</div>
       </div>
     </div>
   );

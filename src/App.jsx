@@ -6,6 +6,9 @@ import Dailyreport from "./components/DailyReport";
 import UpgradePlan from "./components/UpgradePlan";
 import ReportPage from "./components/ReportPage";
 import UserLogin from "./pages/UserLogin";
+import UserDashboard from "./pages/UserDashboard";
+import UserTwilioPage from "./pages/UserTwilioPage";
+import UserDailyReport from "./pages/UserDailyReport";
 import AdminLogin from "./pages/AdminLogin";
 import SuperAdminLogin from "./pages/SuperAdminLogin";
 
@@ -20,12 +23,22 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// ── Admin-only Route — redirects users to their dashboard ────────────────
+function AdminRoute({ children }) {
+  const token = localStorage.getItem("token");
+  const user  = JSON.parse(localStorage.getItem("user") || "null");
+
+  if (!token || !user) return <Navigate to="/login" replace />;
+  if (user.role === "user") return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
 // ── Layout with Sidebar — only for protected pages ────────────────────────
 function AppLayout({ children }) {
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1">{children}</main>
+    <div className="flex h-screen overflow-hidden">
+  <Sidebar />
+  <main className="flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }
@@ -43,32 +56,53 @@ export default function App() {
         {/* ── Protected routes (with sidebar) 🔒 ── */}
         <Route path="/" element={
           <ProtectedRoute>
-            <AppLayout><Dashboard /></AppLayout>
+            <AppLayout>
+              {(() => {
+                const u = JSON.parse(localStorage.getItem("user") || "null");
+                return u?.role === "user" ? <UserDashboard /> : <Dashboard />;
+              })()}
+            </AppLayout>
           </ProtectedRoute>
         }/>
         <Route path="/dashboard" element={
           <ProtectedRoute>
-            <AppLayout><Dashboard /></AppLayout>
+            <AppLayout>
+              {(() => {
+                const u = JSON.parse(localStorage.getItem("user") || "null");
+                return u?.role === "user" ? <UserDashboard /> : <Dashboard />;
+              })()}
+            </AppLayout>
           </ProtectedRoute>
         }/>
         <Route path="/reportpage" element={
-          <ProtectedRoute>
+          <AdminRoute>
             <AppLayout><ReportPage /></AppLayout>
-          </ProtectedRoute>
+          </AdminRoute>
         }/>
         <Route path="/campaigns" element={
-          <ProtectedRoute>
+          <AdminRoute>
             <AppLayout><Campaigns /></AppLayout>
-          </ProtectedRoute>
+          </AdminRoute>
         }/>
         <Route path="/daily-report" element={
           <ProtectedRoute>
-            <AppLayout><Dailyreport /></AppLayout>
+            <AppLayout>
+              {(() => {
+                const u = JSON.parse(localStorage.getItem("user") || "null");
+                return u?.role === "user" ? <UserDailyReport /> : <Dailyreport />;
+              })()}
+            </AppLayout>
           </ProtectedRoute>
         }/>
         <Route path="/upgrade-plan" element={ 
-          <ProtectedRoute>
+          <AdminRoute>
             <AppLayout><UpgradePlan /></AppLayout>
+          </AdminRoute>
+        }/>
+
+        <Route path="/user/twilio" element={
+          <ProtectedRoute>
+            <AppLayout><UserTwilioPage /></AppLayout>
           </ProtectedRoute>
         }/>
 

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import axios from "axios";
 import { fetchAll, getRole, getStoredUser } from "../data/dataService";
 import api from "../data/axiosConfig";
 import { useDateFilter } from "../components/dataFilter";
@@ -30,7 +31,7 @@ import { useDateFilter } from "../components/dataFilter";
       day:   "2-digit",
       month: "short",
       year:  "numeric",
-    }); // → "25 Mar 2026"
+    });
   }
 
   // ── Stat card ─────────────────────────────────────────────────────────────────
@@ -77,158 +78,107 @@ import { useDateFilter } from "../components/dataFilter";
     );
   }
 
- // ── Add Lead Modal (supports single + bulk) ───────────────────────────────────
+  // ── Add Lead Modal ────────────────────────────────────────────────────────────
 function AddLeadModal({ agents, onClose, onAdd }) {
   const today = todayAsCustomDate();
 
-  const emptyRow = () => ({
-    _key:     Math.random().toString(36).slice(2),
-    name:     "",
-    phone:    "",
-    email:    "",
-    campaign: "",
-    remark:   "",
-    source:   "Google Ads",
-    agent:    agents[0]?.name || "",
-    status:   "New",
-    date:     today,
+  const [form, setForm] = useState({
+    name: "", phone: "", source: "Google Ads", campaign: "",
+    agent: agents[0]?.name || "", status: "New", date: today, remark: "",
   });
 
-  const [rows, setRows]         = useState([emptyRow()]);
-  const [rowErrors, setRowErrors] = useState([{}]);
-  const [submitError, setSubmitError] = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [bulkMode, setBulkMode] = useState(false);
-
-  const updateRow  = (i, k, v) => {
-    setRows(rs => rs.map((r, idx) => idx === i ? { ...r, [k]: v } : r));
-    setRowErrors(es => es.map((e, idx) => idx === i ? { ...e, [k]: "" } : e));
-  };
-  const addRow     = () => { setRows(rs => [...rs, emptyRow()]); setRowErrors(es => [...es, {}]); };
-  const removeRow  = (i) => {
-    if (rows.length === 1) return;
-    setRows(rs => rs.filter((_, idx) => idx !== i));
-    setRowErrors(es => es.filter((_, idx) => idx !== i));
+  const [errors, setErrors] = useState({});
+  const set = (k, v) => {
+    setForm(f => ({ ...f, [k]: v }));
+    setErrors(e => ({ ...e, [k]: "" }));
   };
 
-  const validateRows = () => {
-    let valid = true;
-    const newErrors = rows.map(row => {
-      const e = {};
-      if (!row.name.trim() || row.name.trim().length < 2)
-        e.name = "Min 2 chars";
-      if (!row.phone.trim() || !/^\d{10}$/.test(row.phone.trim()))
-        e.phone = "10 digits";
-      if (!row.date.trim() || !/^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(row.date.trim()))
-        e.date = "DD Mon YYYY";
-      if (Object.keys(e).length) valid = false;
-      return e;
-    });
-    setRowErrors(newErrors);
-    return valid;
+  const validate = () => {
+    const newErrors = {};
+    if (!form.name.trim() || form.name.trim().length < 2)
+      newErrors.name = "Name must be at least 2 characters.";
+    if (!form.phone.trim())
+      newErrors.phone = "Phone is required.";
+    else if (!/^\d{10}$/.test(form.phone.trim()))
+      newErrors.phone = "Phone must be exactly 10 digits.";
+    if (!form.date.trim())
+      newErrors.date = "Date is required.";
+    else if (!/^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(form.date.trim()))
+      newErrors.date = 'Use format: 25 Mar 2026';
+    return newErrors;
   };
-
-  const buildPayload = (row) => {
-    const agentObj = agents.find(a => a.name === row.agent) ?? null;
-    return {
-      name:     row.name.trim(),
-      mobile:   row.phone.trim(),
-      email:    row.email?.trim() || "",
-      source:   row.source,
-      campaign: row.campaign.trim() || null,
-      status:   row.status,
-      date:     new Date(row.date),
-      remark:   row.remark.trim() || "Manually added",
-      ...(agentObj?.id ? { user: agentObj.id } : {}),
-      ...(getRole() === "superadmin" && agentObj?.company ? { companyId: agentObj.company } : {}),
-    };
-  };
-
-  const formatSaved = (saved, row) => ({
-    id:       saved._id,
-    name:     saved.name,
-    mobile:   saved.mobile,
-    phone:    saved.mobile,
-    email:    saved.email || row.email || "",
-    source:   saved.source   || "Web Form",
-    campaign: saved.campaign || "—",
-    status:   saved.status,
-    date:     new Date(saved.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-    remark:   saved.remark,
-    agent:    row.agent,
-    company:  saved.company,
-  });
 
   const handleSubmit = async () => {
-    if (!validateRows()) return;
-    setLoading(true);
-    setSubmitError("");
-
+    const newErrors = validate();
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    const agentObj = agents.find(a => a.name === form.agent) ?? null;
+    const payload = {
+      name:     form.name.trim(),
+      mobile:   form.phone.trim(),
+      source:   form.source,
+      campaign: form.campaign.trim() || null,
+      status:   form.status,
+      date:     new Date(form.date),
+      remark:   form.remark.trim() || "Manually added",
+      ...(agentObj?.id ? { user: agentObj.id } : {}),
+      ...(getRole() === "superadmin" && agentObj?.company
+        ? { companyId: agentObj.company }
+        : {}),
+    };
     const role = getRole();
-
+    const endpoint =
+      role === "superadmin" ? "/lead/superadmin/create" :
+      role === "admin"      ? "/lead/admin/create" :
+                              "/lead";
     try {
-      if (rows.length === 1) {
-        // ── Single lead path (unchanged behaviour) ────────────────────────────
-        const endpoint =
-          role === "superadmin" ? "/lead/superadmin/create" :
-          role === "admin"      ? "/lead/admin/create" :
-                                  "/lead";
-        const res  = await api.post(endpoint, buildPayload(rows[0]));
-        onAdd(formatSaved(res.data, rows[0]));
-      } else {
-        // ── Bulk path ─────────────────────────────────────────────────────────
-        const endpoint =
-          role === "superadmin" ? "/lead/superadmin/bulk-create" :
-                                  "/lead/admin/bulk-create";
-
-        const res  = await api.post(endpoint, { leads: rows.map(buildPayload) });
-        const data = res.data; // { saved, errors, savedCount, errorCount }
-
-        data.saved.forEach((saved, idx) => {
-          onAdd(formatSaved(saved, rows[idx] || rows[0]));
-        });
-
-        if (data.errorCount > 0) {
-          setSubmitError(
-            `${data.savedCount} lead(s) saved. ${data.errorCount} failed: ` +
-            data.errors.map(e => `Row ${e.index + 1}: ${e.message}`).join("; ")
-          );
-          setLoading(false);
-          return; // keep modal open so user sees errors
-        }
-      }
+      const res = await api.post(endpoint, payload);
+      const saved = res.data;
+      onAdd({
+        id:       saved._id,
+        name:     saved.name,
+        mobile:   saved.mobile,
+        source:   saved.source   || "Web Form",
+        campaign: saved.campaign || "—",
+        status:   saved.status,
+        date:     new Date(saved.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        remark:   saved.remark,
+        agent:    form.agent,
+        company:  saved.company,
+      });
       onClose();
     } catch (err) {
-      setSubmitError(err.response?.data?.message || "Failed to save. Please try again.");
-    } finally {
-      setLoading(false);
+      const msg = err.response?.data?.message || "Failed to save lead. Please try again.";
+      setErrors({ submit: msg });
     }
   };
 
-  const inputCls = (err) =>
-    `w-full px-2.5 py-1.5 rounded-lg border text-[12px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
-    ${err ? "border-red-400 dark:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`;
+  const textFields = [
+    { label: "Lead Name *", key: "name",     placeholder: "Full name" },
+    { label: "Phone *",     key: "phone",    placeholder: "10-digit number" },
+    { label: "Campaign",    key: "campaign", placeholder: "Campaign name" },
+    { label: "Remark",      key: "remark",   placeholder: "Notes" },
+  ];
 
-  const selCls = `w-full px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none`;
+  const selectFields = [
+    { label: "Source", key: "source", options: ALL_SOURCES },
+    { label: "Agent",  key: "agent",  options: agents.map(a => a.name) },
+    { label: "Status", key: "status", options: ALL_STATUSES },
+  ];
+
+  const inputCls = (key) =>
+    `px-3 py-2 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
+    ${errors[key]
+      ? "border-red-400 dark:border-red-500 focus:border-red-500"
+      : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className={`bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl flex flex-col
-        ${bulkMode ? "w-full max-w-5xl max-h-[90vh]" : "w-full max-w-md"}`}>
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] shrink-0">
-          <div className="flex items-center gap-3">
-            <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-              {bulkMode ? `Add Multiple Leads (${rows.length})` : "Add New Lead"}
-            </h2>
-            <button
-              onClick={() => { setBulkMode(b => !b); }}
-              className="px-3 py-1 rounded-full text-[11px] font-semibold border border-[#2563EB] text-[#2563EB] hover:bg-[#2563EB] hover:text-white transition"
-            >
-              {bulkMode ? "Single mode" : "+ Bulk mode"}
-            </button>
-          </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Add New Lead</h2>
           <button onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -236,252 +186,79 @@ function AddLeadModal({ agents, onClose, onAdd }) {
             </svg>
           </button>
         </div>
-
-        {/* Body */}
-        {bulkMode ? (
-          /* ── BULK TABLE MODE ─────────────────────────────────────────────── */
-          <div className="overflow-auto flex-1 px-4 py-3">
-            <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mb-3">
-              Fill in each row — campaign, agent &amp; status are shared defaults but can be changed per row.
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-[12px] border-separate border-spacing-y-1.5">
-                <thead>
-                  <tr className="text-[10px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">
-                    <th className="px-1 text-left w-6">#</th>
-                    <th className="px-1 text-left min-w-[130px]">Name *</th>
-                    <th className="px-1 text-left min-w-[110px]">Phone *</th>
-                    <th className="px-1 text-left min-w-[150px]">Email</th>
-                    <th className="px-1 text-left min-w-[120px]">Campaign</th>
-                    <th className="px-1 text-left min-w-[100px]">Remark</th>
-                    <th className="px-1 text-left min-w-[110px]">Source</th>
-                    <th className="px-1 text-left min-w-[120px]">Agent</th>
-                    <th className="px-1 text-left min-w-[110px]">Status</th>
-                    <th className="px-1 text-left min-w-[110px]">Date *</th>
-                    <th className="px-1 w-8"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, i) => (
-                    <tr key={row._key} className="align-top">
-                      <td className="px-1 pt-1.5 text-[#8B92A9] dark:text-[#565C75] text-center">{i + 1}</td>
-                      <td className="px-1">
-                        <input type="text" value={row.name} placeholder="Full name"
-                          onChange={e => updateRow(i, "name", e.target.value)}
-                          className={inputCls(rowErrors[i]?.name)} />
-                        {rowErrors[i]?.name && <p className="text-[10px] text-red-500 mt-0.5">{rowErrors[i].name}</p>}
-                      </td>
-                      <td className="px-1">
-                        <input type="text" value={row.phone} placeholder="10 digits"
-                          onChange={e => updateRow(i, "phone", e.target.value)}
-                          className={inputCls(rowErrors[i]?.phone)} />
-                        {rowErrors[i]?.phone && <p className="text-[10px] text-red-500 mt-0.5">{rowErrors[i].phone}</p>}
-                      </td>
-                      <td className="px-1">
-                        <input type="text" value={row.email || ""} placeholder="email@example.com"
-                          onChange={e => updateRow(i, "email", e.target.value)}
-                          className={inputCls()} />
-                      </td>
-                      <td className="px-1">
-                        <input type="text" value={row.campaign} placeholder="Optional"
-                          onChange={e => updateRow(i, "campaign", e.target.value)}
-                          className={inputCls(false)} />
-                      </td>
-                      <td className="px-1">
-                        <input type="text" value={row.remark} placeholder="Notes"
-                          onChange={e => updateRow(i, "remark", e.target.value)}
-                          className={inputCls(false)} />
-                      </td>
-                      <td className="px-1">
-                        <select value={row.source} onChange={e => updateRow(i, "source", e.target.value)} className={selCls}>
-                          {ALL_SOURCES.map(o => <option key={o}>{o}</option>)}
-                        </select>
-                      </td>
-                      <td className="px-1">
-                        <select value={row.agent} onChange={e => updateRow(i, "agent", e.target.value)} className={selCls}>
-                          {agents.map(a => <option key={a.name}>{a.name}</option>)}
-                        </select>
-                      </td>
-                      <td className="px-1">
-                        <select value={row.status} onChange={e => updateRow(i, "status", e.target.value)} className={selCls}>
-                          {ALL_STATUSES.map(o => <option key={o}>{o}</option>)}
-                        </select>
-                      </td>
-                      <td className="px-1">
-                        <input type="text" value={row.date} placeholder="25 Mar 2026"
-                          onChange={e => updateRow(i, "date", e.target.value)}
-                          className={inputCls(rowErrors[i]?.date)} />
-                        {rowErrors[i]?.date && <p className="text-[10px] text-red-500 mt-0.5">{rowErrors[i].date}</p>}
-                      </td>
-                      <td className="px-1 pt-1">
-                        <button onClick={() => removeRow(i)} disabled={rows.length === 1}
-                          className="w-6 h-6 flex items-center justify-center rounded-md text-[#8B92A9] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-30 transition">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div className="grid grid-cols-2 gap-3">
+          {textFields.map(f => (
+            <div key={f.key} className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
+              <input
+                type="text"
+                placeholder={f.placeholder}
+                value={form[f.key]}
+                onChange={e => set(f.key, e.target.value)}
+                className={inputCls(f.key)}
+              />
+              {errors[f.key] && (
+                <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
+                  <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                  </svg>
+                  {errors[f.key]}
+                </span>
+              )}
             </div>
-            {rows.length < 50 && (
-              <button onClick={addRow}
-                className="mt-3 flex items-center gap-1.5 text-[12px] font-semibold text-[#2563EB] hover:text-blue-700 transition">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
+          ))}
+          {selectFields.map(f => (
+            <div key={f.key} className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
+              <select
+                value={form[f.key]}
+                onChange={e => set(f.key, e.target.value)}
+                className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none">
+                {f.options.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+          ))}
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Date *</label>
+            <input
+              type="text"
+              value={form.date}
+              onChange={e => set("date", e.target.value)}
+              placeholder="25 Mar 2026"
+              className={inputCls("date")}
+            />
+            {errors.date && (
+              <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
+                <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
                 </svg>
-                Add another row {rows.length >= 50 ? "(max 50)" : `(${rows.length}/50)`}
-              </button>
+                {errors.date}
+              </span>
             )}
           </div>
-        ) : (
-          /* ── SINGLE FORM MODE (original layout) ──────────────────────────── */
-          <div className="px-6 py-4">
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: "Lead Name *", key: "name",     placeholder: "Full name" },
-                { label: "Phone *",     key: "phone",    placeholder: "10-digit number" },
-                { label: "Email",       key: "email",    placeholder: "email@example.com" },
-                { label: "Campaign",    key: "campaign", placeholder: "Campaign name" },
-                { label: "Remark",      key: "remark",   placeholder: "Notes" },
-              ].map(f => (
-                <div key={f.key} className="flex flex-col gap-1">
-                  <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
-                  <input type="text" placeholder={f.placeholder} value={rows[0][f.key]}
-                    onChange={e => updateRow(0, f.key, e.target.value)}
-                    className={`px-3 py-2 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
-                      ${rowErrors[0]?.[f.key] ? "border-red-400 dark:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`} />
-                  {rowErrors[0]?.[f.key] && (
-                    <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
-                      <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                      </svg>
-                      {rowErrors[0][f.key]}
-                    </span>
-                  )}
-                </div>
-              ))}
-              {[
-                { label: "Source", key: "source", options: ALL_SOURCES },
-                { label: "Agent",  key: "agent",  options: agents.map(a => a.name) },
-                { label: "Status", key: "status", options: ALL_STATUSES },
-              ].map(f => (
-                <div key={f.key} className="flex flex-col gap-1">
-                  <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
-                  <select value={rows[0][f.key]} onChange={e => updateRow(0, f.key, e.target.value)}
-                    className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none">
-                    {f.options.map(o => <option key={o}>{o}</option>)}
-                  </select>
-                </div>
-              ))}
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Date *</label>
-                <input type="text" value={rows[0].date} onChange={e => updateRow(0, "date", e.target.value)}
-                  placeholder="25 Mar 2026"
-                  className={`px-3 py-2 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
-                    ${rowErrors[0]?.date ? "border-red-400" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`} />
-                {rowErrors[0]?.date && (
-                  <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
-                    <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                    </svg>
-                    {rowErrors[0].date}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
+        </div>
+        {errors.submit && (
+          <p className="text-[12px] text-red-500 mt-3 text-center">{errors.submit}</p>
         )}
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-[#E4E7EF] dark:border-[#262A38] shrink-0">
-          {submitError && (
-            <p className="text-[12px] text-red-500 mb-3 text-center">{submitError}</p>
-          )}
-          <div className="flex gap-2">
-            <button onClick={onClose}
-              className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
-              Cancel
-            </button>
-            <button onClick={handleSubmit} disabled={loading}
-              className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 flex items-center justify-center gap-2">
-              {loading && (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                </svg>
-              )}
-              {loading ? "Saving…" : bulkMode ? `Add ${rows.length} Lead${rows.length > 1 ? "s" : ""}` : "Add Lead"}
-            </button>
-          </div>
+        <div className="flex gap-2 mt-5">
+          <button onClick={onClose}
+            className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
+            Cancel
+          </button>
+          <button onClick={handleSubmit}
+            className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
+            Add Lead
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-
-
-
   // ── Edit Lead Modal ───────────────────────────────────────────────────────────
   function EditLeadModal({ lead, agents, onClose, onSave }) {
-    const [form, setForm]       = useState({ ...lead });
-    const [loading, setLoading] = useState(false);
-    const [error, setError]     = useState("");
+    const [form, setForm] = useState({ ...lead });
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-    const handleSave = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const role = getRole();
-        // Pick the right endpoint based on role
-        const endpoint =
-          role === "superadmin" ? `/lead/superadmin/${lead.id}` :
-          role === "admin"      ? `/lead/admin/${lead.id}` :
-                                  `/lead/${lead.id}`;
-
-        const payload = {
-          name:     form.name,
-          mobile:   form.phone || form.mobile,
-          email:    form.email || "",
-          source:   form.source,
-          campaign: form.campaign || null,
-          status:   form.status,
-          date:     form.date ? new Date(form.date) : undefined,
-          remark:   form.remark,
-        };
-
-        // Resolve agent name → user id if changed
-        const agentObj = agents.find(a => a.name === form.agent);
-        if (agentObj?.id) payload.user = agentObj.id;
-
-        const res = await api.put(endpoint, payload);
-        const saved = res.data;
-
-        // Normalise the returned lead into the same shape the table uses
-        onSave({
-          ...lead,           // keep local fields like agent name
-          ...form,
-          id:       saved._id || lead.id,
-          mobile:   saved.mobile,
-          phone:    saved.mobile,
-          email:    saved.email || form.email || "",
-          source:   saved.source,
-          campaign: saved.campaign || "—",
-          status:   saved.status,
-          date:     new Date(saved.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-          remark:   saved.remark,
-        });
-        onClose();
-      } catch (err) {
-        setError(err.response?.data?.message || "Failed to save. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -496,14 +273,13 @@ function AddLeadModal({ agents, onClose, onAdd }) {
             {[
               { label: "Lead Name", key: "name" },
               { label: "Phone",     key: "phone" },
-              { label: "Email",     key: "email" },
               { label: "Campaign",  key: "campaign" },
               { label: "Remark",    key: "remark" },
               { label: "Date",      key: "date" },
             ].map(f => (
               <div key={f.key} className="flex flex-col gap-1">
                 <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
-                <input type="text" value={form[f.key] ?? ""} onChange={e => set(f.key, e.target.value)}
+                <input type="text" value={form[f.key]} onChange={e => set(f.key, e.target.value)}
                   className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]" />
               </div>
             ))}
@@ -521,14 +297,152 @@ function AddLeadModal({ agents, onClose, onAdd }) {
               </div>
             ))}
           </div>
-          {error && <p className="text-[12px] text-red-500 mt-3 text-center">{error}</p>}
           <div className="flex gap-2 mt-5">
             <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-            <button onClick={handleSave} disabled={loading}
-              className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 flex items-center justify-center gap-2">
-              {loading && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>}
-              {loading ? "Saving…" : "Save Changes"}
+            <button onClick={() => { onSave(form); onClose(); }} className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">Save Changes</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Recording Modal ───────────────────────────────────────────────────────────
+  function RecordingModal({ lead, onClose }) {
+    const [recording, setRecording] = useState(null);
+    const [loading, setLoading]     = useState(true);
+    const [error, setError]         = useState(null);
+
+    useEffect(() => {
+      axios.get('https://skyup-crm-backend.onrender.com/api/twilio/admin/recordings')
+        .then(res => {
+          const match = res.data.find(r =>
+            r.contactName?.toLowerCase() === lead.name.toLowerCase() ||
+            r.contactName?.includes(lead.phone) ||
+            String(r.mobile || '').includes(String(lead.phone || '').replace('+91', ''))
+          );
+          setRecording(match || null);
+        })
+        .catch(() => setError('Failed to fetch recordings.'))
+        .finally(() => setLoading(false));
+    }, [lead]);
+
+    const st = STATUS_STYLE[lead.status] || STATUS_STYLE["New"];
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+
+          {/* Header */}
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[11px] font-bold text-[#2563EB] dark:text-[#4F8EF7] shrink-0">
+                {lead.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
+                <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{lead.phone}</p>
+              </div>
+            </div>
+            <button onClick={onClose}
+              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
             </button>
+          </div>
+
+          {/* Lead details grid */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {[
+              {
+                label: 'Status',
+                value: (
+                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${st.bg} ${st.text}`}>
+                    {lead.status}
+                  </span>
+                ),
+              },
+              { label: 'Source',   value: lead.source },
+              { label: 'Agent',    value: lead.agent },
+              { label: 'Date',     value: lead.date },
+              { label: 'Campaign', value: lead.campaign || '—' },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5">
+                <p className="text-[10px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">{label}</p>
+                <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Remark */}
+          {lead.remark && (
+            <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5 mb-4">
+              <p className="text-[10px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">Remark</p>
+              <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB]">{lead.remark}</p>
+            </div>
+          )}
+
+          {/* Recording section */}
+          <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-3.5">
+            <div className="flex items-center gap-2 mb-3">
+              <svg className="w-3.5 h-3.5 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+              </svg>
+              <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Call Recording</span>
+              {recording && (
+                <span className="ml-auto text-[11px] text-[#8B92A9] dark:text-[#565C75] bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-full">
+                  {recording.recordingDuration}s
+                </span>
+              )}
+            </div>
+
+            {loading && (
+              <div className="flex items-center gap-2 py-2">
+                <svg className="w-3.5 h-3.5 animate-spin text-[#2563EB]" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                <span className="text-[12px] text-[#8B92A9]">Fetching recording...</span>
+              </div>
+            )}
+
+            {error && !loading && (
+              <p className="text-[12px] text-red-500 py-2">{error}</p>
+            )}
+
+            {!loading && !error && !recording && (
+              <div className="flex items-center gap-2 py-2">
+                <svg className="w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <p className="text-[12px] text-[#8B92A9]">No recording found for this lead.</p>
+              </div>
+            )}
+
+            {!loading && !error && recording && (
+              <>
+                {recording.recordedAt && (
+                  <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-2">
+                    {new Date(recording.recordedAt).toLocaleString('en-IN', {
+                      day: '2-digit', month: 'short', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
+                    })}
+                  </p>
+                )}
+                {recording.recordingUrl ? (
+                  <audio controls src={recording.recordingUrl}
+                    className="w-full h-8 rounded-xl accent-[#2563EB]" />
+                ) : (
+                  <div className="flex items-center gap-2 py-1">
+                    <svg className="w-3 h-3 animate-spin text-[#8B92A9]" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    <p className="text-[12px] text-[#8B92A9] italic">Recording processing...</p>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -553,15 +467,16 @@ function AddLeadModal({ agents, onClose, onAdd }) {
         .finally(() => setLoading(false));
     }, []);
 
-    const [search, setSearch]         = useState("");
-    const [statusFilter, setStatus]   = useState("All");
-    const [agentFilter, setAgent]     = useState("All");
-    const [sortBy, setSortBy]         = useState("date");
-    const [page, setPage]             = useState(1);
-    const [showAddModal, setAddModal] = useState(false);
-    const [editLead, setEditLead]     = useState(null);
+    const [search, setSearch]               = useState("");
+    const [statusFilter, setStatus]         = useState("All");
+    const [agentFilter, setAgent]           = useState("All");
+    const [sortBy, setSortBy]               = useState("date");
+    const [page, setPage]                   = useState(1);
+    const [showAddModal, setAddModal]       = useState(false);
+    const [editLead, setEditLead]           = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
-    const [timeFilter, setTimeFilter] = useState("All");
+    const [recordingLead, setRecordingLead] = useState(null);
+    const [timeFilter, setTimeFilter]       = useState("All");
     const PER_PAGE = 8;
 
     const isWithinRange = useDateFilter(timeFilter);
@@ -586,7 +501,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
         if (!isWithinRange(l.date)) return false;
         const q = search.toLowerCase();
         return (
-          (!q || l.name.toLowerCase().includes(q) || l.phone.includes(q) || l.campaign.toLowerCase().includes(q) || (l.email || "").toLowerCase().includes(q)) &&
+          (!q || l.name.toLowerCase().includes(q) || l.phone.includes(q) || l.campaign.toLowerCase().includes(q)) &&
           (statusFilter === "All" || l.status === statusFilter) &&
           (agentFilter  === "All" || l.agent  === agentFilter)
         );
@@ -599,40 +514,19 @@ function AddLeadModal({ agents, onClose, onAdd }) {
 
     const addLead    = lead    => { setLeads(ls => [lead, ...ls]); setPage(1); };
     const saveLead   = updated => setLeads(ls => ls.map(l => l.id === updated.id ? updated : l));
+    const deleteLead = id      => { setLeads(ls => ls.filter(l => l.id !== id)); setDeleteConfirm(null); };
 
-    const confirmDelete = async () => {
-      const lead = deleteConfirm;
-      // Optimistically remove from UI first
-      setLeads(ls => ls.filter(l => l.id !== lead.id));
-      setDeleteConfirm(null);
-      try {
-        const role = getRole();
-        const endpoint =
-          role === "superadmin" ? `/lead/superadmin/${lead.id}` :
-          role === "admin"      ? `/lead/admin/${lead.id}` :
-                                  `/lead/${lead.id}`;
-        await api.delete(endpoint);
-      } catch (err) {
-        // If API call fails, restore the lead back into state
-        setLeads(ls => [lead, ...ls]);
-        console.error("Delete failed:", err.response?.data?.message || err.message);
-      }
-    };
-
-    // ✅ FIXED: display date — handle both "DD Mon YYYY" and ISO fallback gracefully
     const displayDate = (dateStr) => {
       if (!dateStr) return "—";
-      // Already in "DD Mon YYYY" format
       if (/^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(dateStr)) return dateStr;
-      // Fallback: parse ISO or other formats
       const d = new Date(dateStr);
       return isNaN(d) ? dateStr : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
     };
 
     const exportCSV = () => {
-      const headers = ["#", "Name", "Phone", "Email", "Source", "Campaign", "Agent", "Status", "Date", "Remark"];
+      const headers = ["#", "Name", "Phone", "Source", "Campaign", "Agent", "Status", "Date", "Remark"];
       const rows = filtered.map((l, i) =>
-        [i + 1, l.name, l.phone, l.email || "", l.source, l.campaign, l.agent, l.status, l.date, l.remark]
+        [i + 1, l.name, l.phone, l.source, l.campaign, l.agent, l.status, l.date, l.remark]
           .map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")
       );
       const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv" });
@@ -667,8 +561,10 @@ function AddLeadModal({ agents, onClose, onAdd }) {
     return (
       <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-8">
 
-        {showAddModal && <AddLeadModal agents={agents} onClose={() => setAddModal(false)} onAdd={addLead} />}
-        {editLead     && <EditLeadModal lead={editLead} agents={agents} onClose={() => setEditLead(null)} onSave={saveLead} />}
+        {showAddModal  && <AddLeadModal agents={agents} onClose={() => setAddModal(false)} onAdd={addLead} />}
+        {editLead      && <EditLeadModal lead={editLead} agents={agents} onClose={() => setEditLead(null)} onSave={saveLead} />}
+        {recordingLead && <RecordingModal lead={recordingLead} onClose={() => setRecordingLead(null)} />}
+
         {deleteConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
             <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
@@ -678,7 +574,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
               </p>
               <div className="flex gap-2">
                 <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-                <button onClick={confirmDelete} className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition">Delete</button>
+                <button onClick={() => deleteLead(deleteConfirm.id)} className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition">Delete</button>
               </div>
             </div>
           </div>
@@ -772,7 +668,6 @@ function AddLeadModal({ agents, onClose, onAdd }) {
                   {filtered.length} results
                 </span>
               </h2>
-
               <div className="flex items-center gap-2">
                 <select
                   value={timeFilter}
@@ -785,7 +680,6 @@ function AddLeadModal({ agents, onClose, onAdd }) {
                   <option value="Monthly">Time: Monthly</option>
                   <option value="Quarterly">Time: Quarterly</option>
                 </select>
-
                 <select
                   value={sortBy}
                   onChange={e => { setSortBy(e.target.value); setPage(1); }}
@@ -794,7 +688,6 @@ function AddLeadModal({ agents, onClose, onAdd }) {
                   <option value="date">Sort: Latest</option>
                   <option value="name">Sort: Name A–Z</option>
                 </select>
-
                 <div className="relative">
                   <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
@@ -809,11 +702,9 @@ function AddLeadModal({ agents, onClose, onAdd }) {
                 </div>
               </div>
             </div>
-
             <div className="flex flex-wrap gap-1.5">
               {filterBtn(statusFilter, setStatus, statuses)}
             </div>
-
             <div className="flex flex-wrap gap-1.5 mt-2">
               <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] self-center mr-1">Agent:</span>
               {filterBtn(agentFilter, setAgent, agentNames)}
@@ -824,14 +715,14 @@ function AddLeadModal({ agents, onClose, onAdd }) {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                  {["#", "Lead Name", "Phone", "Email", "Source", "Campaign", "Agent", "Status", "Date", "Remark", "Actions"].map(h => (
+                  {["#", "Lead Name", "Phone", "Source", "Campaign", "Agent", "Status", "Date", "Remark", "Actions"].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {paged.length === 0 ? (
-                  <tr><td colSpan={11} className="px-4 py-12 text-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads match your filters.</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-12 text-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads match your filters.</td></tr>
                 ) : paged.map((lead, i) => {
                   const st = STATUS_STYLE[lead.status];
                   return (
@@ -846,25 +737,32 @@ function AddLeadModal({ agents, onClose, onAdd }) {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.phone}</td>
-                      <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.email || "—"}</td>
                       <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.source}</td>
                       <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB]">{lead.campaign}</td>
                       <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.agent}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${st.bg} ${st.text}`}>{lead.status}</span>
                       </td>
-                      {/* ✅ FIXED: use displayDate helper instead of new Date().toLocaleDateString */}
                       <td className="px-4 py-3 text-[#8B92A9] dark:text-[#565C75] whitespace-nowrap">{displayDate(lead.date)}</td>
                       <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] max-w-[160px] truncate">{lead.remark}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
+                          {/* Edit */}
                           <button onClick={() => setEditLead(lead)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#2563EB] hover:text-[#2563EB] text-[#8B92A9] transition" title="Edit">
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                           </button>
+                          {/* Delete */}
                           <button onClick={() => setDeleteConfirm(lead)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-red-400 hover:text-red-500 text-[#8B92A9] transition" title="Delete">
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                          </button>
+                          {/* Recording */}
+                          <button onClick={() => setRecordingLead(lead)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#7C3AED] hover:text-[#7C3AED] text-[#8B92A9] transition" title="Call Recording">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                            </svg>
                           </button>
                         </div>
                       </td>

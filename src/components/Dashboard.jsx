@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { fetchAll, getRole, getStoredUser } from "../data/dataService";
 import UserManagement from "./UserMangement";
 import AdminChat from "./Adminchat";
-import CallButton from "./CallButton"
-import CallRecordings from "./CallRecording"
+// import CallButton from "./CallButton"
+// import CallRecordings from "./CallRecording"
 
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -491,17 +491,7 @@ const [activeCallSid, setActiveCallSid] = useState(null);
           </div>
         </div>
 
-        {/* Call + Recordings panel */}
-        <div className="flex flex-col gap-4">
-          {/* ✅ FIX: contactId now passed — button will enable when contact is selected */}
-          <CallButton
-            contactId={selectedContact?.id}
-            contactNumber={selectedContact?.number}
-            contactName={selectedContact?.name}
-            onCallEnd={(callSid) => setActiveCallSid(callSid)}
-          />
-          <CallRecordings callSid={activeCallSid} />
-        </div>
+     
 
       </div>
       <AdminChat />
