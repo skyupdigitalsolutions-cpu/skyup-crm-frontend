@@ -4,6 +4,8 @@ import { fetchAll, getRole, getStoredUser } from "../data/dataService";
 import api from "../data/axiosConfig";
 import { useDateFilter } from "../components/dataFilter";
 
+  const BACKEND = 'https://skyup-crm-backend.onrender.com/api/twilio';
+
   // ── Constants ─────────────────────────────────────────────────────────────────
   const SOURCE_COLORS = {
     "Google Ads":   "#2563EB",
@@ -313,7 +315,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
     const [error, setError]         = useState(null);
 
     useEffect(() => {
-      axios.get('https://skyup-crm-backend.onrender.com/api/twilio/admin/recordings')
+      axios.get(`${BACKEND}/admin/recordings`)
         .then(res => {
           const match = res.data.find(r =>
             r.contactName?.toLowerCase() === lead.name.toLowerCase() ||
@@ -326,7 +328,12 @@ function AddLeadModal({ agents, onClose, onAdd }) {
         .finally(() => setLoading(false));
     }, [lead]);
 
-    const st = STATUS_STYLE[lead.status] || STATUS_STYLE["New"];
+    const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
+
+    // ✅ Use proxy URL so Twilio auth is handled server-side — no browser login prompt
+    const audioSrc = recording?.recordingSid
+      ? `${BACKEND}/recording/${recording.recordingSid}/audio`
+      : null;
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -429,8 +436,9 @@ function AddLeadModal({ agents, onClose, onAdd }) {
                     })}
                   </p>
                 )}
-                {recording.recordingUrl ? (
-                  <audio controls src={recording.recordingUrl}
+                {/* ✅ FIXED: proxy through backend — Twilio auth handled server-side */}
+                {audioSrc ? (
+                  <audio controls src={audioSrc}
                     className="w-full h-8 rounded-xl accent-[#2563EB]" />
                 ) : (
                   <div className="flex items-center gap-2 py-1">
@@ -646,7 +654,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
               <div className="grid grid-cols-2 gap-2">
                 {ALL_STATUSES.map(s => {
                   const count = leads.filter(l => l.status === s).length;
-                  const st = STATUS_STYLE[s];
+                  const st = STATUS_STYLE[s] ?? STATUS_STYLE["New"];
                   return (
                     <div key={s} className={`rounded-xl px-3 py-2.5 ${st.bg}`}>
                       <div className={`text-[18px] font-bold ${st.text}`}>{count}</div>
@@ -724,7 +732,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
                 {paged.length === 0 ? (
                   <tr><td colSpan={10} className="px-4 py-12 text-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads match your filters.</td></tr>
                 ) : paged.map((lead, i) => {
-                  const st = STATUS_STYLE[lead.status];
+                  const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
                   return (
                     <tr key={lead.id} className={`border-b border-[#E4E7EF] dark:border-[#262A38] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A] transition ${i % 2 === 0 ? "" : "bg-[#FAFBFF] dark:bg-[#1E2130]"}`}>
                       <td className="px-4 py-3 text-[#8B92A9] dark:text-[#565C75]">{(page - 1) * PER_PAGE + i + 1}</td>
