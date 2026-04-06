@@ -23,7 +23,7 @@ export default function AdminChat() {
 
   // ── Socket setup (once) ────────────────────────────────────────────────────
   useEffect(() => {
-    const socket = io();
+    const socket = io("https://skyup-crm-backend.onrender.com");
     socketRef.current = socket;
 
     socket.emit('admin_join');
@@ -34,7 +34,7 @@ export default function AdminChat() {
       const formatted = history.map((m) => ({
         from: m.from === 'admin' ? 'Admin' : m.from,
         message: m.message,
-        ts: m.ts || null,
+        ts: m.timestamp || null,
       }));
       setChats((prev) => ({ ...prev, [username]: formatted }));
     });

@@ -366,11 +366,11 @@ function UserChatWidget() {
   const bottomRef = useRef(null);
   const user = JSON.parse(localStorage.getItem("user") || "null");
   useEffect(function() {
-    const socket = io();
+    const socket = io("https://skyup-crm-backend.onrender.com");
     socketRef.current = socket;
-    socket.emit("user_join", { username: (user && user.name) || "user" });
+    socket.emit("user_join", (user && user.name) || "user");
     socket.on("chat_history", function(history) {
-      setMessages(history.map(function(m){ return { from: m.from === "admin" ? "Admin" : "You", message: m.message, ts: m.ts }; }));
+      setMessages(history.map(function(m){ return { from: m.from === "admin" ? "Admin" : "You", message: m.message, ts: m.timestamp }; }));
     });
     socket.on("receive_admin_message", function(data) {
       setMessages(function(prev){ return prev.concat([{ from: "Admin", message: data.message }]); });
