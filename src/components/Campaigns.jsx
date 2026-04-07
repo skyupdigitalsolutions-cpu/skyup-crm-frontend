@@ -1,5 +1,6 @@
+src/components/campaigns.jsx
 import { useState, useEffect, useCallback } from "react";
-import api from "../data/axiosConfig"; // ✅ ADDED
+import api from "../data/axiosConfig";
 import VoiceBotPanel from "./VoiceBotPanel";
 
 // ── Channel / status style maps ───────────────────────────────────────────────
@@ -8,6 +9,7 @@ const CHANNEL_STYLE = {
   WhatsApp: { bg: "bg-[#ECFDF5] dark:bg-[#052E1C]", text: "text-[#059669] dark:text-[#34D399]" },
   Email:    { bg: "bg-[#F5F3FF] dark:bg-[#1E1040]", text: "text-[#7C3AED] dark:text-[#A78BFA]" },
   Meta:     { bg: "bg-[#FFF0F3] dark:bg-[#2D0A14]", text: "text-[#E1306C] dark:text-[#F77FAD]" },
+  Google:   { bg: "bg-[#FFF8F0] dark:bg-[#2D1A00]", text: "text-[#EA4335] dark:text-[#FF6B5B]" },
 };
 
 const STATUS_STYLE = {
@@ -24,15 +26,14 @@ const LEAD_STATUS_STYLE = {
   "New":            { bg: "bg-[#EEF3FF] dark:bg-[#1A2540]", text: "text-[#2563EB] dark:text-[#4F8EF7]" },
 };
 
-// Lead temperature (auto-set by voice bot)
 const LEAD_TEMP_STYLE = {
   "Hot":  { bg: "bg-[#FEF2F2] dark:bg-[#2D0A0A]", text: "text-[#DC2626] dark:text-[#F87171]", icon: "🔥" },
   "Warm": { bg: "bg-[#FFFBEB] dark:bg-[#2D1F00]", text: "text-[#D97706] dark:text-[#FCD34D]", icon: "☀️" },
   "Cold": { bg: "bg-[#EEF3FF] dark:bg-[#1A2540]", text: "text-[#2563EB] dark:text-[#4F8EF7]", icon: "❄️" },
 };
 
-// colour palette for Meta campaign cards (cycles if more than 6)
-const META_COLORS = ["#E1306C","#2563EB","#7C3AED","#059669","#D97706","#0891B2"];
+const META_COLORS   = ["#E1306C","#2563EB","#7C3AED","#059669","#D97706","#0891B2"];
+const GOOGLE_COLORS = ["#EA4335","#FBBC05","#34A853","#4285F4","#FF6D00","#46BDC6"];
 
 const FIELD_CLS =
   "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition";
@@ -67,8 +68,7 @@ function LeadDrawer({ campaign, onClose }) {
   useEffect(() => {
     if (!campaign) return;
     setLoading(true);
-    if (campaign._isMeta) {
-      // ✅ FIX 1: was fetch(`/api/leads?campaign=...`) — relative URL hit localhost:5173
+    if (campaign._isMeta || campaign._isGoogle) {
       api.get(`/lead/by-campaign?campaign=${encodeURIComponent(campaign.name)}`)
         .then((res) => setLeads(Array.isArray(res.data) ? res.data : (res.data?.data || [])))
         .catch(() => setLeads([]))
@@ -82,16 +82,15 @@ function LeadDrawer({ campaign, onClose }) {
   if (!campaign) return null;
 
   const normalizedLeads = leads.map(l => ({
-  ...l,
-  id: l._id || l.id,
-  phone: l.mobile || l.phone,
-}));
+    ...l,
+    id:    l._id || l.id,
+    phone: l.mobile || l.phone,
+  }));
 
-
-  const channel   = campaign.channel || "Meta";
-  const ch        = CHANNEL_STYLE[channel] || CHANNEL_STYLE.Meta;
-  const st        = STATUS_STYLE[campaign.status] || STATUS_STYLE.Active;
-  const convRate  = campaign.leads > 0 ? Math.round((campaign.converted / campaign.leads) * 100) : 0;
+  const channel  = campaign.channel || "Meta";
+  const ch       = CHANNEL_STYLE[channel] || CHANNEL_STYLE.Meta;
+  const st       = STATUS_STYLE[campaign.status] || STATUS_STYLE.Active;
+  const convRate = campaign.leads > 0 ? Math.round((campaign.converted / campaign.leads) * 100) : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -105,7 +104,7 @@ function LeadDrawer({ campaign, onClose }) {
             </div>
             <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{campaign.name}</h2>
             <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
-              Created {campaign._isMeta ? fmtDate(campaign.createdAt) : campaign.date}
+              Created {(campaign._isMeta || campaign._isGoogle) ? fmtDate(campaign.createdAt) : campaign.date}
             </p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
@@ -116,9 +115,9 @@ function LeadDrawer({ campaign, onClose }) {
         {/* Stats */}
         <div className="px-6 py-4 grid grid-cols-3 gap-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[
-            { label: "Sent",      value: fmt(campaign.sent) },
-            { label: "Leads",     value: fmt(campaign.leads) },
-            { label: "Conv. rate",value: convRate + "%" },
+            { label: "Sent",       value: fmt(campaign.sent) },
+            { label: "Leads",      value: fmt(campaign.leads) },
+            { label: "Conv. rate", value: convRate + "%" },
           ].map((s) => (
             <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-3 text-center">
               <div className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{s.value}</div>
@@ -186,11 +185,10 @@ function LeadDrawer({ campaign, onClose }) {
           )}
         </div>
 
-        {/* Voice Bot auto-call & lead temperature section */}
-       {/* Voice Bot auto-call & lead temperature section */}
-<div className="px-6 pb-6">
-  <VoiceBotPanel leads={normalizedLeads} campaignName={campaign.name} />
-</div>
+        {/* Voice Bot panel */}
+        <div className="px-6 pb-6">
+          <VoiceBotPanel leads={normalizedLeads} campaignName={campaign.name} />
+        </div>
       </div>
     </div>
   );
@@ -217,8 +215,7 @@ function CreateModal({ onClose, onCreated }) {
   const [showToken, setShowToken]   = useState(false);
   const [showSecret, setShowSecret] = useState(false);
 
-  const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
-
+  const set      = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
   const required = ["campaignName", "pageId", "pageAccessToken", "appSecret", "verifyToken"];
   const isValid  = required.every((k) => form[k].trim() !== "");
 
@@ -227,7 +224,6 @@ function CreateModal({ onClose, onCreated }) {
     setLoading(true);
     setError("");
     try {
-      // ✅ FIX 2: was fetch("/api/meta-config", { method: "POST", ... }) — relative URL
       const res = await api.post("/meta-config", {
         campaignName:    form.campaignName.trim(),
         pageId:          form.pageId.trim(),
@@ -245,14 +241,15 @@ function CreateModal({ onClose, onCreated }) {
       setSuccess(true);
       onCreated && onCreated(res.data.data);
     } catch (err) {
-      // axios puts error response in err.response.data
       setError(err.response?.data?.message || err.message || "Failed to connect campaign");
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Success ─────────────────────────────────────────────────────────────────
+  const EyeOn  = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>;
+  const EyeOff = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>;
+
   if (success) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -262,7 +259,7 @@ function CreateModal({ onClose, onCreated }) {
           </div>
           <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Campaign connected!</h2>
           <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mb-6">
-            Meta leads from <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{form.campaignName}</span> will now flow into your CRM automatically via round-robin assignment.
+            Meta leads from <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{form.campaignName}</span> will now flow into your CRM automatically.
           </p>
           <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-4 py-3 text-left text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-5 space-y-1 border border-[#E4E7EF] dark:border-[#262A38]">
             <p className="font-semibold text-[#4B5168] dark:text-[#9DA3BB] text-[12px] mb-2">📋 Add these to your server <code className="bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] px-1 rounded">.env</code></p>
@@ -276,14 +273,9 @@ function CreateModal({ onClose, onCreated }) {
     );
   }
 
-  // ── Form ─────────────────────────────────────────────────────────────────────
-  const EyeOn  = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>;
-  const EyeOff = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
-
         {/* Header */}
         <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -304,8 +296,6 @@ function CreateModal({ onClose, onCreated }) {
 
         {/* Body */}
         <div className="overflow-y-auto px-6 py-5 space-y-5">
-
-          {/* Campaign Info */}
           <div>
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Campaign Info</p>
             <div className="space-y-3">
@@ -317,10 +307,7 @@ function CreateModal({ onClose, onCreated }) {
                 <div>
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label>
                   <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}>
-                    <option>New</option>
-                    <option>In Progress</option>
-                    <option>Converted</option>
-                    <option>Not Interested</option>
+                    <option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option>
                   </select>
                 </div>
                 <div>
@@ -331,7 +318,6 @@ function CreateModal({ onClose, onCreated }) {
             </div>
           </div>
 
-          {/* Meta Config */}
           <div>
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Meta / Facebook Config</p>
             <div className="space-y-3">
@@ -340,8 +326,6 @@ function CreateModal({ onClose, onCreated }) {
                 <input type="text" value={form.pageId} onChange={set("pageId")} placeholder="e.g. 123456789012345" className={FIELD_CLS} />
                 <p className="text-[10px] text-[#8B92A9] mt-1">Found in Facebook Page settings → About</p>
               </div>
-
-              {/* Page Access Token */}
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Page Access Token <span className="text-[#DC2626]">*</span></label>
                 <div className="relative">
@@ -352,13 +336,8 @@ function CreateModal({ onClose, onCreated }) {
                 </div>
                 <p className="text-[10px] text-[#8B92A9] mt-1">Generate a never-expiring token in Meta Business Suite → System Users</p>
               </div>
-
-              {/* App Secret */}
               <div>
-                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
-                  App Secret <span className="text-[#DC2626]">*</span>
-                  <span className="ml-1 text-[10px] font-normal text-[#8B92A9]">(META_APP_SECRET)</span>
-                </label>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">App Secret <span className="text-[#DC2626]">*</span> <span className="text-[10px] font-normal text-[#8B92A9]">(META_APP_SECRET)</span></label>
                 <div className="relative">
                   <input type={showSecret ? "text" : "password"} value={form.appSecret} onChange={set("appSecret")} placeholder="Your Meta app secret" className={FIELD_CLS + " pr-10"} />
                   <button type="button" onClick={() => setShowSecret((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168]">
@@ -366,60 +345,256 @@ function CreateModal({ onClose, onCreated }) {
                   </button>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
-                    Verify Token <span className="text-[#DC2626]">*</span>
-                    <span className="ml-1 text-[10px] font-normal text-[#8B92A9]">(META_VERIFY_TOKEN)</span>
-                  </label>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Verify Token <span className="text-[#DC2626]">*</span> <span className="text-[10px] font-normal text-[#8B92A9]">(META_VERIFY_TOKEN)</span></label>
                   <input type="text" value={form.verifyToken} onChange={set("verifyToken")} placeholder="skyup_meta_2025" className={FIELD_CLS} />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
-                    Graph API Version
-                    <span className="ml-1 text-[10px] font-normal text-[#8B92A9]">(META_GRAPH_API_VERSION)</span>
-                  </label>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Graph API Version <span className="text-[10px] font-normal text-[#8B92A9]">(META_GRAPH_API_VERSION)</span></label>
                   <input type="text" value={form.graphApiVersion} onChange={set("graphApiVersion")} placeholder="v25.0" className={FIELD_CLS} />
                 </div>
               </div>
-
               <div>
-                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
-                  Form IDs <span className="text-[10px] font-normal text-[#8B92A9]">(optional — blank = accept all)</span>
-                </label>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Form IDs <span className="text-[10px] font-normal text-[#8B92A9]">(optional — blank = accept all)</span></label>
                 <input type="text" value={form.formIds} onChange={set("formIds")} placeholder="form_id_1, form_id_2" className={FIELD_CLS} />
                 <p className="text-[10px] text-[#8B92A9] mt-1">Comma-separated. Find in Meta Ads Manager → Lead forms</p>
               </div>
             </div>
           </div>
 
-          {/* Round-robin info banner */}
           <div className="bg-[#EEF3FF] dark:bg-[#1A2540] rounded-xl px-4 py-3 flex gap-3">
-            <div className="shrink-0 mt-0.5">
-              <svg className="w-4 h-4 text-[#2563EB] dark:text-[#4F8EF7]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            </div>
+            <svg className="w-4 h-4 text-[#2563EB] dark:text-[#4F8EF7] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <div>
               <p className="text-[12px] font-semibold text-[#2563EB] dark:text-[#4F8EF7]">Round-robin auto-assignment</p>
-              <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-0.5">
-                Every new lead from this campaign will be automatically assigned to the next available team member in rotation — no manual assignment needed.
-              </p>
+              <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-0.5">Every new lead from this campaign will be automatically assigned to the next available team member in rotation.</p>
             </div>
           </div>
 
           {error && (
-            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">
-              ⚠️ {error}
-            </div>
+            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">⚠️ {error}</div>
           )}
         </div>
 
         {/* Footer */}
         <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
-          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
-            Cancel
-          </button>
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
           <button onClick={handleSubmit} disabled={!isValid || loading} className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+            {loading ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Connecting…</> : "Connect & Start Receiving Leads"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Connect Google Ads Campaign modal ─────────────────────────────────────────
+function CreateGoogleModal({ onClose, onCreated }) {
+  const empty = {
+    campaignName:  "",
+    googleKey:     "",
+    campaignId:    "",
+    formId:        "",
+    defaultStatus: "New",
+    defaultRemark: "Lead from Google Ads",
+  };
+
+  const [form, setForm]         = useState(empty);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const [success, setSuccess]   = useState(false);
+  const [showKey, setShowKey]   = useState(false);
+
+  const set      = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+  const required = ["campaignName", "googleKey"];
+  const isValid  = required.every((k) => form[k].trim() !== "");
+
+  const handleSubmit = async () => {
+    if (!isValid) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api.post("/google-ads-config", {
+        campaignName:  form.campaignName.trim(),
+        googleKey:     form.googleKey.trim(),
+        campaignId:    form.campaignId.trim(),
+        formId:        form.formId.trim(),
+        defaultStatus: form.defaultStatus || "New",
+        defaultRemark: form.defaultRemark || "Lead from Google Ads",
+      });
+      setSuccess(true);
+      onCreated && onCreated(res.data.data);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Failed to connect campaign");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const EyeOn  = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>;
+  const EyeOff = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>;
+
+  // ── Success screen ───────────────────────────────────────────────────────────
+  if (success) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+        <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
+          <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4">
+            <svg className="w-7 h-7 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Google Ads connected!</h2>
+          <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mb-6">
+            Leads from <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{form.campaignName}</span> will now flow into your CRM automatically via round-robin assignment.
+          </p>
+
+          {/* Webhook setup instructions */}
+          <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-4 py-3 text-left text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-5 space-y-2 border border-[#E4E7EF] dark:border-[#262A38]">
+            <p className="font-semibold text-[#4B5168] dark:text-[#9DA3BB] text-[12px] mb-1">📋 Add this webhook in Google Ads</p>
+            <p className="text-[10px]">Go to: <span className="font-medium text-[#4B5168] dark:text-[#9DA3BB]">Google Ads → Lead Form → Lead delivery → Webhook</span></p>
+            <div className="bg-white dark:bg-[#0D0F14] rounded-lg px-3 py-2 border border-[#E4E7EF] dark:border-[#262A38] space-y-1">
+              <p><span className="text-[#EA4335]">Webhook URL</span> → your-server.com/google-webhook</p>
+              <p><span className="text-[#EA4335]">Key</span> → <span className="font-mono">{form.googleKey}</span></p>
+            </div>
+            <p className="text-[10px] text-[#8B92A9]">Google will send a test ping immediately — your server will return 200 automatically.</p>
+          </div>
+
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#EA4335] text-white text-[13px] font-semibold hover:bg-red-600 transition">Done</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Form ─────────────────────────────────────────────────────────────────────
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            {/* Google logo */}
+            <div className="w-8 h-8 rounded-xl bg-[#FFF8F0] dark:bg-[#2D1A00] flex items-center justify-center">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Connect Google Ads Campaign</h2>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Auto-import leads · Round-robin assigned to your team</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto px-6 py-5 space-y-5">
+
+          {/* Campaign Info */}
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Campaign Info</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label>
+                <input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Google Search — Branding Q2" className={FIELD_CLS} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label>
+                  <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}>
+                    <option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label>
+                  <input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Google Ads" className={FIELD_CLS} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Google Ads Config */}
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Google Ads Config</p>
+            <div className="space-y-3">
+
+              {/* Webhook Key */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Webhook Key <span className="text-[#DC2626]">*</span>
+                  <span className="ml-1 text-[10px] font-normal text-[#8B92A9]">(set this as the Key in Google Ads)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showKey ? "text" : "password"}
+                    value={form.googleKey}
+                    onChange={set("googleKey")}
+                    placeholder="e.g. skyup_google_2025"
+                    className={FIELD_CLS + " pr-10"}
+                  />
+                  <button type="button" onClick={() => setShowKey((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168]">
+                    {showKey ? <EyeOff /> : <EyeOn />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-[#8B92A9] mt-1">Create any secret string. You'll paste this exact value in Google Ads → Lead Form → Lead delivery → Webhook → Key.</p>
+              </div>
+
+              {/* Optional filters */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                    Campaign ID <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span>
+                  </label>
+                  <input type="text" value={form.campaignId} onChange={set("campaignId")} placeholder="e.g. 1234567890" className={FIELD_CLS} />
+                  <p className="text-[10px] text-[#8B92A9] mt-1">Filter leads by campaign. Blank = accept all.</p>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                    Form ID <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span>
+                  </label>
+                  <input type="text" value={form.formId} onChange={set("formId")} placeholder="e.g. 9876543210" className={FIELD_CLS} />
+                  <p className="text-[10px] text-[#8B92A9] mt-1">Filter leads by lead form. Blank = accept all.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Webhook URL info banner */}
+          <div className="bg-[#FFF8F0] dark:bg-[#2D1A00] rounded-xl px-4 py-3 flex gap-3 border border-[#FBBF7A]/30">
+            <svg className="w-4 h-4 text-[#EA4335] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>
+              <p className="text-[12px] font-semibold text-[#EA4335]">Webhook URL to enter in Google Ads</p>
+              <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-0.5">
+                After saving, go to <span className="font-medium">Google Ads → Lead Form → Lead delivery → Webhook</span> and enter:
+              </p>
+              <p className="text-[11px] font-mono bg-white dark:bg-[#0D0F14] rounded px-2 py-1 mt-1.5 border border-[#E4E7EF] dark:border-[#262A38] text-[#EA4335] break-all">
+                https://your-server.com/google-webhook
+              </p>
+            </div>
+          </div>
+
+          {/* Round-robin info banner */}
+          <div className="bg-[#EEF3FF] dark:bg-[#1A2540] rounded-xl px-4 py-3 flex gap-3">
+            <svg className="w-4 h-4 text-[#2563EB] dark:text-[#4F8EF7] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <div>
+              <p className="text-[12px] font-semibold text-[#2563EB] dark:text-[#4F8EF7]">Round-robin auto-assignment</p>
+              <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-0.5">Every new Google lead will be automatically assigned to the next available team member in rotation.</p>
+            </div>
+          </div>
+
+          {error && (
+            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">⚠️ {error}</div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
+          <button onClick={handleSubmit} disabled={!isValid || loading} className="flex-1 py-2.5 rounded-xl bg-[#EA4335] text-white text-[13px] font-semibold hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
             {loading
               ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Connecting…</>
               : "Connect & Start Receiving Leads"}
@@ -432,23 +607,32 @@ function CreateModal({ onClose, onCreated }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Campaigns() {
-  const [campaigns, setCampaigns]     = useState([]);
-  const [pageLoading, setPageLoading] = useState(true);
-  const [selected, setSelected]       = useState(null);
-  const [showCreate, setShowCreate]   = useState(false);
-  const [filter, setFilter]           = useState("All");
-  const [search, setSearch]           = useState("");
+  const [campaigns, setCampaigns]         = useState([]);
+  const [pageLoading, setPageLoading]     = useState(true);
+  const [selected, setSelected]           = useState(null);
+  const [showCreate, setShowCreate]       = useState(false);
+  const [showCreateGoogle, setShowCreateGoogle] = useState(false);
+  const [filter, setFilter]               = useState("All");
+  const [search, setSearch]               = useState("");
 
-  // ── Fetch Meta configs from backend ─────────────────────────────────────────
+  // ── Fetch both Meta and Google configs ───────────────────────────────────────
   const fetchCampaigns = useCallback(async () => {
     setPageLoading(true);
     try {
-      // ✅ FIX 3: was fetch("/api/meta-config") — relative URL hit localhost:5173
-      const res  = await api.get("/meta-config");
-      const data = res.data;
-      const list = Array.isArray(data) ? data : (data.data || []);
+      const [metaRes, googleRes] = await Promise.allSettled([
+        api.get("/meta-config"),
+        api.get("/google-ads-config"),
+      ]);
 
-      const shaped = list.map((cfg, idx) => ({
+      const metaList = metaRes.status === "fulfilled"
+        ? (Array.isArray(metaRes.value.data) ? metaRes.value.data : (metaRes.value.data?.data || []))
+        : [];
+
+      const googleList = googleRes.status === "fulfilled"
+        ? (Array.isArray(googleRes.value.data) ? googleRes.value.data : (googleRes.value.data?.data || []))
+        : [];
+
+      const shapedMeta = metaList.map((cfg, idx) => ({
         _id:       cfg._id,
         _isMeta:   true,
         id:        cfg._id,
@@ -467,7 +651,26 @@ export default function Campaigns() {
         isActive:  cfg.isActive,
       }));
 
-      setCampaigns(shaped);
+      const shapedGoogle = googleList.map((cfg, idx) => ({
+        _id:       cfg._id,
+        _isGoogle: true,
+        id:        cfg._id,
+        name:      cfg.campaignName,
+        channel:   "Google",
+        status:    cfg.isActive ? "Active" : "Paused",
+        sent:      cfg.sent      ?? 0,
+        leads:     cfg.leads     ?? 0,
+        converted: cfg.converted ?? 0,
+        cost:      cfg.cost      ?? 0,
+        date:      fmtDate(cfg.createdAt),
+        createdAt: cfg.createdAt,
+        color:     GOOGLE_COLORS[idx % GOOGLE_COLORS.length],
+        googleKey: cfg.googleKey,
+        company:   cfg.company,
+        isActive:  cfg.isActive,
+      }));
+
+      setCampaigns([...shapedMeta, ...shapedGoogle]);
     } catch (err) {
       console.error("Failed to load campaigns:", err);
       setCampaigns([]);
@@ -478,35 +681,39 @@ export default function Campaigns() {
 
   useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
 
-  // ── Toggle active / pause ────────────────────────────────────────────────────
+  // ── Toggle active / pause — routes to correct endpoint ───────────────────────
   const handleToggle = async (e, campaign) => {
     e.stopPropagation();
     try {
-      // ✅ FIX 4: was fetch(`/api/meta-config/${id}/toggle`, { method: "PATCH" })
-      await api.patch(`/meta-config/${campaign._id}/toggle`);
+      const endpoint = campaign._isGoogle
+        ? `/google-ads-config/${campaign._id}/toggle`
+        : `/meta-config/${campaign._id}/toggle`;
+      await api.patch(endpoint);
       fetchCampaigns();
     } catch (err) {
       console.error("Toggle failed:", err);
     }
   };
 
-  // ── Delete / disconnect ──────────────────────────────────────────────────────
+  // ── Delete / disconnect — routes to correct endpoint ─────────────────────────
   const handleDelete = async (e, campaign) => {
     e.stopPropagation();
     if (!window.confirm(`Disconnect "${campaign.name}"? This cannot be undone.`)) return;
     try {
-      // ✅ FIX 5: was fetch(`/api/meta-config/${id}`, { method: "DELETE" })
-      await api.delete(`/meta-config/${campaign._id}`);
+      const endpoint = campaign._isGoogle
+        ? `/google-ads-config/${campaign._id}`
+        : `/meta-config/${campaign._id}`;
+      await api.delete(endpoint);
       fetchCampaigns();
     } catch (err) {
       console.error("Delete failed:", err);
     }
   };
 
-  const filters = ["All", "Active", "Paused"];
+  const filters = ["All", "Active", "Paused", "Meta", "Google"];
 
   const filtered = campaigns.filter((c) => {
-    const matchFilter = filter === "All" || c.status === filter;
+    const matchFilter = filter === "All" || c.status === filter || c.channel === filter;
     const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase());
     return matchFilter && matchSearch;
   });
@@ -516,6 +723,9 @@ export default function Campaigns() {
   const totalSent      = campaigns.reduce((s, c) => s + (c.sent || 0), 0);
   const overallCPL     = totalLeads > 0 ? Math.round(campaigns.reduce((s, c) => s + (c.cost || 0), 0) / totalLeads) : 0;
 
+  const metaCount   = campaigns.filter(c => c._isMeta).length;
+  const googleCount = campaigns.filter(c => c._isGoogle).length;
+
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-8">
 
@@ -524,18 +734,35 @@ export default function Campaigns() {
         <div>
           <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Campaigns</h1>
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
-            {pageLoading ? "Loading…" : `${campaigns.length} Meta campaign${campaigns.length !== 1 ? "s" : ""} connected`}
+            {pageLoading ? "Loading…" : `${metaCount} Meta · ${googleCount} Google Ads`}
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
-          </svg>
-          Connect Meta Campaign
-        </button>
+
+        {/* Two connect buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/>
+            </svg>
+            Connect Meta
+          </button>
+          <button
+            onClick={() => setShowCreateGoogle(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#EA4335] text-white text-[13px] font-semibold hover:bg-red-600 transition"
+          >
+            {/* Google G icon */}
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#fff"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#fff"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff"/>
+            </svg>
+            Connect Google Ads
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -546,7 +773,7 @@ export default function Campaigns() {
         <SummaryCard label="Avg. cost/lead"  value={`₹${overallCPL}`}               color="#D97706" sub="Across all spend" />
       </div>
 
-      {/* Filters + search */}
+      {/* Filters + search — now includes Meta / Google channel filters */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div className="flex flex-wrap gap-1.5">
           {filters.map((f) => (
@@ -588,6 +815,7 @@ export default function Campaigns() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((c) => {
             const st       = STATUS_STYLE[c.status] || STATUS_STYLE.Active;
+            const ch       = CHANNEL_STYLE[c.channel] || CHANNEL_STYLE.Meta;
             const convRate = c.leads > 0 ? Math.round((c.converted / c.leads) * 100) : 0;
             const cpl      = c.leads > 0 ? Math.round(c.cost / c.leads) : 0;
 
@@ -600,7 +828,7 @@ export default function Campaigns() {
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${CHANNEL_STYLE.Meta.bg} ${CHANNEL_STYLE.Meta.text}`}>Meta</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${ch.bg} ${ch.text}`}>{c.channel}</span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${st.bg} ${st.text}`}>
                           <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: st.dot }} />
                           {c.status}
@@ -643,10 +871,13 @@ export default function Campaigns() {
                     </div>
                   )}
 
-                  {/* Round robin badge */}
+                  {/* Source badge */}
                   <div className="flex items-center gap-1.5 mb-3">
                     <svg className="w-3 h-3 text-[#2563EB] dark:text-[#4F8EF7] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    <span className="text-[10px] text-[#8B92A9] dark:text-[#565C75]">Round-robin auto-assignment · Page ID: <span className="font-mono">{c.pageId}</span></span>
+                    <span className="text-[10px] text-[#8B92A9] dark:text-[#565C75]">
+                      Round-robin · {c._isMeta ? `Page ID: ` : `Key: `}
+                      <span className="font-mono">{c._isMeta ? c.pageId : (c.googleKey ? "••••••" : "—")}</span>
+                    </span>
                   </div>
 
                   {/* Actions */}
@@ -684,16 +915,17 @@ export default function Campaigns() {
           {filtered.length === 0 && !pageLoading && (
             <div className="col-span-3 text-center py-20 text-[#8B92A9] dark:text-[#565C75]">
               <div className="text-[40px] mb-3">📡</div>
-              <p className="text-[15px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No Meta campaigns connected</p>
-              <p className="text-[13px] mt-1">Click "Connect Meta Campaign" to start receiving leads automatically.</p>
+              <p className="text-[15px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No campaigns connected</p>
+              <p className="text-[13px] mt-1">Connect a Meta or Google Ads campaign to start receiving leads automatically.</p>
             </div>
           )}
         </div>
       )}
 
       {/* Drawers / modals */}
-      {selected   && <LeadDrawer  campaign={selected}  onClose={() => setSelected(null)} />}
-      {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={fetchCampaigns} />}
+      {selected          && <LeadDrawer       campaign={selected}  onClose={() => setSelected(null)} />}
+      {showCreate        && <CreateModal       onClose={() => setShowCreate(false)}       onCreated={fetchCampaigns} />}
+      {showCreateGoogle  && <CreateGoogleModal onClose={() => setShowCreateGoogle(false)} onCreated={fetchCampaigns} />}
     </div>
   );
 }
