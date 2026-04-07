@@ -1,4 +1,3 @@
-src/components/campaigns.jsx
 import { useState, useEffect, useCallback } from "react";
 import api from "../data/axiosConfig";
 import VoiceBotPanel from "./VoiceBotPanel";
