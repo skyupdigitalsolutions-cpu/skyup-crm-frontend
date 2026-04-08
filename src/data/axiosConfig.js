@@ -1,7 +1,8 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://skyup-crm-backend.onrender.com/api",
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  validateStatus: (status) => status >= 200 && status <= 207,
 });
 
 // Automatically attach token to every request
@@ -13,26 +14,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 — only log out if the token is truly invalid (JWT errors),
-// NOT on role-mismatch 403s or secondary background API calls.
-// We check: if the error is 401 AND the URL is NOT a role-specific
-// data endpoint (i.e. it is the user's own auth endpoint or a pure
-// "not authorized" JWT failure), then log out.
+// Handle 401 — only log out on genuine JWT failures, not role-mismatch 403s
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const status = error.response?.status;
-    const url    = error.config?.url || "";
+    const status  = error.response?.status;
+    const url     = error.config?.url || "";
+    const message = error.response?.data?.message || "";
 
-    // Only auto-logout on 401 from auth/login endpoints or when
-    // the token is outright invalid. Never auto-logout on 403
-    // (role mismatch) or on background data-fetching 401s.
     const isAuthEndpoint =
       url.includes("/auth/login") ||
       url.includes("/admin/login") ||
       url.includes("/superadmin/login");
 
-    const message = error.response?.data?.message || "";
     const isInvalidToken =
       message.toLowerCase().includes("invalid token") ||
       message.toLowerCase().includes("jwt") ||

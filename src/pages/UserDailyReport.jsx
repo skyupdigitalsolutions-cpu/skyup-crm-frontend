@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import api from "../data/axiosConfig";
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -18,7 +18,6 @@ function isSameDay(str, ref) {
 function addDays(d, n) { const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 function fmtLong(d)  { return d.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"}); }
 function fmtShort(d) { return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); }
-function fmtISO(d)   { return d.toISOString().slice(0,10); }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const STATUS_STYLE = {
@@ -151,7 +150,9 @@ function Skeleton() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function UserDailyReport() {
+  // ── User & role (FIXED: role derived here, not via undefined getRole()) ───
   const user = JSON.parse(localStorage.getItem("user") || "null");
+  const role = user?.role || "user"; // ← FIX 1: role now properly defined
 
   const [allLeads,  setAllLeads]  = useState([]);
   const [loading,   setLoading]   = useState(true);
@@ -228,23 +229,29 @@ export default function UserDailyReport() {
     dayLeads.filter(l => l.status === "Converted")
   , [dayLeads]);
 
-  // ── Export CSV ────────────────────────────────────────────────────────────
-  const exportCSV = () => {
-    const headers = ["Name","Phone","Source","Campaign","Status","Temperature","Date","Remark"];
-    const rows = dayLeads.map(l =>
-      [l.name, l.phone, l.source, l.campaign, l.status, l.temperature||"", l.date, l.remark.replace(/,/g,";")]
-        .map(v => `"${v}"`).join(",")
-    );
-    if (!rows.length) { alert(`No leads for ${fmtShort(viewDate)}.`); return; }
-    const blob = new Blob([[headers.join(","), ...rows].join("\n")], {type:"text/csv"});
-    const a = Object.assign(document.createElement("a"), {
-      href: URL.createObjectURL(blob),
-      download: `my_daily_report_${fmtISO(viewDate)}.csv`,
-    });
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
 
+
+  // ── Import CSV (FIXED: ref and handler declared before JSX, uses role from scope) ──
+  const importInputRef = useRef(null); // ← FIX 2: declared here, above TABS/JSX
+
+  // const handleImportCSV = async (e) => {
+  //   const file = e.target.files?.[0];
+  //   if (!file) return;
+  //   const text = await file.text();
+  //   // ← FIX 3: uses `role` from component scope, no undefined getRole()
+  //   const endpoint = (role === "admin" || role === "superadmin")
+  //     ? "/lead/admin/import-csv"
+  //     : "/lead/import-csv";
+  //   try {
+  //     const { data } = await api.post(endpoint, text, { headers: { "Content-Type": "text/plain" } });
+  //     alert(`✅ ${data.message}\nErrors: ${data.errorCount}`);
+  //   } catch (err) {
+  //     alert("❌ Import failed: " + (err.response?.data?.message || err.message));
+  //   }
+  //   e.target.value = ""; // reset so same file can be re-imported
+  // };
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────
   const TABS = [
     { id:"overview",     label:"Overview",       count: null },
     { id:"leads",        label:"Today's Leads",  count: dayLeads.length },
@@ -290,12 +297,17 @@ export default function UserDailyReport() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
             </button>
           </div>
-          {/* Export */}
-          <button onClick={exportCSV}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-blue-700 transition">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-            Export CSV
-          </button>
+
+          {/* Import CSV — visible to all roles (FIXED: role is now defined) */}
+          {/* <>
+            <input ref={importInputRef} type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
+            <button
+              onClick={() => importInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[#2563EB] text-[#2563EB] dark:text-[#4F8EF7] text-[12px] font-semibold hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              Import CSV
+            </button>
+          </> */}
         </div>
       </div>
 
@@ -406,7 +418,7 @@ export default function UserDailyReport() {
           </div>
 
           {/* Temperature heatmap */}
-          <Card title="Lead temperature — today">
+          <Card title="Lead Quality — today">
             <div className="grid grid-cols-3 gap-4">
               {[
                 {label:"Hot 🔥",  value:stats.hot,  bg:"bg-[#FEF2F2] dark:bg-[#2D0A0A]", text:"text-[#DC2626] dark:text-[#F87171]", bar:"#DC2626"},

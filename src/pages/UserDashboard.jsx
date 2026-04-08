@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
 import { maskPhone } from "../utils/maskPhone";
 import { io } from "socket.io-client";
+import NotInterestedModal from "../components/Notinterestedmodal";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function parseDate(s) {
@@ -33,6 +35,26 @@ function timeAgo(iso) {
   const h = Math.floor(m / 60);
   if (h < 24) return h + "h ago";
   return Math.floor(h / 24) + "d ago";
+}
+
+// ── CSV parser ────────────────────────────────────────────────────────────────
+function parseCSVLine(line) {
+  const values = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === "," && !inQuotes) {
+      values.push(current.replace(/\r/g, "").trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  values.push(current.replace(/\r/g, "").trim());
+  return values;
 }
 
 // ── Status / Temperature configs ──────────────────────────────────────────────
@@ -164,17 +186,48 @@ function ActivityItem({ lead, isLast }) {
   );
 }
 
-function UpdateStatusModal({ lead, onClose, onSaved }) {
-  const [status,  setStatus]  = useState(lead.status || "New");
-  const [remark,  setRemark]  = useState(lead.remark || "");
-  const [temp,    setTemp]    = useState(lead.temperature || "");
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState("");
+// ── UpdateStatusModal — intercepts "Not Interested" → NotInterestedModal ──────
+// FIX 1: Was calling /lead/:id (singular, wrong prefix). Now uses /leads/:id.
+// FIX 2: "Not Interested" selection now triggers NotInterestedModal instead of
+//        a plain PATCH which bypassed all the reassign / scheduled-call logic.
+function getTomorrowStr() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split("T")[0];
+}
+function getTodayStr() {
+  return new Date().toISOString().split("T")[0];
+}
+function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
+  const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
+  const [remark,       setRemark]       = useState(lead.remark || "");
+  const [temp,         setTemp]         = useState(lead.temperature || "");
+  const [followUpDate, setFollowUpDate] = useState(getTomorrowStr());
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
   const CLS = "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition";
+
+  const showDatePicker = status !== "Not Interested";
+
+  const handleStatusChange = function(e) {
+    const val = e.target.value;
+    if (val === "Not Interested") {
+      // Do NOT call onClose() here — parent handles both state changes atomically
+      onNotInterested();
+      return;
+    }
+    setStatus(val);
+  };
+
   const handleSave = async function() {
     setLoading(true); setError("");
     try {
-      await api.patch("/lead/" + (lead.id || lead._id), { status, remark });
+      const body = { status, remark };
+      if (status !== "Not Interested") {
+        body.followUpDate = followUpDate || getTomorrowStr();
+      }
+      // FIX: correct plural route /leads/:id
+      await api.patch("/lead/" + (lead.id || lead._id), body);
       if (temp) await api.patch("/lead/" + (lead.id || lead._id) + "/temperature", { temperature: temp });
       onSaved(Object.assign({}, lead, { status, remark, temperature: temp || lead.temperature }));
       onClose();
@@ -182,8 +235,9 @@ function UpdateStatusModal({ lead, onClose, onSaved }) {
       setError((e.response && e.response.data && e.response.data.message) || "Failed to update");
     } finally { setLoading(false); }
   };
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="w-full max-w-sm bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-6 shadow-2xl" onClick={function(e){ e.stopPropagation(); }}>
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
@@ -197,12 +251,16 @@ function UpdateStatusModal({ lead, onClose, onSaved }) {
         <div className="space-y-3 mb-4">
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Status</label>
-            <select value={status} onChange={function(e){ setStatus(e.target.value); }} className={CLS}>
+            <select value={status} onChange={handleStatusChange} className={CLS}>
               {["New","In Progress","Converted","Not Interested"].map(function(s){ return <option key={s}>{s}</option>; })}
             </select>
+            {/* Visual hint when NI is current status */}
+            <p className="text-[10px] text-amber-500 mt-1">
+              ⚠ Selecting "Not Interested" opens the reassignment workflow.
+            </p>
           </div>
           <div>
-            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Temperature</label>
+            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Lead Quality</label>
             <select value={temp} onChange={function(e){ setTemp(e.target.value); }} className={CLS}>
               <option value="">— Not set —</option>
               <option>Hot</option><option>Warm</option><option>Cold</option>
@@ -212,6 +270,21 @@ function UpdateStatusModal({ lead, onClose, onSaved }) {
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Remark</label>
             <textarea value={remark} onChange={function(e){ setRemark(e.target.value); }} rows={2} className={CLS + " resize-none"} placeholder="Add a note…" />
           </div>
+          {showDatePicker && (
+            <div>
+              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">📅 Follow-up Date</label>
+              <input
+                type="date"
+                value={followUpDate}
+                min={getTodayStr()}
+                onChange={function(e){ setFollowUpDate(e.target.value); }}
+                className={CLS}
+              />
+              <p className="text-[10px] text-[#8B92A9] mt-1">
+                Leave as tomorrow (default) or pick a future date. Past dates are not allowed.
+              </p>
+            </div>
+          )}
         </div>
         {error && <p className="text-[11px] text-red-500 mb-3">{error}</p>}
         <div className="flex gap-2">
@@ -225,15 +298,31 @@ function UpdateStatusModal({ lead, onClose, onSaved }) {
   );
 }
 
+// ── LeadDrawer — now shows call history + scheduled calls ─────────────────────
+// FIX 3: Previous version had no call history or scheduled calls panel.
+//        New agent assigned after NI now sees the full summary of previous calls.
 function LeadDrawer({ lead, onClose, onUpdate }) {
-  const [showUpdate, setShowUpdate] = useState(false);
+  const [showUpdate,      setShowUpdate]      = useState(false);
+  const [showNIModal,     setShowNIModal]     = useState(false);
   const name  = lead.name || "Unknown";
   const phone = lead.phone || lead.mobile || "—";
   const s = STATUS_CONFIG[lead.status] || STATUS_CONFIG["New"];
+
+  const callHistory    = lead.callHistory    || [];
+  const scheduledCalls = lead.scheduledCalls || [];
+  const pendingCalls   = scheduledCalls.filter(function(c){ return !c.done; });
+
+  const fmt = function(iso) {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div className="w-full max-w-[420px] bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-y-auto flex flex-col" onClick={function(e){ e.stopPropagation(); }}>
-        <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38]" style={{ background: s.dot + "08" }}>
+      <div className="w-full max-w-[440px] bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-y-auto flex flex-col" onClick={function(e){ e.stopPropagation(); }}>
+
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-[15px] font-black" style={{ background: s.dot + "20", color: s.dot }}>
@@ -251,8 +340,15 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={lead.status} />
             <TempBadge temp={lead.temperature} />
+            {lead.reassignCount > 0 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
+                🔄 Reassigned {lead.reassignCount}×
+              </span>
+            )}
           </div>
         </div>
+
+        {/* Lead details */}
         <div className="px-6 py-4 grid grid-cols-2 gap-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[
             { label:"Source",   value:lead.source   || "—", icon:"📡" },
@@ -266,18 +362,105 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
             </div>
           ); })}
         </div>
+
+        {/* ── Previous Call History — shown to every newly assigned agent ─────
+             FIX 3: This section was completely missing before. Now the agent
+             can see a full summary of all previous interactions. */}
+        {callHistory.length > 0 && (
+          <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-3 flex items-center gap-1.5">
+              <span>📞</span> Previous Call History ({callHistory.length})
+            </p>
+            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+              {callHistory.map(function(h, i) {
+                return (
+                  <div key={i} className="px-3 py-2.5 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38]">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{h.userName || "Unknown Agent"}</span>
+                      <span className="text-[10px] text-[#8B92A9]">{fmt(h.calledAt)}</span>
+                    </div>
+                    <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">{h.remark}</p>
+                    {h.outcome && (
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">
+                        {h.outcome}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Scheduled Calls ────────────────────────────────────────────────── */}
+        {pendingCalls.length > 0 && (
+          <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-3 flex items-center gap-1.5">
+              <span>🗓️</span> Scheduled Follow-ups ({pendingCalls.length} pending)
+            </p>
+            <div className="space-y-2">
+              {pendingCalls.map(function(sc, i) {
+                const isPast = new Date(sc.scheduledAt) < new Date();
+                return (
+                  <div key={i} className={"flex items-center gap-3 px-3 py-2.5 rounded-xl border " + (isPast ? "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800" : "bg-[#F8F9FC] dark:bg-[#13161E] border-[#E4E7EF] dark:border-[#262A38]")}>
+                    <span className={"w-2 h-2 rounded-full shrink-0 " + (sc.type === "follow-up" ? "bg-blue-500" : "bg-purple-500")} />
+                    <div className="flex-1">
+                      <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] capitalize">{sc.type}</p>
+                      {sc.note && <p className="text-[10px] text-[#8B92A9]">{sc.note}</p>}
+                    </div>
+                    <div className="text-right">
+                      <p className={"text-[11px] font-semibold " + (isPast ? "text-red-500" : "text-[#4B5168] dark:text-[#9DA3BB]")}>{fmt(sc.scheduledAt)}</p>
+                      {isPast && <p className="text-[9px] text-red-400 font-bold">OVERDUE</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
         <div className="px-6 py-4 space-y-2">
           <button onClick={function(){ setShowUpdate(true); }}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-            Update Status / Temperature
+            Update Status / Lead Quality
+          </button>
+          {/* Quick NI button for direct access */}
+          <button onClick={function(){ setShowNIModal(true); }}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 text-[13px] font-semibold hover:bg-orange-50 dark:hover:bg-orange-950/30 transition">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+            Mark Not Interested & Reassign
           </button>
         </div>
+
         <div className="flex-1" />
       </div>
-      {showUpdate && (
-        <UpdateStatusModal lead={lead} onClose={function(){ setShowUpdate(false); }}
-          onSaved={function(updated){ onUpdate(updated); setShowUpdate(false); }} />
+
+      {/* ── Modals rendered via portal so they sit ABOVE the drawer backdrop ──
+           Without portals, the drawer's own `onClick={onClose}` backdrop div
+           intercepts all clicks on these modals, making buttons unclickable. */}
+      {showUpdate && createPortal(
+        <UpdateStatusModal
+          lead={lead}
+          onClose={function(){ setShowUpdate(false); }}
+          onNotInterested={function(){ setShowUpdate(false); setShowNIModal(true); }}
+          onSaved={function(updated){ onUpdate(updated); setShowUpdate(false); }}
+        />,
+        document.body
+      )}
+
+      {showNIModal && createPortal(
+        <NotInterestedModal
+          lead={{ ...lead, _id: lead.id || lead._id }}
+          onClose={function(){ setShowNIModal(false); }}
+          onSuccess={function(updatedLead) {
+            onUpdate({ ...updatedLead, _reassigned: true });
+            setShowNIModal(false);
+            onClose();
+          }}
+        />,
+        document.body
       )}
     </div>
   );
@@ -300,9 +483,10 @@ function AddLeadModal({ onClose, onAdd }) {
     if (Object.keys(e).length) { setErrors(e); return; }
     setSubmitting(true);
     try {
+      // FIX: correct route /leads (plural)
       const res = await api.post("/lead", { name:form.name.trim(), mobile:form.phone.trim(), source:form.source, campaign:form.campaign.trim()||null, status:form.status, date:new Date(), remark:form.remark.trim()||"Manually added" });
       const saved = res.data;
-      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, temperature:saved.temperature||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null });
+      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, temperature:saved.temperature||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
       onClose();
     } catch (err) {
       setErrors({ submit:(err.response&&err.response.data&&err.response.data.message)||"Failed to save lead." });
@@ -341,7 +525,7 @@ function AddLeadModal({ onClose, onAdd }) {
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Status</label>
             <select value={form.status} onChange={function(e){ set("status", e.target.value); }} className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none">
-              {["New","In Progress","Converted","Not Interested"].map(function(s){ return <option key={s}>{s}</option>; })}
+              {["New","In Progress","Converted"].map(function(s){ return <option key={s}>{s}</option>; })}
             </select>
           </div>
         </div>
@@ -366,7 +550,7 @@ function UserChatWidget() {
   const bottomRef = useRef(null);
   const user = JSON.parse(localStorage.getItem("user") || "null");
   useEffect(function() {
-    const socket = io("https://skyup-crm-backend.onrender.com");
+    const socket = io(import.meta.env.VITE_SOCKET_URL || "https://skyup-crm-backend.onrender.com", { withCredentials: true });
     socketRef.current = socket;
     socket.emit("user_join", (user && user.name) || "user");
     socket.on("chat_history", function(history) {
@@ -392,10 +576,10 @@ function UserChatWidget() {
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
       {open && (
         <div className="w-80 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ height: 400 }}>
-          <div className="flex items-center justify-between px-4 py-3 text-white" style={{ background: "linear-gradient(to right, #2563EB, #7C3AED)" }}>
+          <div className="flex items-center justify-between px-4 py-3 bg-[#2563EB]">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-[13px] font-semibold">Support Chat</span>
+              <span className="text-[13px] font-semibold text-white">Support Chat</span>
             </div>
             <button onClick={function(){ setOpen(false); }} className="text-white/70 hover:text-white transition">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -427,8 +611,7 @@ function UserChatWidget() {
         </div>
       )}
       <button onClick={function(){ setOpen(function(o){ return !o; }); }}
-        className="relative w-14 h-14 rounded-full text-white shadow-lg flex items-center justify-center transition hover:scale-105 active:scale-95"
-        style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
+        className="relative w-14 h-14 rounded-full bg-[#2563EB] text-white shadow-lg flex items-center justify-center transition hover:bg-blue-700 hover:scale-105 active:scale-95">
         {open
           ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
           : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
@@ -450,6 +633,30 @@ function getGreeting() {
   return { text: "Good evening", emoji: "🌙" };
 }
 
+// ── mapLead: preserves callHistory, scheduledCalls, reassignCount ─────────────
+// FIX 4: Previous version stripped these fields so new agents never saw call
+//        history. Now all fields are preserved from the API response.
+function mapLead(l) {
+  return {
+    id:             String(l._id),
+    name:           l.name           || "Unknown",
+    phone:          l.mobile         || l.phone || "",
+    mobile:         l.mobile         || l.phone || "",
+    source:         l.source         || "—",
+    campaign:       l.campaign       || "—",
+    status:         l.status         || "New",
+    temperature:    l.temperature    || null,
+    remark:         l.remark         || "",
+    date:           l.date ? new Date(l.date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—",
+    _raw_date:      l.date           || l.createdAt || null,
+    // ── Fields preserved so LeadDrawer can show call summary to new agent ──
+    callHistory:    Array.isArray(l.callHistory)    ? l.callHistory    : [],
+    scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
+    previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
+    reassignCount:  l.reassignCount  || 0,
+  };
+}
+
 export default function UserDashboard() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const greeting = getGreeting();
@@ -469,24 +676,10 @@ export default function UserDashboard() {
 
   const fetchLeads = useCallback(function() {
     setLoading(true);
-    api.get("/lead/my-leads") // ✅ FIX: /lead returns all leads (admin only → 500); user endpoint is /lead/my-leads
+    api.get("/lead/my-leads")
       .then(function(res) {
         const raw = Array.isArray(res.data) ? res.data : (res.data && res.data.data ? res.data.data : []);
-        setLeads(raw.map(function(l) {
-          return {
-            id:          String(l._id),
-            name:        l.name        || "Unknown",
-            phone:       l.mobile      || l.phone || "",
-            mobile:      l.mobile      || l.phone || "",
-            source:      l.source      || "—",
-            campaign:    l.campaign    || "—",
-            status:      l.status      || "New",
-            temperature: l.temperature || null,
-            remark:      l.remark      || "",
-            date:        l.date ? new Date(l.date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—",
-            _raw_date:   l.date || l.createdAt || null,
-          };
-        }));
+        setLeads(raw.map(mapLead));
         setError("");
       })
       .catch(function() { setError("Failed to load your leads. Please refresh."); })
@@ -544,64 +737,142 @@ export default function UserDashboard() {
   }, [leads]);
 
   const handleUpdate = function(updated) {
-    setLeads(function(prev){ return prev.map(function(l){ return l.id === updated.id ? Object.assign({}, l, updated) : l; }); });
-    if (selected && selected.id === updated.id) setSelected(function(s){ return Object.assign({}, s, updated); });
+    // If lead was reassigned (NI flow), remove it from this agent's list
+    if (updated._reassigned) {
+      setLeads(function(prev){ return prev.filter(function(l){ return l.id !== (updated.id || updated._id); }); });
+      setSelected(null);
+      return;
+    }
+    const mapped = updated._id ? mapLead(updated) : updated;
+    setLeads(function(prev){ return prev.map(function(l){ return l.id === mapped.id ? Object.assign({}, l, mapped) : l; }); });
+    if (selected && selected.id === mapped.id) setSelected(function(s){ return Object.assign({}, s, mapped); });
   };
   const handleAddLead = function(newLead) { setLeads(function(prev){ return [newLead].concat(prev); }); setPage(1); };
   const handleDeleteLead = async function(id) {
     try { await api.delete("/lead/" + id); setLeads(function(prev){ return prev.filter(function(l){ return l.id !== id; }); }); if (selected && selected.id === id) setSelected(null); }
     catch(e) { /* silently ignore */ } finally { setDeleteConfirm(null); }
   };
-  const exportCSV = function() {
-    const headers = ["Name","Phone","Campaign","Source","Status","Temperature","Date","Remark"];
-    const rows = displayed.map(function(l){ return [l.name,l.phone,l.campaign,l.source,l.status,l.temperature||"",l.date,(l.remark||"").replace(/,/g,";")].map(function(v){ return '"'+v+'"'; }).join(","); });
-    const blob = new Blob([[headers.join(",")].concat(rows).join("\n")], { type:"text/csv" });
-    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "my_leads.csv" });
-    a.click(); URL.revokeObjectURL(a.href);
+
+  // ── Import CSV ────────────────────────────────────────────────────────────
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvResult,    setCsvResult]    = useState(null);
+
+  const handleImportCSV = async function(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    e.target.value = "";
+    setCsvImporting(true);
+    setCsvResult(null);
+    try {
+      const text = await file.text();
+      const lines = text.trim().split("\n").map(function(l){ return l.replace(/\r$/, ""); }).filter(Boolean);
+      if (lines.length < 2) {
+        setCsvResult({ error: "CSV must have a header row and at least one data row." });
+        setCsvImporting(false);
+        return;
+      }
+      const headers = parseCSVLine(lines[0]).map(function(h){ return h.replace(/\r/g, "").toLowerCase(); });
+      const leadsToImport = [];
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCSVLine(lines[i]);
+        const row = {};
+        headers.forEach(function(h, idx) { row[h] = (values[idx] || "").replace(/\r/g, "").trim(); });
+        const nameVal   = row.name || row["full name"] || row["fullname"] || row["full_name"] || row["contact name"] || row["contact"] || "";
+        const mobileVal = row.mobile || row.phone || row["phone number"] || row["phonenumber"] || row["mobile number"] || row["mobile_number"] || row["phone_number"] || row["contact number"] || row["contact_number"] || row["number"] || "";
+        if (!nameVal && !mobileVal) continue;
+        const cleanMobile = mobileVal.replace(/\D/g, "");
+        if (!cleanMobile) {
+          leadsToImport.push({ _skipError: true, name: nameVal || ("Row " + i), reason: "mobile number missing or unrecognised column" });
+          continue;
+        }
+        leadsToImport.push({ name:nameVal, mobile:cleanMobile, email:row.email||"", source:row.source||"CSV Import", campaign:row.campaign||"", status:row.status||"New", date:row.date||null, remark:row.remark||row.notes||"Imported via CSV" });
+      }
+      const clientErrors = leadsToImport.filter(function(r){ return r._skipError; }).map(function(r, idx){ return { index:idx, row:r.name, message:r.reason }; });
+      const validLeads   = leadsToImport.filter(function(r){ return !r._skipError; });
+      if (!validLeads.length) {
+        setCsvResult({ error: "No valid rows found. Check that your CSV has 'name' and 'mobile' (or 'phone') columns.", errorDetails: clientErrors });
+        setCsvImporting(false);
+        return;
+      }
+      const res = await api.post("/lead/import-csv", { leads: validLeads });
+      const imported = res.data.saved || [];
+      setLeads(function(prev) { return imported.map(mapLead).concat(prev); });
+      setPage(1);
+      const allErrors = (res.data.errors || []).concat(clientErrors);
+      setCsvResult({ saved: res.data.savedCount, errors: allErrors.length, total: res.data.total + clientErrors.length, errorDetails: allErrors });
+    } catch (err) {
+      setCsvResult({ error: (err.response && err.response.data && err.response.data.message) || "Import failed." });
+    } finally {
+      setCsvImporting(false);
+    }
   };
+
   const initials = user && user.name ? user.name.split(" ").map(function(n){ return n[0]; }).join("").slice(0,2).toUpperCase() : "U";
 
   return (
     <div className="min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
 
-      {/* ── Greeting banner ─────────────────────────────────────────────── */}
-      <div className="px-6 py-5" style={{ background: "linear-gradient(to right, #2563EB, #7C3AED)" }}>
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <div className="px-6 py-5 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38]">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <p className="text-blue-200 text-[12px] font-medium">{greeting.emoji} {greeting.text}</p>
-            <h1 className="text-[22px] font-black text-white mt-0.5">
-              {(user && user.name) || "Agent"} <span className="text-blue-200 text-[16px] font-normal">— My Workspace</span>
+            <p className="text-[#8B92A9] dark:text-[#565C75] text-[12px] font-medium">
+              {greeting.emoji} {greeting.text}
+            </p>
+            <h1 className="text-[22px] font-black text-[#0F1117] dark:text-[#F0F2FA] mt-0.5">
+              {(user && user.name) || "Agent"}
+              <span className="text-[#8B92A9] dark:text-[#565C75] text-[16px] font-normal ml-2">— My Workspace</span>
             </h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={function(){ setShowAddModal(true); }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-[13px] font-semibold transition border border-white/20"
-              style={{ background: "rgba(255,255,255,0.15)" }}>
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               Add Lead
             </button>
-            <button onClick={exportCSV}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-[13px] font-semibold transition border border-white/20"
-              style={{ background: "rgba(255,255,255,0.15)" }}>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              Export
-            </button>
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-black text-white border-2 border-white/40" style={{ background: "rgba(255,255,255,0.2)" }}>
+            <label
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition cursor-pointer ${csvImporting ? "opacity-60 cursor-not-allowed" : ""}`}
+              title="Import CSV — columns: name, mobile, source, campaign, status, remark">
+              <input type="file" accept=".csv" className="hidden" disabled={csvImporting} onChange={handleImportCSV}/>
+              {csvImporting
+                ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              }
+              {csvImporting ? "Importing…" : "Import CSV"}
+            </label>
+            {csvResult && (
+              <div className={`flex flex-col gap-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${csvResult.error || csvResult.saved === 0 ? "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400" : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400"}`}>
+                <div className="flex items-center gap-1.5">
+                  {csvResult.error ? csvResult.error : `${csvResult.saved > 0 ? "✓ " : ""}${csvResult.saved}/${csvResult.total} imported${csvResult.errors > 0 ? ` (${csvResult.errors} failed)` : ""}`}
+                  <button onClick={function(){ setCsvResult(null); }} className="ml-1 opacity-70 hover:opacity-100">✕</button>
+                </div>
+                {!csvResult.error && csvResult.errorDetails && csvResult.errorDetails.length > 0 && (
+                  <ul className="mt-0.5 space-y-0.5 text-[10px] font-normal opacity-90">
+                    {csvResult.errorDetails.map(function(e, i){ return (
+                      <li key={i}>Row {e.index + 1} ({e.row}): {e.message}</li>
+                    ); })}
+                  </ul>
+                )}
+              </div>
+            )}
+            <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[13px] font-black text-[#2563EB] dark:text-[#4F8EF7] border border-[#C7D7FF] dark:border-[#2D3A6B]">
               {initials}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-6 mt-4 flex-wrap">
+
+        {/* Quick stats strip */}
+        <div className="flex items-center gap-6 mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex-wrap">
           {[
-            { label:"My Total Leads", value:kpi.total,                     color:"text-white" },
-            { label:"Today",          value:kpi.todayLeads,                color:"text-blue-200" },
-            { label:"This Week",      value:kpi.weekLeads,                 color:"text-blue-200" },
-            { label:"Converted",      value:kpi.converted,                 color:"text-emerald-300" },
-            { label:"Conv. Rate",     value:kpi.convRate + "%",            color:"text-emerald-300" },
+            { label:"My Total Leads", value:kpi.total,          color:"text-[#0F1117] dark:text-[#F0F2FA]" },
+            { label:"Today",          value:kpi.todayLeads,     color:"text-[#2563EB] dark:text-[#4F8EF7]" },
+            { label:"This Week",      value:kpi.weekLeads,      color:"text-[#2563EB] dark:text-[#4F8EF7]" },
+            { label:"Converted",      value:kpi.converted,      color:"text-[#059669] dark:text-[#34D399]" },
+            { label:"Conv. Rate",     value:kpi.convRate + "%", color:"text-[#059669] dark:text-[#34D399]" },
           ].map(function(stat){ return (
             <div key={stat.label} className="flex items-center gap-2">
               <span className={"text-[18px] font-black " + stat.color}>{stat.value}</span>
-              <span className="text-[11px] text-blue-200 font-medium">{stat.label}</span>
+              <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] font-medium">{stat.label}</span>
             </div>
           ); })}
         </div>
@@ -609,7 +880,6 @@ export default function UserDashboard() {
 
       <div className="p-6 space-y-6">
 
-        {/* Error */}
         {error && (
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-[12px] font-medium">
             <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -620,15 +890,14 @@ export default function UserDashboard() {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"          color="#2563EB" icon="👤" />
+          <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon="👤" />
           <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon="✅" trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
-          <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"           color="#D97706" icon="⏳" />
-          <KpiCard label="Hot Leads 🔥"   value={kpi.hot}        sub="Call these first!"            color="#DC2626" icon="🔥" />
+          <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon="⏳" />
+          <KpiCard label="Hot Leads 🔥"   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="🔥" />
         </div>
 
         {/* Middle row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Daily Targets */}
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-[14px]">🎯</span>
@@ -644,7 +913,6 @@ export default function UserDashboard() {
             </p>
           </div>
 
-          {/* Weekly Activity */}
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[14px]">📊</span>
@@ -654,7 +922,6 @@ export default function UserDashboard() {
             <MiniBarChart data={kpi.weekData} labels={kpi.weekLabels} color="#2563EB" />
           </div>
 
-          {/* Temperature Breakdown */}
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-[14px]">🌡️</span>
@@ -730,7 +997,7 @@ export default function UserDashboard() {
                 </div>
                 <select value={filterTemp} onChange={function(e){ setFilterTemp(e.target.value); setPage(1); }}
                   className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[11px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none">
-                  <option value="All">All Temps</option><option>Hot</option><option>Warm</option><option>Cold</option>
+                  <option value="All">All qualities</option><option>Hot</option><option>Warm</option><option>Cold</option>
                 </select>
                 <select value={sortBy} onChange={function(e){ setSortBy(e.target.value); }}
                   className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[11px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none">
@@ -746,7 +1013,6 @@ export default function UserDashboard() {
             )}
           </div>
 
-          {/* Leads tab content */}
           {activeTab === "leads" && (
             <>
               {loading ? (
@@ -768,7 +1034,7 @@ export default function UserDashboard() {
                   <table className="w-full text-[12px]">
                     <thead>
                       <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                        {["Lead","Phone","Campaign / Source","Date","Status","Temp",""].map(function(h){ return (
+                        {["Lead","Phone","Campaign / Source","Date","Status","Lead Quality",""].map(function(h){ return (
                           <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
                         ); })}
                       </tr>
@@ -782,7 +1048,12 @@ export default function UserDashboard() {
                                 style={{ background: ((STATUS_CONFIG[l.status] && STATUS_CONFIG[l.status].dot) || "#2563EB") + "20", color: (STATUS_CONFIG[l.status] && STATUS_CONFIG[l.status].dot) || "#2563EB" }}>
                                 {l.name.split(" ").map(function(n){ return n[0]; }).join("").slice(0,2).toUpperCase()}
                               </div>
-                              <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.name}</span>
+                              <div>
+                                <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.name}</span>
+                                {l.reassignCount > 0 && (
+                                  <span className="ml-1.5 text-[9px] font-bold text-purple-500">🔄{l.reassignCount}</span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="px-4 py-3 font-mono text-[#4B5168] dark:text-[#9DA3BB]">{l.phone ? maskPhone(l.phone) : "—"}</td>
@@ -833,7 +1104,6 @@ export default function UserDashboard() {
             </>
           )}
 
-          {/* Activity tab content */}
           {activeTab === "activity" && (
             <div className="p-5">
               {loading ? (
@@ -858,9 +1128,8 @@ export default function UserDashboard() {
           )}
         </div>
 
-        {/* Motivational footer */}
         {!loading && kpi.total > 0 && (
-          <div className="rounded-2xl p-4 flex items-center gap-4 border border-[#BFDBFE] dark:border-[#1E3A5F]" style={{ background: "linear-gradient(to right, #EEF3FF, #F0FDF4)" }}>
+          <div className="rounded-2xl p-4 flex items-center gap-4 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38]">
             <span className="text-[28px]">
               {kpi.convRate >= 50 ? "🏆" : kpi.convRate >= 30 ? "💪" : kpi.convRate >= 15 ? "📈" : "🚀"}
             </span>
@@ -880,7 +1149,6 @@ export default function UserDashboard() {
 
       </div>
 
-      {/* Drawers & Modals */}
       {selected && <LeadDrawer lead={selected} onClose={function(){ setSelected(null); }} onUpdate={handleUpdate} />}
       {showAddModal && <AddLeadModal onClose={function(){ setShowAddModal(false); }} onAdd={handleAddLead} />}
       {deleteConfirm && (

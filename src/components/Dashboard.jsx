@@ -185,6 +185,54 @@ const [activeCallSid, setActiveCallSid] = useState(null);
   const [range,       setRange]       = useState("week");
   const [superStats,  setSuperStats]  = useState(null); // only for superadmin
 
+  // ── CSV Import state ────────────────────────────────────────────────────────
+  // const [csvImporting, setCsvImporting] = useState(false);
+  const [csvResult,    setCsvResult]    = useState(null); // { saved, errors }
+
+  // const handleAdminImportCSV = async (e) => {
+  //   const file = e.target.files?.[0];
+  //   if (!file) return;
+  //   e.target.value = ""; // reset so same file can be re-selected
+  //   setCsvImporting(true);
+  //   setCsvResult(null);
+  //   try {
+  //     const text = await file.text();
+  //     const lines = text.trim().split("\n").filter(Boolean);
+  //     if (lines.length < 2) { setCsvResult({ error: "CSV must have a header row and at least one data row." }); return; }
+
+  //     // Parse header
+  //     const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim().toLowerCase());
+  //     const leads = [];
+  //     for (let i = 1; i < lines.length; i++) {
+  //       const values = lines[i].split(",").map(v => v.replace(/^"|"$/g, "").trim());
+  //       const row = {};
+  //       headers.forEach((h, idx) => { row[h] = values[idx] || ""; });
+  //       if (!row.name && !row.mobile) continue;
+  //       leads.push({
+  //         name:     row.name     || row["full name"] || "",
+  //         mobile:   row.mobile   || row.phone || row["phone number"] || "",
+  //         email:    row.email    || "",
+  //         source:   row.source   || "CSV Import",
+  //         campaign: row.campaign || "",
+  //         status:   row.status   || "New",
+  //         date:     row.date     || "",
+  //         remark:   row.remark   || row.notes || "Imported via CSV",
+  //       });
+  //     }
+
+  //     if (!leads.length) { setCsvResult({ error: "No valid rows found in CSV." }); return; }
+
+  //     const { default: api } = await import("../data/axiosConfig");
+  //     const res = await api.post("/leads/admin/import-csv", { leads });
+  //     setCsvResult({ saved: res.data.savedCount, errors: res.data.errorCount, total: res.data.total });
+  //     loadData(); // refresh dashboard
+  //   } catch (err) {
+  //     setCsvResult({ error: err.response?.data?.message || "Import failed." });
+  //   } finally {
+  //     setCsvImporting(false);
+  //   }
+  // };
+
   const contacts = allLeads
   .filter(l => l.mobile)
   .map(l => ({ id: l.id, name: l.name, number: String(l.mobile) }))
@@ -307,6 +355,39 @@ const [activeCallSid, setActiveCallSid] = useState(null);
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
             </svg>
           </button>
+
+          {/* ✅ Import CSV button (admin only, round-robin assignment) */}
+          {/* {!isSuperAdmin && (
+            <label className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[12px] font-semibold cursor-pointer transition
+              ${csvImporting
+                ? "border-blue-300 bg-blue-50 dark:bg-blue-500/10 text-blue-400 cursor-not-allowed"
+                : "border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB]"
+              }`}
+              title="Import CSV — leads assigned via round-robin to all users">
+              <input type="file" accept=".csv" className="hidden" disabled={csvImporting} onChange={handleAdminImportCSV}/>
+              {csvImporting
+                ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              }
+              {csvImporting ? "Importing…" : "Import CSV"}
+            </label>
+          )} */}
+
+          {/* CSV import result toast */}
+          {/* {csvResult && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-semibold border
+              ${csvResult.error
+                ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400"
+                : "bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/20 text-green-700 dark:text-green-400"
+              }`}>
+              {csvResult.error
+                ? csvResult.error
+                : `✓ ${csvResult.saved}/${csvResult.total} leads imported`
+              }
+              <button onClick={() => setCsvResult(null)} className="ml-1 opacity-60 hover:opacity-100">✕</button>
+            </div>
+          )} */}
+
           <div className="flex items-center gap-1.5 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-1">
             {Object.entries(RANGE_LABELS).map(([key,label])=>(
               <button key={key} onClick={()=>setRange(key)}
