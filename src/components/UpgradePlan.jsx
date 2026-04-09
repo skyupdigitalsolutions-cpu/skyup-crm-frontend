@@ -5,176 +5,14 @@
 //    import InvoiceReceipt    from "./InvoiceReceipt";
 //    import UpdatePaymentModal from "./UpdatePaymentModal";
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { useState, useEffect, useCallback } from "react";
+import api from "../data/axiosConfig";
 import InvoiceReceipt from "./InvoiceReceipt";
 import UpdatePaymentModal from "./UpdatePaymentModal";
-
-const API = axios.create({ baseURL: "/api" });
-
-API.interceptors.request.use(async (config) => {
-  await new Promise((r) => setTimeout(r, 500));
-
-  const MOCK = {
-    "/plans": [
-      {
-        id: "starter",
-        name: "Starter",
-        desc: "Perfect for small teams just getting started",
-        monthlyPrice: 999,
-        yearlyPrice: 799,
-        color: "#0891B2",
-        popular: false,
-        current: true,
-        admins: "1",
-        agents: "10",
-        features: [
-          "1 admins",
-          "10 agents",
-          "SMS & WhatsApp blast",
-          "Basic dashboard",
-          "Daily report (email)",
-          "Email support",
-        ],
-        locked: [
-          "Google Ads integration",
-          "Facebook Ads integration",
-          "API / Webhook access",
-          "Call recordings",
-          "Custom reports",
-          "Priority support",
-        ],
-      },
-      {
-        id: "growth",
-        name: "Growth",
-        desc: "For growing teams that need more power",
-        monthlyPrice: 2499,
-        yearlyPrice: 1999,
-        color: "#2563EB",
-        popular: true,
-        current: false,
-        admins: "3",
-        agents: "30",
-        features: [
-          "3 admins",
-          "30 agents",
-          "SMS, WhatsApp & Email blast",
-          "Advanced dashboard",
-          "Daily report (email + PDF)",
-          "Google Ads integration",
-          "Facebook Ads integration",
-          "Call recordings (30 days)",
-          "API / Webhook access",
-          "Priority support",
-        ],
-        locked: [
-          "Unlimited leads",
-          "Unlimited call recordings",
-          "White-label CRM",
-          "Dedicated account manager",
-        ],
-      },
-      {
-        id: "enterprise",
-        name: "Enterprise",
-        desc: "Unlimited scale for large organisations",
-        monthlyPrice: 5999,
-        yearlyPrice: 4799,
-        color: "#7C3AED",
-        popular: false,
-        current: false,
-        admins: "5",
-        agents: "50",
-        features: [
-          "5 admins",
-          "50 agents",
-          "All blast channels",
-          "Full analytics suite",
-          "Custom report builder",
-          "Google & Facebook Ads",
-          "API / Webhook access",
-          "Unlimited call recordings",
-          "White-label CRM",
-          "Dedicated account manager",
-          "SLA guarantee",
-          "24/7 phone support",
-        ],
-        locked: [],
-      },
-    ],
-    "/invoices": [
-      {
-        date: "01 Mar 2025",
-        amount: "₹999",
-        baseAmount: 999,
-        status: "Paid",
-        id: "INV-2025-03",
-        planName: "Starter",
-        billingCycle: "monthly",
-        transactionId: "TXN1709251200001",
-      },
-      {
-        date: "01 Feb 2025",
-        amount: "₹999",
-        baseAmount: 999,
-        status: "Paid",
-        id: "INV-2025-02",
-        planName: "Starter",
-        billingCycle: "monthly",
-        transactionId: "TXN1706572800002",
-      },
-      {
-        date: "01 Jan 2025",
-        amount: "₹999",
-        baseAmount: 999,
-        status: "Paid",
-        id: "INV-2025-01",
-        planName: "Starter",
-        billingCycle: "monthly",
-        transactionId: "TXN1704067200003",
-      },
-      {
-        date: "01 Dec 2024",
-        amount: "₹999",
-        baseAmount: 999,
-        status: "Paid",
-        id: "INV-2024-12",
-        planName: "Starter",
-        billingCycle: "monthly",
-        transactionId: "TXN1701388800004",
-      },
-    ],
-    "/subscription": {
-      planName: "Starter",
-      renewsOn: "01 Apr 2025",
-      totalPaid: "₹3,996",
-      paymentMethod: "Visa •••• 4242",
-    },
-  };
-
-  for (const [path, data] of Object.entries(MOCK)) {
-    if (config.url.startsWith(path)) {
-      config.adapter = () =>
-        Promise.resolve({
-          data,
-          status: 200,
-          statusText: "OK",
-          headers: {},
-          config,
-        });
-      break;
-    }
-  }
-  return config;
-});
 
 // ─────────────────────────────────────────────
 //  SEND INVOICE EMAIL
 // ─────────────────────────────────────────────
-const ADMIN_EMAIL = "admin@yourdomain.com";
-const SUPER_ADMIN_EMAIL = "superadmin@gmail.com";
-
 async function sendInvoiceEmail({
   invoiceId,
   planName,
@@ -188,14 +26,13 @@ async function sendInvoiceEmail({
     year: "numeric",
   });
   try {
-    await API.post("/notify-invoice", {
+    await api.post("/razorpay/notify-invoice", {
       invoiceId,
       planName,
       amount,
       billingCycle,
       transactionId,
       date,
-      recipients: [ADMIN_EMAIL, SUPER_ADMIN_EMAIL],
     });
   } catch (err) {
     console.error("[Invoice email] Notification failed:", err);
@@ -428,479 +265,45 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
 }
 
 // ─────────────────────────────────────────────
-//  RAZORPAY MOCK MODAL
+//  RAZORPAY HOOK
 // ─────────────────────────────────────────────
-function RazorpayModal({ plan, billing, onSuccess, onClose }) {
-  const price = billing === "yearly" ? plan.yearlyPrice : plan.monthlyPrice;
-  const [step, setStep] = useState("pay");
-  const [payMethod, setPayMethod] = useState("card");
-  const [transactionId, setTxnId] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
-  const [name, setName] = useState("");
-  const [upiId, setUpiId] = useState("");
-  const [upiVerified, setUpiVerified] = useState(null);
-  const [selectedBank, setSelectedBank] = useState(null);
-  const [error, setError] = useState("");
-  const [procMsg, setProcMsg] = useState("Processing payment...");
-  const [newInvoiceId, setNewInvoiceId] = useState("");
+function useRazorpay() {
+  const loadScript = () =>
+    new Promise((resolve) => {
+      if (document.getElementById("razorpay-sdk")) return resolve(true);
+      const script = document.createElement("script");
+      script.id = "razorpay-sdk";
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
 
-  const BANKS = [
-    { id: "sbi", label: "State Bank", short: "SBI", color: "#002D62" },
-    { id: "hdfc", label: "HDFC", short: "HDFC", color: "#004C8F" },
-    { id: "icici", label: "ICICI", short: "ICICI", color: "#F96922" },
-    { id: "axis", label: "Axis", short: "AXIS", color: "#97144D" },
-    { id: "kotak", label: "Kotak", short: "KMB", color: "#EE3124" },
-    { id: "yes", label: "Yes Bank", short: "YES", color: "#00549F" },
-  ];
+  const openCheckout = useCallback(async ({ orderData, plan, billing, onSuccess, onFailure }) => {
+    const loaded = await loadScript();
+    if (!loaded) {
+      onFailure("Failed to load Razorpay SDK. Check your internet connection.");
+      return;
+    }
 
-  const formatCard = (v) =>
-    v
-      .replace(/\D/g, "")
-      .slice(0, 16)
-      .replace(/(.{4})/g, "$1 ")
-      .trim();
-  const formatExpiry = (v) => {
-    const c = v.replace(/\D/g, "").slice(0, 4);
-    return c.length >= 3 ? c.slice(0, 2) + "/" + c.slice(2) : c;
-  };
+    const rzp = new window.Razorpay({
+      key: orderData.keyId,
+      amount: orderData.amount,
+      currency: orderData.currency,
+      name: "SkyUp CRM",
+      description: `${orderData.planName} Plan – ${billing}`,
+      order_id: orderData.orderId,
+      theme: { color: plan.color },
+      handler: (response) => onSuccess(response),
+      modal: { ondismiss: () => onFailure(null) },
+    });
+    rzp.on("payment.failed", (resp) =>
+      onFailure(resp.error?.description || "Payment failed. Please try again.")
+    );
+    rzp.open();
+  }, []);
 
-  function startProcessing(msg) {
-    const txn = "TXN" + Date.now().toString().slice(-10);
-    const invId =
-      "INV-" +
-      new Date().toISOString().slice(0, 7) +
-      "-" +
-      Math.floor(Math.random() * 9000 + 1000);
-    setTxnId(txn);
-    setNewInvoiceId(invId);
-    setProcMsg(msg || "Processing payment...");
-    setStep("processing");
-    setTimeout(() => {
-      setStep("success");
-      sendInvoiceEmail({
-        invoiceId: invId,
-        planName: plan.name,
-        amount: `₹${price.toLocaleString()}`,
-        billingCycle: billing,
-        transactionId: txn,
-      });
-    }, 2500);
-  }
-
-  const handlePayCard = () => {
-    if (!name.trim()) return setError("Enter cardholder name.");
-    if (cardNumber.replace(/\s/g, "").length < 16)
-      return setError("Enter a valid 16-digit card number.");
-    if (expiry.length < 5) return setError("Enter a valid expiry (MM/YY).");
-    if (cvv.length < 3) return setError("Enter a valid CVV.");
-    setError("");
-    startProcessing("Processing payment...");
-  };
-  const handleVerifyUPI = () => {
-    const valid = /^[\w.\-]+@[\w]+$/.test(upiId.trim());
-    setUpiVerified(valid);
-    setError(valid ? "" : "Enter a valid UPI ID (e.g. name@upi).");
-  };
-  const handlePayUPI = () => {
-    if (!upiId.trim()) return setError("Enter your UPI ID.");
-    if (!upiVerified) return setError("Verify your UPI ID first.");
-    setError("");
-    startProcessing("Awaiting UPI confirmation...");
-  };
-  const handlePayNB = () => {
-    if (!selectedBank) return setError("Please select a bank.");
-    setError("");
-    startProcessing(`Redirecting to ${selectedBank.label}...`);
-  };
-
-  const TAB_STYLE = (active) => ({
-    flex: 1,
-    padding: "10px 4px",
-    fontSize: 12,
-    fontWeight: 600,
-    border: "none",
-    borderBottom: active ? `2px solid ${plan.color}` : "2px solid transparent",
-    background: active ? "white" : "#F8F9FC",
-    color: active ? plan.color : "#8B92A9",
-    cursor: "pointer",
-    transition: "all 0.15s",
-  });
-
-  const inputCls =
-    "mt-1 w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] bg-white text-[13px] text-[#0F1117] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition";
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-white border border-[#E4E7EF] rounded-2xl w-full max-w-md mx-4 shadow-2xl overflow-hidden">
-        <div
-          className="px-6 py-4 flex items-center justify-between"
-          style={{ background: plan.color }}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke={plan.color}
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                />
-              </svg>
-            </div>
-            <div>
-              <p className="text-white text-[11px] opacity-80">Paying to</p>
-              <p className="text-white text-[13px] font-bold">SkyUp CRM</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-white text-[11px] opacity-80">
-              {plan.name} Plan
-            </p>
-            <p className="text-white text-[20px] font-bold">
-              ₹{price.toLocaleString()}
-            </p>
-          </div>
-        </div>
-
-        {step === "pay" && (
-          <div className="flex border-b border-[#E4E7EF] dark:border-[#1E2133] bg-[#F8F9FC] dark:bg-[#0D0F17]">
-            {[
-              { id: "card", label: "Card" },
-              { id: "upi", label: "UPI / QR" },
-              { id: "netbanking", label: "Net banking" },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => {
-                  setPayMethod(t.id);
-                  setError("");
-                }}
-                style={TAB_STYLE(payMethod === t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {step === "processing" && (
-          <div className="px-6 py-14 flex flex-col items-center gap-4">
-            <svg
-              className="animate-spin w-12 h-12 text-[#2563EB]"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-              />
-            </svg>
-            <p className="text-[14px] font-semibold text-[#0F1117]">
-              {procMsg}
-            </p>
-            <p className="text-[12px] text-[#8B92A9]">
-              Please do not close this window
-            </p>
-          </div>
-        )}
-
-        {step === "success" && (
-          <div className="px-6 py-10 flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-              <svg
-                className="w-8 h-8 text-green-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-            <div className="text-center">
-              <h3 className="text-[16px] font-bold text-[#0F1117]">
-                Payment Successful!
-              </h3>
-              <p className="text-[12px] text-[#8B92A9] mt-1">
-                You are now on the{" "}
-                <span className="font-semibold" style={{ color: plan.color }}>
-                  {plan.name}
-                </span>{" "}
-                plan
-              </p>
-              <p className="text-[11px] text-[#8B92A9] mt-1">
-                ₹{price.toLocaleString()} charged successfully
-              </p>
-            </div>
-            <div className="w-full px-4 py-3 rounded-xl bg-[#F8F9FC] border border-[#E4E7EF] text-center">
-              <p className="text-[11px] text-[#8B92A9]">Transaction ID</p>
-              <p className="text-[12px] font-mono font-bold text-[#0F1117] mt-0.5">
-                {transactionId}
-              </p>
-            </div>
-            <div className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#ECFDF5] border border-[#A7F3D0]">
-              <svg
-                className="w-4 h-4 text-[#059669] shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                />
-              </svg>
-              <div>
-                <p className="text-[11px] font-semibold text-[#059669]">
-                  Invoice emailed successfully
-                </p>
-                <p className="text-[10px] text-[#059669]/80 mt-0.5">
-                  Sent to admin &amp; super admin
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() =>
-                onSuccess({
-                  transactionId,
-                  invoiceId: newInvoiceId,
-                  price,
-                  billing,
-                })
-              }
-              className="w-full py-3 rounded-xl text-white text-[13px] font-semibold transition hover:opacity-90"
-              style={{ background: plan.color }}
-            >
-              Continue to Dashboard
-            </button>
-          </div>
-        )}
-
-        {step === "pay" && (
-          <div className="px-6 py-5">
-            {error && (
-              <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
-                <p className="text-[11px] text-red-600">{error}</p>
-              </div>
-            )}
-
-            {payMethod === "card" && (
-              <div className="space-y-3">
-                <div>
-                  <label className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wide">
-                    Cardholder Name
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="John Doe"
-                    className={inputCls}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wide">
-                    Card Number
-                  </label>
-                  <input
-                    type="text"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(formatCard(e.target.value))}
-                    placeholder="1234 5678 9012 3456"
-                    maxLength={19}
-                    className={inputCls + " font-mono"}
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wide">
-                      Expiry
-                    </label>
-                    <input
-                      type="text"
-                      value={expiry}
-                      onChange={(e) => setExpiry(formatExpiry(e.target.value))}
-                      placeholder="MM/YY"
-                      maxLength={5}
-                      className={inputCls + " font-mono"}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wide">
-                      CVV
-                    </label>
-                    <input
-                      type="password"
-                      value={cvv}
-                      onChange={(e) =>
-                        setCvv(e.target.value.replace(/\D/g, "").slice(0, 3))
-                      }
-                      placeholder="•••"
-                      maxLength={3}
-                      className={inputCls + " font-mono"}
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <button
-                    onClick={onClose}
-                    className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] text-[13px] font-semibold text-[#4B5168] hover:bg-[#F1F4FF] transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handlePayCard}
-                    className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-white transition hover:opacity-90"
-                    style={{ background: plan.color }}
-                  >
-                    Pay ₹{price.toLocaleString()}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {payMethod === "upi" && (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="flex-1 h-px bg-[#E4E7EF]" />
-                  <span className="text-[10px] text-[#8B92A9]">
-                    enter UPI ID
-                  </span>
-                  <div className="flex-1 h-px bg-[#E4E7EF]" />
-                </div>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={upiId}
-                    onChange={(e) => {
-                      setUpiId(e.target.value);
-                      setUpiVerified(null);
-                    }}
-                    placeholder="yourname@okaxis"
-                    className={inputCls}
-                  />
-                  <button
-                    onClick={handleVerifyUPI}
-                    className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] text-[12px] font-semibold text-[#2563EB] hover:bg-[#EEF3FF] transition"
-                  >
-                    Verify
-                  </button>
-                </div>
-                {upiVerified === true && (
-                  <p className="text-[11px] text-green-600 flex items-center gap-1 mb-2">
-                    <svg
-                      className="w-3 h-3"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    UPI ID verified
-                  </p>
-                )}
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={onClose}
-                    className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] text-[13px] font-semibold text-[#4B5168] hover:bg-[#F1F4FF] transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handlePayUPI}
-                    className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-white transition hover:opacity-90"
-                    style={{ background: plan.color }}
-                  >
-                    Pay ₹{price.toLocaleString()}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {payMethod === "netbanking" && (
-              <div>
-                <p className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-3">
-                  Select your bank
-                </p>
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                  {BANKS.map((bank) => {
-                    const isSel = selectedBank?.id === bank.id;
-                    return (
-                      <button
-                        key={bank.id}
-                        onClick={() => setSelectedBank(bank)}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition"
-                        style={{
-                          borderColor: isSel ? plan.color : "#E4E7EF",
-                          background: isSel ? plan.color + "12" : "transparent",
-                        }}
-                      >
-                        <div
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-[8px] font-bold text-white shrink-0"
-                          style={{ background: bank.color }}
-                        >
-                          {bank.short.slice(0, 3)}
-                        </div>
-                        <span className="text-[12px] font-semibold text-[#0F1117]">
-                          {bank.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="flex gap-2 mt-1">
-                  <button
-                    onClick={onClose}
-                    className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] text-[13px] font-semibold text-[#4B5168] hover:bg-[#F1F4FF] transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handlePayNB}
-                    className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-white transition hover:opacity-90"
-                    style={{ background: plan.color }}
-                  >
-                    Pay ₹{price.toLocaleString()}
-                  </button>
-                </div>
-              </div>
-            )}
-            <p className="text-[10px] text-[#8B92A9] text-center mt-4">
-              Secured by{" "}
-              <span className="font-bold text-[#2563EB]">Razorpay</span>
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return { openCheckout };
 }
 
 // ─────────────────────────────────────────────
@@ -910,43 +313,138 @@ export default function UpgradePlan({ onPlanChange }) {
   const [billing, setBilling] = useState("monthly");
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState("plans");
-  const [payingPlan, setPayingPlan] = useState(null);
+  const [paying, setPaying] = useState(false);
+  const [currentPlanId, setCurrentPlanId] = useState(null);
 
-  const [plans, setPlans] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [subscription, setSubscription] = useState(null);
 
-  const [loadingPlans, setLoadingPlans] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [error, setError] = useState(null);
 
-  // ── NEW state ──────────────────────────────────────────────────────────
-  const [viewingInvoice, setViewingInvoice] = useState(null); // open InvoiceReceipt modal
-  const [showUpdatePayment, setShowUpdatePayment] = useState(false); // open UpdatePaymentModal
+  const [viewingInvoice, setViewingInvoice] = useState(null);
+  const [showUpdatePayment, setShowUpdatePayment] = useState(false);
 
-  // Customer details — replace with real auth/session data
-  const CUSTOMER = {
-    name: "Acme Corp",
-    email: "billing@acmecorp.com",
-    address: "12, MG Road, Bengaluru – 560001, Karnataka",
-    gstin: "29AABCU9603R1ZX",
-  };
+  const { openCheckout } = useRazorpay();
+
+  const PLANS_DEF = [
+    {
+      id: "starter",
+      name: "Starter",
+      desc: "Perfect for small teams just getting started",
+      monthlyPrice: 999,
+      yearlyPrice: 799,
+      color: "#0891B2",
+      popular: false,
+      admins: "1",
+      agents: "10",
+      features: [
+        "1 admins",
+        "10 agents",
+        "SMS & WhatsApp blast",
+        "Basic dashboard",
+        "Daily report (email)",
+        "Email support",
+      ],
+      locked: [
+        "Google Ads integration",
+        "Facebook Ads integration",
+        "API / Webhook access",
+        "Call recordings",
+        "Custom reports",
+        "Priority support",
+      ],
+    },
+    {
+      id: "growth",
+      name: "Growth",
+      desc: "For growing teams that need more power",
+      monthlyPrice: 2499,
+      yearlyPrice: 1999,
+      color: "#2563EB",
+      popular: true,
+      admins: "3",
+      agents: "30",
+      features: [
+        "3 admins",
+        "30 agents",
+        "SMS, WhatsApp & Email blast",
+        "Advanced dashboard",
+        "Daily report (email + PDF)",
+        "Google Ads integration",
+        "Facebook Ads integration",
+        "Call recordings (30 days)",
+        "API / Webhook access",
+        "Priority support",
+      ],
+      locked: [
+        "Unlimited leads",
+        "Unlimited call recordings",
+        "White-label CRM",
+        "Dedicated account manager",
+      ],
+    },
+    {
+      id: "enterprise",
+      name: "Enterprise",
+      desc: "Unlimited scale for large organisations",
+      monthlyPrice: 5999,
+      yearlyPrice: 4799,
+      color: "#7C3AED",
+      popular: false,
+      admins: "5",
+      agents: "50",
+      features: [
+        "5 admins",
+        "50 agents",
+        "All blast channels",
+        "Full analytics suite",
+        "Custom report builder",
+        "Google & Facebook Ads",
+        "API / Webhook access",
+        "Unlimited call recordings",
+        "White-label CRM",
+        "Dedicated account manager",
+        "SLA guarantee",
+        "24/7 phone support",
+      ],
+      locked: [],
+    },
+  ];
+
+  const plans = PLANS_DEF.map((p) => ({ ...p, current: p.id === currentPlanId }));
+
+  // Customer details from localStorage
+  const CUSTOMER = (() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      return {
+        name:    user.companyName || user.name || "—",
+        email:   user.email || "—",
+        address: user.address || "—",
+        gstin:   user.gstin || "",
+      };
+    } catch {
+      return { name: "—", email: "—", address: "—", gstin: "" };
+    }
+  })();
 
   useEffect(() => {
-    if (tab === "plans" && plans.length === 0) fetchPlans();
+    fetchSubscription();
+  }, []);
+
+  useEffect(() => {
     if (tab === "invoices" && invoices.length === 0) fetchInvoices();
   }, [tab]);
 
-  async function fetchPlans() {
-    setLoadingPlans(true);
-    setError(null);
+  async function fetchSubscription() {
     try {
-      const { data } = await API.get("/plans");
-      setPlans(data);
+      const { data } = await api.get("/razorpay/subscription");
+      setSubscription(data);
+      const nameToId = { Starter: "starter", Growth: "growth", Enterprise: "enterprise" };
+      setCurrentPlanId(nameToId[data.planName] || "starter");
     } catch {
-      setError("Failed to load plans. Please try again.");
-    } finally {
-      setLoadingPlans(false);
+      setCurrentPlanId("starter");
     }
   }
 
@@ -954,12 +452,8 @@ export default function UpgradePlan({ onPlanChange }) {
     setLoadingInvoices(true);
     setError(null);
     try {
-      const [invRes, subRes] = await Promise.all([
-        API.get("/invoices"),
-        API.get("/subscription"),
-      ]);
-      setInvoices(invRes.data);
-      setSubscription(subRes.data);
+      const { data } = await api.get("/razorpay/invoices");
+      setInvoices(data);
     } catch {
       setError("Failed to load invoices.");
     } finally {
@@ -973,45 +467,77 @@ export default function UpgradePlan({ onPlanChange }) {
       setSelected(plan.id);
       return;
     }
-    setPayingPlan(plan);
+    initiatePayment(plan);
   }
 
-  // ── updated: receives transactionId from RazorpayModal success ─────────
-  async function handlePaymentSuccess({
-    transactionId,
-    invoiceId,
-    price,
-    billing: cycle,
-  }) {
-    const plan = payingPlan;
-    setPayingPlan(null);
-    setSelected(null);
-
-    // Immediately add new invoice to list
-    const newInv = {
-      id: invoiceId,
-      date: new Date().toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }),
-      amount: `₹${price.toLocaleString()}`,
-      baseAmount: price,
-      status: "Paid",
-      planName: plan.name,
-      billingCycle: cycle,
-      transactionId,
-    };
-    setInvoices((prev) => [newInv, ...prev]);
-
+  async function initiatePayment(plan) {
+    setPaying(true);
+    setError(null);
     try {
-      await API.post("/upgrade", { planId: plan.id, billing });
-      setPlans((prev) =>
-        prev.map((p) => ({ ...p, current: p.id === plan.id })),
-      );
+      const { data: orderData } = await api.post("/razorpay/create-order", {
+        planId: plan.id,
+        billing,
+      });
+      openCheckout({
+        orderData,
+        plan,
+        billing,
+        onSuccess: (razorpayResponse) => handlePaymentSuccess(plan, razorpayResponse),
+        onFailure: (msg) => {
+          setPaying(false);
+          if (msg) setError(msg);
+          setSelected(null);
+        },
+      });
+    } catch (err) {
+      setError(err?.response?.data?.message || "Could not initiate payment. Try again.");
+    } finally {
+      setPaying(false);
+    }
+  }
+
+  async function handlePaymentSuccess(plan, razorpayResponse) {
+    setError(null);
+    try {
+      const { data } = await api.post("/razorpay/verify-payment", {
+        razorpay_order_id:   razorpayResponse.razorpay_order_id,
+        razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+        razorpay_signature:  razorpayResponse.razorpay_signature,
+        planId: plan.id,
+        billing,
+      });
+
+      const newInv = {
+        id: data.invoiceId,
+        date: new Date().toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        amount: `₹${data.amount.toLocaleString("en-IN")}`,
+        baseAmount: data.amount,
+        status: "Paid",
+        planName: data.planName,
+        billingCycle: data.billing,
+        transactionId: data.transactionId,
+      };
+      setInvoices((prev) => [newInv, ...prev]);
+      setCurrentPlanId(plan.id);
+      setSelected(null);
+      fetchSubscription();
       if (onPlanChange) onPlanChange(plan.id);
-    } catch {
-      setError("Plan update failed. Contact support.");
+      sendInvoiceEmail({
+        invoiceId: data.invoiceId,
+        planName: data.planName,
+        amount: `₹${data.amount}`,
+        billingCycle: data.billing,
+        transactionId: data.transactionId,
+      });
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+        "Payment received but plan upgrade failed. Contact support with your payment ID."
+      );
     }
   }
 
@@ -1033,17 +559,32 @@ export default function UpgradePlan({ onPlanChange }) {
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0B0D14] min-h-screen font-poppins px-6 py-8">
-      {/* ── Razorpay payment modal ── */}
-      {payingPlan && (
-        <RazorpayModal
-          plan={payingPlan}
-          billing={billing}
-          onSuccess={handlePaymentSuccess}
-          onClose={() => {
-            setPayingPlan(null);
-            setSelected(null);
-          }}
-        />
+      {/* ── Razorpay preparing checkout overlay ── */}
+      {paying && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl px-10 py-8 flex flex-col items-center gap-4 shadow-2xl">
+            <svg
+              className="animate-spin w-10 h-10 text-[#2563EB]"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+              />
+            </svg>
+            <p className="text-[14px] font-semibold text-[#0F1117]">Preparing checkout…</p>
+          </div>
+        </div>
       )}
 
       {/* ── Invoice receipt modal ── */}
@@ -1122,134 +663,130 @@ export default function UpgradePlan({ onPlanChange }) {
       {/* ══ PLANS TAB ══ */}
       {tab === "plans" && (
         <div>
-          {loadingPlans ? (
-            <Spinner />
-          ) : (
-            <>
-              <div className="flex items-center justify-center gap-3 mb-8">
-                <button
-                  onClick={() => setBilling("monthly")}
-                  className={`text-[13px] font-semibold transition ${billing === "monthly" ? "text-[#0F1117] dark:text-[#DDE1F5]" : "text-[#8B92A9]"}`}
-                >
-                  Monthly
-                </button>
-                <button
-                  onClick={() =>
-                    setBilling(billing === "monthly" ? "yearly" : "monthly")
-                  }
-                  className={`relative w-12 h-6 rounded-full transition-colors ${billing === "yearly" ? "bg-[#2563EB]" : "bg-[#E4E7EF] dark:bg-[#2A2D3E]"}`}
-                >
-                  <span
-                    className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${billing === "yearly" ? "left-7" : "left-1"}`}
-                  />
-                </button>
-                <button
-                  onClick={() => setBilling("yearly")}
-                  className={`text-[13px] font-semibold transition ${billing === "yearly" ? "text-[#0F1117] dark:text-[#DDE1F5]" : "text-[#8B92A9]"}`}
-                >
-                  Yearly
-                  <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#ECFDF5] dark:bg-[#0C2A1A] text-[#059669] dark:text-[#34D399] text-[10px] font-bold">
-                    Save {savingsPct}%
-                  </span>
-                </button>
-              </div>
+          <>
+            <div className="flex items-center justify-center gap-3 mb-8">
+              <button
+                onClick={() => setBilling("monthly")}
+                className={`text-[13px] font-semibold transition ${billing === "monthly" ? "text-[#0F1117] dark:text-[#DDE1F5]" : "text-[#8B92A9]"}`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() =>
+                  setBilling(billing === "monthly" ? "yearly" : "monthly")
+                }
+                className={`relative w-12 h-6 rounded-full transition-colors ${billing === "yearly" ? "bg-[#2563EB]" : "bg-[#E4E7EF] dark:bg-[#2A2D3E]"}`}
+              >
+                <span
+                  className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${billing === "yearly" ? "left-7" : "left-1"}`}
+                />
+              </button>
+              <button
+                onClick={() => setBilling("yearly")}
+                className={`text-[13px] font-semibold transition ${billing === "yearly" ? "text-[#0F1117] dark:text-[#DDE1F5]" : "text-[#8B92A9]"}`}
+              >
+                Yearly
+                <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#ECFDF5] dark:bg-[#0C2A1A] text-[#059669] dark:text-[#34D399] text-[10px] font-bold">
+                  Save {savingsPct}%
+                </span>
+              </button>
+            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-                {plans.map((plan) => (
-                  <PlanCard
-                    key={plan.id}
-                    plan={plan}
-                    billing={billing}
-                    selected={selected}
-                    onUpgrade={handleUpgrade}
-                  />
-                ))}
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+              {plans.map((plan) => (
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  billing={billing}
+                  selected={selected}
+                  onUpgrade={handleUpgrade}
+                />
+              ))}
+            </div>
 
-              {plans.length > 0 && (
-                <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
-                  <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#1E2133]">
-                    <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">
-                      Full feature comparison
-                    </h2>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-[13px]">
-                      <thead>
-                        <tr className="border-b border-[#E4E7EF] dark:border-[#1E2133] bg-[#F8F9FC] dark:bg-[#0D0F17]">
-                          <th className="text-left px-6 py-3 text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide w-[40%]">
-                            Feature
+            {plans.length > 0 && (
+              <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#1E2133]">
+                  <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">
+                    Full feature comparison
+                  </h2>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[13px]">
+                    <thead>
+                      <tr className="border-b border-[#E4E7EF] dark:border-[#1E2133] bg-[#F8F9FC] dark:bg-[#0D0F17]">
+                        <th className="text-left px-6 py-3 text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide w-[40%]">
+                          Feature
+                        </th>
+                        {plans.map((p) => (
+                          <th
+                            key={p.id}
+                            className="text-center px-4 py-3 text-[11px] font-bold uppercase tracking-wide whitespace-nowrap"
+                            style={{ color: p.color }}
+                          >
+                            {p.name}
                           </th>
-                          {plans.map((p) => (
-                            <th
-                              key={p.id}
-                              className="text-center px-4 py-3 text-[11px] font-bold uppercase tracking-wide whitespace-nowrap"
-                              style={{ color: p.color }}
-                            >
-                              {p.name}
-                            </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {COMPARE_ROWS.map((row, i) => (
+                        <tr
+                          key={row.label}
+                          className={`border-b border-[#E4E7EF] dark:border-[#1F2333] last:border-0 ${i % 2 !== 0 ? "bg-[#FAFBFF] dark:bg-[#0F111A]" : "dark:bg-[#11131C]"}`}
+                        >
+                          <td className="px-6 py-3 text-[#4B5168] dark:text-[#7B829E] font-medium">
+                            {row.label}
+                          </td>
+                          {row.vals.map((v, vi) => (
+                            <td key={vi} className="px-4 py-3 text-center">
+                              {v === true ? (
+                                <span className="flex justify-center">
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="#059669"
+                                    strokeWidth={2.5}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M5 13l4 4L19 7"
+                                    />
+                                  </svg>
+                                </span>
+                              ) : v === false ? (
+                                <span className="flex justify-center">
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="#DC2626"
+                                    strokeWidth={2.5}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M6 18L18 6M6 6l12 12"
+                                    />
+                                  </svg>
+                                </span>
+                              ) : (
+                                <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5]">
+                                  {v}
+                                </span>
+                              )}
+                            </td>
                           ))}
                         </tr>
-                      </thead>
-                      <tbody>
-                        {COMPARE_ROWS.map((row, i) => (
-                          <tr
-                            key={row.label}
-                            className={`border-b border-[#E4E7EF] dark:border-[#1F2333] last:border-0 ${i % 2 !== 0 ? "bg-[#FAFBFF] dark:bg-[#0F111A]" : "dark:bg-[#11131C]"}`}
-                          >
-                            <td className="px-6 py-3 text-[#4B5168] dark:text-[#7B829E] font-medium">
-                              {row.label}
-                            </td>
-                            {row.vals.map((v, vi) => (
-                              <td key={vi} className="px-4 py-3 text-center">
-                                {v === true ? (
-                                  <span className="flex justify-center">
-                                    <svg
-                                      className="w-4 h-4"
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      stroke="#059669"
-                                      strokeWidth={2.5}
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d="M5 13l4 4L19 7"
-                                      />
-                                    </svg>
-                                  </span>
-                                ) : v === false ? (
-                                  <span className="flex justify-center">
-                                    <svg
-                                      className="w-4 h-4"
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      stroke="#DC2626"
-                                      strokeWidth={2.5}
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d="M6 18L18 6M6 6l12 12"
-                                      />
-                                    </svg>
-                                  </span>
-                                ) : (
-                                  <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5]">
-                                    {v}
-                                  </span>
-                                )}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-            </>
-          )}
+              </div>
+            )}
+          </>
         </div>
       )}
 
