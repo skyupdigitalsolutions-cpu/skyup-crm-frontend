@@ -387,6 +387,209 @@ function CreateModal({ onClose, onCreated }) {
   );
 }
 
+// ── Edit Meta Campaign modal ──────────────────────────────────────────────────
+function EditMetaModal({ campaign, onClose, onUpdated }) {
+  const [form, setForm] = useState({
+    campaignName:    campaign.name        || "",
+    pageId:          campaign.pageId      || "",
+    pageAccessToken: "",          // never pre-filled for security
+    appSecret:       "",
+    verifyToken:     "",
+    graphApiVersion: campaign.graphApiVersion || "v25.0",
+    formIds:         (campaign.formIds || []).join(", "),
+    defaultStatus:   campaign.defaultStatus  || "New",
+    defaultRemark:   campaign.defaultRemark  || "Lead from Meta Campaign",
+  });
+
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState("");
+  const [success, setSuccess]       = useState(false);
+  const [showToken, setShowToken]   = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+
+  const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  const handleSubmit = async () => {
+    if (!form.campaignName.trim() || !form.pageId.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const payload = {
+        campaignName:    form.campaignName.trim(),
+        pageId:          form.pageId.trim(),
+        formIds:         form.formIds ? form.formIds.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        defaultStatus:   form.defaultStatus || "New",
+        defaultRemark:   form.defaultRemark || "Lead from Meta Campaign",
+        graphApiVersion: form.graphApiVersion.trim() || "v25.0",
+      };
+      // Only send sensitive fields if the user actually typed something new
+      if (form.pageAccessToken.trim()) payload.pageAccessToken = form.pageAccessToken.trim();
+      if (form.appSecret.trim())       payload.appSecret       = form.appSecret.trim();
+      if (form.verifyToken.trim())     payload.verifyToken     = form.verifyToken.trim();
+
+      await api.put(`/meta-config/${campaign._id}`, payload);
+      setSuccess(true);
+      onUpdated && onUpdated();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Failed to update campaign");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const EyeOn  = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>;
+  const EyeOff = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>;
+
+  if (success) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+        <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
+          <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4">
+            <svg className="w-7 h-7 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Campaign updated!</h2>
+          <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mb-6">
+            <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{form.campaignName}</span> has been updated successfully.
+          </p>
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition">Done</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#FFF0F3] dark:bg-[#2D0A14] flex items-center justify-center">
+              <svg className="w-4 h-4 text-[#E1306C]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Edit Meta Campaign</h2>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{campaign.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto px-6 py-5 space-y-5">
+
+          {/* Campaign Info */}
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Campaign Info</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label>
+                <input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Summer Sale 2025" className={FIELD_CLS} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label>
+                  <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}>
+                    <option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label>
+                  <input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Meta Campaign" className={FIELD_CLS} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Meta Config */}
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Meta / Facebook Config</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Page ID <span className="text-[#DC2626]">*</span></label>
+                <input type="text" value={form.pageId} onChange={set("pageId")} placeholder="e.g. 123456789012345" className={FIELD_CLS} />
+              </div>
+
+              {/* Token refresh banner */}
+              <div className="bg-[#FFFBEB] dark:bg-[#2D1F00] rounded-xl px-4 py-3 flex gap-3 border border-[#FCD34D]/30">
+                <svg className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D]">Leave token / secret fields blank to keep existing values. Only fill them in to rotate or refresh credentials.</p>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  New Page Access Token <span className="text-[10px] font-normal text-[#8B92A9]">(leave blank to keep current)</span>
+                </label>
+                <div className="relative">
+                  <input type={showToken ? "text" : "password"} value={form.pageAccessToken} onChange={set("pageAccessToken")} placeholder="EAAxxxxxx… (only if refreshing)" className={FIELD_CLS + " pr-10"} />
+                  <button type="button" onClick={() => setShowToken((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168]">
+                    {showToken ? <EyeOff /> : <EyeOn />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  New App Secret <span className="text-[10px] font-normal text-[#8B92A9]">(leave blank to keep current)</span>
+                </label>
+                <div className="relative">
+                  <input type={showSecret ? "text" : "password"} value={form.appSecret} onChange={set("appSecret")} placeholder="Only if changing app secret" className={FIELD_CLS + " pr-10"} />
+                  <button type="button" onClick={() => setShowSecret((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168]">
+                    {showSecret ? <EyeOff /> : <EyeOn />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                    New Verify Token <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span>
+                  </label>
+                  <input type="text" value={form.verifyToken} onChange={set("verifyToken")} placeholder="Leave blank to keep" className={FIELD_CLS} />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Graph API Version</label>
+                  <input type="text" value={form.graphApiVersion} onChange={set("graphApiVersion")} placeholder="v25.0" className={FIELD_CLS} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Form IDs <span className="text-[10px] font-normal text-[#8B92A9]">(blank = accept all forms)</span>
+                </label>
+                <input type="text" value={form.formIds} onChange={set("formIds")} placeholder="form_id_1, form_id_2" className={FIELD_CLS} />
+                <p className="text-[10px] text-[#8B92A9] mt-1">Comma-separated. Leave blank to accept leads from all forms.</p>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">⚠️ {error}</div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
+          <button
+            onClick={handleSubmit}
+            disabled={!form.campaignName.trim() || !form.pageId.trim() || loading}
+            className="flex-1 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+          >
+            {loading
+              ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saving…</>
+              : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Connect Google Ads Campaign modal ─────────────────────────────────────────
 function CreateGoogleModal({ onClose, onCreated }) {
   const empty = {
@@ -611,6 +814,7 @@ export default function Campaigns() {
   const [selected, setSelected]           = useState(null);
   const [showCreate, setShowCreate]       = useState(false);
   const [showCreateGoogle, setShowCreateGoogle] = useState(false);
+  const [editCampaign, setEditCampaign]   = useState(null);
   const [filter, setFilter]               = useState("All");
   const [search, setSearch]               = useState("");
 
@@ -632,22 +836,26 @@ export default function Campaigns() {
         : [];
 
       const shapedMeta = metaList.map((cfg, idx) => ({
-        _id:       cfg._id,
-        _isMeta:   true,
-        id:        cfg._id,
-        name:      cfg.campaignName,
-        channel:   "Meta",
-        status:    cfg.isActive ? "Active" : "Paused",
-        sent:      cfg.sent      ?? 0,
-        leads:     cfg.leads     ?? 0,
-        converted: cfg.converted ?? 0,
-        cost:      cfg.cost      ?? 0,
-        date:      fmtDate(cfg.createdAt),
-        createdAt: cfg.createdAt,
-        color:     META_COLORS[idx % META_COLORS.length],
-        pageId:    cfg.pageId,
-        company:   cfg.company,
-        isActive:  cfg.isActive,
+        _id:             cfg._id,
+        _isMeta:         true,
+        id:              cfg._id,
+        name:            cfg.campaignName,
+        channel:         "Meta",
+        status:          cfg.isActive ? "Active" : "Paused",
+        sent:            cfg.sent      ?? 0,
+        leads:           cfg.leads     ?? 0,
+        converted:       cfg.converted ?? 0,
+        cost:            cfg.cost      ?? 0,
+        date:            fmtDate(cfg.createdAt),
+        createdAt:       cfg.createdAt,
+        color:           META_COLORS[idx % META_COLORS.length],
+        pageId:          cfg.pageId,
+        company:         cfg.company,
+        isActive:        cfg.isActive,
+        formIds:         cfg.formIds         || [],
+        defaultStatus:   cfg.defaultStatus   || "New",
+        defaultRemark:   cfg.defaultRemark   || "Lead from Meta Campaign",
+        graphApiVersion: cfg.graphApiVersion || "v25.0",
       }));
 
       const shapedGoogle = googleList.map((cfg, idx) => ({
@@ -887,6 +1095,15 @@ export default function Campaigns() {
                     >
                       View leads ({c.leads})
                     </button>
+                    {c._isMeta && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditCampaign(c); }}
+                        className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] hover:border-[#E1306C] hover:text-[#E1306C] transition"
+                        title="Edit campaign"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                      </button>
+                    )}
                     <button
                       onClick={(e) => handleToggle(e, c)}
                       className={`px-3 py-2 rounded-xl border text-[12px] font-semibold transition ${
@@ -925,6 +1142,7 @@ export default function Campaigns() {
       {selected          && <LeadDrawer       campaign={selected}  onClose={() => setSelected(null)} />}
       {showCreate        && <CreateModal       onClose={() => setShowCreate(false)}       onCreated={fetchCampaigns} />}
       {showCreateGoogle  && <CreateGoogleModal onClose={() => setShowCreateGoogle(false)} onCreated={fetchCampaigns} />}
+      {editCampaign      && <EditMetaModal     campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
     </div>
   );
 }
