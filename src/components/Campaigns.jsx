@@ -9,6 +9,7 @@ const CHANNEL_STYLE = {
   Email:    { bg: "bg-[#F5F3FF] dark:bg-[#1E1040]", text: "text-[#7C3AED] dark:text-[#A78BFA]" },
   Meta:     { bg: "bg-[#FFF0F3] dark:bg-[#2D0A14]", text: "text-[#E1306C] dark:text-[#F77FAD]" },
   Google:   { bg: "bg-[#FFF8F0] dark:bg-[#2D1A00]", text: "text-[#EA4335] dark:text-[#FF6B5B]" },
+  Website: { bg: "bg-[#F0FDF4] dark:bg-[#052E1C]", text: "text-[#16A34A] dark:text-[#4ADE80]" },
 };
 
 const STATUS_STYLE = {
@@ -33,6 +34,7 @@ const LEAD_TEMP_STYLE = {
 
 const META_COLORS   = ["#E1306C","#2563EB","#7C3AED","#059669","#D97706","#0891B2"];
 const GOOGLE_COLORS = ["#EA4335","#FBBC05","#34A853","#4285F4","#FF6D00","#46BDC6"];
+const WEBSITE_COLORS = ["#16A34A","#0891B2","#7C3AED","#D97706","#059669","#2563EB"];
 
 const FIELD_CLS =
   "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition";
@@ -918,6 +920,298 @@ function CreateGoogleModal({ onClose, onCreated }) {
   );
 }
 
+function CreateWebsiteModal({ onClose, onCreated }) {
+  const [form, setForm] = useState({
+    sourceName: "", webhookSecret: "", pageUrl: "",
+    defaultStatus: "New", defaultRemark: "Lead from Website",
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+  const [success, setSuccess] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+
+  const set     = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+  const isValid = form.sourceName.trim() !== "" && form.webhookSecret.trim() !== "";
+
+  const handleSubmit = async () => {
+    if (!isValid) return;
+    setLoading(true); setError("");
+    try {
+      const res = await api.post("/website-config", {
+        sourceName:    form.sourceName.trim(),
+        webhookSecret: form.webhookSecret.trim(),
+        pageUrl:       form.pageUrl.trim(),
+        defaultStatus: form.defaultStatus || "New",
+        defaultRemark: form.defaultRemark || "Lead from Website",
+      });
+      setSuccess(true);
+      onCreated && onCreated(res.data.data);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Failed to connect website");
+    } finally { setLoading(false); }
+  };
+
+  if (success) return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4">
+          <svg className="w-7 h-7 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Website connected!</h2>
+        <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mb-5">
+          Leads from <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{form.sourceName}</span> will now flow into your CRM automatically.
+        </p>
+        <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-4 py-3 text-left text-[11px] mb-5 space-y-2 border border-[#E4E7EF] dark:border-[#262A38]">
+          <p className="font-semibold text-[#4B5168] dark:text-[#9DA3BB] text-[12px] mb-1">📋 Add to your website contact form</p>
+          <div className="bg-white dark:bg-[#0D0F14] rounded-lg px-3 py-2 border border-[#E4E7EF] dark:border-[#262A38] space-y-1 text-[10px]">
+            <p><span className="text-[#16A34A]">POST URL</span> → your-server.com/website-webhook</p>
+            <p><span className="text-[#16A34A]">webhook_secret</span> → <span className="font-mono">{form.webhookSecret}</span></p>
+            <p><span className="text-[#16A34A]">Fields</span> → name, mobile, email, message</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 transition">Done</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#F0FDF4] dark:bg-[#052E1C] flex items-center justify-center">
+              <svg className="w-4 h-4 text-[#16A34A]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Connect Website Contact Form</h2>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Auto-import leads · Round-robin assigned to your team</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto px-6 py-5 space-y-5">
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Source Info</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Source Name <span className="text-[#DC2626]">*</span></label>
+                <input type="text" value={form.sourceName} onChange={set("sourceName")} placeholder="e.g. Contact Page, Homepage Form" className={FIELD_CLS} />
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Contact Page URL <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label>
+                <input type="text" value={form.pageUrl} onChange={set("pageUrl")} placeholder="e.g. https://yourwebsite.com/contact" className={FIELD_CLS} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label>
+                  <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}>
+                    <option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label>
+                  <input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Website" className={FIELD_CLS} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Webhook Config</p>
+            <div>
+              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                Webhook Secret <span className="text-[#DC2626]">*</span>
+                <span className="ml-1 text-[10px] font-normal text-[#8B92A9]">(sent with every form submission)</span>
+              </label>
+              <div className="relative">
+                <input type={showSecret ? "text" : "password"} value={form.webhookSecret} onChange={set("webhookSecret")} placeholder="e.g. skyup_website_2025" className={FIELD_CLS + " pr-10"} />
+                <button type="button" onClick={() => setShowSecret(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168]">
+                  {showSecret ? <EyeOff /> : <EyeOn />}
+                </button>
+              </div>
+              <p className="text-[10px] text-[#8B92A9] mt-1">Create any secret string. Your website will include this in every POST to verify the source.</p>
+            </div>
+          </div>
+
+          {/* Info box */}
+          <div className="bg-[#F0FDF4] dark:bg-[#052E1C] rounded-xl px-4 py-3 flex gap-3 border border-[#BBF7D0]/40">
+            <svg className="w-4 h-4 text-[#16A34A] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>
+              <p className="text-[12px] font-semibold text-[#16A34A]">Webhook URL for your website</p>
+              <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-0.5">POST to this URL from your contact form's submit handler:</p>
+              <p className="text-[11px] font-mono bg-white dark:bg-[#0D0F14] rounded px-2 py-1 mt-1.5 border border-[#E4E7EF] dark:border-[#262A38] text-[#16A34A] break-all">https://your-server.com/website-webhook</p>
+              <p className="text-[10px] text-[#8B92A9] mt-1.5">Required: <span className="font-mono">webhook_secret, name, mobile</span> · Optional: <span className="font-mono">email, message</span></p>
+            </div>
+          </div>
+
+          {/* Round-robin info */}
+          <div className="bg-[#EEF3FF] dark:bg-[#1A2540] rounded-xl px-4 py-3 flex gap-3">
+            <svg className="w-4 h-4 text-[#2563EB] dark:text-[#4F8EF7] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <div>
+              <p className="text-[12px] font-semibold text-[#2563EB] dark:text-[#4F8EF7]">Round-robin auto-assignment</p>
+              <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-0.5">Every new website lead will be automatically assigned to the next available team member in rotation.</p>
+            </div>
+          </div>
+
+          {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">⚠️ {error}</div>}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
+          <button onClick={handleSubmit} disabled={!isValid || loading} className="flex-1 py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+            {loading
+              ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Connecting…</>
+              : "Connect & Start Receiving Leads"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function EditWebsiteModal({ campaign, onClose, onUpdated }) {
+  const [form, setForm] = useState({
+    sourceName:    campaign.name          || "",
+    webhookSecret: "",
+    pageUrl:       campaign.pageUrl       || "",
+    defaultStatus: campaign.defaultStatus || "New",
+    defaultRemark: campaign.defaultRemark || "Lead from Website",
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+  const [success, setSuccess] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+
+  const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  const handleSubmit = async () => {
+    if (!form.sourceName.trim()) return;
+    setLoading(true); setError("");
+    try {
+      const payload = {
+        sourceName:    form.sourceName.trim(),
+        pageUrl:       form.pageUrl.trim(),
+        defaultStatus: form.defaultStatus || "New",
+        defaultRemark: form.defaultRemark || "Lead from Website",
+      };
+      if (form.webhookSecret.trim()) payload.webhookSecret = form.webhookSecret.trim();
+      await api.put(`/website-config/${campaign._id}`, payload);
+      setSuccess(true);
+      onUpdated && onUpdated();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Failed to update");
+    } finally { setLoading(false); }
+  };
+
+  if (success) return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4">
+          <svg className="w-7 h-7 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Website source updated!</h2>
+        <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mb-6">
+          <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{form.sourceName}</span> has been updated successfully.
+        </p>
+        <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 transition">Done</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#F0FDF4] dark:bg-[#052E1C] flex items-center justify-center">
+              <svg className="w-4 h-4 text-[#16A34A]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Edit Website Source</h2>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{campaign.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto px-6 py-5 space-y-5">
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Source Info</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Source Name <span className="text-[#DC2626]">*</span></label>
+                <input type="text" value={form.sourceName} onChange={set("sourceName")} placeholder="e.g. Contact Page" className={FIELD_CLS} />
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Contact Page URL <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label>
+                <input type="text" value={form.pageUrl} onChange={set("pageUrl")} placeholder="e.g. https://yourwebsite.com/contact" className={FIELD_CLS} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label>
+                  <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}>
+                    <option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label>
+                  <input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Website" className={FIELD_CLS} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Webhook Config</p>
+            <div className="bg-[#FFFBEB] dark:bg-[#2D1F00] rounded-xl px-4 py-3 flex gap-3 border border-[#FCD34D]/30 mb-3">
+              <svg className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D]">Leave the Webhook Secret blank to keep your existing secret. Only fill it in to rotate credentials.</p>
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                New Webhook Secret <span className="text-[10px] font-normal text-[#8B92A9]">(leave blank to keep current)</span>
+              </label>
+              <div className="relative">
+                <input type={showSecret ? "text" : "password"} value={form.webhookSecret} onChange={set("webhookSecret")} placeholder="Only if rotating secret…" className={FIELD_CLS + " pr-10"} />
+                <button type="button" onClick={() => setShowSecret(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168]">
+                  {showSecret ? <EyeOff /> : <EyeOn />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">⚠️ {error}</div>}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
+          <button onClick={handleSubmit} disabled={!form.sourceName.trim() || loading} className="flex-1 py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+            {loading
+              ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saving…</>
+              : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Campaigns() {
   const [campaigns, setCampaigns]               = useState([]);
@@ -925,6 +1219,7 @@ export default function Campaigns() {
   const [selected, setSelected]                 = useState(null);
   const [showCreate, setShowCreate]             = useState(false);
   const [showCreateGoogle, setShowCreateGoogle] = useState(false);
+  const [showCreateWebsite, setShowCreateWebsite] = useState(false);
   const [editCampaign, setEditCampaign]         = useState(null);
   const [filter, setFilter]                     = useState("All");
   const [search, setSearch]                     = useState("");
@@ -932,10 +1227,35 @@ export default function Campaigns() {
   const fetchCampaigns = useCallback(async () => {
     setPageLoading(true);
     try {
-      const [metaRes, googleRes] = await Promise.allSettled([
-        api.get("/meta-config"),
-        api.get("/google-ads-config"),
-      ]);
+     const [metaRes, googleRes, websiteRes] = await Promise.allSettled([
+  api.get("/meta-config"),
+  api.get("/google-ads-config"),
+  api.get("/website-config"),
+]);
+
+const websiteList = websiteRes.status === "fulfilled"
+  ? (websiteRes.value?.data?.data || []) : [];
+
+const shapedWebsite = websiteList.map((cfg, idx) => ({
+  _id:           cfg._id,
+  _isWebsite:    true,
+  id:            cfg._id,
+  name:          cfg.sourceName,
+  channel:       "Website",
+  status:        cfg.isActive ? "Active" : "Paused",
+  sent: 0, leads: 0, converted: 0, cost: 0,
+  date:          fmtDate(cfg.createdAt),
+  createdAt:     cfg.createdAt,
+  color:         WEBSITE_COLORS[idx % WEBSITE_COLORS.length],
+  webhookSecret: cfg.webhookSecret,
+  pageUrl:       cfg.pageUrl        || "",
+  company:       cfg.company,
+  isActive:      cfg.isActive,
+  defaultStatus: cfg.defaultStatus  || "New",
+  defaultRemark: cfg.defaultRemark  || "Lead from Website",
+}));
+
+setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
 
       const metaList = metaRes.status === "fulfilled"
         ? (Array.isArray(metaRes.value.data) ? metaRes.value.data : (metaRes.value.data?.data || []))
@@ -1005,9 +1325,11 @@ export default function Campaigns() {
   const handleToggle = async (e, campaign) => {
     e.stopPropagation();
     try {
-      const endpoint = campaign._isGoogle
-        ? `/google-ads-config/${campaign._id}/toggle`
-        : `/meta-config/${campaign._id}/toggle`;
+     const endpoint = campaign._isGoogle
+  ? `/google-ads-config/${campaign._id}/toggle`
+  : campaign._isWebsite
+  ? `/website-config/${campaign._id}/toggle`
+  : `/meta-config/${campaign._id}/toggle`;
       await api.patch(endpoint);
       fetchCampaigns();
     } catch (err) {
@@ -1019,9 +1341,11 @@ export default function Campaigns() {
     e.stopPropagation();
     if (!window.confirm(`Disconnect "${campaign.name}"? This cannot be undone.`)) return;
     try {
-      const endpoint = campaign._isGoogle
-        ? `/google-ads-config/${campaign._id}`
-        : `/meta-config/${campaign._id}`;
+    const endpoint = campaign._isGoogle
+  ? `/google-ads-config/${campaign._id}`
+  : campaign._isWebsite
+  ? `/website-config/${campaign._id}`
+  : `/meta-config/${campaign._id}`;
       await api.delete(endpoint);
       fetchCampaigns();
     } catch (err) {
@@ -1029,7 +1353,7 @@ export default function Campaigns() {
     }
   };
 
-  const filters = ["All", "Active", "Paused", "Meta", "Google"];
+ const filters = ["All", "Active", "Paused", "Meta", "Google", "Website"];
 
   const filtered = campaigns.filter((c) => {
     const matchFilter = filter === "All" || c.status === filter || c.channel === filter;
@@ -1044,6 +1368,9 @@ export default function Campaigns() {
 
   const metaCount   = campaigns.filter(c => c._isMeta).length;
   const googleCount = campaigns.filter(c => c._isGoogle).length;
+  const websiteCount = campaigns.filter(c => c._isWebsite).length;
+// then in JSX:
+{pageLoading ? "Loading…" : `${metaCount} Meta · ${googleCount} Google Ads · ${websiteCount} Website`}
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-8">
@@ -1072,6 +1399,12 @@ export default function Campaigns() {
             </svg>
             Connect Google Ads
           </button>
+          <button onClick={() => setShowCreateWebsite(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 transition">
+           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+           <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+           </svg>
+             Connect Website
+        </button>
         </div>
       </div>
 
@@ -1253,6 +1586,16 @@ export default function Campaigns() {
           onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }}
         />
       )}
+      {showCreateWebsite && (
+  <CreateWebsiteModal onClose={() => setShowCreateWebsite(false)} onCreated={fetchCampaigns} />
+)}
+{editCampaign && editCampaign._isWebsite && (
+  <EditWebsiteModal
+    campaign={editCampaign}
+    onClose={() => setEditCampaign(null)}
+    onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }}
+  />
+)}
     </div>
   );
 }
