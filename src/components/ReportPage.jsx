@@ -301,7 +301,29 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
         </div>
         <div className="flex gap-2 mt-5">
           <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-          <button onClick={() => { onSave(form); onClose(); }} className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">Save Changes</button>
+          <button onClick={async () => {
+            const role = getRole();
+            const leadId = form.id;
+            const endpoint =
+              role === "superadmin" ? `/lead/superadmin/${leadId}` :
+              role === "admin"      ? `/lead/admin/${leadId}` :
+                                      `/lead/${leadId}`;
+            try {
+              const payload = {
+                name:     form.name,
+                mobile:   form.phone || form.mobile,
+                source:   form.source,
+                campaign: form.campaign === "—" ? "" : form.campaign,
+                status:   form.status,
+                remark:   form.remark,
+              };
+              await api.put(endpoint, payload);
+              onSave(form);
+              onClose();
+            } catch (err) {
+              alert("Failed to save: " + (err.response?.data?.message || err.message));
+            }
+          }} className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">Save Changes</button>
         </div>
       </div>
     </div>
@@ -523,7 +545,20 @@ export default function ReportPage() {
 
   const addLead    = lead    => { setLeads(ls => [lead, ...ls]); setPage(1); };
   const saveLead   = updated => setLeads(ls => ls.map(l => l.id === updated.id ? updated : l));
-  const deleteLead = id      => { setLeads(ls => ls.filter(l => l.id !== id)); setDeleteConfirm(null); };
+  const deleteLead = async (id) => {
+    const role = getRole();
+    const endpoint =
+      role === "superadmin" ? `/lead/superadmin/${id}` :
+      role === "admin"      ? `/lead/admin/${id}` :
+                              `/lead/${id}`;
+    try {
+      await api.delete(endpoint);
+      setLeads(ls => ls.filter(l => l.id !== id));
+      setDeleteConfirm(null);
+    } catch (err) {
+      alert("Failed to delete: " + (err.response?.data?.message || err.message));
+    }
+  };
 
   const displayDate = (dateStr) => {
     if (!dateStr) return "—";

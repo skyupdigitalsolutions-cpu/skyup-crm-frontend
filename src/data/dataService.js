@@ -21,8 +21,20 @@ export async function fetchAll() {
   if (role === "superadmin") return fetchSuperAdminData();
   if (role === "admin")      return fetchAdminData();
 
-  // "user" role — no admin API calls
-  return { leads: [], agents: [] };
+  // "user" role — fetch their own leads
+  return fetchUserData();
+}
+
+// ── User: fetch own leads ───────────────────────────────────────────────────
+async function fetchUserData() {
+  const user = getStoredUser();
+  const leadsRes = await api.get("/lead/my-leads");
+  const leads = leadsRes.data.map(formatLead);
+  // Build a single "agent" entry for the logged-in user so filters work
+  const agents = user
+    ? [formatAgent({ _id: user._id || user.id, name: user.name, email: user.email, company: user.company })]
+    : [];
+  return { leads, agents };
 }
 
 // ── Admin: fetch company leads + users ─────────────────────────────────────
