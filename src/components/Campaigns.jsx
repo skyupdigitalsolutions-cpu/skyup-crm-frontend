@@ -9,7 +9,7 @@ const CHANNEL_STYLE = {
   Email:    { bg: "bg-[#F5F3FF] dark:bg-[#1E1040]", text: "text-[#7C3AED] dark:text-[#A78BFA]" },
   Meta:     { bg: "bg-[#FFF0F3] dark:bg-[#2D0A14]", text: "text-[#E1306C] dark:text-[#F77FAD]" },
   Google:   { bg: "bg-[#FFF8F0] dark:bg-[#2D1A00]", text: "text-[#EA4335] dark:text-[#FF6B5B]" },
-  Website: { bg: "bg-[#F0FDF4] dark:bg-[#052E1C]", text: "text-[#16A34A] dark:text-[#4ADE80]" },
+  Website:  { bg: "bg-[#F0FDF4] dark:bg-[#052E1C]", text: "text-[#16A34A] dark:text-[#4ADE80]" },
 };
 
 const STATUS_STYLE = {
@@ -32,8 +32,8 @@ const LEAD_TEMP_STYLE = {
   "Cold": { bg: "bg-[#EEF3FF] dark:bg-[#1A2540]", text: "text-[#2563EB] dark:text-[#4F8EF7]", icon: "❄️" },
 };
 
-const META_COLORS   = ["#E1306C","#2563EB","#7C3AED","#059669","#D97706","#0891B2"];
-const GOOGLE_COLORS = ["#EA4335","#FBBC05","#34A853","#4285F4","#FF6D00","#46BDC6"];
+const META_COLORS    = ["#E1306C","#2563EB","#7C3AED","#059669","#D97706","#0891B2"];
+const GOOGLE_COLORS  = ["#EA4335","#FBBC05","#34A853","#4285F4","#FF6D00","#46BDC6"];
 const WEBSITE_COLORS = ["#16A34A","#0891B2","#7C3AED","#D97706","#059669","#2563EB"];
 
 const FIELD_CLS =
@@ -627,8 +627,6 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
-
-        {/* Header */}
         <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-[#FFF8F0] dark:bg-[#2D1A00] flex items-center justify-center">
@@ -649,10 +647,7 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="overflow-y-auto px-6 py-5 space-y-5">
-
-          {/* Campaign Info */}
           <div>
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Campaign Info</p>
             <div className="space-y-3">
@@ -675,35 +670,24 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
             </div>
           </div>
 
-          {/* Google Ads Config */}
           <div>
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Google Ads Config</p>
             <div className="space-y-3">
-
-              {/* Warning banner */}
               <div className="bg-[#FFFBEB] dark:bg-[#2D1F00] rounded-xl px-4 py-3 flex gap-3 border border-[#FCD34D]/30">
                 <svg className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D]">Leave the Webhook Key blank to keep your existing key. Only fill it in to rotate credentials.</p>
               </div>
-
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
                   New Webhook Key <span className="text-[10px] font-normal text-[#8B92A9]">(leave blank to keep current)</span>
                 </label>
                 <div className="relative">
-                  <input
-                    type={showKey ? "text" : "password"}
-                    value={form.googleKey}
-                    onChange={set("googleKey")}
-                    placeholder="Only if rotating key…"
-                    className={FIELD_CLS + " pr-10"}
-                  />
+                  <input type={showKey ? "text" : "password"} value={form.googleKey} onChange={set("googleKey")} placeholder="Only if rotating key…" className={FIELD_CLS + " pr-10"} />
                   <button type="button" onClick={() => setShowKey((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168]">
                     {showKey ? <EyeOff /> : <EyeOn />}
                   </button>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign ID <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label>
@@ -722,14 +706,9 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
-          <button
-            onClick={handleSubmit}
-            disabled={!form.campaignName.trim() || loading}
-            className="flex-1 py-2.5 rounded-xl bg-[#EA4335] text-white text-[13px] font-semibold hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
-          >
+          <button onClick={handleSubmit} disabled={!form.campaignName.trim() || loading} className="flex-1 py-2.5 rounded-xl bg-[#EA4335] text-white text-[13px] font-semibold hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
             {loading
               ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saving…</>
               : "Save Changes"}
@@ -920,14 +899,15 @@ function CreateGoogleModal({ onClose, onCreated }) {
   );
 }
 
+// ── Connect Website modal ─────────────────────────────────────────────────────
 function CreateWebsiteModal({ onClose, onCreated }) {
   const [form, setForm] = useState({
     sourceName: "", webhookSecret: "", pageUrl: "",
     defaultStatus: "New", defaultRemark: "Lead from Website",
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState("");
-  const [success, setSuccess] = useState(false);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState("");
+  const [success, setSuccess]       = useState(false);
   const [showSecret, setShowSecret] = useState(false);
 
   const set     = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
@@ -977,8 +957,6 @@ function CreateWebsiteModal({ onClose, onCreated }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
-
-        {/* Header */}
         <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-[#F0FDF4] dark:bg-[#052E1C] flex items-center justify-center">
@@ -996,7 +974,6 @@ function CreateWebsiteModal({ onClose, onCreated }) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="overflow-y-auto px-6 py-5 space-y-5">
           <div>
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Source Info</p>
@@ -1041,7 +1018,6 @@ function CreateWebsiteModal({ onClose, onCreated }) {
             </div>
           </div>
 
-          {/* Info box */}
           <div className="bg-[#F0FDF4] dark:bg-[#052E1C] rounded-xl px-4 py-3 flex gap-3 border border-[#BBF7D0]/40">
             <svg className="w-4 h-4 text-[#16A34A] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <div>
@@ -1052,7 +1028,6 @@ function CreateWebsiteModal({ onClose, onCreated }) {
             </div>
           </div>
 
-          {/* Round-robin info */}
           <div className="bg-[#EEF3FF] dark:bg-[#1A2540] rounded-xl px-4 py-3 flex gap-3">
             <svg className="w-4 h-4 text-[#2563EB] dark:text-[#4F8EF7] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             <div>
@@ -1064,7 +1039,6 @@ function CreateWebsiteModal({ onClose, onCreated }) {
           {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">⚠️ {error}</div>}
         </div>
 
-        {/* Footer */}
         <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
           <button onClick={handleSubmit} disabled={!isValid || loading} className="flex-1 py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
@@ -1077,6 +1051,8 @@ function CreateWebsiteModal({ onClose, onCreated }) {
     </div>
   );
 }
+
+// ── Edit Website modal ────────────────────────────────────────────────────────
 function EditWebsiteModal({ campaign, onClose, onUpdated }) {
   const [form, setForm] = useState({
     sourceName:    campaign.name          || "",
@@ -1085,9 +1061,9 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
     defaultStatus: campaign.defaultStatus || "New",
     defaultRemark: campaign.defaultRemark || "Lead from Website",
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState("");
-  const [success, setSuccess] = useState(false);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState("");
+  const [success, setSuccess]       = useState(false);
   const [showSecret, setShowSecret] = useState(false);
 
   const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
@@ -1129,8 +1105,6 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
-
-        {/* Header */}
         <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-[#F0FDF4] dark:bg-[#052E1C] flex items-center justify-center">
@@ -1148,7 +1122,6 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="overflow-y-auto px-6 py-5 space-y-5">
           <div>
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Source Info</p>
@@ -1198,7 +1171,6 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
           {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">⚠️ {error}</div>}
         </div>
 
-        {/* Footer */}
         <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
           <button onClick={handleSubmit} disabled={!form.sourceName.trim() || loading} className="flex-1 py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
@@ -1214,48 +1186,24 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Campaigns() {
-  const [campaigns, setCampaigns]               = useState([]);
-  const [pageLoading, setPageLoading]           = useState(true);
-  const [selected, setSelected]                 = useState(null);
-  const [showCreate, setShowCreate]             = useState(false);
-  const [showCreateGoogle, setShowCreateGoogle] = useState(false);
+  const [campaigns, setCampaigns]                 = useState([]);
+  const [pageLoading, setPageLoading]             = useState(true);
+  const [selected, setSelected]                   = useState(null);
+  const [showCreate, setShowCreate]               = useState(false);
+  const [showCreateGoogle, setShowCreateGoogle]   = useState(false);
   const [showCreateWebsite, setShowCreateWebsite] = useState(false);
-  const [editCampaign, setEditCampaign]         = useState(null);
-  const [filter, setFilter]                     = useState("All");
-  const [search, setSearch]                     = useState("");
+  const [editCampaign, setEditCampaign]           = useState(null);
+  const [filter, setFilter]                       = useState("All");
+  const [search, setSearch]                       = useState("");
 
   const fetchCampaigns = useCallback(async () => {
     setPageLoading(true);
     try {
-     const [metaRes, googleRes, websiteRes] = await Promise.allSettled([
-  api.get("/meta-config"),
-  api.get("/google-ads-config"),
-  api.get("/website-config"),
-]);
-
-const websiteList = websiteRes.status === "fulfilled"
-  ? (websiteRes.value?.data?.data || []) : [];
-
-const shapedWebsite = websiteList.map((cfg, idx) => ({
-  _id:           cfg._id,
-  _isWebsite:    true,
-  id:            cfg._id,
-  name:          cfg.sourceName,
-  channel:       "Website",
-  status:        cfg.isActive ? "Active" : "Paused",
-  sent: 0, leads: 0, converted: 0, cost: 0,
-  date:          fmtDate(cfg.createdAt),
-  createdAt:     cfg.createdAt,
-  color:         WEBSITE_COLORS[idx % WEBSITE_COLORS.length],
-  webhookSecret: cfg.webhookSecret,
-  pageUrl:       cfg.pageUrl        || "",
-  company:       cfg.company,
-  isActive:      cfg.isActive,
-  defaultStatus: cfg.defaultStatus  || "New",
-  defaultRemark: cfg.defaultRemark  || "Lead from Website",
-}));
-
-setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
+      const [metaRes, googleRes, websiteRes] = await Promise.allSettled([
+        api.get("/meta-config"),
+        api.get("/google-ads-config"),
+        api.get("/website-config"),
+      ]);
 
       const metaList = metaRes.status === "fulfilled"
         ? (Array.isArray(metaRes.value.data) ? metaRes.value.data : (metaRes.value.data?.data || []))
@@ -1263,6 +1211,10 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
 
       const googleList = googleRes.status === "fulfilled"
         ? (Array.isArray(googleRes.value.data) ? googleRes.value.data : (googleRes.value.data?.data || []))
+        : [];
+
+      const websiteList = websiteRes.status === "fulfilled"
+        ? (websiteRes.value?.data?.data || [])
         : [];
 
       const shapedMeta = metaList.map((cfg, idx) => ({
@@ -1311,7 +1263,26 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
         defaultRemark: cfg.defaultRemark || "Lead from Google Ads",
       }));
 
-      setCampaigns([...shapedMeta, ...shapedGoogle]);
+      const shapedWebsite = websiteList.map((cfg, idx) => ({
+        _id:           cfg._id,
+        _isWebsite:    true,
+        id:            cfg._id,
+        name:          cfg.sourceName,
+        channel:       "Website",
+        status:        cfg.isActive ? "Active" : "Paused",
+        sent:          0, leads: 0, converted: 0, cost: 0,
+        date:          fmtDate(cfg.createdAt),
+        createdAt:     cfg.createdAt,
+        color:         WEBSITE_COLORS[idx % WEBSITE_COLORS.length],
+        webhookSecret: cfg.webhookSecret,
+        pageUrl:       cfg.pageUrl        || "",
+        company:       cfg.company,
+        isActive:      cfg.isActive,
+        defaultStatus: cfg.defaultStatus  || "New",
+        defaultRemark: cfg.defaultRemark  || "Lead from Website",
+      }));
+
+      setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
     } catch (err) {
       console.error("Failed to load campaigns:", err);
       setCampaigns([]);
@@ -1325,11 +1296,11 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
   const handleToggle = async (e, campaign) => {
     e.stopPropagation();
     try {
-     const endpoint = campaign._isGoogle
-  ? `/google-ads-config/${campaign._id}/toggle`
-  : campaign._isWebsite
-  ? `/website-config/${campaign._id}/toggle`
-  : `/meta-config/${campaign._id}/toggle`;
+      const endpoint = campaign._isGoogle
+        ? `/google-ads-config/${campaign._id}/toggle`
+        : campaign._isWebsite
+        ? `/website-config/${campaign._id}/toggle`
+        : `/meta-config/${campaign._id}/toggle`;
       await api.patch(endpoint);
       fetchCampaigns();
     } catch (err) {
@@ -1341,11 +1312,11 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
     e.stopPropagation();
     if (!window.confirm(`Disconnect "${campaign.name}"? This cannot be undone.`)) return;
     try {
-    const endpoint = campaign._isGoogle
-  ? `/google-ads-config/${campaign._id}`
-  : campaign._isWebsite
-  ? `/website-config/${campaign._id}`
-  : `/meta-config/${campaign._id}`;
+      const endpoint = campaign._isGoogle
+        ? `/google-ads-config/${campaign._id}`
+        : campaign._isWebsite
+        ? `/website-config/${campaign._id}`
+        : `/meta-config/${campaign._id}`;
       await api.delete(endpoint);
       fetchCampaigns();
     } catch (err) {
@@ -1353,7 +1324,7 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
     }
   };
 
- const filters = ["All", "Active", "Paused", "Meta", "Google", "Website"];
+  const filters = ["All", "Active", "Paused", "Meta", "Google", "Website"];
 
   const filtered = campaigns.filter((c) => {
     const matchFilter = filter === "All" || c.status === filter || c.channel === filter;
@@ -1366,11 +1337,9 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
   const totalSent      = campaigns.reduce((s, c) => s + (c.sent || 0), 0);
   const overallCPL     = totalLeads > 0 ? Math.round(campaigns.reduce((s, c) => s + (c.cost || 0), 0) / totalLeads) : 0;
 
-  const metaCount   = campaigns.filter(c => c._isMeta).length;
-  const googleCount = campaigns.filter(c => c._isGoogle).length;
+  const metaCount    = campaigns.filter(c => c._isMeta).length;
+  const googleCount  = campaigns.filter(c => c._isGoogle).length;
   const websiteCount = campaigns.filter(c => c._isWebsite).length;
-// then in JSX:
-{pageLoading ? "Loading…" : `${metaCount} Meta · ${googleCount} Google Ads · ${websiteCount} Website`}
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-8">
@@ -1379,8 +1348,9 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Campaigns</h1>
+          {/* FIX 1 & 2: removed stray JSX expression; now correctly shows all three counts */}
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
-            {pageLoading ? "Loading…" : `${metaCount} Meta · ${googleCount} Google Ads`}
+            {pageLoading ? "Loading…" : `${metaCount} Meta · ${googleCount} Google Ads · ${websiteCount} Website`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1400,11 +1370,11 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
             Connect Google Ads
           </button>
           <button onClick={() => setShowCreateWebsite(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 transition">
-           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-           <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
-           </svg>
-             Connect Website
-        </button>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+            </svg>
+            Connect Website
+          </button>
         </div>
       </div>
 
@@ -1448,9 +1418,11 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
             const convRate = c.leads > 0 ? Math.round((c.converted / c.leads) * 100) : 0;
             const cpl      = c.leads > 0 ? Math.round(c.cost / c.leads) : 0;
 
-            // Edit button accent colour matches the channel
+            // FIX 4: edit hover colour now accounts for all three channel types
             const editHoverCls = c._isMeta
               ? "hover:border-[#E1306C] hover:text-[#E1306C]"
+              : c._isWebsite
+              ? "hover:border-[#16A34A] hover:text-[#16A34A]"
               : "hover:border-[#EA4335] hover:text-[#EA4335]";
 
             return (
@@ -1505,16 +1477,23 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
                     </div>
                   )}
 
-                  {/* Source badge */}
+                  {/* FIX 3: Source badge handles all three channel types correctly */}
                   <div className="flex items-center gap-1.5 mb-3">
                     <svg className="w-3 h-3 text-[#2563EB] dark:text-[#4F8EF7] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     <span className="text-[10px] text-[#8B92A9] dark:text-[#565C75]">
-                      Round-robin · {c._isMeta ? `Page ID: ` : `Key: `}
-                      <span className="font-mono">{c._isMeta ? c.pageId : (c.googleKey ? "••••••" : "—")}</span>
+                      Round-robin ·{" "}
+                      {c._isMeta ? "Page ID: " : c._isWebsite ? "Source: " : "Key: "}
+                      <span className="font-mono">
+                        {c._isMeta
+                          ? c.pageId
+                          : c._isWebsite
+                          ? (c.pageUrl || "Webhook")
+                          : (c.googleKey ? "••••••" : "—")}
+                      </span>
                     </span>
                   </div>
 
-                  {/* Actions — edit button now shown for BOTH Meta and Google */}
+                  {/* Actions */}
                   <div className="flex items-center gap-2 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
                     <button
                       onClick={() => setSelected(c)}
@@ -1523,7 +1502,6 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
                       View leads ({c.leads})
                     </button>
 
-                    {/* ✅ Edit button — visible for both Meta and Google */}
                     <button
                       onClick={(e) => { e.stopPropagation(); setEditCampaign(c); }}
                       className={`px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] transition ${editHoverCls}`}
@@ -1560,7 +1538,7 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
             <div className="col-span-3 text-center py-20 text-[#8B92A9] dark:text-[#565C75]">
               <div className="text-[40px] mb-3">📡</div>
               <p className="text-[15px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No campaigns connected</p>
-              <p className="text-[13px] mt-1">Connect a Meta or Google Ads campaign to start receiving leads automatically.</p>
+              <p className="text-[13px] mt-1">Connect a Meta, Google Ads, or Website campaign to start receiving leads automatically.</p>
             </div>
           )}
         </div>
@@ -1570,9 +1548,9 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
       {selected         && <LeadDrawer       campaign={selected}   onClose={() => setSelected(null)} />}
       {showCreate       && <CreateModal       onClose={() => setShowCreate(false)}       onCreated={fetchCampaigns} />}
       {showCreateGoogle && <CreateGoogleModal onClose={() => setShowCreateGoogle(false)} onCreated={fetchCampaigns} />}
+      {showCreateWebsite && <CreateWebsiteModal onClose={() => setShowCreateWebsite(false)} onCreated={fetchCampaigns} />}
 
-      {/* ✅ Route to the correct edit modal based on campaign type */}
-      {editCampaign && editCampaign._isMeta   && (
+      {editCampaign && editCampaign._isMeta && (
         <EditMetaModal
           campaign={editCampaign}
           onClose={() => setEditCampaign(null)}
@@ -1586,16 +1564,13 @@ setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
           onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }}
         />
       )}
-      {showCreateWebsite && (
-  <CreateWebsiteModal onClose={() => setShowCreateWebsite(false)} onCreated={fetchCampaigns} />
-)}
-{editCampaign && editCampaign._isWebsite && (
-  <EditWebsiteModal
-    campaign={editCampaign}
-    onClose={() => setEditCampaign(null)}
-    onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }}
-  />
-)}
+      {editCampaign && editCampaign._isWebsite && (
+        <EditWebsiteModal
+          campaign={editCampaign}
+          onClose={() => setEditCampaign(null)}
+          onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }}
+        />
+      )}
     </div>
   );
 }
