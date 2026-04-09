@@ -500,9 +500,7 @@ const [activeCallSid, setActiveCallSid] = useState(null);
           </div>
         </div>
       </div>
-            <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* Contact picker */}
+            {/* <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
           <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-4">
             Select Contact
@@ -541,10 +539,7 @@ const [activeCallSid, setActiveCallSid] = useState(null);
             }
           </div>
         </div>
-
-     
-
-      </div>
+      </div> */}
       <AdminChat />
       <UserManagement
         currentPlan={companyPlan}
