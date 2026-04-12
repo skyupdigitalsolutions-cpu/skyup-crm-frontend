@@ -80,7 +80,7 @@ function LeadDrawer({ campaign, onClose }) {
   useEffect(() => {
     if (!campaign) return;
     setLoading(true);
-    if (campaign._isMeta || campaign._isGoogle) {
+    if (campaign._isMeta || campaign._isGoogle || campaign._isWebsite) {
       api.get(`/lead/by-campaign?campaign=${encodeURIComponent(campaign.name)}`)
         .then((res) => setLeads(Array.isArray(res.data) ? res.data : (res.data?.data || [])))
         .catch(() => setLeads([]))
@@ -116,7 +116,7 @@ function LeadDrawer({ campaign, onClose }) {
             </div>
             <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{campaign.name}</h2>
             <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
-              Created {(campaign._isMeta || campaign._isGoogle) ? fmtDate(campaign.createdAt) : campaign.date}
+              Created {(campaign._isMeta || campaign._isGoogle || campaign._isWebsite) ? fmtDate(campaign.createdAt) : campaign.date}
             </p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
@@ -1263,6 +1263,15 @@ export default function Campaigns() {
         defaultRemark: cfg.defaultRemark || "Lead from Google Ads",
       }));
 
+      // Fetch real lead counts for each website campaign
+      const websiteLeadCounts = await Promise.allSettled(
+        websiteList.map((cfg) =>
+          api.get(`/lead/by-campaign?campaign=${encodeURIComponent(cfg.sourceName)}`)
+            .then((r) => (Array.isArray(r.data) ? r.data : (r.data?.data || [])).length)
+            .catch(() => 0)
+        )
+      );
+
       const shapedWebsite = websiteList.map((cfg, idx) => ({
         _id:           cfg._id,
         _isWebsite:    true,
@@ -1270,7 +1279,10 @@ export default function Campaigns() {
         name:          cfg.sourceName,
         channel:       "Website",
         status:        cfg.isActive ? "Active" : "Paused",
-        sent:          0, leads: 0, converted: 0, cost: 0,
+        sent:          0,
+        leads:         websiteLeadCounts[idx]?.status === "fulfilled" ? websiteLeadCounts[idx].value : 0,
+        converted:     0,
+        cost:          0,
         date:          fmtDate(cfg.createdAt),
         createdAt:     cfg.createdAt,
         color:         WEBSITE_COLORS[idx % WEBSITE_COLORS.length],
