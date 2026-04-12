@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import api from "../data/axiosConfig";
 import VoiceBotPanel from "./VoiceBotPanel";
+import { io as socketIO } from "socket.io-client";
 
 // ── Channel / status style maps ───────────────────────────────────────────────
 const CHANNEL_STYLE = {
@@ -1304,6 +1305,22 @@ export default function Campaigns() {
   }, []);
 
   useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
+
+  // ── Real-time: listen for new website leads via socket ───────────────────────
+  useEffect(() => {
+    const SOCKET_URL = import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace("/api", "")
+      : "http://localhost:5000";
+
+    const socket = socketIO(SOCKET_URL, { transports: ["websocket", "polling"] });
+
+    socket.on("new_website_lead", () => {
+      // Refresh campaigns so lead count & drawer update automatically
+      fetchCampaigns();
+    });
+
+    return () => { socket.disconnect(); };
+  }, [fetchCampaigns]);
 
   const handleToggle = async (e, campaign) => {
     e.stopPropagation();
