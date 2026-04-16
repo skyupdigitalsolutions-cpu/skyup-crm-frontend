@@ -435,7 +435,7 @@ export default function AdminLeadsPage() {
                           <button onClick={e => { e.stopPropagation(); setSelected(l); }}
                             className="px-2.5 py-1.5 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] text-[10px] font-bold opacity-0 group-hover:opacity-100 transition flex items-center gap-1 whitespace-nowrap">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
-                            Full Journey
+                            
                           </button>
                         </td>
                       </tr>
