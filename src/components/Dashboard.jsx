@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { fetchAll, getRole, getStoredUser } from "../data/dataService";
 import UserManagement from "./UserMangement";
 import AdminChat from "./Adminchat";
+import LeadTimeline from "./LeadTimeline";
+import AdminAttendanceView from "./AdminAttendanceView";
 // import CallButton from "./CallButton"
 // import CallRecordings from "./CallRecording"
 
@@ -541,6 +543,9 @@ const [activeCallSid, setActiveCallSid] = useState(null);
         </div>
       </div> */}
       <AdminChat />
+      <div className="mt-5 p-2">
+      <AdminAttendanceView />
+      </div>
       <UserManagement
         currentPlan={companyPlan}
         existingAdmins={dbAdmins}

@@ -27,9 +27,9 @@ const STATUS_STYLE = {
   "Not Interested": { bg:"bg-[#FEF2F2] dark:bg-[#2D0A0A]", text:"text-[#DC2626] dark:text-[#F87171]",   dot:"#DC2626" },
 };
 const TEMP_STYLE = {
-  Hot:  { bg:"bg-[#FEF2F2] dark:bg-[#2D0A0A]", text:"text-[#DC2626] dark:text-[#F87171]", icon:"🔥" },
-  Warm: { bg:"bg-[#FFFBEB] dark:bg-[#2D1F00]", text:"text-[#D97706] dark:text-[#FCD34D]", icon:"☀️" },
-  Cold: { bg:"bg-[#EEF3FF] dark:bg-[#1A2540]", text:"text-[#2563EB] dark:text-[#4F8EF7]", icon:"❄️" },
+  Hot:  { bg:"bg-[#FEF2F2] dark:bg-[#2D0A0A]", text:"text-[#DC2626] dark:text-[#F87171]", icon:"" },
+  Warm: { bg:"bg-[#FFFBEB] dark:bg-[#2D1F00]", text:"text-[#D97706] dark:text-[#FCD34D]", icon:"" },
+  Cold: { bg:"bg-[#EEF3FF] dark:bg-[#1A2540]", text:"text-[#2563EB] dark:text-[#4F8EF7]", icon:"" },
 };
 const SOURCE_COLORS = {
   "Google Ads":"#2563EB","Facebook Ads":"#0891B2","Web Form":"#059669",
@@ -173,7 +173,7 @@ export default function UserDailyReport() {
           source:      l.source      || "Other",
           campaign:    l.campaign    || "—",
           status:      l.status      || "New",
-          temperature: l.temperature || null,
+          Quality: l.Quality || null,
           remark:      l.remark      || "",
           date:        l.date
             ? new Date(l.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})
@@ -202,9 +202,9 @@ export default function UserDailyReport() {
     const notInt      = dayLeads.filter(l => l.status==="Not Interested").length;
     const newLeads    = dayLeads.filter(l => l.status==="New").length;
     const contacted   = dayLeads.filter(l => l.status!=="New").length;
-    const hot         = dayLeads.filter(l => l.temperature==="Hot").length;
-    const warm        = dayLeads.filter(l => l.temperature==="Warm").length;
-    const cold        = dayLeads.filter(l => l.temperature==="Cold").length;
+    const hot         = dayLeads.filter(l => l.Quality==="Hot").length;
+    const warm        = dayLeads.filter(l => l.Quality==="Warm").length;
+    const cold        = dayLeads.filter(l => l.Quality==="Cold").length;
     const convRate    = total > 0 ? Math.round((converted/total)*100) : 0;
     const prevTotal   = prevLeads.length;
     const prevConv    = prevLeads.filter(l=>l.status==="Converted").length;
@@ -327,7 +327,7 @@ export default function UserDailyReport() {
         <StatCard label="Leads Today"    value={stats.total}      icon="📋" color="#2563EB" sub="Assigned to you"              trend={stats.trendTotal}/>
         <StatCard label="Converted"      value={stats.converted}  icon="✅" color="#059669" sub={`${stats.convRate}% rate`}     trend={stats.trendConv}/>
         <StatCard label="In Progress"    value={stats.inProgress} icon="⏳" color="#D97706" sub="Need follow-up"/>
-        <StatCard label="Hot Leads 🔥"   value={stats.hot}        icon="🔥" color="#DC2626" sub={`${stats.warm} warm · ${stats.cold} cold`}/>
+        <StatCard label="Hot Leads "   value={stats.hot}        icon="" color="#DC2626" sub={`${stats.warm} warm · ${stats.cold} cold`}/>
       </div>
 
       {/* ── Tabs ────────────────────────────────────────────────────────── */}
@@ -417,13 +417,13 @@ export default function UserDailyReport() {
             </Card>
           </div>
 
-          {/* Temperature heatmap */}
+          {/* Quality heatmap */}
           <Card title="Lead Quality — today">
             <div className="grid grid-cols-3 gap-4">
               {[
-                {label:"Hot 🔥",  value:stats.hot,  bg:"bg-[#FEF2F2] dark:bg-[#2D0A0A]", text:"text-[#DC2626] dark:text-[#F87171]", bar:"#DC2626"},
-                {label:"Warm ☀️", value:stats.warm, bg:"bg-[#FFFBEB] dark:bg-[#2D1F00]", text:"text-[#D97706] dark:text-[#FCD34D]", bar:"#D97706"},
-                {label:"Cold ❄️", value:stats.cold, bg:"bg-[#EEF3FF] dark:bg-[#1A2540]", text:"text-[#2563EB] dark:text-[#4F8EF7]", bar:"#2563EB"},
+                {label:"Hot",  value:stats.hot,  bg:"bg-[#FEF2F2] dark:bg-[#2D0A0A]", text:"text-[#DC2626] dark:text-[#F87171]", bar:"#DC2626"},
+                {label:"Warm", value:stats.warm, bg:"bg-[#FFFBEB] dark:bg-[#2D1F00]", text:"text-[#D97706] dark:text-[#FCD34D]", bar:"#D97706"},
+                {label:"Cold ", value:stats.cold, bg:"bg-[#EEF3FF] dark:bg-[#1A2540]", text:"text-[#2563EB] dark:text-[#4F8EF7]", bar:"#2563EB"},
               ].map(t => (
                 <div key={t.label} className={`rounded-2xl p-4 text-center ${t.bg}`}>
                   <div className={`text-[30px] font-bold ${t.text}`}>{t.value}</div>
@@ -466,7 +466,7 @@ export default function UserDailyReport() {
                         {l.source}
                       </span>
                       <StatusBadge status={l.status}/>
-                      {l.temperature && <TempBadge temp={l.temperature}/>}
+                      {l.Quality && <TempBadge temp={l.Quality}/>}
                       {l.remark && <span className="text-[10px] text-[#8B92A9] italic truncate max-w-[180px]">{l.remark}</span>}
                     </div>
                   </div>
@@ -486,7 +486,7 @@ export default function UserDailyReport() {
         <div className="space-y-5">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <StatCard label="Total Follow-ups"  value={followUps.length}                        icon="⏳" color="#D97706" sub="In Progress leads"/>
-            <StatCard label="Hot Follow-ups 🔥" value={followUps.filter(l=>l.temperature==="Hot").length} icon="🔥" color="#DC2626" sub="Call them now"/>
+            <StatCard label="Hot Follow-ups " value={followUps.filter(l=>l.Quality==="Hot").length} icon="" color="#DC2626" sub="Call them now"/>
             <StatCard label="All-time In Progress" value={allLeads.filter(l=>l.status==="In Progress").length} icon="📌" color="#7C3AED" sub="Across all days"/>
           </div>
 
@@ -496,7 +496,7 @@ export default function UserDailyReport() {
             ) : (
               <div className="space-y-2">
                 {followUps.map((l, i) => {
-                  const urgent = l.temperature === "Hot";
+                  const urgent = l.Quality === "Hot";
                   return (
                     <div key={l.id||i}
                       className={`flex items-start gap-3 p-4 rounded-xl border ${urgent ? "border-[#FDE68A] dark:border-[#78350F] bg-[#FFFBEB] dark:bg-[#2D1F00]" : "border-[#E4E7EF] dark:border-[#262A38]"}`}>
@@ -508,7 +508,7 @@ export default function UserDailyReport() {
                             <span className="text-[11px] text-[#8B92A9] font-mono">{l.phone||"—"}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            {l.temperature && <TempBadge temp={l.temperature}/>}
+                            {l.Quality && <TempBadge temp={l.Quality}/>}
                             <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                               style={{background:(SOURCE_COLORS[l.source]||"#8B92A9")+"20",color:(SOURCE_COLORS[l.source]||"#8B92A9")}}>
                               {l.source}
@@ -619,14 +619,14 @@ export default function UserDailyReport() {
             </Card>
 
             {/* Hot leads pipeline */}
-            <Card title="Hot leads — act now 🔥">
-              {allLeads.filter(l=>l.temperature==="Hot" && l.status!=="Converted").length === 0 ? (
+            <Card title="Hot leads — act now ">
+              {allLeads.filter(l=>l.Quality==="Hot" && l.status!=="Converted").length === 0 ? (
                 <p className="text-[13px] text-center text-[#8B92A9] dark:text-[#565C75] py-10">No hot leads right now.</p>
               ) : (
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                  {allLeads.filter(l=>l.temperature==="Hot" && l.status!=="Converted").map((l,i) => (
+                  {allLeads.filter(l=>l.Quality==="Hot" && l.status!=="Converted").map((l,i) => (
                     <div key={l.id||i} className="flex items-center gap-3 p-3 rounded-xl bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D]">
-                      <span className="text-[18px]">🔥</span>
+                      <span className="text-[18px]"></span>
                       <div className="flex-1 min-w-0">
                         <p className="text-[12px] font-semibold text-[#DC2626] dark:text-[#F87171] truncate">{l.name}</p>
                         <p className="text-[10px] text-[#8B92A9] font-mono">{l.phone||"—"}</p>

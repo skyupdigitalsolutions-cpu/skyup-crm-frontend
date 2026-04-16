@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
 import { maskPhone } from "../utils/maskPhone";
@@ -44,20 +44,15 @@ function parseCSVLine(line) {
   let inQuotes = false;
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (ch === '"') {
-      inQuotes = !inQuotes;
-    } else if (ch === "," && !inQuotes) {
-      values.push(current.replace(/\r/g, "").trim());
-      current = "";
-    } else {
-      current += ch;
-    }
+    if (ch === '"') { inQuotes = !inQuotes; }
+    else if (ch === "," && !inQuotes) { values.push(current.replace(/\r/g, "").trim()); current = ""; }
+    else { current += ch; }
   }
   values.push(current.replace(/\r/g, "").trim());
   return values;
 }
 
-// ── Status / Temperature configs ──────────────────────────────────────────────
+// ── Status / Quality configs ──────────────────────────────────────────────
 const STATUS_CONFIG = {
   "New":            { bg:"bg-blue-50 dark:bg-blue-950/40",    text:"text-blue-600 dark:text-blue-400",    dot:"#2563EB" },
   "In Progress":    { bg:"bg-amber-50 dark:bg-amber-950/40",  text:"text-amber-600 dark:text-amber-400",  dot:"#D97706" },
@@ -65,9 +60,9 @@ const STATUS_CONFIG = {
   "Not Interested": { bg:"bg-red-50 dark:bg-red-950/40",      text:"text-red-600 dark:text-red-400",      dot:"#DC2626" },
 };
 const TEMP_CONFIG = {
-  Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"🔥" },
-  Warm: { bg:"bg-amber-50 dark:bg-amber-950/40",text:"text-amber-600 dark:text-amber-400",icon:"☀️" },
-  Cold: { bg:"bg-blue-50 dark:bg-blue-950/40",  text:"text-blue-600 dark:text-blue-400",  icon:"❄️" },
+  Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"" },
+  Warm: { bg:"bg-amber-50 dark:bg-amber-950/40",text:"text-amber-600 dark:text-amber-400",icon:"" },
+  Cold: { bg:"bg-blue-50 dark:bg-blue-950/40",  text:"text-blue-600 dark:text-blue-400",  icon:"" },
 };
 
 function StatusBadge({ status }) {
@@ -87,6 +82,246 @@ function TempBadge({ temp }) {
     <span className={"inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold " + s.bg + " " + s.text}>
       {s.icon} {temp}
     </span>
+  );
+}
+
+// ── Attendance Mini Widget (inline header chip) ───────────────────────────────
+const IDLE_MS = 5 * 60 * 1000;
+
+function fmtMins(mins) {
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return `${h}h ${m.toString().padStart(2, "0")}m`;
+}
+function fmtTime(d) {
+  if (!d) return "—";
+  return new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function AttendanceMiniWidget() {
+  const [record, setRecord]       = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [elapsed, setElapsed]     = useState(0);
+  const [idleWarning, setIdleWarning] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const panelRef = useRef(null);
+  const lastMoveRef  = useRef(Date.now());
+  const idleTimerRef = useRef(null);
+  const pingTimerRef = useRef(null);
+  const tickTimerRef = useRef(null);
+
+  const fetchRecord = useCallback(async () => {
+    try { const res = await api.get("/attendance/my-today"); setRecord(res.data); } catch {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchRecord(); }, [fetchRecord]);
+
+  // Close panel on outside click
+  useEffect(() => {
+    if (!panelOpen) return;
+    const handler = (e) => { if (panelRef.current && !panelRef.current.contains(e.target)) setPanelOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [panelOpen]);
+
+  // Live timer
+  useEffect(() => {
+    if (!record?.loginTime || record?.logoutTime) { setElapsed(0); return; }
+    const tick = () => {
+      const breakMins = record.totalBreakMinutes +
+        (record.activeBreakIndex !== null
+          ? Math.round((Date.now() - new Date(record.breaks[record.activeBreakIndex]?.startTime || Date.now())) / 60000)
+          : 0);
+      const secs = Math.max(0, Math.round((Date.now() - new Date(record.loginTime)) / 1000) - breakMins * 60);
+      setElapsed(secs);
+    };
+    tick();
+    tickTimerRef.current = setInterval(tick, 1000);
+    return () => clearInterval(tickTimerRef.current);
+  }, [record]);
+
+  // Ping
+  useEffect(() => {
+    if (!record?.loginTime || record?.logoutTime) return;
+    pingTimerRef.current = setInterval(async () => {
+      try { await api.post("/attendance/ping"); } catch {}
+    }, 60000);
+    return () => clearInterval(pingTimerRef.current);
+  }, [record?.loginTime, record?.logoutTime]);
+
+  // Idle detection
+  useEffect(() => {
+    if (!record?.loginTime || record?.logoutTime || record?.status !== "active") return;
+    const resetIdle = () => {
+      lastMoveRef.current = Date.now();
+      setIdleWarning(false);
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(goIdle, IDLE_MS);
+    };
+    const goIdle = async () => {
+      setIdleWarning(true);
+      try { const res = await api.post("/attendance/break/start", { reason: "Auto Idle" }); setRecord(res.data); } catch {}
+    };
+    const events = ["mousemove", "keydown", "mousedown", "touchstart", "scroll"];
+    events.forEach(e => window.addEventListener(e, resetIdle, { passive: true }));
+    idleTimerRef.current = setTimeout(goIdle, IDLE_MS);
+    return () => { events.forEach(e => window.removeEventListener(e, resetIdle)); clearTimeout(idleTimerRef.current); };
+  }, [record?.loginTime, record?.logoutTime, record?.status]);
+
+  const clockIn    = async () => { try { const r = await api.post("/attendance/clock-in");  setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
+  const clockOut   = async () => { if (!confirm("Clock out for today?")) return; try { const r = await api.post("/attendance/clock-out"); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
+  const startBreak = async () => { try { const r = await api.post("/attendance/break/start", { reason: "Manual Break" }); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
+  const endBreak   = async () => { setIdleWarning(false); try { const r = await api.post("/attendance/break/end"); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
+
+  const notClockedIn = !record || !record.loginTime;
+  const isClockedOut = !!record?.logoutTime;
+  const isOnBreak    = record?.status === "on_break" || record?.status === "idle";
+  const isActive     = record?.status === "active";
+
+  // Status config for chip
+  const ST = {
+    active:     { dot: "bg-emerald-400", color: "text-emerald-600 dark:text-emerald-400", label: "Active",     chipBg: "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800" },
+    on_break:   { dot: "bg-amber-400",   color: "text-amber-600 dark:text-amber-400",     label: "On Break",   chipBg: "bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800" },
+    idle:       { dot: "bg-red-400",     color: "text-red-500 dark:text-red-400",          label: "Idle",       chipBg: "bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800" },
+    logged_out: { dot: "bg-gray-400",    color: "text-[#8B92A9]",                          label: "Logged Out", chipBg: "bg-[#F8F9FC] dark:bg-[#13161E] border-[#E4E7EF] dark:border-[#262A38]" },
+  };
+  const st = ST[record?.status] || ST["logged_out"];
+
+  if (loading) return (
+    <div className="h-9 w-32 rounded-xl bg-[#F1F4FF] dark:bg-[#1E2130] animate-pulse" />
+  );
+
+  return (
+    <div className="relative" ref={panelRef}>
+      {/* ── Chip trigger button ── */}
+      <button
+        onClick={() => setPanelOpen(v => !v)}
+        className={"flex items-center gap-2 h-9 px-3 rounded-xl border text-[12px] font-semibold transition-all hover:shadow-sm " + st.chipBg}
+      >
+        {/* Status dot */}
+        <span className={"w-2 h-2 rounded-full shrink-0 " + st.dot + (isActive ? " animate-pulse" : "")} />
+
+        {/* Clock icon */}
+        <svg className={"w-3.5 h-3.5 shrink-0 " + st.color} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/>
+        </svg>
+
+        {/* Label + timer */}
+        <span className={st.color}>
+          {notClockedIn ? "Clock In" : isClockedOut ? "Clocked Out" : isActive ? fmtMins(Math.floor(elapsed / 60)) : st.label}
+        </span>
+
+        {/* Idle alert badge */}
+        {idleWarning && (
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+        )}
+
+        {/* Chevron */}
+        <svg className={"w-3 h-3 transition-transform " + st.color + (panelOpen ? " rotate-180" : "")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+
+      {/* ── Dropdown panel ── */}
+      {panelOpen && (
+        <div className="absolute right-0 top-11 z-[200] w-72 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl overflow-hidden">
+
+          {/* Panel header */}
+          <div className="px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] flex items-center justify-between">
+            <div>
+              <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Attendance</p>
+              <p className="text-[10px] text-[#8B92A9]">{new Date().toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short" })}</p>
+            </div>
+            {record && (
+              <span className={"text-[10px] font-bold px-2 py-0.5 rounded-full border " + st.chipBg + " " + st.color}>
+                {st.label}
+              </span>
+            )}
+          </div>
+
+          {/* Idle warning */}
+          {idleWarning && (
+            <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[11px] font-bold text-red-600 dark:text-red-400">⚠️ Idle for 5 mins</p>
+                <p className="text-[10px] text-red-400">Break started automatically.</p>
+              </div>
+              <button onClick={endBreak} className="shrink-0 px-2.5 py-1 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold transition">Resume</button>
+            </div>
+          )}
+
+          {/* Stats */}
+          {record?.loginTime && (
+            <div className="grid grid-cols-3 gap-2 px-3 pt-3">
+              <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
+                <p className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide mb-1">Work</p>
+                <p className="text-[13px] font-black text-[#0F1117] dark:text-[#F0F2FA] leading-none">{fmtMins(Math.floor(elapsed / 60))}</p>
+              </div>
+              <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
+                <p className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide mb-1">Break</p>
+                <p className="text-[13px] font-black text-amber-500 leading-none">{fmtMins(record.totalBreakMinutes)}</p>
+              </div>
+              <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
+                <p className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide mb-1">Login</p>
+                <p className="text-[13px] font-black text-[#0F1117] dark:text-[#F0F2FA] leading-none">{fmtTime(record.loginTime)}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="px-3 py-3 flex gap-2">
+            {notClockedIn && (
+              <button onClick={clockIn} className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold transition flex items-center justify-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-white/70" />
+                Clock In
+              </button>
+            )}
+            {record?.loginTime && !isClockedOut && (
+              <>
+                {!isOnBreak && (
+                  <button onClick={startBreak} className="flex-1 py-2 rounded-xl bg-amber-100 dark:bg-amber-950/40 hover:bg-amber-200 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[12px] font-bold transition">
+                    ⏸ Break
+                  </button>
+                )}
+                {isOnBreak && (
+                  <button onClick={endBreak} className="flex-1 py-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 hover:bg-emerald-200 text-emerald-700 dark:text-emerald-400 text-[12px] font-bold transition">
+                    ▶ Resume
+                  </button>
+                )}
+                <button onClick={clockOut} className="flex-1 py-2 rounded-xl bg-red-100 dark:bg-red-950/40 hover:bg-red-200 text-red-600 dark:text-red-400 text-[12px] font-bold transition">
+                  ⏹ Clock Out
+                </button>
+              </>
+            )}
+            {isClockedOut && (
+              <div className="flex-1 py-2 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] text-center text-[11px] text-[#8B92A9] font-semibold">
+                Clocked out · {fmtTime(record.logoutTime)}
+              </div>
+            )}
+          </div>
+
+          {/* Break log */}
+          {record?.breaks?.length > 0 && (
+            <div className="mx-3 mb-3 border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden">
+              <p className="px-3 py-2 text-[9px] font-bold text-[#8B92A9] uppercase tracking-widest bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">Break Log</p>
+              <div className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
+                {record.breaks.map((b, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-1.5">
+                    <span className={"text-[10px] font-semibold px-1.5 py-0.5 rounded-full " + (b.reason === "Auto Idle" ? "bg-red-50 dark:bg-red-950/40 text-red-500" : "bg-amber-50 dark:bg-amber-950/40 text-amber-600")}>
+                      {b.reason}
+                    </span>
+                    <span className="text-[10px] text-[#8B92A9]">
+                      {fmtTime(b.startTime)} → {b.endTime ? fmtTime(b.endTime) : "ongoing"}
+                      {b.durationMinutes != null ? ` · ${b.durationMinutes}m` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -186,10 +421,6 @@ function ActivityItem({ lead, isLast }) {
   );
 }
 
-// ── UpdateStatusModal — intercepts "Not Interested" → NotInterestedModal ──────
-// FIX 1: Was calling /lead/:id (singular, wrong prefix). Now uses /leads/:id.
-// FIX 2: "Not Interested" selection now triggers NotInterestedModal instead of
-//        a plain PATCH which bypassed all the reassign / scheduled-call logic.
 function getTomorrowStr() {
   const d = new Date();
   d.setDate(d.getDate() + 1);
@@ -198,10 +429,11 @@ function getTomorrowStr() {
 function getTodayStr() {
   return new Date().toISOString().split("T")[0];
 }
+
 function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
   const [remark,       setRemark]       = useState(lead.remark || "");
-  const [temp,         setTemp]         = useState(lead.temperature || "");
+  const [temp,         setTemp]         = useState(lead.Quality || "");
   const [followUpDate, setFollowUpDate] = useState(getTomorrowStr());
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
@@ -211,11 +443,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
 
   const handleStatusChange = function(e) {
     const val = e.target.value;
-    if (val === "Not Interested") {
-      // Do NOT call onClose() here — parent handles both state changes atomically
-      onNotInterested();
-      return;
-    }
+    if (val === "Not Interested") { onNotInterested(); return; }
     setStatus(val);
   };
 
@@ -223,13 +451,10 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
     setLoading(true); setError("");
     try {
       const body = { status, remark };
-      if (status !== "Not Interested") {
-        body.followUpDate = followUpDate || getTomorrowStr();
-      }
-      // FIX: correct plural route /leads/:id
+      if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
       await api.patch("/lead/" + (lead.id || lead._id), body);
-      if (temp) await api.patch("/lead/" + (lead.id || lead._id) + "/temperature", { temperature: temp });
-      onSaved(Object.assign({}, lead, { status, remark, temperature: temp || lead.temperature }));
+      if (temp) await api.patch("/lead/" + (lead.id || lead._id) + "/Quality", { Quality: temp });
+      onSaved(Object.assign({}, lead, { status, remark, Quality: temp || lead.Quality }));
       onClose();
     } catch (e) {
       setError((e.response && e.response.data && e.response.data.message) || "Failed to update");
@@ -254,10 +479,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             <select value={status} onChange={handleStatusChange} className={CLS}>
               {["New","In Progress","Converted","Not Interested"].map(function(s){ return <option key={s}>{s}</option>; })}
             </select>
-            {/* Visual hint when NI is current status */}
-            <p className="text-[10px] text-amber-500 mt-1">
-              ⚠ Selecting "Not Interested" opens the reassignment workflow.
-            </p>
+            <p className="text-[10px] text-amber-500 mt-1">⚠ Selecting "Not Interested" opens the reassignment workflow.</p>
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Lead Quality</label>
@@ -273,16 +495,8 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
           {showDatePicker && (
             <div>
               <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">📅 Follow-up Date</label>
-              <input
-                type="date"
-                value={followUpDate}
-                min={getTodayStr()}
-                onChange={function(e){ setFollowUpDate(e.target.value); }}
-                className={CLS}
-              />
-              <p className="text-[10px] text-[#8B92A9] mt-1">
-                Leave as tomorrow (default) or pick a future date. Past dates are not allowed.
-              </p>
+              <input type="date" value={followUpDate} min={getTodayStr()} onChange={function(e){ setFollowUpDate(e.target.value); }} className={CLS} />
+              <p className="text-[10px] text-[#8B92A9] mt-1">Leave as tomorrow (default) or pick a future date.</p>
             </div>
           )}
         </div>
@@ -298,12 +512,9 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   );
 }
 
-// ── LeadDrawer — now shows call history + scheduled calls ─────────────────────
-// FIX 3: Previous version had no call history or scheduled calls panel.
-//        New agent assigned after NI now sees the full summary of previous calls.
 function LeadDrawer({ lead, onClose, onUpdate }) {
-  const [showUpdate,      setShowUpdate]      = useState(false);
-  const [showNIModal,     setShowNIModal]     = useState(false);
+  const [showUpdate,  setShowUpdate]  = useState(false);
+  const [showNIModal, setShowNIModal] = useState(false);
   const name  = lead.name || "Unknown";
   const phone = lead.phone || lead.mobile || "—";
   const s = STATUS_CONFIG[lead.status] || STATUS_CONFIG["New"];
@@ -320,8 +531,6 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="w-full max-w-[440px] bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-y-auto flex flex-col" onClick={function(e){ e.stopPropagation(); }}>
-
-        {/* Header */}
         <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
@@ -339,7 +548,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={lead.status} />
-            <TempBadge temp={lead.temperature} />
+            <TempBadge temp={lead.Quality} />
             {lead.reassignCount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
                 🔄 Reassigned {lead.reassignCount}×
@@ -348,7 +557,6 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           </div>
         </div>
 
-        {/* Lead details */}
         <div className="px-6 py-4 grid grid-cols-2 gap-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[
             { label:"Source",   value:lead.source   || "—", icon:"📡" },
@@ -363,9 +571,6 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           ); })}
         </div>
 
-        {/* ── Previous Call History — shown to every newly assigned agent ─────
-             FIX 3: This section was completely missing before. Now the agent
-             can see a full summary of all previous interactions. */}
         {callHistory.length > 0 && (
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-3 flex items-center gap-1.5">
@@ -381,9 +586,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
                     </div>
                     <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">{h.remark}</p>
                     {h.outcome && (
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">
-                        {h.outcome}
-                      </span>
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">{h.outcome}</span>
                     )}
                   </div>
                 );
@@ -392,7 +595,6 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           </div>
         )}
 
-        {/* ── Scheduled Calls ────────────────────────────────────────────────── */}
         {pendingCalls.length > 0 && (
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-3 flex items-center gap-1.5">
@@ -419,27 +621,21 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           </div>
         )}
 
-        {/* Action buttons */}
         <div className="px-6 py-4 space-y-2">
           <button onClick={function(){ setShowUpdate(true); }}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             Update Status / Lead Quality
           </button>
-          {/* Quick NI button for direct access */}
           <button onClick={function(){ setShowNIModal(true); }}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 text-[13px] font-semibold hover:bg-orange-50 dark:hover:bg-orange-950/30 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
             Mark Not Interested & Reassign
           </button>
         </div>
-
         <div className="flex-1" />
       </div>
 
-      {/* ── Modals rendered via portal so they sit ABOVE the drawer backdrop ──
-           Without portals, the drawer's own `onClick={onClose}` backdrop div
-           intercepts all clicks on these modals, making buttons unclickable. */}
       {showUpdate && createPortal(
         <UpdateStatusModal
           lead={lead}
@@ -449,7 +645,6 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
         />,
         document.body
       )}
-
       {showNIModal && createPortal(
         <NotInterestedModal
           lead={{ ...lead, _id: lead.id || lead._id }}
@@ -483,10 +678,9 @@ function AddLeadModal({ onClose, onAdd }) {
     if (Object.keys(e).length) { setErrors(e); return; }
     setSubmitting(true);
     try {
-      // FIX: correct route /leads (plural)
       const res = await api.post("/lead", { name:form.name.trim(), mobile:form.phone.trim(), source:form.source, campaign:form.campaign.trim()||null, status:form.status, date:new Date(), remark:form.remark.trim()||"Manually added" });
       const saved = res.data;
-      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, temperature:saved.temperature||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
+      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
       onClose();
     } catch (err) {
       setErrors({ submit:(err.response&&err.response.data&&err.response.data.message)||"Failed to save lead." });
@@ -633,9 +827,6 @@ function getGreeting() {
   return { text: "Good evening", emoji: "🌙" };
 }
 
-// ── mapLead: preserves callHistory, scheduledCalls, reassignCount ─────────────
-// FIX 4: Previous version stripped these fields so new agents never saw call
-//        history. Now all fields are preserved from the API response.
 function mapLead(l) {
   return {
     id:             String(l._id),
@@ -645,11 +836,10 @@ function mapLead(l) {
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
     status:         l.status         || "New",
-    temperature:    l.temperature    || null,
+    Quality:    l.Quality    || null,
     remark:         l.remark         || "",
     date:           l.date ? new Date(l.date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—",
     _raw_date:      l.date           || l.createdAt || null,
-    // ── Fields preserved so LeadDrawer can show call summary to new agent ──
     callHistory:    Array.isArray(l.callHistory)    ? l.callHistory    : [],
     scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
     previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
@@ -696,10 +886,10 @@ export default function UserDashboard() {
     const inProgress = leads.filter(function(l){ return l.status === "In Progress"; }).length;
     const notInt     = leads.filter(function(l){ return l.status === "Not Interested"; }).length;
     const newLeads   = leads.filter(function(l){ return l.status === "New"; }).length;
-    const hot        = leads.filter(function(l){ return l.temperature === "Hot"; }).length;
-    const warm       = leads.filter(function(l){ return l.temperature === "Warm"; }).length;
-    const cold       = leads.filter(function(l){ return l.temperature === "Cold"; }).length;
-    const unclassified = leads.filter(function(l){ return !l.temperature; }).length;
+    const hot        = leads.filter(function(l){ return l.Quality === "Hot"; }).length;
+    const warm       = leads.filter(function(l){ return l.Quality === "Warm"; }).length;
+    const cold       = leads.filter(function(l){ return l.Quality === "Cold"; }).length;
+    const unclassified = leads.filter(function(l){ return !l.Quality; }).length;
     const convRate   = total > 0 ? Math.round((converted / total) * 100) : 0;
     const weekLabels = [];
     const weekData   = [];
@@ -716,7 +906,7 @@ export default function UserDashboard() {
       const q = search.toLowerCase();
       const matchSearch = !q || l.name.toLowerCase().includes(q) || (l.phone||"").includes(q) || (l.campaign||"").toLowerCase().includes(q);
       const matchSt   = filterSt   === "All" || l.status      === filterSt;
-      const matchTemp = filterTemp === "All" || l.temperature === filterTemp;
+      const matchTemp = filterTemp === "All" || l.Quality === filterTemp;
       return matchSearch && matchSt && matchTemp;
     });
     res = res.slice().sort(function(a, b) {
@@ -737,7 +927,6 @@ export default function UserDashboard() {
   }, [leads]);
 
   const handleUpdate = function(updated) {
-    // If lead was reassigned (NI flow), remove it from this agent's list
     if (updated._reassigned) {
       setLeads(function(prev){ return prev.filter(function(l){ return l.id !== (updated.id || updated._id); }); });
       setSelected(null);
@@ -753,7 +942,6 @@ export default function UserDashboard() {
     catch(e) { /* silently ignore */ } finally { setDeleteConfirm(null); }
   };
 
-  // ── Import CSV ────────────────────────────────────────────────────────────
   const [csvImporting, setCsvImporting] = useState(false);
   const [csvResult,    setCsvResult]    = useState(null);
 
@@ -766,11 +954,7 @@ export default function UserDashboard() {
     try {
       const text = await file.text();
       const lines = text.trim().split("\n").map(function(l){ return l.replace(/\r$/, ""); }).filter(Boolean);
-      if (lines.length < 2) {
-        setCsvResult({ error: "CSV must have a header row and at least one data row." });
-        setCsvImporting(false);
-        return;
-      }
+      if (lines.length < 2) { setCsvResult({ error: "CSV must have a header row and at least one data row." }); setCsvImporting(false); return; }
       const headers = parseCSVLine(lines[0]).map(function(h){ return h.replace(/\r/g, "").toLowerCase(); });
       const leadsToImport = [];
       for (let i = 1; i < lines.length; i++) {
@@ -781,19 +965,12 @@ export default function UserDashboard() {
         const mobileVal = row.mobile || row.phone || row["phone number"] || row["phonenumber"] || row["mobile number"] || row["mobile_number"] || row["phone_number"] || row["contact number"] || row["contact_number"] || row["number"] || "";
         if (!nameVal && !mobileVal) continue;
         const cleanMobile = mobileVal.replace(/\D/g, "");
-        if (!cleanMobile) {
-          leadsToImport.push({ _skipError: true, name: nameVal || ("Row " + i), reason: "mobile number missing or unrecognised column" });
-          continue;
-        }
+        if (!cleanMobile) { leadsToImport.push({ _skipError: true, name: nameVal || ("Row " + i), reason: "mobile number missing or unrecognised column" }); continue; }
         leadsToImport.push({ name:nameVal, mobile:cleanMobile, email:row.email||"", source:row.source||"CSV Import", campaign:row.campaign||"", status:row.status||"New", date:row.date||null, remark:row.remark||row.notes||"Imported via CSV" });
       }
       const clientErrors = leadsToImport.filter(function(r){ return r._skipError; }).map(function(r, idx){ return { index:idx, row:r.name, message:r.reason }; });
       const validLeads   = leadsToImport.filter(function(r){ return !r._skipError; });
-      if (!validLeads.length) {
-        setCsvResult({ error: "No valid rows found. Check that your CSV has 'name' and 'mobile' (or 'phone') columns.", errorDetails: clientErrors });
-        setCsvImporting(false);
-        return;
-      }
+      if (!validLeads.length) { setCsvResult({ error: "No valid rows found. Check that your CSV has 'name' and 'mobile' (or 'phone') columns.", errorDetails: clientErrors }); setCsvImporting(false); return; }
       const res = await api.post("/lead/import-csv", { leads: validLeads });
       const imported = res.data.saved || [];
       setLeads(function(prev) { return imported.map(mapLead).concat(prev); });
@@ -802,9 +979,7 @@ export default function UserDashboard() {
       setCsvResult({ saved: res.data.savedCount, errors: allErrors.length, total: res.data.total + clientErrors.length, errorDetails: allErrors });
     } catch (err) {
       setCsvResult({ error: (err.response && err.response.data && err.response.data.message) || "Import failed." });
-    } finally {
-      setCsvImporting(false);
-    }
+    } finally { setCsvImporting(false); }
   };
 
   const initials = user && user.name ? user.name.split(" ").map(function(n){ return n[0]; }).join("").slice(0,2).toUpperCase() : "U";
@@ -824,12 +999,18 @@ export default function UserDashboard() {
               <span className="text-[#8B92A9] dark:text-[#565C75] text-[16px] font-normal ml-2">— My Workspace</span>
             </h1>
           </div>
+
+          {/* Action buttons row */}
           <div className="flex items-center gap-2 flex-wrap">
+
+            {/* Add Lead */}
             <button onClick={function(){ setShowAddModal(true); }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               Add Lead
             </button>
+
+            {/* Import CSV */}
             <label
               className={`flex items-center gap-2 px-4 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition cursor-pointer ${csvImporting ? "opacity-60 cursor-not-allowed" : ""}`}
               title="Import CSV — columns: name, mobile, source, campaign, status, remark">
@@ -840,6 +1021,11 @@ export default function UserDashboard() {
               }
               {csvImporting ? "Importing…" : "Import CSV"}
             </label>
+
+            {/* ── Attendance Mini Widget ── */}
+            <AttendanceMiniWidget />
+
+            {/* CSV result toast */}
             {csvResult && (
               <div className={`flex flex-col gap-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${csvResult.error || csvResult.saved === 0 ? "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400" : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400"}`}>
                 <div className="flex items-center gap-1.5">
@@ -848,13 +1034,13 @@ export default function UserDashboard() {
                 </div>
                 {!csvResult.error && csvResult.errorDetails && csvResult.errorDetails.length > 0 && (
                   <ul className="mt-0.5 space-y-0.5 text-[10px] font-normal opacity-90">
-                    {csvResult.errorDetails.map(function(e, i){ return (
-                      <li key={i}>Row {e.index + 1} ({e.row}): {e.message}</li>
-                    ); })}
+                    {csvResult.errorDetails.map(function(e, i){ return <li key={i}>Row {e.index + 1} ({e.row}): {e.message}</li>; })}
                   </ul>
                 )}
               </div>
             )}
+
+            {/* Avatar */}
             <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[13px] font-black text-[#2563EB] dark:text-[#4F8EF7] border border-[#C7D7FF] dark:border-[#2D3A6B]">
               {initials}
             </div>
@@ -893,7 +1079,7 @@ export default function UserDashboard() {
           <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon="👤" />
           <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon="✅" trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
           <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon="⏳" />
-          <KpiCard label="Hot Leads 🔥"   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="🔥" />
+          <KpiCard label="Hot Leads "   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="" />
         </div>
 
         {/* Middle row */}
@@ -925,13 +1111,13 @@ export default function UserDashboard() {
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-[14px]">🌡️</span>
-              <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] uppercase tracking-wide">Lead Temperature</p>
+              <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] uppercase tracking-wide">Lead Quality</p>
             </div>
             <div className="space-y-3">
               {[
-                { label:"Hot",          count:kpi.hot,          color:"#DC2626", icon:"🔥" },
-                { label:"Warm",         count:kpi.warm,         color:"#D97706", icon:"☀️" },
-                { label:"Cold",         count:kpi.cold,         color:"#2563EB", icon:"❄️" },
+                { label:"Hot",          count:kpi.hot,          color:"#DC2626", icon:"" },
+                { label:"Warm",         count:kpi.warm,         color:"#D97706", icon:"" },
+                { label:"Cold",         count:kpi.cold,         color:"#2563EB", icon:"" },
                 { label:"Unclassified", count:kpi.unclassified, color:"#8B92A9", icon:"—"  },
               ].map(function(item){ return (
                 <div key={item.label} className="flex items-center gap-2">
@@ -1068,7 +1254,7 @@ export default function UserDashboard() {
                             </div>
                           </td>
                           <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
-                          <td className="px-4 py-3"><TempBadge temp={l.temperature} /></td>
+                          <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
                               <button onClick={function(e){ e.stopPropagation(); setSelected(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] transition" title="View details">
@@ -1138,10 +1324,10 @@ export default function UserDashboard() {
                 {kpi.convRate >= 50 ? "Outstanding performance! You're a top converter!" :
                  kpi.convRate >= 30 ? "Great work! Your conversion rate is above average." :
                  kpi.convRate >= 15 ? "Good progress! Keep following up on hot leads." :
-                 "Every lead counts — focus on your hot leads today! 🔥"}
+                 "Every lead counts — focus on your hot leads today! "}
               </p>
               <p className="text-[11px] text-[#8B92A9] mt-0.5">
-                {kpi.hot > 0 ? "You have " + kpi.hot + " hot lead" + (kpi.hot > 1 ? "s" : "") + " waiting for a call." : "Classify leads by temperature to prioritize your calls."}
+                {kpi.hot > 0 ? "You have " + kpi.hot + " hot lead" + (kpi.hot > 1 ? "s" : "") + " waiting for a call." : "Classify leads by Quality to prioritize your calls."}
               </p>
             </div>
           </div>

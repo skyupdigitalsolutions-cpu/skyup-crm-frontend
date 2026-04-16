@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useVoicebot, LEAD_TEMP } from '../hooks/useVoicebot'; // adjust path as needed
 
 const TEMP_STYLE = {
-  Hot:  { bg: 'bg-[#FEF2F2] dark:bg-[#2D0A0A]', text: 'text-[#DC2626] dark:text-[#F87171]', icon: '🔥' },
-  Warm: { bg: 'bg-[#FFFBEB] dark:bg-[#2D1F00]', text: 'text-[#D97706] dark:text-[#FCD34D]', icon: '☀️' },
-  Cold: { bg: 'bg-[#EEF3FF] dark:bg-[#1A2540]',  text: 'text-[#2563EB] dark:text-[#4F8EF7]', icon: '❄️' },
+  Hot:  { bg: 'bg-[#FEF2F2] dark:bg-[#2D0A0A]', text: 'text-[#DC2626] dark:text-[#F87171]', icon: '' },
+  Warm: { bg: 'bg-[#FFFBEB] dark:bg-[#2D1F00]', text: 'text-[#D97706] dark:text-[#FCD34D]', icon: '' },
+  Cold: { bg: 'bg-[#EEF3FF] dark:bg-[#1A2540]',  text: 'text-[#2563EB] dark:text-[#4F8EF7]', icon: '' },
 };
 
 export default function VoiceBotPanel({ leads = [], campaignName = '' }) {
@@ -22,8 +22,8 @@ export default function VoiceBotPanel({ leads = [], campaignName = '' }) {
 
   const calledIds = new Set(results.map((r) => r.lead?.id || r.lead?._id));
   const pending   = leads.filter((l) => !calledIds.has(l.id || l._id));
-  const hotCount  = results.filter((r) => r.temperature === LEAD_TEMP.HOT).length;
-  const warmCount = results.filter((r) => r.temperature === LEAD_TEMP.WARM).length;
+  const hotCount  = results.filter((r) => r.Quality === LEAD_TEMP.HOT).length;
+  const warmCount = results.filter((r) => r.Quality === LEAD_TEMP.WARM).length;
 
   return (
     <div className="mt-4 border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
@@ -37,7 +37,7 @@ export default function VoiceBotPanel({ leads = [], campaignName = '' }) {
           <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Voice Bot</span>
           {results.length > 0 && (
             <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">
-              {results.length}/{leads.length} called · {hotCount} 🔥 · {warmCount} ☀️
+              {results.length}/{leads.length} called · {hotCount}  · {warmCount} 
             </span>
           )}
           {isRunning && (
@@ -131,7 +131,7 @@ export default function VoiceBotPanel({ leads = [], campaignName = '' }) {
               <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wider">Results</p>
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                 {results.map((r, i) => {
-                  const ts = TEMP_STYLE[r.temperature] || TEMP_STYLE.Cold;
+                  const ts = TEMP_STYLE[r.Quality] || TEMP_STYLE.Cold;
                   return (
                     <div key={i} className="px-3 py-2.5 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38]">
                       <div className="flex items-center justify-between mb-1">
@@ -139,7 +139,7 @@ export default function VoiceBotPanel({ leads = [], campaignName = '' }) {
                           {r.lead?.name || 'Lead'}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${ts.bg} ${ts.text}`}>
-                          {ts.icon} {r.temperature}
+                          {ts.icon} {r.Quality}
                         </span>
                       </div>
                       {r.summary && (

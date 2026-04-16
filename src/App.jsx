@@ -11,6 +11,7 @@ import UserTwilioPage from "./pages/UserTwilioPage";
 import UserDailyReport from "./pages/UserDailyReport";
 import AdminLogin from "./pages/AdminLogin";
 import SuperAdminLogin from "./pages/SuperAdminLogin";
+import AdminLeadsPage from "./components/AdminLeadsPage";
 
 // ── Helper to read stored user ─────────────────────────────────────────────────
 function getStoredAuth() {
@@ -101,6 +102,12 @@ export default function App() {
             <AppLayout><Campaigns /></AppLayout>
           </AdminRoute>
         }/>
+        <Route path="/leads" element={
+          <AdminRoute>
+            <AppLayout><AdminLeadsPage /></AppLayout>
+          </AdminRoute>
+        }/>
+
         <Route path="/upgrade-plan" element={
           <AdminRoute>
             <AppLayout><UpgradePlan /></AppLayout>
