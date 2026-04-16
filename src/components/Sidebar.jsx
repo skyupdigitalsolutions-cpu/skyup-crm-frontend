@@ -17,6 +17,18 @@ const ADMIN_NAV_ITEMS = [
     ),
   },
   {
+    to: "/leads",
+    label: "Leads",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
+  {
     to: "/reportpage",
     label: "Report Page",
     icon: (
@@ -113,14 +125,16 @@ export function Sidebar() {
   const initials = user?.name
     ? user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "?";
+
+  // ── Role styles with .toLowerCase() + nullish fallback to prevent crash ───
   const roleStyle = {
     superadmin: { border: "border-amber-500/30",  bg: "bg-amber-500/10",  text: "text-amber-400"  },
     admin:      { border: "border-purple-500/30", bg: "bg-purple-500/10", text: "text-purple-400" },
     user:       { border: "border-blue-500/30",   bg: "bg-blue-500/10",   text: "text-blue-400"   },
-  }[user?.role || "user"];
+  }[user?.role?.toLowerCase() || "user"] ?? { border: "border-blue-500/30", bg: "bg-blue-500/10", text: "text-blue-400" };
 
   // ── Pick nav items based on role ──────────────────────────────────────────
-  const NAV_ITEMS = user?.role === "user" ? USER_NAV_ITEMS : ADMIN_NAV_ITEMS;
+  const NAV_ITEMS = user?.role?.toLowerCase() === "user" ? USER_NAV_ITEMS : ADMIN_NAV_ITEMS;
 
   // ── Logout ────────────────────────────────────────────────────────────────
   const handleLogout = () => {
