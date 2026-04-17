@@ -1403,7 +1403,25 @@ function EmailCampaignModal({ campaigns, onClose }) {
 
   const handleSend = async () => {
     if (!form.campaign || !form.subject || !form.bodyTemplate) return;
-    if (!window.confirm(`Send personalized emails to ${leadCount ?? "all"} leads in "${form.campaign}"? This cannot be undone.`)) return;
+
+    // Auto-fetch lead count if not already previewed
+    let count = leadCount;
+    if (count === null) {
+      setPreviewing(true);
+      try {
+        const res = await api.get(`/email-campaign/preview?campaign=${encodeURIComponent(form.campaign)}`);
+        count = res.data.leadCount;
+        setLeadCount(count);
+      } catch (err) {
+        setError(err.response?.data?.message || "Could not fetch lead count");
+        setPreviewing(false);
+        return;
+      } finally {
+        setPreviewing(false);
+      }
+    }
+
+    if (!window.confirm(`Send personalized emails to ${count} leads in "${form.campaign}"? This cannot be undone.`)) return;
     setLoading(true);
     setError("");
     try {
