@@ -73,12 +73,116 @@ function SummaryCard({ label, value, sub, color }) {
   );
 }
 
+// ── Bulk Email Import Modal ───────────────────────────────────────────────────
+function BulkEmailImportModal({ campaign, onClose }) {
+  const [csvText, setCsvText]   = useState("mobile,email\n9876543210,rahul@gmail.com\n8765432109,priya@gmail.com");
+  const [loading, setLoading]   = useState(false);
+  const [result, setResult]     = useState(null);
+  const [error, setError]       = useState("");
+
+  const handleImport = async () => {
+    setLoading(true); setError("");
+    try {
+      const lines = csvText.trim().split("\n").filter(Boolean);
+      const header = lines[0].toLowerCase().split(",").map(s => s.trim());
+      const mobileIdx = header.indexOf("mobile");
+      const emailIdx  = header.indexOf("email");
+      if (mobileIdx === -1 || emailIdx === -1)
+        return setError("CSV must have 'mobile' and 'email' columns in the first row");
+
+      const updates = lines.slice(1).map(line => {
+        const cols = line.split(",").map(s => s.trim());
+        return { mobile: cols[mobileIdx], email: cols[emailIdx] };
+      }).filter(r => r.mobile && r.email);
+
+      if (updates.length === 0) return setError("No valid rows found in CSV");
+
+      const res = await api.patch("/lead/admin/bulk-update-emails", { updates });
+      setResult(res.data);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Import failed");
+    } finally { setLoading(false); }
+  };
+
+  if (result) return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={e => e.stopPropagation()}>
+        <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4">
+          <svg className="w-7 h-7 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-4">Emails Imported!</h2>
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className="bg-[#ECFDF5] dark:bg-[#052E1C] rounded-xl p-3"><div className="text-[22px] font-bold text-[#059669]">{result.matched}</div><div className="text-[10px] text-[#8B92A9] uppercase">Updated</div></div>
+          <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] rounded-xl p-3"><div className="text-[22px] font-bold text-[#DC2626]">{result.notFound}</div><div className="text-[10px] text-[#8B92A9] uppercase">Not found</div></div>
+        </div>
+        {result.notFoundList?.length > 0 && (
+          <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3 text-left text-[11px] text-[#8B92A9] mb-4 max-h-24 overflow-y-auto">
+            <p className="font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Mobiles not found:</p>
+            {result.notFoundList.map(m => <div key={m}>{m}</div>)}
+          </div>
+        )}
+        <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">Done</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center">
+              <svg className="w-4 h-4 text-[#2563EB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Import Emails via CSV</h2>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Match leads by mobile number and set their email</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div className="overflow-y-auto px-6 py-5 space-y-4">
+          <div className="bg-[#EEF3FF] dark:bg-[#1A2540] rounded-xl px-4 py-3 text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
+            <p className="font-semibold text-[#2563EB] mb-1">📋 CSV Format</p>
+            <p>First row must be: <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono">mobile,email</code></p>
+            <p className="mt-0.5">Each following row: <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono">9876543210,rahul@gmail.com</code></p>
+            <p className="mt-0.5 text-[10px] text-[#8B92A9]">Leads are matched by mobile number. All leads with the same mobile will be updated.</p>
+          </div>
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Paste CSV data</label>
+            <textarea
+              value={csvText}
+              onChange={e => setCsvText(e.target.value)}
+              rows={10}
+              className={FIELD_CLS + " font-mono text-[12px] resize-y"}
+              placeholder={"mobile,email\n9876543210,rahul@gmail.com"}
+            />
+          </div>
+          {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">⚠️ {error}</div>}
+        </div>
+        <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
+          <button onClick={handleImport} disabled={loading} className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 disabled:opacity-40 transition flex items-center justify-center gap-2">
+            {loading ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Importing…</> : "Import Emails"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Lead drill-down drawer ────────────────────────────────────────────────────
 function LeadDrawer({ campaign, onClose }) {
-  const [leads, setLeads]     = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [leads, setLeads]               = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [editEmailId, setEditEmailId]   = useState(null);
+  const [editEmailVal, setEditEmailVal] = useState("");
+  const [savingEmail, setSavingEmail]   = useState(false);
 
-  useEffect(() => {
+  const fetchLeads = () => {
     if (!campaign) return;
     setLoading(true);
     if (campaign._isMeta || campaign._isGoogle || campaign._isWebsite) {
@@ -90,20 +194,31 @@ function LeadDrawer({ campaign, onClose }) {
       setLeads(campaign.leads_list || []);
       setLoading(false);
     }
-  }, [campaign]);
+  };
+
+  useEffect(() => { fetchLeads(); }, [campaign]);
+
+  const handleSaveEmail = async (leadId) => {
+    if (!editEmailVal.trim()) return;
+    setSavingEmail(true);
+    try {
+      await api.patch(`/lead/admin/update-email/${leadId}`, { email: editEmailVal.trim() });
+      setLeads(prev => prev.map(l => (l._id || l.id) === leadId ? { ...l, email: editEmailVal.trim() } : l));
+      setEditEmailId(null);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to save email");
+    } finally { setSavingEmail(false); }
+  };
 
   if (!campaign) return null;
 
-  const normalizedLeads = leads.map(l => ({
-    ...l,
-    id:    l._id || l.id,
-    phone: l.mobile || l.phone,
-  }));
-
+  const normalizedLeads = leads.map(l => ({ ...l, id: l._id || l.id, phone: l.mobile || l.phone }));
   const channel  = campaign.channel || "Meta";
   const ch       = CHANNEL_STYLE[channel] || CHANNEL_STYLE.Meta;
   const st       = STATUS_STYLE[campaign.status] || STATUS_STYLE.Active;
   const convRate = campaign.leads > 0 ? Math.round((campaign.converted / campaign.leads) * 100) : 0;
+  const leadsWithEmail    = leads.filter(l => l.email && l.email.trim() !== "").length;
+  const leadsWithoutEmail = leads.length - leadsWithEmail;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -137,6 +252,28 @@ function LeadDrawer({ campaign, onClose }) {
               <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75]">{s.label}</div>
             </div>
           ))}
+        </div>
+
+        {/* Email coverage bar */}
+        <div className="px-6 py-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
+              Email coverage — <span className="text-[#7C3AED]">{leadsWithEmail}</span> of {leads.length} leads have email
+            </span>
+            <button
+              onClick={() => setShowBulkImport(true)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] text-[11px] font-semibold hover:bg-[#dce7ff] transition"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+              Bulk Import Emails
+            </button>
+          </div>
+          <div className="h-1.5 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
+            <div className="h-full rounded-full bg-[#7C3AED] transition-all" style={{ width: leads.length > 0 ? `${Math.round(leadsWithEmail / leads.length * 100)}%` : "0%" }} />
+          </div>
+          {leadsWithoutEmail > 0 && (
+            <p className="text-[10px] text-[#D97706] mt-1">⚠️ {leadsWithoutEmail} lead(s) missing email — add emails to include them in campaigns</p>
+          )}
         </div>
 
         {/* Leads list */}
@@ -185,6 +322,44 @@ function LeadDrawer({ campaign, onClose }) {
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${ls.bg} ${ls.text}`}>{status}</span>
                       </div>
                     </div>
+
+                    {/* Email row */}
+                    {editEmailId === (l._id || l.id) ? (
+                      <div className="flex items-center gap-1.5 mt-1.5 mb-1">
+                        <input
+                          type="email"
+                          value={editEmailVal}
+                          onChange={e => setEditEmailVal(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter") handleSaveEmail(l._id || l.id); if (e.key === "Escape") setEditEmailId(null); }}
+                          autoFocus
+                          placeholder="email@example.com"
+                          className="flex-1 px-2 py-1 rounded-lg border border-[#7C3AED] bg-white dark:bg-[#0D0F14] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none"
+                        />
+                        <button onClick={() => handleSaveEmail(l._id || l.id)} disabled={savingEmail} className="px-2 py-1 rounded-lg bg-[#7C3AED] text-white text-[11px] font-semibold hover:bg-purple-700 disabled:opacity-50">
+                          {savingEmail ? "…" : "Save"}
+                        </button>
+                        <button onClick={() => setEditEmailId(null)} className="px-2 py-1 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[11px] text-[#8B92A9]">✕</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 mt-1 mb-1">
+                        {l.email && l.email.trim() ? (
+                          <span className="flex items-center gap-1 text-[11px] text-[#059669] dark:text-[#34D399]">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            {l.email}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-[#D97706] italic">No email</span>
+                        )}
+                        <button
+                          onClick={() => { setEditEmailId(l._id || l.id); setEditEmailVal(l.email || ""); }}
+                          className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#F5F3FF] dark:bg-[#1E1040] text-[#7C3AED] text-[10px] font-semibold hover:bg-[#ede9fe] transition"
+                        >
+                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                          {l.email ? "Edit" : "+ Add Email"}
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="text-[#8B92A9] dark:text-[#565C75]">
                         Assigned: <span className="text-[#4B5168] dark:text-[#9DA3BB] font-medium">{agent}</span>
@@ -203,6 +378,14 @@ function LeadDrawer({ campaign, onClose }) {
           <VoiceBotPanel leads={normalizedLeads} campaignName={campaign.name} />
         </div>
       </div>
+
+      {/* Bulk email import modal — rendered inside drawer overlay */}
+      {showBulkImport && (
+        <BulkEmailImportModal
+          campaign={campaign.name}
+          onClose={() => { setShowBulkImport(false); fetchLeads(); }}
+        />
+      )}
     </div>
   );
 }
