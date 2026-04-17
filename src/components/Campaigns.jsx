@@ -1115,28 +1115,154 @@ function CreateWebsiteModal({ onClose, onCreated }) {
     } finally { setLoading(false); }
   };
 
-  if (success) return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
-        <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4">
-          <svg className="w-7 h-7 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
-        </div>
-        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Website connected!</h2>
-        <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mb-5">
-          Leads from <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{form.sourceName}</span> will now flow into your CRM automatically.
-        </p>
-        <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-4 py-3 text-left text-[11px] mb-5 space-y-2 border border-[#E4E7EF] dark:border-[#262A38]">
-          <p className="font-semibold text-[#4B5168] dark:text-[#9DA3BB] text-[12px] mb-1">📋 Add to your website contact form</p>
-          <div className="bg-white dark:bg-[#0D0F14] rounded-lg px-3 py-2 border border-[#E4E7EF] dark:border-[#262A38] space-y-1 text-[10px]">
-            <p><span className="text-[#16A34A]">POST URL</span> → your-server.com/website-webhook</p>
-            <p><span className="text-[#16A34A]">webhook_secret</span> → <span className="font-mono">{form.webhookSecret}</span></p>
-            <p><span className="text-[#16A34A]">Fields</span> → name, mobile, email, message</p>
+  if (success) {
+    const webhookUrl = "https://skyup-crm-backend.onrender.com/website-webhook";
+    const secret     = form.webhookSecret;
+    const sourceName = form.sourceName;
+
+    const gtmScript = `<script>
+(function () {
+  var CRM_URL    = "${webhookUrl}";
+  var SECRET_KEY = "${secret}";
+  var dl   = window.dataLayer || [];
+  var lead = null;
+  for (var i = dl.length - 1; i >= 0; i--) {
+    if (dl[i] && dl[i].event === "crm_lead") { lead = dl[i]; break; }
+  }
+  if (!lead || (!lead.form_name && !lead.form_mobile && !lead.form_email)) return;
+  fetch(CRM_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      webhook_secret: SECRET_KEY,
+      name:    lead.form_name    || "Unknown",
+      mobile:  lead.form_mobile  || "",
+      email:   lead.form_email   || "",
+      message: "[" + (lead.form_source || "${sourceName}") + "] " + (lead.form_message || ""),
+    }),
+  })
+  .then(function(r){ console.log("CRM: lead sent ✅", r.status); })
+  .catch(function(e){ console.warn("CRM: fetch failed", e); });
+})();
+<\/script>`;
+
+    const dataLayerSnippet = `// Call this inside your form's onSubmit AFTER a successful API call
+window.dataLayer = window.dataLayer || [];
+window.dataLayer.push({
+  event:        "crm_lead",
+  form_name:    formData.name,       // required
+  form_mobile:  formData.mobile,     // required
+  form_email:   formData.email,      // optional
+  form_message: formData.message,    // optional
+  form_source:  "${sourceName}",     // label for this form
+});`;
+
+    const CopyBtn = ({ text }) => {
+      const [copied, setCopied] = useState(false);
+      return (
+        <button
+          onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+          className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition flex items-center gap-1 ${copied ? "bg-[#ECFDF5] text-[#059669]" : "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-[#dce7ff]"}`}
+        >
+          {copied ? "✓ Copied" : "Copy"}
+        </button>
+      );
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+        <div className="w-full max-w-2xl bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center">
+                <svg className="w-5 h-5 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div>
+                <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
+                  <span className="text-[#16A34A]">{sourceName}</span> connected!
+                </h2>
+                <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Follow the 3 steps below to start receiving leads</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <div className="overflow-y-auto px-6 py-5 space-y-4">
+
+            {/* Step 1 — GTM Tag */}
+            <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3 bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
+                <span className="w-6 h-6 rounded-full bg-[#2563EB] text-white text-[11px] font-bold flex items-center justify-center shrink-0">1</span>
+                <div className="flex-1">
+                  <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Create GTM Tag</p>
+                  <p className="text-[10px] text-[#8B92A9]">In GTM → Tags → New → Custom HTML → paste this script</p>
+                </div>
+                <CopyBtn text={gtmScript} />
+              </div>
+              <pre className="px-4 py-3 text-[10px] font-mono text-[#059669] dark:text-[#4ADE80] bg-[#0D1117] dark:bg-[#080A10] overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">{gtmScript}</pre>
+            </div>
+
+            {/* Step 2 — GTM Trigger */}
+            <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3 bg-[#F8F9FC] dark:bg-[#13161E]">
+                <span className="w-6 h-6 rounded-full bg-[#7C3AED] text-white text-[11px] font-bold flex items-center justify-center shrink-0">2</span>
+                <div className="flex-1">
+                  <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Set GTM Trigger</p>
+                  <p className="text-[10px] text-[#8B92A9]">In GTM → Triggering → New Trigger → set these exact values</p>
+                </div>
+              </div>
+              <div className="px-4 py-3 space-y-2 border-t border-[#E4E7EF] dark:border-[#262A38]">
+                {[
+                  { label: "Trigger Type", value: "Custom Event" },
+                  { label: "Event Name",   value: "crm_lead", mono: true },
+                  { label: "Fires on",     value: "All Custom Events" },
+                ].map(({ label, value, mono }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] w-28 shrink-0">{label}</span>
+                    <div className="flex items-center gap-2 flex-1">
+                      <span className={`flex-1 px-2.5 py-1.5 rounded-lg bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] text-[11px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] ${mono ? "font-mono text-[#7C3AED]" : ""}`}>{value}</span>
+                      {mono && <CopyBtn text={value} />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Step 3 — React dataLayer push */}
+            <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3 bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
+                <span className="w-6 h-6 rounded-full bg-[#D97706] text-white text-[11px] font-bold flex items-center justify-center shrink-0">3</span>
+                <div className="flex-1">
+                  <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Add to your React form's <code className="bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] px-1 rounded text-[10px]">onSubmit</code></p>
+                  <p className="text-[10px] text-[#8B92A9]">Add this code AFTER your successful API call — for every form on your site</p>
+                </div>
+                <CopyBtn text={dataLayerSnippet} />
+              </div>
+              <pre className="px-4 py-3 text-[10px] font-mono text-[#F6A044] dark:text-[#FCD34D] bg-[#0D1117] dark:bg-[#080A10] overflow-x-auto leading-relaxed whitespace-pre-wrap">{dataLayerSnippet}</pre>
+            </div>
+
+            {/* Info box */}
+            <div className="bg-[#EEF3FF] dark:bg-[#1A2540] rounded-xl px-4 py-3 flex gap-3">
+              <svg className="w-4 h-4 text-[#2563EB] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <div className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] space-y-1">
+                <p><span className="font-semibold text-[#2563EB]">Both Contact Page + Enquiry Popup</span> use the same GTM tag and trigger.</p>
+                <p>Change <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono text-[#7C3AED]">form_source</code> to <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono">"Contact Page"</code> or <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono">"Enquiry Popup"</code> in each form's push so you know where the lead came from in the CRM remark.</p>
+              </div>
+            </div>
+
+          </div>
+
+          <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] shrink-0">
+            <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 transition">Done — Start receiving leads</button>
           </div>
         </div>
-        <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 transition">Done</button>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
