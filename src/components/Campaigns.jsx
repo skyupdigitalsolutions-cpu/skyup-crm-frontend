@@ -1494,115 +1494,156 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
   );
 }
 
+
 // ── Email Campaign Modal ──────────────────────────────────────────────────────
 function EmailCampaignModal({ campaigns, onClose }) {
+  const [mode, setMode] = useState("campaign"); // "campaign" | "single" | "csv"
+
+  // ── Campaign mode state ──
   const [form, setForm] = useState({
     campaign:     "",
     subject:      "",
     fromName:     "",
     bodyTemplate: "<p>Hi {{name}},</p>\n<p>We are reaching out about our <strong>{{campaign}}</strong> campaign.</p>\n<p>Please feel free to contact us at any time.</p>\n<p>Regards,<br/>The Team</p>",
   });
-  const [loading, setLoading]         = useState(false);
-  const [previewing, setPreviewing]   = useState(false);
-  const [leadCount, setLeadCount]     = useState(null);
-  const [result, setResult]           = useState(null);
-  const [error, setError]             = useState("");
+  const [leadCount, setLeadCount]   = useState(null);
+  const [previewing, setPreviewing] = useState(false);
 
-  const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+  // ── Single lead mode state ──
+  const [singleLead, setSingleLead] = useState({ name: "", email: "" });
 
-  // Unique campaign names from all campaigns that have a channel
+  // ── CSV mode state ──
+  const [csvText, setCsvText]     = useState("name,email\nRahul Sharma,rahul@gmail.com\nPriya Patel,priya@gmail.com");
+  const [csvParsed, setCsvParsed] = useState(null);
+  const [csvError, setCsvError]   = useState("");
+
+  // ── Shared state ──
+  const [subject, setSubject]         = useState("");
+  const [fromName, setFromName]       = useState("");
+  const [bodyTemplate, setBodyTemplate] = useState(
+    "<p>Hi {{name}},</p>\n<p>We are reaching out about our <strong>{{campaign}}</strong> campaign.</p>\n<p>Please feel free to contact us at any time.</p>\n<p>Regards,<br/>The Team</p>"
+  );
+  const [loading, setLoading] = useState(false);
+  const [result, setResult]   = useState(null);
+  const [error, setError]     = useState("");
+
   const campaignNames = [...new Set(campaigns.map((c) => c.name).filter(Boolean))];
+  const MERGE_TAGS = ["{{name}}", "{{campaign}}", "{{mobile}}", "{{email}}"];
 
+  // ── CSV parse ──
+  const parseCSV = () => {
+    setCsvError("");
+    const lines = csvText.trim().split("\n").filter(Boolean);
+    if (lines.length < 2) return setCsvError("Need at least a header row and one data row");
+    const header = lines[0].toLowerCase().split(",").map(s => s.trim());
+    const nameIdx  = header.indexOf("name");
+    const emailIdx = header.indexOf("email");
+    if (emailIdx === -1) return setCsvError("CSV must have an 'email' column");
+    const rows = lines.slice(1).map(line => {
+      const cols = line.split(",").map(s => s.trim());
+      return { name: nameIdx !== -1 ? cols[nameIdx] : "Friend", email: cols[emailIdx] };
+    }).filter(r => r.email && r.email.includes("@"));
+    if (rows.length === 0) return setCsvError("No valid email rows found");
+    setCsvParsed(rows);
+  };
+
+  // ── Campaign preview ──
   const handlePreview = async () => {
     if (!form.campaign) return;
-    setPreviewing(true);
-    setLeadCount(null);
+    setPreviewing(true); setLeadCount(null);
     try {
       const res = await api.get(`/email-campaign/preview?campaign=${encodeURIComponent(form.campaign)}`);
       setLeadCount(res.data.leadCount);
     } catch (err) {
       setError(err.response?.data?.message || "Could not fetch preview");
-    } finally {
-      setPreviewing(false);
-    }
+    } finally { setPreviewing(false); }
   };
 
+  // ── Send ──
   const handleSend = async () => {
-    if (!form.campaign || !form.subject || !form.bodyTemplate) return;
-
-    // Auto-fetch lead count if not already previewed
-    let count = leadCount;
-    if (count === null) {
-      setPreviewing(true);
-      try {
-        const res = await api.get(`/email-campaign/preview?campaign=${encodeURIComponent(form.campaign)}`);
-        count = res.data.leadCount;
-        setLeadCount(count);
-      } catch (err) {
-        setError(err.response?.data?.message || "Could not fetch lead count");
-        setPreviewing(false);
-        return;
-      } finally {
-        setPreviewing(false);
-      }
-    }
-
-    if (!window.confirm(`Send personalized emails to ${count} leads in "${form.campaign}"? This cannot be undone.`)) return;
-    setLoading(true);
-    setError("");
+    if (!subject || !bodyTemplate) return setError("Subject and body are required");
+    setLoading(true); setError("");
     try {
-      const res = await api.post("/email-campaign/send", {
-        campaign:     form.campaign,
-        subject:      form.subject,
-        bodyTemplate: form.bodyTemplate,
-        fromName:     form.fromName || undefined,
-      });
+      let res;
+      if (mode === "campaign") {
+        if (!form.campaign) return setError("Select a campaign");
+        let count = leadCount;
+        if (count === null) {
+          setPreviewing(true);
+          const r = await api.get(`/email-campaign/preview?campaign=${encodeURIComponent(form.campaign)}`);
+          count = r.data.leadCount; setLeadCount(count); setPreviewing(false);
+        }
+        if (!window.confirm(`Send emails to ${count} leads in "${form.campaign}"?`)) { setLoading(false); return; }
+        res = await api.post("/email-campaign/send", {
+          campaign: form.campaign, subject, bodyTemplate, fromName: fromName || undefined,
+        });
+      } else if (mode === "single") {
+        if (!singleLead.email || !singleLead.name) return setError("Name and email are required");
+        if (!window.confirm(`Send email to ${singleLead.name} (${singleLead.email})?`)) { setLoading(false); return; }
+        res = await api.post("/email-campaign/send-single", {
+          name: singleLead.name, email: singleLead.email,
+          subject, bodyTemplate, fromName: fromName || undefined,
+        });
+      } else {
+        if (!csvParsed) return setError("Parse the CSV first");
+        if (!window.confirm(`Send emails to ${csvParsed.length} recipients from CSV?`)) { setLoading(false); return; }
+        res = await api.post("/email-campaign/send-csv", {
+          recipients: csvParsed, subject, bodyTemplate, fromName: fromName || undefined,
+        });
+      }
       setResult(res.data);
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Failed to send");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  const MERGE_TAGS = ["{{name}}", "{{campaign}}", "{{mobile}}", "{{email}}"];
+  const insertTag = (tag) => setBodyTemplate(p => p + tag);
 
-  if (result) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-        <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
-          <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4">
-            <svg className="w-7 h-7 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
-          </div>
-          <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2">Campaign Sent!</h2>
-          <div className="grid grid-cols-3 gap-3 my-5">
-            {[
-              { label: "Sent",   value: result.sent,   color: "#059669" },
-              { label: "Failed", value: result.failed, color: "#DC2626" },
-              { label: "Total",  value: result.total,  color: "#2563EB" },
-            ].map((s) => (
-              <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-3 text-center border border-[#E4E7EF] dark:border-[#262A38]">
-                <div className="text-[22px] font-bold" style={{ color: s.color }}>{s.value}</div>
-                <div className="text-[10px] text-[#8B92A9] uppercase tracking-wide mt-0.5">{s.label}</div>
-              </div>
-            ))}
-          </div>
-          {result.errors && result.errors.length > 0 && (
-            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] rounded-xl px-4 py-3 text-left text-[11px] text-[#DC2626] mb-4 max-h-28 overflow-y-auto">
-              {result.errors.slice(0, 5).map((e, i) => (
-                <div key={i}>{e.email}: {e.error}</div>
-              ))}
-            </div>
-          )}
-          <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#7C3AED] text-white text-[13px] font-semibold hover:bg-purple-700 transition">Done</button>
+  // ── Result screen ──
+  if (result) return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={e => e.stopPropagation()}>
+        <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4">
+          <svg className="w-7 h-7 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
         </div>
+        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2">Campaign Sent!</h2>
+        <div className="grid grid-cols-3 gap-3 my-5">
+          {[
+            { label: "Sent",   value: result.sent   ?? 1, color: "#059669" },
+            { label: "Failed", value: result.failed ?? 0,  color: "#DC2626" },
+            { label: "Total",  value: result.total  ?? 1,  color: "#2563EB" },
+          ].map(s => (
+            <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-3 text-center border border-[#E4E7EF] dark:border-[#262A38]">
+              <div className="text-[22px] font-bold" style={{ color: s.color }}>{s.value}</div>
+              <div className="text-[10px] text-[#8B92A9] uppercase tracking-wide mt-0.5">{s.label}</div>
+            </div>
+          ))}
+        </div>
+        {result.errors?.length > 0 && (
+          <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] rounded-xl px-4 py-3 text-left text-[11px] text-[#DC2626] mb-4 max-h-28 overflow-y-auto">
+            {result.errors.slice(0, 5).map((e, i) => <div key={i}>{e.email}: {e.error}</div>)}
+          </div>
+        )}
+        <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#7C3AED] text-white text-[13px] font-semibold hover:bg-purple-700 transition">Done</button>
       </div>
-    );
-  }
+    </div>
+  );
+
+  const isValid = subject.trim() && bodyTemplate.trim() && (
+    mode === "campaign" ? !!form.campaign :
+    mode === "single"   ? (!!singleLead.email && !!singleLead.name) :
+    !!csvParsed
+  );
+
+  const recipientLabel =
+    mode === "campaign" && leadCount !== null ? `${leadCount} leads` :
+    mode === "single"   && singleLead.email  ? "1 recipient" :
+    mode === "csv"      && csvParsed         ? `${csvParsed.length} recipients` :
+    "recipients";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-2xl bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[94vh]" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-2xl bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[94vh]" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
@@ -1614,7 +1655,7 @@ function EmailCampaignModal({ campaigns, onClose }) {
             </div>
             <div>
               <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Send Email Campaign</h2>
-              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Personalized bulk emails via Brevo · Uses your verified sender</p>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Personalized bulk emails via Brevo</p>
             </div>
           </div>
           <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
@@ -1622,108 +1663,198 @@ function EmailCampaignModal({ campaigns, onClose }) {
           </button>
         </div>
 
+        {/* Mode selector */}
+        <div className="px-6 pt-5 pb-0 shrink-0">
+          <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-2">Send to</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { key: "campaign", label: "Campaign leads", icon: <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg> },
+              { key: "single",   label: "Single lead",    icon: <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg> },
+              { key: "csv",      label: "CSV import",     icon: <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg> },
+            ].map(m => (
+              <button
+                key={m.key}
+                onClick={() => { setMode(m.key); setError(""); }}
+                className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-[12px] font-semibold transition ${
+                  mode === m.key
+                    ? "border-[#7C3AED] bg-[#F5F3FF] dark:bg-[#1E1040] text-[#7C3AED]"
+                    : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#7C3AED]/50"
+                }`}
+              >
+                {m.icon}{m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Body */}
         <div className="overflow-y-auto px-6 py-5 space-y-5">
 
-          {/* Campaign picker + preview */}
-          <div>
-            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Target Campaign</p>
-            <div className="flex gap-2">
-              <select
-                value={form.campaign}
-                onChange={(e) => { set("campaign")(e); setLeadCount(null); }}
-                className={FIELD_CLS + " flex-1"}
-              >
-                <option value="">— Select a campaign —</option>
-                {campaignNames.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-              <button
-                onClick={handlePreview}
-                disabled={!form.campaign || previewing}
-                className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#7C3AED] hover:border-[#7C3AED] disabled:opacity-40 transition flex items-center gap-1.5 shrink-0"
-              >
-                {previewing
-                  ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
-                  : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>}
-                Preview
-              </button>
-            </div>
-            {leadCount !== null && (
-              <div className="mt-2 flex items-center gap-1.5 text-[12px]">
-                <span className="w-2 h-2 rounded-full bg-[#7C3AED]" />
-                <span className="text-[#7C3AED] font-semibold">{leadCount} leads</span>
-                <span className="text-[#8B92A9]">with email addresses will receive this campaign</span>
+          {/* ── Campaign mode ── */}
+          {mode === "campaign" && (
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Target campaign</p>
+              <div className="flex gap-2">
+                <select
+                  value={form.campaign}
+                  onChange={e => { setForm(p => ({ ...p, campaign: e.target.value })); setLeadCount(null); }}
+                  className={FIELD_CLS + " flex-1"}
+                >
+                  <option value="">— Select a campaign —</option>
+                  {campaignNames.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <button
+                  onClick={handlePreview}
+                  disabled={!form.campaign || previewing}
+                  className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#7C3AED] hover:border-[#7C3AED] disabled:opacity-40 transition flex items-center gap-1.5 shrink-0"
+                >
+                  {previewing
+                    ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                    : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>}
+                  Preview
+                </button>
               </div>
-            )}
-          </div>
+              {leadCount !== null && (
+                <div className="mt-2 flex items-center gap-1.5 text-[12px]">
+                  <span className="w-2 h-2 rounded-full bg-[#7C3AED]" />
+                  <span className="text-[#7C3AED] font-semibold">{leadCount} leads</span>
+                  <span className="text-[#8B92A9]">with email addresses will receive this campaign</span>
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Email meta */}
+          {/* ── Single lead mode ── */}
+          {mode === "single" && (
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Recipient details</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Full name <span className="text-[#DC2626]">*</span></label>
+                  <input
+                    type="text"
+                    value={singleLead.name}
+                    onChange={e => setSingleLead(p => ({ ...p, name: e.target.value }))}
+                    placeholder="e.g. Rahul Sharma"
+                    className={FIELD_CLS}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Email address <span className="text-[#DC2626]">*</span></label>
+                  <input
+                    type="email"
+                    value={singleLead.email}
+                    onChange={e => setSingleLead(p => ({ ...p, email: e.target.value }))}
+                    placeholder="rahul@gmail.com"
+                    className={FIELD_CLS}
+                  />
+                </div>
+              </div>
+              {singleLead.name && singleLead.email && (
+                <div className="mt-2 flex items-center gap-2 text-[12px] bg-[#F5F3FF] dark:bg-[#1E1040] rounded-xl px-3 py-2">
+                  <div className="w-6 h-6 rounded-full bg-[#7C3AED] flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                    {singleLead.name.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase()}
+                  </div>
+                  <span className="font-semibold text-[#7C3AED]">{singleLead.name}</span>
+                  <span className="text-[#8B92A9]">·</span>
+                  <span className="text-[#4B5168] dark:text-[#9DA3BB]">{singleLead.email}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── CSV mode ── */}
+          {mode === "csv" && (
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">CSV recipients</p>
+              <div className="bg-[#EEF3FF] dark:bg-[#1A2540] rounded-xl px-4 py-3 text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mb-3">
+                <p className="font-semibold text-[#2563EB] mb-1">📋 CSV Format</p>
+                <p>First row: <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono">name,email</code></p>
+                <p className="mt-0.5">Each row: <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono">Rahul Sharma,rahul@gmail.com</code></p>
+              </div>
+              <textarea
+                value={csvText}
+                onChange={e => { setCsvText(e.target.value); setCsvParsed(null); setCsvError(""); }}
+                rows={6}
+                className={FIELD_CLS + " font-mono text-[12px] resize-y"}
+                placeholder={"name,email\nRahul Sharma,rahul@gmail.com"}
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  onClick={parseCSV}
+                  className="px-4 py-2 rounded-xl bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] text-[12px] font-semibold hover:bg-[#dce7ff] transition flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                  Parse CSV
+                </button>
+                {csvParsed && (
+                  <span className="flex items-center gap-1.5 text-[12px] text-[#059669] font-semibold">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    {csvParsed.length} valid recipients found
+                  </span>
+                )}
+              </div>
+              {csvError && <p className="text-[11px] text-[#DC2626] mt-1.5">⚠️ {csvError}</p>}
+              {csvParsed && csvParsed.length > 0 && (
+                <div className="mt-3 border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden max-h-36 overflow-y-auto">
+                  {csvParsed.slice(0, 8).map((r, i) => (
+                    <div key={i} className={`flex items-center gap-3 px-3 py-2 text-[11px] ${i % 2 === 0 ? "bg-[#F8F9FC] dark:bg-[#13161E]" : "bg-white dark:bg-[#0D0F14]"}`}>
+                      <span className="text-[#8B92A9] w-4 text-right shrink-0">{i + 1}</span>
+                      <span className="font-medium text-[#0F1117] dark:text-[#F0F2FA] w-32 truncate shrink-0">{r.name}</span>
+                      <span className="text-[#7C3AED]">{r.email}</span>
+                    </div>
+                  ))}
+                  {csvParsed.length > 8 && (
+                    <div className="px-3 py-2 text-[11px] text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#13161E] text-center">
+                      +{csvParsed.length - 8} more recipients
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Shared: email details ── */}
           <div>
-            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Email Details</p>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Email details</p>
             <div className="space-y-3">
               <div>
-                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Subject Line <span className="text-[#DC2626]">*</span></label>
-                <input
-                  type="text"
-                  value={form.subject}
-                  onChange={set("subject")}
-                  placeholder="e.g. Special offer just for you, {{name}}!"
-                  className={FIELD_CLS}
-                />
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Subject line <span className="text-[#DC2626]">*</span></label>
+                <input type="text" value={subject} onChange={e => setSubject(e.target.value)} placeholder="e.g. Special offer just for you, {{name}}!" className={FIELD_CLS} />
                 <p className="text-[10px] text-[#8B92A9] mt-1">You can use <code className="bg-[#EEF3FF] dark:bg-[#1A2540] text-[#7C3AED] px-1 rounded">{"{{name}}"}</code> in the subject too.</p>
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">From Name <span className="text-[10px] font-normal text-[#8B92A9]">(optional — defaults to company name)</span></label>
-                <input
-                  type="text"
-                  value={form.fromName}
-                  onChange={set("fromName")}
-                  placeholder="e.g. SkyUp CRM Team"
-                  className={FIELD_CLS}
-                />
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">From name <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label>
+                <input type="text" value={fromName} onChange={e => setFromName(e.target.value)} placeholder="e.g. SkyUp CRM Team" className={FIELD_CLS} />
               </div>
             </div>
           </div>
 
-          {/* Merge tags */}
+          {/* ── Merge tags ── */}
           <div>
-            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-2">Available Merge Tags</p>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-2">Available merge tags</p>
             <div className="flex flex-wrap gap-1.5">
-              {MERGE_TAGS.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => setForm((p) => ({ ...p, bodyTemplate: p.bodyTemplate + tag }))}
-                  className="px-2.5 py-1 rounded-lg bg-[#F5F3FF] dark:bg-[#1E1040] text-[#7C3AED] text-[11px] font-mono font-semibold hover:bg-[#ede9fe] transition"
-                >
-                  {tag}
-                </button>
+              {MERGE_TAGS.map(tag => (
+                <button key={tag} onClick={() => insertTag(tag)} className="px-2.5 py-1 rounded-lg bg-[#F5F3FF] dark:bg-[#1E1040] text-[#7C3AED] text-[11px] font-mono font-semibold hover:bg-[#ede9fe] transition">{tag}</button>
               ))}
-              <span className="text-[10px] text-[#8B92A9] self-center ml-1">Click to insert into template</span>
+              <span className="text-[10px] text-[#8B92A9] self-center ml-1">Click to insert</span>
             </div>
           </div>
 
-          {/* HTML body */}
+          {/* ── Body ── */}
           <div>
-            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Email Body (HTML) <span className="text-[#DC2626]">*</span></p>
-            <textarea
-              value={form.bodyTemplate}
-              onChange={set("bodyTemplate")}
-              rows={12}
-              placeholder="<p>Hi {{name}}, ...</p>"
-              className={FIELD_CLS + " font-mono text-[12px] resize-y"}
-            />
-            <p className="text-[10px] text-[#8B92A9] mt-1">Plain HTML is fine. Use inline styles for best email client compatibility.</p>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Email body (HTML) <span className="text-[#DC2626]">*</span></p>
+            <textarea value={bodyTemplate} onChange={e => setBodyTemplate(e.target.value)} rows={10} placeholder="<p>Hi {{name}}, ...</p>" className={FIELD_CLS + " font-mono text-[12px] resize-y"} />
           </div>
 
-          {/* Live preview */}
-          {form.bodyTemplate && (
+          {/* ── Preview ── */}
+          {bodyTemplate && (
             <div>
               <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-2">Preview (sample data)</p>
               <div
                 className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-4 bg-white dark:bg-[#0D0F14] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] max-h-48 overflow-y-auto"
                 dangerouslySetInnerHTML={{
-                  __html: form.bodyTemplate
+                  __html: bodyTemplate
                     .replace(/{{name}}/g,     "<strong>Rahul Sharma</strong>")
                     .replace(/{{campaign}}/g, form.campaign || "Summer Sale")
                     .replace(/{{mobile}}/g,   "9876543210")
@@ -1733,38 +1864,24 @@ function EmailCampaignModal({ campaigns, onClose }) {
             </div>
           )}
 
-          {/* Brevo info box */}
+          {/* ── Brevo info ── */}
           <div className="bg-[#F5F3FF] dark:bg-[#1E1040] rounded-xl px-4 py-3 flex gap-3 border border-[#7C3AED]/20">
             <svg className="w-4 h-4 text-[#7C3AED] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <div>
-              <p className="text-[12px] font-semibold text-[#7C3AED]">Sent via Brevo API</p>
-              <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-0.5">
-                Make sure <code className="bg-white dark:bg-[#0D0F14] px-1 rounded">BREVO_API_KEY</code> and <code className="bg-white dark:bg-[#0D0F14] px-1 rounded">BREVO_SENDER_EMAIL</code> are set in your backend <code className="bg-white dark:bg-[#0D0F14] px-1 rounded">.env</code>. The sender email must be verified in your Brevo account.
-              </p>
-            </div>
+            <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
+              Sent via Brevo API. Ensure <code className="bg-white dark:bg-[#0D0F14] px-1 rounded">BREVO_API_KEY</code> and <code className="bg-white dark:bg-[#0D0F14] px-1 rounded">BREVO_SENDER_EMAIL</code> are in your backend <code className="bg-white dark:bg-[#0D0F14] px-1 rounded">.env</code>.
+            </p>
           </div>
 
-          {error && (
-            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">⚠️ {error}</div>
-          )}
+          {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">⚠️ {error}</div>}
         </div>
 
         {/* Footer */}
         <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
-          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
-            Cancel
-          </button>
-          <button
-            onClick={handleSend}
-            disabled={!form.campaign || !form.subject || !form.bodyTemplate || loading}
-            className="flex-1 py-2.5 rounded-xl bg-[#7C3AED] text-white text-[13px] font-semibold hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
-          >
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
+          <button onClick={handleSend} disabled={!isValid || loading} className="flex-1 py-2.5 rounded-xl bg-[#7C3AED] text-white text-[13px] font-semibold hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
             {loading
               ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Sending…</>
-              : <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-                  Send to {leadCount !== null ? `${leadCount} leads` : "leads"}
-                </>}
+              : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>Send to {recipientLabel}</>}
           </button>
         </div>
       </div>
