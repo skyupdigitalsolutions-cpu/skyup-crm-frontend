@@ -1,29 +1,19 @@
 import { useState, useRef, useCallback } from 'react';
-import axios from 'axios';
 import api from '../data/axiosConfig';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// useVoicebot.js  —  rewired for Saanvi (skyupdigitalsolutions.in)
+// useVoicebot.js  —  proxied through CRM backend (fixes CORS)
 //
-// WHAT CHANGED (only 2 functions):
-//   callLead()   — was: POST /calls/initiate
-//                  now: POST /call-me   (Saanvi's real endpoint)
-//                       also creates a lead in Saanvi first via POST /api/leads
+// ALL Saanvi calls now go via your own CRM backend:
+//   POST /api/saanvi/leads        (was: POST skyupdigitalsolutions.in/api/leads)
+//   POST /api/saanvi/call-me      (was: POST skyupdigitalsolutions.in/call-me)
+//   GET  /api/saanvi/leads/:id    (was: GET  skyupdigitalsolutions.in/api/leads/:id)
 //
-//   pollResult() — was: GET /calls/:callId/result
-//                  now: GET /api/leads/:saanviLeadId  (poll until Completed)
-//                       maps Saanvi fields → shape the UI already expects
-//
-// ADD to frontend .env:
-//   VITE_SAANVI_URL=https://skyupdigitalsolutions.in
+// The CRM backend (saanviProxy.js route) forwards these to Saanvi server-side,
+// so the browser never makes a cross-origin request to skyupdigitalsolutions.in.
 //
 // VoiceBotPanel.jsx and Campaigns.jsx are UNTOUCHED.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const getSaanviUrl = () =>
-  localStorage.getItem('saanvi_api_url') ||
-  import.meta.env.VITE_SAANVI_URL ||
-  'https://skyupdigitalsolutions.in';
 
 export const LEAD_TEMP = {
   HOT:  'Hot',
@@ -77,27 +67,24 @@ export function useVoicebot() {
   const [error,       setError]       = useState(null);
   const abortRef = useRef(false);
 
-  // ── Step 1: Initiate a Saanvi call ───────────────────────────────────────
-  // Old: POST /calls/initiate  → { callId }
-  // New: POST /api/leads       → create lead in Saanvi first
-  //      POST /call-me         → trigger call, returns { callSid }
-  //      returns { callId: saanviLeadId }  so pollResult can fetch by leadId
+  // ── Step 1: Initiate a Saanvi call (via CRM proxy) ───────────────────────
+  // POST /api/saanvi/leads   → creates lead in Saanvi
+  // POST /api/saanvi/call-me → triggers outbound call
   const callLead = useCallback(async (lead) => {
     const phone = lead.phone || lead.mobile;
     if (!phone) throw new Error('Lead has no phone number');
     const e164 = phone.startsWith('+') ? phone : '+91' + phone;
-    const base = getSaanviUrl();
 
-    // Create a lead record in Saanvi so the call result gets attached to it
-    const { data: saanviLead } = await axios.post(`${base}/api/leads`, {
+    // Create a lead record in Saanvi via CRM proxy (no CORS issue)
+    const { data: saanviLead } = await api.post('/saanvi/leads', {
       name:    lead.name    || 'Lead',
       phone:   e164,
       service: lead.service || lead.remark || 'Not specified',
       source:  'CRM Campaign',
     });
 
-    // Trigger the outbound call
-    const { data: callResp } = await axios.post(`${base}/call-me`, {
+    // Trigger the outbound call via CRM proxy
+    const { data: callResp } = await api.post('/saanvi/call-me', {
       phone:   e164,
       leadId:  saanviLead._id,
       service: lead.service || lead.remark || 'Not specified',
@@ -105,21 +92,19 @@ export function useVoicebot() {
 
     if (!callResp.success) throw new Error('Saanvi call initiation failed');
 
-    return { callId: saanviLead._id };  // use lead _id as "callId" for polling
+    return { callId: saanviLead._id }; // use lead _id as "callId" for polling
   }, []);
 
-  // ── Step 2: Poll Saanvi lead doc until call is classified ────────────────
-  // Old: GET /calls/:callId/result
-  // New: GET /api/leads/:saanviLeadId  — poll every 5s until Completed
+  // ── Step 2: Poll Saanvi lead doc until call is classified (via CRM proxy) ─
+  // GET /api/saanvi/leads/:id — poll every 5s until Completed
   const pollResult = useCallback(async (saanviLeadId, maxWaitMs = 180_000) => {
-    const base     = getSaanviUrl();
     const deadline = Date.now() + maxWaitMs;
 
     while (Date.now() < deadline) {
       if (abortRef.current) throw new Error('Aborted');
       await new Promise((r) => setTimeout(r, 5000));
 
-      const { data: saanviLead } = await axios.get(`${base}/api/leads/${saanviLeadId}`);
+      const { data: saanviLead } = await api.get(`/saanvi/leads/${saanviLeadId}`);
       const mapped = mapSaanviLead(saanviLead);
 
       if (
@@ -158,7 +143,7 @@ export function useVoicebot() {
     }
   }, []);
 
-  // ── runQueue — logic unchanged, just passes extra Saanvi fields ──────────
+  // ── runQueue — logic unchanged ────────────────────────────────────────────
   const runQueue = useCallback(async (leads) => {
     abortRef.current = false;
     setIsRunning(true);
