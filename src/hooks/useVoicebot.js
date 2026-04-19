@@ -2,10 +2,28 @@ import { useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import api from '../data/axiosConfig';
 
-const getVoicebotUrl = () =>
-  localStorage.getItem('voicebot_api_url') ||
-  import.meta.env.VITE_VOICEBOT_API ||
-  '';
+// ─────────────────────────────────────────────────────────────────────────────
+// useVoicebot.js  —  rewired for Saanvi (skyupdigitalsolutions.in)
+//
+// WHAT CHANGED (only 2 functions):
+//   callLead()   — was: POST /calls/initiate
+//                  now: POST /call-me   (Saanvi's real endpoint)
+//                       also creates a lead in Saanvi first via POST /api/leads
+//
+//   pollResult() — was: GET /calls/:callId/result
+//                  now: GET /api/leads/:saanviLeadId  (poll until Completed)
+//                       maps Saanvi fields → shape the UI already expects
+//
+// ADD to frontend .env:
+//   VITE_SAANVI_URL=https://skyupdigitalsolutions.in
+//
+// VoiceBotPanel.jsx and Campaigns.jsx are UNTOUCHED.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const getSaanviUrl = () =>
+  localStorage.getItem('saanvi_api_url') ||
+  import.meta.env.VITE_SAANVI_URL ||
+  'https://skyupdigitalsolutions.in';
 
 export const LEAD_TEMP = {
   HOT:  'Hot',
@@ -19,6 +37,38 @@ function scoreToTemp(score) {
   return LEAD_TEMP.COLD;
 }
 
+function parseDuration(str) {
+  if (!str) return 0;
+  const parts = String(str).split(':').map(Number);
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0] || 0;
+}
+
+// Maps Saanvi lead document → shape the VoiceBotPanel UI already expects
+function mapSaanviLead(saanviLead) {
+  const statusMap = {
+    'Completed':   'completed',
+    'In Progress': 'in-progress',
+    'Pending':     'pending',
+    'No Answer':   'no_answer',
+    'Busy':        'busy',
+    'Failed':      'failed',
+  };
+  return {
+    status:        statusMap[saanviLead.callStatus] || 'pending',
+    score:         saanviLead.score          ?? 0,
+    summary:       saanviLead.classReason    || '',
+    Quality:       saanviLead.classification || 'Cold',
+    duration:      parseDuration(saanviLead.callDuration),
+    recording_url: saanviLead.recordingUrl   || null,
+    reason:        saanviLead.classReason    || '',
+    nextAction:    saanviLead.nextAction     || '',
+    service:       saanviLead.service        || '',
+    callSid:       saanviLead.callSid        || '',
+    transcript:    saanviLead.transcript     || '',
+  };
+}
+
 export function useVoicebot() {
   const [callQueue,   setCallQueue]   = useState([]);
   const [currentCall, setCurrentCall] = useState(null);
@@ -27,73 +77,88 @@ export function useVoicebot() {
   const [error,       setError]       = useState(null);
   const abortRef = useRef(false);
 
-  // ── Initiate a single voice-bot call ──────────────────────────────────────
+  // ── Step 1: Initiate a Saanvi call ───────────────────────────────────────
+  // Old: POST /calls/initiate  → { callId }
+  // New: POST /api/leads       → create lead in Saanvi first
+  //      POST /call-me         → trigger call, returns { callSid }
+  //      returns { callId: saanviLeadId }  so pollResult can fetch by leadId
   const callLead = useCallback(async (lead) => {
     const phone = lead.phone || lead.mobile;
     if (!phone) throw new Error('Lead has no phone number');
+    const e164 = phone.startsWith('+') ? phone : '+91' + phone;
+    const base = getSaanviUrl();
 
-    const e164 = phone.startsWith('+') ? phone : `+91${phone}`;
+    // Create a lead record in Saanvi so the call result gets attached to it
+    const { data: saanviLead } = await axios.post(`${base}/api/leads`, {
+      name:    lead.name    || 'Lead',
+      phone:   e164,
+      service: lead.service || lead.remark || 'Not specified',
+      source:  'CRM Campaign',
+    });
 
-    const payload = {
-      phone:    e164,
-      leadId:   lead.id || lead._id,
-      leadName: lead.name,
-    };
+    // Trigger the outbound call
+    const { data: callResp } = await axios.post(`${base}/call-me`, {
+      phone:   e164,
+      leadId:  saanviLead._id,
+      service: lead.service || lead.remark || 'Not specified',
+    });
 
-    const { data } = await axios.post(
-      `${getVoicebotUrl()}/calls/initiate`,
-      payload
-    );
+    if (!callResp.success) throw new Error('Saanvi call initiation failed');
 
-    return data;
+    return { callId: saanviLead._id };  // use lead _id as "callId" for polling
   }, []);
 
-  // ── Poll for call result ──────────────────────────────────────────────────
-  const pollResult = useCallback(async (callId, maxWaitMs = 180_000) => {
+  // ── Step 2: Poll Saanvi lead doc until call is classified ────────────────
+  // Old: GET /calls/:callId/result
+  // New: GET /api/leads/:saanviLeadId  — poll every 5s until Completed
+  const pollResult = useCallback(async (saanviLeadId, maxWaitMs = 180_000) => {
+    const base     = getSaanviUrl();
     const deadline = Date.now() + maxWaitMs;
+
     while (Date.now() < deadline) {
       if (abortRef.current) throw new Error('Aborted');
-      await new Promise((r) => setTimeout(r, 4000));
+      await new Promise((r) => setTimeout(r, 5000));
 
-      const { data } = await axios.get(
-        `${getVoicebotUrl()}/calls/${callId}/result`
-      );
+      const { data: saanviLead } = await axios.get(`${base}/api/leads/${saanviLeadId}`);
+      const mapped = mapSaanviLead(saanviLead);
 
       if (
-        data.status === 'completed' ||
-        data.status === 'failed'    ||
-        data.status === 'no_answer' ||
-        data.status === 'busy'
+        mapped.status === 'completed' ||
+        mapped.status === 'failed'    ||
+        mapped.status === 'no_answer' ||
+        mapped.status === 'busy'
       ) {
-        return data;
+        return mapped;
       }
     }
     throw new Error('Call timed out');
   }, []);
 
-  // ── Update lead temperature + side-effects in CRM ────────────────────────
-  const updateLeadTemp = useCallback(async (leadId, temperature, summary, score) => {
+  // ── Step 3: Save enriched result into CRM lead ───────────────────────────
+  // PATCH /lead/:id/temperature — existing CRM endpoint, unchanged
+  const updateLeadTemp = useCallback(async (leadId, temperature, summary, score, extra = {}) => {
     await api.patch(`/lead/${leadId}/temperature`, {
       temperature,
-      voiceBotSummary: summary,
-      voiceBotScore:   score,
-      lastCalledAt:    new Date().toISOString(),
+      voiceBotSummary:    summary,
+      voiceBotScore:      score,
+      voiceBotReason:     extra.reason      || '',
+      voiceBotNextAction: extra.nextAction   || '',
+      voiceBotService:    extra.service      || '',
+      voiceBotCallSid:    extra.callSid      || '',
+      voiceBotDuration:   extra.duration     ?? null,
+      voiceBotTranscript: extra.transcript   || '',
+      lastCalledByBot:    new Date().toISOString(),
     });
 
     if (temperature === LEAD_TEMP.WARM) {
       await api.patch(`/lead/admin/${leadId}/assign-roundrobin`);
     }
-
     if (temperature === LEAD_TEMP.HOT) {
-      await api.post('/lead/admin/notify-hot', {
-        leadId,
-        score,
-        summary,
-      });
+      await api.post('/lead/admin/notify-hot', { leadId, score, summary });
     }
   }, []);
 
-  // ── Run the full queue ────────────────────────────────────────────────────
+  // ── runQueue — logic unchanged, just passes extra Saanvi fields ──────────
   const runQueue = useCallback(async (leads) => {
     abortRef.current = false;
     setIsRunning(true);
@@ -111,13 +176,7 @@ export function useVoicebot() {
           q.map((item, idx) => idx === i ? { ...item, queueStatus: 'calling' } : item)
         );
 
-        let outcome = {
-          lead,
-          temperature:  LEAD_TEMP.COLD,
-          status:       'failed',
-          summary:      '',
-          score:        0,
-        };
+        let outcome = { lead, temperature: LEAD_TEMP.COLD, status: 'failed', summary: '', score: 0 };
 
         try {
           const { callId } = await callLead(lead);
@@ -132,18 +191,25 @@ export function useVoicebot() {
           outcome = {
             lead,
             temperature,
+            Quality:      result.Quality,
             status:       result.status,
-            summary:      result.summary || '',
-            score:        result.score ?? 0,
-            duration:     result.duration ?? 0,
+            summary:      result.summary      || '',
+            score:        result.score        ?? 0,
+            duration:     result.duration     ?? 0,
             recordingUrl: result.recording_url || null,
           };
 
           const id = lead.id || lead._id;
-          if (id) await updateLeadTemp(id, temperature, outcome.summary, outcome.score);
+          if (id) await updateLeadTemp(id, temperature, outcome.summary, outcome.score, {
+            reason:     result.reason      || '',
+            nextAction: result.nextAction  || '',
+            service:    result.service     || '',
+            callSid:    result.callSid     || '',
+            duration:   result.duration    ?? 0,
+            transcript: result.transcript  || '',
+          });
 
         } catch (err) {
-          // ✅ per-lead error: record it on the outcome but keep the queue running
           outcome.errorMsg = err.message;
           outcome.status   = 'failed';
         }
@@ -162,10 +228,8 @@ export function useVoicebot() {
         }
       }
     } catch (fatalErr) {
-      // ✅ outer catch: unexpected fatal error — surface it and stop cleanly
       setError(fatalErr.message);
     } finally {
-      // ✅ always runs — guarantees isRunning resets even on fatal throw
       setCurrentCall(null);
       setIsRunning(false);
     }
@@ -176,7 +240,6 @@ export function useVoicebot() {
     setIsRunning(false);
   }, []);
 
-  // ── Call a single lead immediately ────────────────────────────────────────
   const callSingleLead = useCallback(async (lead, onDone) => {
     setError(null);
     setCurrentCall({ lead, status: 'calling', callId: null });
@@ -190,9 +253,16 @@ export function useVoicebot() {
         : LEAD_TEMP.COLD;
 
       const id = lead.id || lead._id;
-      if (id) await updateLeadTemp(id, temperature, result.summary || '', result.score ?? 0);
+      if (id) await updateLeadTemp(id, temperature, result.summary || '', result.score ?? 0, {
+        reason:     result.reason      || '',
+        nextAction: result.nextAction  || '',
+        service:    result.service     || '',
+        callSid:    result.callSid     || '',
+        duration:   result.duration    ?? 0,
+        transcript: result.transcript  || '',
+      });
 
-      const outcome = { lead, temperature, ...result };
+      const outcome = { lead, temperature, Quality: result.Quality, ...result };
       setResults((prev) => [...prev, outcome]);
       onDone?.(outcome);
     } catch (err) {
@@ -202,14 +272,5 @@ export function useVoicebot() {
     }
   }, [callLead, pollResult, updateLeadTemp]);
 
-  return {
-    callQueue,
-    currentCall,
-    results,
-    isRunning,
-    error,
-    runQueue,
-    stopQueue,
-    callSingleLead,
-  };
+  return { callQueue, currentCall, results, isRunning, error, runQueue, stopQueue, callSingleLead };
 }
