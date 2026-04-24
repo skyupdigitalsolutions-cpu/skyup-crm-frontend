@@ -403,11 +403,75 @@ function BulkEmailImportModal({ campaign, onClose }) {
             <textarea
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
-              rows={10}
+              rows={8}
               className={FIELD_CLS + " font-mono text-[12px] resize-y"}
               placeholder={"mobile,email\n9876543210,rahul@gmail.com"}
             />
           </div>
+
+          {/* ── Live email validation preview ── */}
+          {(() => {
+            const lines = csvText.trim().split("\n").filter(Boolean);
+            if (lines.length < 2) return null;
+            const header = lines[0].toLowerCase().split(",").map((s) => s.trim());
+            const emailIdx = header.indexOf("email");
+            if (emailIdx === -1) return null;
+            const rows = lines.slice(1).map((line) => {
+              const cols = line.split(",").map((s) => s.trim());
+              const email = cols[emailIdx] || "";
+              const isValid = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email);
+              return { email, isValid };
+            }).filter((r) => r.email);
+            if (rows.length === 0) return null;
+            const invalidCount = rows.filter((r) => !r.isValid).length;
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
+                    Email preview — {rows.length} rows
+                  </p>
+                  {invalidCount > 0 && (
+                    <span className="flex items-center gap-1 text-[11px] font-semibold text-[#DC2626]">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      {invalidCount} invalid email{invalidCount > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+                <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden max-h-36 overflow-y-auto">
+                  {rows.slice(0, 12).map((r, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center gap-2 px-3 py-1.5 text-[11px] border-b border-[#E4E7EF] dark:border-[#262A38] last:border-0 ${
+                        r.isValid
+                          ? i % 2 === 0 ? "bg-[#F8F9FC] dark:bg-[#13161E]" : "bg-white dark:bg-[#0D0F14]"
+                          : "bg-[#FEF2F2] dark:bg-[#2D0A0A]"
+                      }`}
+                    >
+                      <span className={`flex-1 font-mono truncate ${r.isValid ? "text-[#0F1117] dark:text-[#F0F2FA]" : "text-[#DC2626] dark:text-[#F87171] font-semibold"}`}>
+                        {r.email}
+                      </span>
+                      {r.isValid ? (
+                        <svg className="w-3 h-3 text-[#059669] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      ) : (
+                        <svg className="w-3 h-3 text-[#DC2626] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      )}
+                    </div>
+                  ))}
+                  {rows.length > 12 && (
+                    <div className="px-3 py-1.5 text-[11px] text-[#8B92A9] text-center bg-[#F8F9FC] dark:bg-[#13161E]">
+                      +{rows.length - 12} more rows
+                    </div>
+                  )}
+                </div>
+                {invalidCount > 0 && (
+                  <p className="text-[10px] text-[#DC2626] mt-1.5">
+                    ⚠️ Invalid emails (highlighted red) won't be imported. Fix them before proceeding.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+
           {error && (
             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">
               ⚠️ {error}
@@ -3936,20 +4000,26 @@ function EmailCampaignModal({ campaigns, onClose }) {
               )}
               {csvParsed && csvParsed.length > 0 && (
                 <div className="mt-3 border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden max-h-36 overflow-y-auto">
-                  {csvParsed.slice(0, 8).map((r, i) => (
-                    <div
-                      key={i}
-                      className={`flex items-center gap-3 px-3 py-2 text-[11px] ${i % 2 === 0 ? "bg-[#F8F9FC] dark:bg-[#13161E]" : "bg-white dark:bg-[#0D0F14]"}`}
-                    >
-                      <span className="text-[#8B92A9] w-4 text-right shrink-0">
-                        {i + 1}
-                      </span>
-                      <span className="font-medium text-[#0F1117] dark:text-[#F0F2FA] w-32 truncate shrink-0">
-                        {r.name}
-                      </span>
-                      <span className="text-[#7C3AED]">{r.email}</span>
-                    </div>
-                  ))}
+                  {csvParsed.slice(0, 8).map((r, i) => {
+                    const isValidEmail = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(r.email);
+                    return (
+                      <div
+                        key={i}
+                        className={`flex items-center gap-3 px-3 py-2 text-[11px] ${
+                          !isValidEmail
+                            ? "bg-[#FEF2F2] dark:bg-[#2D0A0A]"
+                            : i % 2 === 0 ? "bg-[#F8F9FC] dark:bg-[#13161E]" : "bg-white dark:bg-[#0D0F14]"
+                        }`}
+                      >
+                        <span className="text-[#8B92A9] w-4 text-right shrink-0">{i + 1}</span>
+                        <span className="font-medium text-[#0F1117] dark:text-[#F0F2FA] w-32 truncate shrink-0">{r.name}</span>
+                        <span className={isValidEmail ? "text-[#7C3AED]" : "text-[#DC2626] font-semibold"}>{r.email}</span>
+                        {!isValidEmail && (
+                          <svg className="w-3 h-3 text-[#DC2626] shrink-0 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        )}
+                      </div>
+                    );
+                  })}
                   {csvParsed.length > 8 && (
                     <div className="px-3 py-2 text-[11px] text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#13161E] text-center">
                       +{csvParsed.length - 8} more recipients

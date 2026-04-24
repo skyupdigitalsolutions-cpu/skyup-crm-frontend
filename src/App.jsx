@@ -12,6 +12,7 @@ import UserDailyReport from "./pages/UserDailyReport";
 import AdminLogin from "./pages/AdminLogin";
 import SuperAdminLogin from "./pages/SuperAdminLogin";
 import AdminLeadsPage from "./components/AdminLeadsPage";
+import EmailHistory from "./components/EmailHistory";
 
 // ── Helper to read stored user ─────────────────────────────────────────────────
 function getStoredAuth() {
@@ -111,6 +112,12 @@ export default function App() {
         <Route path="/upgrade-plan" element={
           <AdminRoute>
             <AppLayout><UpgradePlan /></AppLayout>
+          </AdminRoute>
+        }/>
+
+        <Route path="/email-history" element={
+          <AdminRoute>
+            <AppLayout><EmailHistory /></AppLayout>
           </AdminRoute>
         }/>
 
