@@ -5,15 +5,6 @@ import AdminChat from "./Adminchat";
 import LeadTimeline from "./LeadTimeLine";
 import AdminAttendanceView from "./AdminAttendanceView";
 
-// ── Chart.js dynamic import helper ────────────────────────────────────────────
-let ChartJS = null;
-async function getChart() {
-  if (ChartJS) return ChartJS;
-  const mod = await import("https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js");
-  ChartJS = window.Chart;
-  return ChartJS;
-}
-
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function parseDate(dateStr) {
   if (!dateStr) return new Date(NaN);
@@ -77,22 +68,36 @@ function buildChartBuckets(leads, range) {
   };
 }
 
+// ── Chart.js loader (loads script once globally) ──────────────────────────────
+function useChartJS() {
+  const [ready, setReady] = useState(!!window.Chart);
+  useEffect(() => {
+    if (window.Chart) { setReady(true); return; }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js";
+    script.onload = () => setReady(true);
+    document.head.appendChild(script);
+  }, []);
+  return ready;
+}
+
 // ── LineChart using Chart.js ──────────────────────────────────────────────────
+// FIX: Component only mounts when chartReady=true (parent gates it),
+//      so window.Chart is guaranteed available on first useEffect run.
 function LineChart({ data1, data2, labels }) {
   const canvasRef = useRef(null);
   const chartRef  = useRef(null);
 
+  // FIX: Initialize chart on mount — window.Chart is guaranteed here
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || !window.Chart) return;
+
     const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const textColor = isDark ? "rgba(157,163,187,1)" : "rgba(139,146,169,1)";
-    const gridColor = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
-    const bgColor   = isDark ? "#1A1D27" : "#fff";
+    const textColor  = isDark ? "rgba(157,163,187,1)" : "rgba(139,146,169,1)";
+    const gridColor  = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+    const bgColor    = isDark ? "#1A1D27" : "#fff";
 
-    // Destroy previous instance
     if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
-
-    if (!window.Chart) return;
 
     chartRef.current = new window.Chart(canvasRef.current, {
       type: "line",
@@ -111,7 +116,6 @@ function LineChart({ data1, data2, labels }) {
             pointBorderColor: bgColor,
             pointBorderWidth: 2,
             borderWidth: 2,
-            borderDash: [],
           },
           {
             label: "Converted",
@@ -164,10 +168,12 @@ function LineChart({ data1, data2, labels }) {
       },
     });
 
-    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
-  }, []);
+    return () => {
+      if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+    };
+  }, []); // runs once on mount — Chart.js guaranteed ready by parent gate
 
-  // Update chart data when props change (no full re-mount)
+  // Update chart data when props change (no full re-mount needed)
   useEffect(() => {
     if (!chartRef.current) return;
     chartRef.current.data.labels = labels;
@@ -177,28 +183,30 @@ function LineChart({ data1, data2, labels }) {
   }, [data1, data2, labels]);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: 130 }}>
-      <canvas ref={canvasRef} role="img" aria-label="Line chart of new and converted leads over time">
-        Leads over time chart
-      </canvas>
+    // FIX: explicit height so Chart.js can calculate dimensions
+    <div style={{ position: "relative", width: "100%", height: 200 }}>
+      <canvas ref={canvasRef} role="img" aria-label="Line chart of new and converted leads over time" />
     </div>
   );
 }
 
 // ── DonutChart using Chart.js ─────────────────────────────────────────────────
+// FIX: Component only mounts when chartReady=true (parent gates it).
 function DonutChart({ segments }) {
   const canvasRef = useRef(null);
   const chartRef  = useRef(null);
 
-  const values = segments.map(s => s.value);
-  const colors = segments.map(s => s.color);
-  const total  = values.reduce((a, b) => a + b, 0);
+  const values  = segments.map(s => s.value);
+  const colors  = segments.map(s => s.color);
+  const total   = values.reduce((a, b) => a + b, 0);
   const allZero = total === 0;
 
+  // FIX: Initialize chart on mount — window.Chart is guaranteed here
   useEffect(() => {
     if (!canvasRef.current || !window.Chart) return;
-    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const emptyColor = isDark ? "#262A38" : "#E4E7EF";
+
+    const isDark      = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const emptyColor  = isDark ? "#262A38" : "#E4E7EF";
     const borderColor = isDark ? "#1A1D27" : "#fff";
 
     if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
@@ -235,13 +243,15 @@ function DonutChart({ segments }) {
       },
     });
 
-    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
-  }, []);
+    return () => {
+      if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+    };
+  }, []); // runs once on mount — Chart.js guaranteed ready by parent gate
 
   // Update when segment values change
   useEffect(() => {
     if (!chartRef.current) return;
-    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const isDark     = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const emptyColor = isDark ? "#262A38" : "#E4E7EF";
     chartRef.current.data.labels = allZero ? ["No data"] : segments.map(s => s.label);
     chartRef.current.data.datasets[0].data = allZero ? [1] : values;
@@ -250,11 +260,10 @@ function DonutChart({ segments }) {
     chartRef.current.update();
   }, [segments]);
 
+  // FIX: wrapper must have explicit width+height so Chart.js renders correctly
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      <canvas ref={canvasRef} role="img" aria-label="Donut chart showing pipeline status">
-        Pipeline status chart
-      </canvas>
+      <canvas ref={canvasRef} role="img" aria-label="Donut chart showing pipeline status" />
     </div>
   );
 }
@@ -315,34 +324,27 @@ function Skeleton() {
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
-const IconUsers   = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>;
-const IconCheck   = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>;
-const IconPct     = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>;
-const IconClock   = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>;
-const IconBuilding= <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>;
+const IconUsers    = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>;
+const IconCheck    = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>;
+const IconPct      = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>;
+const IconClock    = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>;
+const IconBuilding = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>;
+const IconRefresh  = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>;
 
 const SOURCE_COLORS = {
-  "Google Ads":"#2563EB","Campaign":"#7C3AED",
-  "Facebook Ads":"#0891B2","Web Form":"#059669","Referral":"#D97706",
+  "Google Ads":"#2563EB",
+  "Campaign":"#7C3AED",
+  "Facebook Ads":"#0891B2",
+  "Web Form":"#059669",
+  "Referral":"#D97706",
 };
-const RANGE_LABELS = { today:"Today", week:"This week", month:"This month", quarter:"Quarter" };
 
-// ── Chart.js loader (loads script once globally) ───────────────────────────────
-function useChartJS() {
-  const [ready, setReady] = useState(!!window.Chart);
-  useEffect(() => {
-    if (window.Chart) { setReady(true); return; }
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js";
-    script.onload = () => setReady(true);
-    document.head.appendChild(script);
-  }, []);
-  return ready;
-}
+// FIX: Removed "today" from RANGE_LABELS to match Image 1 which only shows Week/Month/Quarter
+// If you want Today back, just add it: today:"Today"
+const RANGE_LABELS = { week:"Week", month:"Month", quarter:"Quarter" };
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const [activeCallSid, setActiveCallSid] = useState(null);
   const [allLeads,    setAllLeads]    = useState([]);
   const [agents,      setAgents]      = useState([]);
   const [dbAdmins,    setDbAdmins]    = useState([]);
@@ -352,18 +354,12 @@ export default function Dashboard() {
   const [error,       setError]       = useState(null);
   const [range,       setRange]       = useState("week");
   const [superStats,  setSuperStats]  = useState(null);
-  const [csvResult,   setCsvResult]   = useState(null);
-  const [selectedContact, setSelectedContact] = useState(null);
 
+  // FIX: Load Chart.js once; child charts only mount after this is true
   const chartReady = useChartJS();
 
-  const contacts = allLeads
-    .filter(l => l.mobile)
-    .map(l => ({ id: l.id, name: l.name, number: String(l.mobile) }))
-    .filter((c, i, arr) => arr.findIndex(x => x.number === c.number) === i);
-
-  const role = getRole();
-  const user = getStoredUser();
+  const role        = getRole();
+  const user        = getStoredUser();
   const isSuperAdmin = role === "superadmin";
 
   // ── Fetch data ──────────────────────────────────────────────────────────────
@@ -405,42 +401,56 @@ export default function Dashboard() {
     const total = leads.length, converted = leads.filter(l => l.status === "Converted").length;
     return { total, converted, rate:`${total > 0 ? Math.round(converted/total*100) : 0}%`, response:"—" };
   }, [leads]);
-  const chart  = useMemo(() => buildChartBuckets(leads, range), [leads, range]);
+  const chart   = useMemo(() => buildChartBuckets(leads, range), [leads, range]);
   const pipeline = useMemo(() => ({
-    new:      leads.filter(l=>l.status==="New").length,
-    progress: leads.filter(l=>l.status==="In Progress").length,
-    lost:     leads.filter(l=>l.status==="Not Interested").length,
-    converted:leads.filter(l=>l.status==="Converted").length,
+    new:       leads.filter(l => l.status === "New").length,
+    progress:  leads.filter(l => l.status === "In Progress").length,
+    lost:      leads.filter(l => l.status === "Not Interested").length,
+    converted: leads.filter(l => l.status === "Converted").length,
   }), [leads]);
   const agentStats = useMemo(() =>
-    agents.map(a=>{ const al=leads.filter(l=>l.agent===a.name); return {...a,leads:al.length,conv:al.filter(l=>l.status==="Converted").length}; })
-      .sort((a,b)=>b.leads-a.leads),
+    agents.map(a => {
+      const al = leads.filter(l => l.agent === a.name);
+      return { ...a, leads: al.length, conv: al.filter(l => l.status === "Converted").length };
+    }).sort((a, b) => b.leads - a.leads),
   [leads, agents]);
   const sourceStats = useMemo(() => {
-    const total=leads.length||1;
-    return Object.entries(SOURCE_COLORS).map(([label,color])=>({label,color,pct:Math.round(leads.filter(l=>l.source===label).length/total*100)})).filter(s=>s.pct>0);
+    const total = leads.length || 1;
+    return Object.entries(SOURCE_COLORS)
+      .map(([label, color]) => ({
+        label, color,
+        pct: Math.round(leads.filter(l => l.source === label).length / total * 100),
+      }))
+      .filter(s => s.pct > 0);
   }, [leads]);
   const activity = useMemo(() =>
-    [...allLeads].sort((a,b)=>String(b.id).localeCompare(String(a.id))).slice(0,6).map(l=>({
-      text:`${l.agent} · ${l.name} — ${l.status}`, time:l.date,
-      dot: l.status==="Converted"?"#059669":l.status==="In Progress"?"#D97706":l.status==="Not Interested"?"#DC2626":"#2563EB",
-    })),
+    [...allLeads]
+      .sort((a, b) => String(b.id).localeCompare(String(a.id)))
+      .slice(0, 6)
+      .map(l => ({
+        text: `${l.agent} · ${l.name} — ${l.status}`,
+        time: l.date,
+        dot:  l.status === "Converted" ? "#059669"
+            : l.status === "In Progress" ? "#D97706"
+            : l.status === "Not Interested" ? "#DC2626"
+            : "#2563EB",
+      })),
   [allLeads]);
 
-  const maxLeads = Math.max(...agentStats.map(a=>a.leads),1);
+  const maxLeads = Math.max(...agentStats.map(a => a.leads), 1);
 
-  // Pipeline segments for DonutChart (Chart.js version)
+  // Pipeline segments for DonutChart
   const pipelineSegs = [
-    {label:"New",          value:pipeline.new,       color:"#2563EB"},
-    {label:"In progress",  value:pipeline.progress,   color:"#D97706"},
-    {label:"Not interested",value:pipeline.lost,      color:"#DC2626"},
-    {label:"Converted",    value:pipeline.converted,  color:"#059669"},
+    { label:"New",            value: pipeline.new,       color: "#2563EB" },
+    { label:"In progress",    value: pipeline.progress,  color: "#D97706" },
+    { label:"Not interested", value: pipeline.lost,      color: "#DC2626" },
+    { label:"Converted",      value: pipeline.converted, color: "#059669" },
   ];
 
-  const uniqueSources   = [...new Set(allLeads.map(l=>l.source))].length;
-  const uniqueCampaigns = [...new Set(allLeads.map(l=>l.campaign).filter(c=>c&&c!=="—"))].length;
+  const uniqueSources   = [...new Set(allLeads.map(l => l.source))].length;
+  const uniqueCampaigns = [...new Set(allLeads.map(l => l.campaign).filter(c => c && c !== "—"))].length;
 
-  if (loading) return <Skeleton/>;
+  if (loading) return <Skeleton />;
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-8">
@@ -465,21 +475,13 @@ export default function Dashboard() {
             }
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={loadData}
-            className="p-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#8B92A9] hover:text-[#2563EB] transition"
-            title="Refresh data">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-          </button>
-          <div className="flex items-center gap-1.5 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-1">
-            {Object.entries(RANGE_LABELS).map(([key,label])=>(
-              <button key={key} onClick={()=>setRange(key)}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition ${range===key?"bg-[#2563EB] text-white":"text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A]"}`}>{label}</button>
-            ))}
-          </div>
-        </div>
+        <button
+          onClick={loadData}
+          className="p-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#8B92A9] hover:text-[#2563EB] transition"
+          title="Refresh data"
+        >
+          {IconRefresh}
+        </button>
       </div>
 
       {/* ── Error banner ── */}
@@ -488,19 +490,19 @@ export default function Dashboard() {
       {/* ── SuperAdmin extra stats ── */}
       {isSuperAdmin && superStats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <KpiCard label="Total Companies"  value={superStats.totalCompanies}  sub="Registered companies" up={true}  icon={IconBuilding}/>
-          <KpiCard label="Active Companies" value={superStats.activeCompanies} sub="Currently active"      up={true}  icon={IconCheck}/>
-          <KpiCard label="Total Admins"     value={superStats.totalAdmins}     sub="Across all companies"  up={true}  icon={IconUsers}/>
-          <KpiCard label="Total Users"      value={superStats.totalUsers}      sub="Across all companies"  up={true}  icon={IconUsers}/>
+          <KpiCard label="Total Companies"  value={superStats.totalCompanies}  sub="Registered companies" up={true} icon={IconBuilding}/>
+          <KpiCard label="Active Companies" value={superStats.activeCompanies} sub="Currently active"      up={true} icon={IconCheck}/>
+          <KpiCard label="Total Admins"     value={superStats.totalAdmins}     sub="Across all companies"  up={true} icon={IconUsers}/>
+          <KpiCard label="Total Users"      value={superStats.totalUsers}      sub="Across all companies"  up={true} icon={IconUsers}/>
         </div>
       )}
 
       {/* ── KPI row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Total Leads"    value={kpi.total.toLocaleString()}     sub={`${leads.length} in selected range`} up={true}  icon={IconUsers}/>
-        <KpiCard label="Conversions"    value={kpi.converted.toLocaleString()} sub={`${kpi.rate} conversion rate`}       up={kpi.converted>0} icon={IconCheck}/>
-        <KpiCard label="Conv. rate"     value={kpi.rate}                       sub={`${pipeline.progress} in progress`}  up={parseInt(kpi.rate)>=15} icon={IconPct}/>
-        <KpiCard label="Not Interested" value={pipeline.lost.toLocaleString()} sub="Review needed" up={false} icon={IconClock}/>
+        <KpiCard label="Total Leads"    value={kpi.total.toLocaleString()}     sub={`${leads.length} in selected range`} up={true}                    icon={IconUsers}/>
+        <KpiCard label="Conversions"    value={kpi.converted.toLocaleString()} sub={`${kpi.rate} conversion rate`}       up={kpi.converted > 0}       icon={IconCheck}/>
+        <KpiCard label="Conv. rate"     value={kpi.rate}                       sub={`${pipeline.progress} in progress`}  up={parseInt(kpi.rate) >= 15} icon={IconPct}/>
+        <KpiCard label="Not Interested" value={pipeline.lost.toLocaleString()} sub="Review needed"                       up={false}                    icon={IconClock}/>
       </div>
 
       {/* ── Chart row ── */}
@@ -508,42 +510,76 @@ export default function Dashboard() {
 
         {/* ── Leads over time (Line chart) ── */}
         <div className="lg:col-span-2 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Leads over time</h2>
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5 text-[11px] text-[#8B92A9] dark:text-[#565C75]">
-                <span className="w-3 h-1.5 rounded-full bg-[#2563EB] inline-block"/>New leads
-              </span>
-              <span className="flex items-center gap-1.5 text-[11px] text-[#8B92A9] dark:text-[#565C75]">
-                <span className="inline-block" style={{
-                  width: 12, height: 4, borderTop: "2px dashed #059669", verticalAlign: "middle"
-                }}/>Converted
-              </span>
+          {/*
+            FIX: Title, legend, AND range-toggle buttons are all inside this card now,
+            matching Image 1. Previously the range toggle was in the page header.
+          */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            {/* Left: title + legend */}
+            <div className="flex items-center gap-5">
+              <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Leads over time</h2>
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5 text-[11px] text-[#8B92A9] dark:text-[#565C75]">
+                  <span className="w-3 h-1.5 rounded-full bg-[#2563EB] inline-block"/>
+                  New leads
+                </span>
+                <span className="flex items-center gap-1.5 text-[11px] text-[#8B92A9] dark:text-[#565C75]">
+                  <span className="inline-block" style={{ width:12, height:4, borderTop:"2px dashed #059669", verticalAlign:"middle" }}/>
+                  Converted
+                </span>
+              </div>
+            </div>
+
+            {/* Right: range toggle buttons — FIX: moved here from page header */}
+            <div className="flex items-center gap-1 bg-[#F1F4FF] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-1">
+              {Object.entries(RANGE_LABELS).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setRange(key)}
+                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition
+                    ${range === key
+                      ? "bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-[#F0F2FA] shadow-sm"
+                      : "text-[#8B92A9] dark:text-[#565C75] hover:text-[#4B5168] dark:hover:text-[#9DA3BB]"
+                    }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* FIX: Only render LineChart after Chart.js is ready — guarantees window.Chart exists on mount */}
           {leads.length === 0
-            ? <div className="h-[130px] flex items-center justify-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads in this period</div>
+            ? <div className="h-[200px] flex items-center justify-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">
+                No leads in this period
+              </div>
             : chartReady
-              ? <LineChart data1={chart.new} data2={chart.conv} labels={chart.labels}/>
-              : <div className="h-[130px] flex items-center justify-center text-[12px] text-[#8B92A9] dark:text-[#565C75]">Loading chart…</div>
+              ? <LineChart data1={chart.new} data2={chart.conv} labels={chart.labels} />
+              : <div className="h-[200px] flex items-center justify-center text-[12px] text-[#8B92A9] dark:text-[#565C75]">
+                  Loading chart…
+                </div>
           }
         </div>
 
         {/* ── Pipeline status (Donut chart) ── */}
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
-          <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-4">Pipeline status</h2>
+          <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-5">Pipeline status</h2>
           <div className="flex items-center gap-4">
-            {/* Donut + center label */}
-            <div className="relative shrink-0" style={{ width: 108, height: 108 }}>
+
+            {/*
+              FIX: Explicit pixel width+height on the wrapper div.
+              Without this the inner canvas height collapses to 0 and Chart.js
+              renders nothing. Parent must be the sizing authority.
+            */}
+            <div className="relative shrink-0" style={{ width: 120, height: 120 }}>
+              {/* FIX: Only render DonutChart after Chart.js is ready */}
               {chartReady
-                ? <DonutChart segments={pipelineSegs}/>
-                : <div className="w-full h-full flex items-center justify-center">
-                    <div className="w-16 h-16 rounded-full border-4 border-[#E4E7EF] dark:border-[#262A38]"/>
-                  </div>
+                ? <DonutChart segments={pipelineSegs} />
+                : <div className="w-full h-full rounded-full border-4 border-[#E4E7EF] dark:border-[#262A38]" />
               }
-              {/* Center total */}
+              {/* Centre label — positioned absolutely over the canvas */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
+                <span className="text-[20px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
                   {(pipeline.new + pipeline.progress + pipeline.lost + pipeline.converted).toLocaleString()}
                 </span>
                 <span className="text-[9px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">total</span>
@@ -551,15 +587,15 @@ export default function Dashboard() {
             </div>
 
             {/* Legend */}
-            <div className="space-y-2.5 flex-1">
+            <div className="space-y-3 flex-1">
               {[
-                {label:"New",           value:pipeline.new,       color:"#2563EB"},
-                {label:"In progress",   value:pipeline.progress,  color:"#D97706"},
-                {label:"Not interested",value:pipeline.lost,      color:"#DC2626"},
-                {label:"Converted",     value:pipeline.converted, color:"#059669"},
-              ].map(s=>(
+                { label:"New",            value: pipeline.new,       color: "#2563EB" },
+                { label:"In progress",    value: pipeline.progress,  color: "#D97706" },
+                { label:"Not interested", value: pipeline.lost,      color: "#DC2626" },
+                { label:"Converted",      value: pipeline.converted, color: "#059669" },
+              ].map(s => (
                 <div key={s.label} className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{background:s.color}}/>
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }}/>
                   <span className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] flex-1 leading-none">{s.label}</span>
                   <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{s.value.toLocaleString()}</span>
                 </div>
@@ -577,25 +613,35 @@ export default function Dashboard() {
           <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-4">
             {isSuperAdmin ? "Top users" : "User performance"}
           </h2>
-          {agentStats.every(a=>a.leads===0)
+          {agentStats.every(a => a.leads === 0)
             ? <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No activity in this period.</p>
-            : <div className="space-y-4">{agentStats.map(a=>(
-                <div key={a.name}>
-                  <div className="flex items-center justify-between mb-1.5">
+            : <div className="space-y-4">
+                {agentStats.map(a => (
+                  <div key={a.name}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                          style={{ background: a.color }}
+                        >
+                          {a.avatar}
+                        </div>
+                        <span className="text-[12px] font-medium text-[#0F1117] dark:text-[#F0F2FA]">{a.name}</span>
+                      </div>
+                      <span className="text-[11px] font-semibold text-[#059669] dark:text-[#34D399]">{a.conv} conv</span>
+                    </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{background:a.color}}>{a.avatar}</div>
-                      <span className="text-[12px] font-medium text-[#0F1117] dark:text-[#F0F2FA]">{a.name}</span>
+                      <div className="flex-1 h-1.5 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width:`${Math.round(a.leads / maxLeads * 100)}%`, background: a.color }}
+                        />
+                      </div>
+                      <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] w-7 text-right">{a.leads}</span>
                     </div>
-                    <span className="text-[11px] font-semibold text-[#059669] dark:text-[#34D399]">{a.conv} conv</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{width:`${Math.round(a.leads/maxLeads*100)}%`,background:a.color}}/>
-                    </div>
-                    <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] w-7 text-right">{a.leads}</span>
-                  </div>
-                </div>
-              ))}</div>
+                ))}
+              </div>
           }
         </div>
 
@@ -603,19 +649,19 @@ export default function Dashboard() {
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
           <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-4">Leads by source</h2>
           <div className="space-y-3">
-            {sourceStats.length===0
+            {sourceStats.length === 0
               ? <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No data for this period.</p>
-              : sourceStats.map(s=>(
+              : sourceStats.map(s => (
                   <div key={s.label}>
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{background:s.color}}/>
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }}/>
                         <span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{s.label}</span>
                       </div>
                       <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{s.pct}%</span>
                     </div>
                     <div className="h-1.5 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{width:`${s.pct}%`,background:s.color}}/>
+                      <div className="h-full rounded-full" style={{ width:`${s.pct}%`, background: s.color }}/>
                     </div>
                   </div>
                 ))
@@ -623,11 +669,11 @@ export default function Dashboard() {
           </div>
           <div className="mt-5 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] grid grid-cols-2 gap-3">
             {[
-              {label:"Total leads",  value:allLeads.length},
-              {label:"Active users", value:agents.length},
-              {label:"Sources",      value:uniqueSources},
-              {label:"Campaigns",    value:uniqueCampaigns},
-            ].map(s=>(
+              { label:"Total leads",  value: allLeads.length },
+              { label:"Active users", value: agents.length },
+              { label:"Sources",      value: uniqueSources },
+              { label:"Campaigns",    value: uniqueCampaigns },
+            ].map(s => (
               <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5">
                 <div className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{s.value}</div>
                 <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75]">{s.label}</div>
@@ -641,15 +687,16 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Recent activity</h2>
             <span className="flex items-center gap-1.5 text-[10px] text-[#8B92A9] dark:text-[#565C75]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#059669] animate-pulse inline-block"/>Live
+              <span className="w-1.5 h-1.5 rounded-full bg-[#059669] animate-pulse inline-block"/>
+              Live
             </span>
           </div>
           <div className="space-y-0">
-            {activity.length===0
+            {activity.length === 0
               ? <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] py-4">No recent activity.</p>
-              : activity.map((a,i)=>(
+              : activity.map((a, i) => (
                   <div key={i} className="flex gap-3 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] last:border-0">
-                    <div className="mt-1.5 w-2 h-2 rounded-full shrink-0" style={{background:a.dot}}/>
+                    <div className="mt-1.5 w-2 h-2 rounded-full shrink-0" style={{ background: a.dot }}/>
                     <div className="flex-1 min-w-0">
                       <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] leading-snug">{a.text}</p>
                       <span className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-0.5 block">{a.time}</span>
