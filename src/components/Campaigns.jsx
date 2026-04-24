@@ -3568,7 +3568,7 @@ function EmailCampaignModal({ campaigns, onClose }) {
             </div>
             <div>
               <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
-                Send Email Campaign
+                Send Email
               </h2>
               <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
                 Personalized bulk emails via Brevo
@@ -4408,7 +4408,7 @@ export default function Campaigns() {
                 d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
               />
             </svg>
-            Email Campaign
+            Email 
           </button>
           <button
             onClick={() => setShowCreate(true)}
