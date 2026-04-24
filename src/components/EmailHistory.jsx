@@ -250,7 +250,7 @@ export default function EmailHistory() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Email Campaign History</h1>
+          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Email Source History</h1>
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
             {loading ? "Loading…" : `${pagination.total.toLocaleString()} total emails logged`}
           </p>
@@ -324,7 +324,7 @@ export default function EmailHistory() {
           onChange={(e) => handleCampaignChange(e.target.value)}
           className="px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition"
         >
-          <option value="">All campaigns</option>
+          <option value="">All Source</option>
           {campaigns.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
@@ -354,7 +354,7 @@ export default function EmailHistory() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
-                {["Recipient", "Subject", "Campaign", "Status", "Sent At", ""].map((h) => (
+                {["Recipient", "Campaign Name", "Source", "Status", "Sent At", ""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
