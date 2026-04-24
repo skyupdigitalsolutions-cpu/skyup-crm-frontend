@@ -134,6 +134,8 @@ export default function EmailHistory() {
   const [selectedLogId, setSelectedLogId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [exportLoading, setExportLoading] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const searchRef = useRef(null);
   const debounceRef = useRef(null);
@@ -146,7 +148,7 @@ export default function EmailHistory() {
   }, []);
 
   // ── Fetch logs ────────────────────────────────────────────────────────────────
-  const fetchLogs = useCallback(async (page = 1, searchVal = search, campaign = campaignFilter, sort = sortOrder) => {
+  const fetchLogs = useCallback(async (page = 1, searchVal = search, campaign = campaignFilter, sort = sortOrder, from = dateFrom, to = dateTo) => {
     setLoading(true);
     setError("");
     try {
@@ -157,6 +159,8 @@ export default function EmailHistory() {
         campaignId: campaign,
         sortOrder: sort,
       });
+      if (from) params.set("dateFrom", from);
+      if (to) params.set("dateTo", to);
       const res = await api.get(`/email/history?${params}`);
       setLogs(res.data.data || []);
       setPagination((p) => ({ ...p, ...res.data.pagination, page }));
@@ -165,7 +169,7 @@ export default function EmailHistory() {
     } finally {
       setLoading(false);
     }
-  }, [search, campaignFilter, sortOrder, pagination.limit]);
+  }, [search, campaignFilter, sortOrder, dateFrom, dateTo, pagination.limit]);
 
   useEffect(() => { fetchLogs(1); }, []);
 
@@ -183,7 +187,23 @@ export default function EmailHistory() {
 
   const handleSortChange = (val) => {
     setSortOrder(val);
-    fetchLogs(1, search, campaignFilter, val);
+    fetchLogs(1, search, campaignFilter, val, dateFrom, dateTo);
+  };
+
+  const handleDateFromChange = (val) => {
+    setDateFrom(val);
+    fetchLogs(1, search, campaignFilter, sortOrder, val, dateTo);
+  };
+
+  const handleDateToChange = (val) => {
+    setDateTo(val);
+    fetchLogs(1, search, campaignFilter, sortOrder, dateFrom, val);
+  };
+
+  const handleClearDates = () => {
+    setDateFrom("");
+    setDateTo("");
+    fetchLogs(1, search, campaignFilter, sortOrder, "", "");
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -212,6 +232,8 @@ export default function EmailHistory() {
         campaignId: campaignFilter,
         sortOrder,
       });
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
       const res = await api.get(`/email/history?${params}`);
       const data = res.data.data || [];
 
@@ -330,6 +352,50 @@ export default function EmailHistory() {
           ))}
         </select>
 
+        {/* Date From */}
+        <div className="relative flex items-center">
+          <svg className="absolute left-3 w-3.5 h-3.5 text-[#8B92A9] pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <input
+            type="date"
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={(e) => handleDateFromChange(e.target.value)}
+            className="pl-8 pr-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition w-[150px]"
+            title="From date"
+          />
+        </div>
+
+        <span className="text-[12px] text-[#8B92A9] shrink-0">to</span>
+
+        {/* Date To */}
+        <div className="relative flex items-center">
+          <svg className="absolute left-3 w-3.5 h-3.5 text-[#8B92A9] pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => handleDateToChange(e.target.value)}
+            className="pl-8 pr-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition w-[150px]"
+            title="To date"
+          />
+        </div>
+
+        {/* Clear dates button */}
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={handleClearDates}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] text-[#8B92A9] hover:text-[#DC2626] hover:border-[#DC2626] transition"
+            title="Clear date filter"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            Clear dates
+          </button>
+        )}
+
         {/* Sort */}
         <select
           value={sortOrder}
@@ -370,7 +436,7 @@ export default function EmailHistory() {
                     <div className="text-[36px] mb-3">📭</div>
                     <p className="text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No email logs found</p>
                     <p className="text-[12px] text-[#8B92A9] mt-1">
-                      {search || campaignFilter ? "Try clearing your filters." : "Send emails to start tracking history."}
+                      {search || campaignFilter || dateFrom || dateTo ? "Try clearing your filters." : "Send emails to start tracking history."}
                     </p>
                   </td>
                 </tr>
