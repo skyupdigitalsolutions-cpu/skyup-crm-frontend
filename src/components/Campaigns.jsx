@@ -3749,7 +3749,7 @@ function EmailCampaignModal({ campaigns, onClose }) {
           {mode === "campaign" && (
             <div>
               <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">
-                Target campaign
+                Target source
               </p>
               <div className="flex gap-2">
                 <select
@@ -4038,7 +4038,7 @@ function EmailCampaignModal({ campaigns, onClose }) {
             <div className="space-y-3">
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
-                  Subject line <span className="text-[#DC2626]">*</span>
+                  Campaign name <span className="text-[#DC2626]">*</span>
                 </label>
                 <input
                   type="text"
