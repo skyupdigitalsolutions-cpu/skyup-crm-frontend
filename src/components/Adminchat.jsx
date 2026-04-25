@@ -1,49 +1,55 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-// Socket is created once via ref inside the component — see useEffect below
-
 export default function AdminChat() {
   const socketRef = useRef(null);
 
-  const [onlineUsers, setOnlineUsers]         = useState({});
-  const [allUsers, setAllUsers]               = useState([]);
+  const [onlineUsers, setOnlineUsers]           = useState({});
+  const [allUsers, setAllUsers]                 = useState([]);
   const [selectedUsername, setSelectedUsername] = useState(null);
-  const [chats, setChats]                     = useState({});
-  const [message, setMessage]                 = useState('');
-  const [unread, setUnread]                   = useState({});
-  const [open, setOpen]                       = useState(false);
-  const [sidebarOpen, setSidebarOpen]         = useState(true);
+  const [chats, setChats]                       = useState({});
+  const [message, setMessage]                   = useState('');
+  const [unread, setUnread]                     = useState({});
+  const [open, setOpen]                         = useState(false);
+  const [sidebarOpen, setSidebarOpen]           = useState(true);
+
+  // Edit state
+  const [editingId, setEditingId]     = useState(null);
+  const [editingText, setEditingText] = useState('');
+
   const bottomRef = useRef(null);
 
-  // Derive socketId from live onlineUsers map — never stale
   const selectedSocketId = selectedUsername
     ? (Object.entries(onlineUsers).find(([, name]) => name === selectedUsername)?.[0] ?? null)
     : null;
 
-  // ── Socket setup (once) ────────────────────────────────────────────────────
+  // ── Socket setup ────────────────────────────────────────────────────────────
   useEffect(() => {
-    const socket = io("https://skyup-crm-backend.onrender.com");
+    const socket = io('https://skyup-crm-backend.onrender.com');
     socketRef.current = socket;
 
     socket.emit('admin_join');
 
     socket.on('users_list',       (list)  => setOnlineUsers(list));
     socket.on('all_users_db',     (users) => setAllUsers(users));
+
     socket.on('admin_chat_history', ({ username, history }) => {
       const formatted = history.map((m) => ({
-        from: m.from === 'admin' ? 'Admin' : m.from,
-        message: m.message,
-        ts: m.timestamp || null,
+        _id:       m._id,
+        from:      m.from === 'admin' ? 'Admin' : m.from,
+        message:   m.message,
+        ts:        m.timestamp || null,
+        isDeleted: m.isDeleted || false,
+        editedAt:  m.editedAt  || null,
       }));
       setChats((prev) => ({ ...prev, [username]: formatted }));
     });
-    socket.on('receive_user_message', ({ from, message: msg }) => {
+
+    socket.on('receive_user_message', ({ from, message: msg, _id }) => {
       setChats((prev) => ({
         ...prev,
-        [from]: [...(prev[from] || []), { from, message: msg }],
+        [from]: [...(prev[from] || []), { _id, from, message: msg, isDeleted: false }],
       }));
-      // Use functional update to avoid stale closure on selectedUsername
       setSelectedUsername((sel) => {
         setUnread((prev) => ({
           ...prev,
@@ -53,54 +59,116 @@ export default function AdminChat() {
       });
     });
 
+    socket.on('admin_message_sent', ({ toUsername, message: msg, _id }) => {
+      setChats((prev) => ({
+        ...prev,
+        [toUsername]: [
+          ...(prev[toUsername] || []),
+          { _id, from: 'Admin', message: msg, isDeleted: false },
+        ],
+      }));
+    });
+
+    // Real-time edit sync
+    socket.on('message_edited', ({ _id, newText, editedAt }) => {
+      setChats((prev) => {
+        const updated = {};
+        for (const [user, msgs] of Object.entries(prev)) {
+          updated[user] = msgs.map((m) =>
+            m._id?.toString() === _id?.toString()
+              ? { ...m, message: newText, editedAt }
+              : m
+          );
+        }
+        return updated;
+      });
+    });
+
+    // Real-time delete sync
+    socket.on('message_deleted', ({ _id }) => {
+      setChats((prev) => {
+        const updated = {};
+        for (const [user, msgs] of Object.entries(prev)) {
+          updated[user] = msgs.map((m) =>
+            m._id?.toString() === _id?.toString()
+              ? { ...m, message: 'This message was deleted', isDeleted: true }
+              : m
+          );
+        }
+        return updated;
+      });
+    });
+
     return () => socket.disconnect();
   }, []);
 
-  // ── Auto-scroll ────────────────────────────────────────────────────────────
+  // ── Auto-scroll ─────────────────────────────────────────────────────────────
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chats, selectedUsername]);
 
-  // ── Select user ────────────────────────────────────────────────────────────
+  // ── Select user ─────────────────────────────────────────────────────────────
   const selectUser = useCallback((username) => {
     setSelectedUsername(username);
     setUnread((prev) => ({ ...prev, [username]: 0 }));
+    setEditingId(null);
     if (!chats[username]) {
       socketRef.current?.emit('admin_fetch_history', { username });
     }
   }, [chats]);
 
-  // ── Send message ───────────────────────────────────────────────────────────
+  // ── Send message ─────────────────────────────────────────────────────────────
   const sendMessage = useCallback(() => {
     if (!message.trim() || !selectedUsername) return;
     const sid = Object.entries(onlineUsers).find(([, n]) => n === selectedUsername)?.[0] ?? null;
-
     socketRef.current?.emit('admin_message', {
       toSocketId: sid,
       toUsername: selectedUsername,
       message,
     });
-
-    setChats((prev) => ({
-      ...prev,
-      [selectedUsername]: [
-        ...(prev[selectedUsername] || []),
-        { from: 'Admin', message },
-      ],
-    }));
+    // Optimistic update; server will also echo back 'admin_message_sent' with _id
     setMessage('');
   }, [message, selectedUsername, onlineUsers]);
 
-  // ── Derived data ───────────────────────────────────────────────────────────
+  // ── Edit helpers ─────────────────────────────────────────────────────────────
+  const startEdit = (msg) => {
+    if (msg.isDeleted) return;
+    setEditingId(msg._id);
+    setEditingText(msg.message);
+  };
+
+  const submitEdit = () => {
+    if (!editingText.trim() || !editingId) return;
+    socketRef.current?.emit('edit_message', {
+      _id: editingId,
+      newText: editingText.trim(),
+      requester: 'admin',
+    });
+    setEditingId(null);
+    setEditingText('');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingText('');
+  };
+
+  // ── Delete helper ─────────────────────────────────────────────────────────────
+  const deleteMsg = (msgId) => {
+    if (!window.confirm('Delete this message?')) return;
+    socketRef.current?.emit('delete_message', { _id: msgId, requester: 'admin' });
+  };
+
+  // ── Derived data ──────────────────────────────────────────────────────────────
   const userList = allUsers.map((u) => ({
     username: u.username,
-    online: Object.values(onlineUsers).includes(u.username),
-    unread: unread[u.username] || 0,
+    online:   Object.values(onlineUsers).includes(u.username),
+    unread:   unread[u.username] || 0,
   }));
 
   const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
 
-  // ── Minimised FAB ──────────────────────────────────────────────────────────
+  // ── Minimised FAB ─────────────────────────────────────────────────────────────
   if (!open) {
     return (
       <div className="fixed bottom-6 right-6 z-50">
@@ -123,15 +191,15 @@ export default function AdminChat() {
     );
   }
 
-  // ── Full panel ─────────────────────────────────────────────────────────────
+  // ── Full panel ────────────────────────────────────────────────────────────────
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex shadow-2xl rounded-2xl overflow-hidden border border-[#E4E7EF] dark:border-[#262A38]"
-      style={{ width: sidebarOpen ? 600 : 380, height: 520, transition: 'width 0.2s ease' }}>
-
+    <div
+      className="fixed bottom-6 right-6 z-50 flex shadow-2xl rounded-2xl overflow-hidden border border-[#E4E7EF] dark:border-[#262A38]"
+      style={{ width: sidebarOpen ? 600 : 380, height: 520, transition: 'width 0.2s ease' }}
+    >
       {/* ── Sidebar ── */}
       {sidebarOpen && (
         <div className="w-52 shrink-0 bg-white dark:bg-[#1A1D27] border-r border-[#E4E7EF] dark:border-[#262A38] flex flex-col">
-          {/* Sidebar header */}
           <div className="px-3 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center">
@@ -146,7 +214,6 @@ export default function AdminChat() {
             </div>
           </div>
 
-          {/* User list */}
           <div className="flex-1 overflow-y-auto py-1">
             {userList.length === 0 && (
               <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] text-center py-6">No users yet</p>
@@ -161,7 +228,6 @@ export default function AdminChat() {
                     : 'hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]'
                 }`}
               >
-                {/* Avatar */}
                 <div className="relative shrink-0">
                   <div className="w-7 h-7 rounded-full bg-[#2563EB] flex items-center justify-center text-[10px] font-bold text-white">
                     {username[0]?.toUpperCase()}
@@ -195,7 +261,6 @@ export default function AdminChat() {
         {/* Chat header */}
         <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38] shrink-0">
           <div className="flex items-center gap-2.5">
-            {/* Sidebar toggle */}
             <button
               onClick={() => setSidebarOpen((s) => !s)}
               className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] dark:text-[#565C75] transition"
@@ -226,7 +291,6 @@ export default function AdminChat() {
             )}
           </div>
 
-          {/* Close button */}
           <button
             onClick={() => setOpen(false)}
             className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] dark:text-[#565C75] transition"
@@ -244,7 +308,7 @@ export default function AdminChat() {
             <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
               <div className="w-12 h-12 rounded-2xl bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center">
                 <svg className="w-6 h-6 text-[#2563EB] dark:text-[#4F8EF7]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2h-5l-5 5v-5z"/>
                 </svg>
               </div>
               <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Select a conversation</p>
@@ -257,17 +321,68 @@ export default function AdminChat() {
           ) : (
             (chats[selectedUsername] || []).map((c, i) => {
               const isAdmin = c.from === 'Admin';
+              const isEditing = editingId === c._id;
+
               return (
-                <div key={i} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[72%] px-3 py-2 rounded-2xl text-[12px] leading-relaxed ${
-                    isAdmin
-                      ? 'bg-[#2563EB] text-white rounded-br-sm'
-                      : 'bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#0F1117] dark:text-[#F0F2FA] rounded-bl-sm'
-                  }`}>
-                    {!isAdmin && (
-                      <p className="text-[10px] font-bold text-[#2563EB] dark:text-[#4F8EF7] mb-0.5">{c.from}</p>
+                <div key={c._id || i} className={`flex group ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                  <div className="flex flex-col gap-0.5 max-w-[72%]">
+                    {isEditing ? (
+                      /* Inline edit input */
+                      <div className="flex items-center gap-1">
+                        <input
+                          autoFocus
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') submitEdit();
+                            if (e.key === 'Escape') cancelEdit();
+                          }}
+                          className="px-2 py-1 rounded-lg border border-[#2563EB] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] bg-white dark:bg-[#1A1D27] focus:outline-none w-48"
+                        />
+                        <button onClick={submitEdit} className="text-[10px] text-[#2563EB] font-semibold hover:underline">Save</button>
+                        <button onClick={cancelEdit}  className="text-[10px] text-[#8B92A9] hover:underline">Cancel</button>
+                      </div>
+                    ) : (
+                      <div className={`relative px-3 py-2 rounded-2xl text-[12px] leading-relaxed ${
+                        c.isDeleted
+                          ? 'italic text-[#8B92A9] dark:text-[#565C75] bg-[#F8F9FC] dark:bg-[#1A1D27] border border-dashed border-[#E4E7EF] dark:border-[#262A38]'
+                          : isAdmin
+                            ? 'bg-[#2563EB] text-white rounded-br-sm'
+                            : 'bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#0F1117] dark:text-[#F0F2FA] rounded-bl-sm'
+                      }`}>
+                        {!isAdmin && !c.isDeleted && (
+                          <p className="text-[10px] font-bold text-[#2563EB] dark:text-[#4F8EF7] mb-0.5">{c.from}</p>
+                        )}
+                        {c.message}
+                        {c.editedAt && !c.isDeleted && (
+                          <span className="text-[9px] opacity-60 ml-1">(edited)</span>
+                        )}
+
+                        {/* Action buttons — shown on hover, hidden for deleted messages */}
+                        {!c.isDeleted && c._id && (
+                          <div className={`absolute top-1 ${isAdmin ? '-left-14' : '-right-14'} hidden group-hover:flex items-center gap-1`}>
+                            <button
+                              onClick={() => startEdit(c)}
+                              title="Edit message"
+                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] transition shadow-sm"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => deleteMsg(c._id)}
+                              title="Delete message"
+                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-red-500 transition shadow-sm"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
-                    {c.message}
                   </div>
                 </div>
               );

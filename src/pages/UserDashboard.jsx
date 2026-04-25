@@ -737,39 +737,121 @@ function AddLeadModal({ onClose, onAdd }) {
 
 function UserChatWidget() {
   const socketRef = useRef(null);
-  const [open, setOpen]         = useState(false);
-  const [message, setMessage]   = useState("");
-  const [messages, setMessages] = useState([]);
-  const [unread, setUnread]     = useState(0);
+  const [open, setOpen]           = useState(false);
+  const [message, setMessage]     = useState("");
+  const [messages, setMessages]   = useState([]);
+  const [unread, setUnread]       = useState(0);
+  const [editingId, setEditingId] = useState(null);
+  const [editingText, setEditingText] = useState("");
   const bottomRef = useRef(null);
   const user = JSON.parse(localStorage.getItem("user") || "null");
+  const username = (user && user.name) || "user";
+
   useEffect(function() {
     const socket = io(import.meta.env.VITE_SOCKET_URL || "https://skyup-crm-backend.onrender.com", { withCredentials: true });
     socketRef.current = socket;
-    socket.emit("user_join", (user && user.name) || "user");
+    socket.emit("user_join", username);
+
     socket.on("chat_history", function(history) {
-      setMessages(history.map(function(m){ return { from: m.from === "admin" ? "Admin" : "You", message: m.message, ts: m.timestamp }; }));
+      setMessages(history.map(function(m) {
+        return {
+          _id:       m._id,
+          from:      m.from === "admin" ? "Admin" : "You",
+          message:   m.message,
+          ts:        m.timestamp,
+          isDeleted: m.isDeleted || false,
+          editedAt:  m.editedAt  || null,
+        };
+      }));
     });
+
+    socket.on("message_saved", function(data) {
+      // Update optimistic message with real _id from server
+      setMessages(function(prev) {
+        // Replace the last "You" message that has no _id yet
+        const idx = [...prev].reverse().findIndex(function(m){ return m.from === "You" && !m._id; });
+        if (idx === -1) return prev;
+        const realIdx = prev.length - 1 - idx;
+        const updated = [...prev];
+        updated[realIdx] = { ...updated[realIdx], _id: data._id };
+        return updated;
+      });
+    });
+
     socket.on("receive_admin_message", function(data) {
-      setMessages(function(prev){ return prev.concat([{ from: "Admin", message: data.message }]); });
+      setMessages(function(prev){ return prev.concat([{ _id: data._id, from: "Admin", message: data.message, isDeleted: false }]); });
       setOpen(function(isOpen) { if (!isOpen) setUnread(function(n){ return n + 1; }); return isOpen; });
     });
+
+    // Real-time edit sync
+    socket.on("message_edited", function({ _id, newText, editedAt }) {
+      setMessages(function(prev) {
+        return prev.map(function(m) {
+          return m._id && m._id.toString() === _id.toString()
+            ? { ...m, message: newText, editedAt }
+            : m;
+        });
+      });
+    });
+
+    // Real-time delete sync
+    socket.on("message_deleted", function({ _id }) {
+      setMessages(function(prev) {
+        return prev.map(function(m) {
+          return m._id && m._id.toString() === _id.toString()
+            ? { ...m, message: "This message was deleted", isDeleted: true }
+            : m;
+        });
+      });
+    });
+
     return function() { socket.disconnect(); };
   }, []);
+
   useEffect(function() {
     if (open) { setUnread(0); bottomRef.current && bottomRef.current.scrollIntoView({ behavior: "smooth" }); }
   }, [open, messages]);
+
   const sendMessage = function() {
     const msg = message.trim();
     if (!msg || !socketRef.current) return;
-    socketRef.current.emit("user_message", { message: msg, username: (user && user.name) || "user" });
-    setMessages(function(prev){ return prev.concat([{ from: "You", message: msg }]); });
+    socketRef.current.emit("user_message", { message: msg, username });
+    // Optimistic: no _id yet; server will echo back 'message_saved' with _id
+    setMessages(function(prev){ return prev.concat([{ from: "You", message: msg, isDeleted: false }]); });
     setMessage("");
   };
+
+  const startEdit = function(m) {
+    if (m.isDeleted) return;
+    setEditingId(m._id);
+    setEditingText(m.message);
+  };
+
+  const submitEdit = function() {
+    if (!editingText.trim() || !editingId) return;
+    socketRef.current && socketRef.current.emit("edit_message", {
+      _id: editingId,
+      newText: editingText.trim(),
+      requester: username,
+    });
+    setEditingId(null);
+    setEditingText("");
+  };
+
+  const cancelEdit = function() {
+    setEditingId(null);
+    setEditingText("");
+  };
+
+  const deleteMsg = function(msgId) {
+    if (!window.confirm("Delete this message?")) return;
+    socketRef.current && socketRef.current.emit("delete_message", { _id: msgId, requester: username });
+  };
+
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
       {open && (
-        <div className="w-80 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ height: 400 }}>
+        <div className="w-80 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ height: 420 }}>
           <div className="flex items-center justify-between px-4 py-3 bg-[#2563EB]">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
@@ -779,6 +861,7 @@ function UserChatWidget() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
+
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-[#F8F9FC] dark:bg-[#13161E]">
             {messages.length === 0 && (
               <div className="text-center py-8">
@@ -786,15 +869,69 @@ function UserChatWidget() {
                 <p className="text-[12px] text-[#8B92A9]">Hi {user && user.name ? user.name.split(" ")[0] : "there"}! How can we help?</p>
               </div>
             )}
-            {messages.map(function(m, i){ return (
-              <div key={i} className={"flex " + (m.from === "You" ? "justify-end" : "justify-start")}>
-                <div className={"max-w-[80%] px-3 py-2 rounded-2xl text-[12px] " + (m.from === "You" ? "bg-[#2563EB] text-white rounded-br-none" : "bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-[#F0F2FA] rounded-bl-none border border-[#E4E7EF] dark:border-[#262A38]")}>
-                  {m.message}
+            {messages.map(function(m, i) {
+              const isYou    = m.from === "You";
+              const isEditing = editingId === m._id;
+              return (
+                <div key={m._id || i} className={"flex group " + (isYou ? "justify-end" : "justify-start")}>
+                  <div className="flex flex-col gap-0.5 max-w-[80%]">
+                    {isEditing ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          autoFocus
+                          value={editingText}
+                          onChange={function(e){ setEditingText(e.target.value); }}
+                          onKeyDown={function(e){ if(e.key==="Enter") submitEdit(); if(e.key==="Escape") cancelEdit(); }}
+                          className="px-2 py-1 rounded-lg border border-[#2563EB] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] bg-white dark:bg-[#1A1D27] focus:outline-none w-40"
+                        />
+                        <button onClick={submitEdit} className="text-[10px] text-[#2563EB] font-semibold hover:underline">Save</button>
+                        <button onClick={cancelEdit}  className="text-[10px] text-[#8B92A9] hover:underline">Cancel</button>
+                      </div>
+                    ) : (
+                      <div className={"relative px-3 py-2 rounded-2xl text-[12px] " + (
+                        m.isDeleted
+                          ? "italic text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#1A1D27] border border-dashed border-[#E4E7EF] dark:border-[#262A38]"
+                          : isYou
+                            ? "bg-[#2563EB] text-white rounded-br-none"
+                            : "bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-[#F0F2FA] rounded-bl-none border border-[#E4E7EF] dark:border-[#262A38]"
+                      )}>
+                        {m.message}
+                        {m.editedAt && !m.isDeleted && (
+                          <span className="text-[9px] opacity-60 ml-1">(edited)</span>
+                        )}
+
+                        {/* Action buttons — only for own non-deleted messages */}
+                        {isYou && !m.isDeleted && m._id && (
+                          <div className="absolute top-1 -left-14 hidden group-hover:flex items-center gap-1">
+                            <button
+                              onClick={function(){ startEdit(m); }}
+                              title="Edit"
+                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] transition shadow-sm"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                              </svg>
+                            </button>
+                            <button
+                              onClick={function(){ deleteMsg(m._id); }}
+                              title="Delete"
+                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-red-500 transition shadow-sm"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ); })}
+              );
+            })}
             <div ref={bottomRef} />
           </div>
+
           <div className="px-3 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-2 bg-white dark:bg-[#1A1D27]">
             <input value={message} onChange={function(e){ setMessage(e.target.value); }} onKeyDown={function(e){ if(e.key==="Enter") sendMessage(); }} placeholder="Type a message…"
               className="flex-1 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition" />
