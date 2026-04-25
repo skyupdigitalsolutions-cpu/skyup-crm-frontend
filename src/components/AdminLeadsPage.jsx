@@ -258,6 +258,43 @@ export default function AdminLeadsPage() {
     setFilterTemp("All"); setDateFrom(""); setDateTo(""); setPage(1);
   };
 
+  const exportToCSV = useCallback(() => {
+    if (!displayed.length) return;
+
+    const headers = [
+      "Name", "Phone", "Email", "Agent", "Source", "Campaign",
+      "Date", "Status", "Quality", "Calls", "Remark",
+    ];
+
+    const escape = (val) => {
+      const s = String(val ?? "").replace(/"/g, '""');
+      return /[",\n\r]/.test(s) ? `"${s}"` : s;
+    };
+
+    const rows = displayed.map(l => [
+      l.name,
+      l.phone,
+      l.email,
+      l.agent,
+      l.source,
+      l.campaign,
+      l.date,
+      l.status,
+      l.Quality || "",
+      l.callHistory.length,
+      l.remark,
+    ].map(escape).join(","));
+
+    const csv  = [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `leads_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [displayed]);
+
   const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition";
 
   return (
@@ -269,11 +306,29 @@ export default function AdminLeadsPage() {
           <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Lead Management</h1>
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Full pipeline view — click any lead to see its complete journey with remarks & dates</p>
         </div>
-        <button onClick={fetchLeads}
-          className="p-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#8B92A9] hover:text-[#2563EB] transition"
-          title="Refresh">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportToCSV}
+            disabled={!displayed.length}
+            title={"Export " + displayed.length + " leads to CSV"}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-40 disabled:cursor-not-allowed transition"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Export CSV
+            {displayed.length > 0 && (
+              <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                {displayed.length}
+              </span>
+            )}
+          </button>
+          <button onClick={fetchLeads}
+            className="p-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#8B92A9] hover:text-[#2563EB] transition"
+            title="Refresh">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </button>
+        </div>
       </div>
 
       {/* Summary pills */}

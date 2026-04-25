@@ -27,7 +27,7 @@ const STATUS_COLOR = {
   "Converted":      { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-600 dark:text-emerald-400", dot: "#059669", light: "#ECFDF5" },
   "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",      text: "text-red-600 dark:text-red-400",      dot: "#DC2626", light: "#FEF2F2" },
 };
-const TEMP_ICON = { Hot: "🔥", Warm: "☀️", Cold: "❄️" };
+const TEMP_ICON = { Hot: "", Warm: "", Cold: "" };
 const TEMP_STYLE = {
   Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400" },
   Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400" },
