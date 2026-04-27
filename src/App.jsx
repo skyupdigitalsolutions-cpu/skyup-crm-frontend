@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import VoiceflowChat from "./components/VoiceflowChat";
 import { Sidebar } from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import Campaigns from "./components/Campaigns";
@@ -61,6 +62,8 @@ function AppLayout({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
+      {/* ── Global Voiceflow chatbot — visible on every page ── */}
+      <VoiceflowChat />
       <Routes>
 
         {/* ── Public login routes 🔓 ── */}
