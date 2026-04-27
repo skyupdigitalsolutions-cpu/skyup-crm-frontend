@@ -1,4 +1,7 @@
 import api from "./axiosConfig";
+import CRMEncryption from "../utils/CRMEncryption";
+
+const crm = new CRMEncryption();
 
 // ── Get logged in user info from localStorage ──────────────────────────────
 export function getStoredUser() {
@@ -29,7 +32,7 @@ export async function fetchAll() {
 async function fetchUserData() {
   const user = getStoredUser();
   const leadsRes = await api.get("/lead/my-leads");
-  const leads = leadsRes.data.map(formatLead);
+  const leads = await Promise.all(leadsRes.data.map(formatLead));
   // Build a single "agent" entry for the logged-in user so filters work
   const agents = user
     ? [formatAgent({ _id: user._id || user.id, name: user.name, email: user.email, company: user.company })]
@@ -44,7 +47,7 @@ async function fetchAdminData() {
     api.get("/admin/company/users"),
   ]);
 
-  const leads  = leadsRes.data.map(formatLead);
+  const leads  = await Promise.all(leadsRes.data.map(formatLead));
   const agents = usersRes.data.map(formatAgent);
 
   return { leads, agents };
@@ -62,9 +65,14 @@ async function fetchSuperAdminData() {
     companies.map((c) => api.get(`/superadmin/companies/${c._id}`))
   );
 
-  const leads = allLeadsRes.flatMap((res) =>
-    (res.data.leads || []).map(formatLead)
+  const leads = (
+    await Promise.all(
+      allLeadsRes.flatMap((res) =>
+        (res.data.leads || []).map(formatLead)
+      )
+    )
   );
+
   const agents = allLeadsRes.flatMap((res, i) =>
     (res.data.users || []).map(u => formatAgent(u, companies[i]._id))
   );
@@ -78,18 +86,41 @@ async function fetchSuperAdminData() {
 }
 
 // ── Format lead from DB to dashboard format ────────────────────────────────
-function formatLead(lead) {
+// Async: decrypts encryptedData if the client has a local encryption key
+async function formatLead(lead) {
+  let name   = lead.name;
+  let mobile = lead.mobile;
+  let email  = lead.email || "";
+  let remark = lead.remark;
+
+  // ── Zero-knowledge decryption ──────────────────────────────────────────
+  // If the server returned an `encryptedData` blob AND the client has a
+  // locally-stored encryption key, decrypt it. If anything fails (wrong
+  // key, no key, data not encrypted yet) we fall back to the plain values.
+  const keyString = crm.getLocalKey();
+  if (keyString && lead.encryptedData) {
+    try {
+      const decrypted = await crm.decrypt(lead.encryptedData, keyString);
+      name   = decrypted.name   ?? name;
+      mobile = decrypted.mobile ?? mobile;
+      email  = decrypted.email  ?? email;
+      remark = decrypted.remark ?? remark;
+    } catch {
+      // Key mismatch or data not encrypted — silently use raw values
+    }
+  }
+
   return {
     id:       String(lead._id),   // stringify so === comparisons work reliably
-    name:     lead.name,
-    mobile:   lead.mobile,
-    phone:    lead.mobile,        // table reads lead.phone — keep both in sync
-    email:    lead.email || "",   // ← ADDED: was missing — Meta leads always have email
+    name,
+    mobile,
+    phone:    mobile,             // table reads lead.phone — keep both in sync
+    email,
     source:   lead.source   || "Web Form",
     campaign: lead.campaign || "—",
     status:   lead.status,
     date:     formatDate(lead.date),
-    remark:   lead.remark,
+    remark,
     agent:    lead.user?.name || "Unknown",
     company:  lead.company,
   };

@@ -3,6 +3,9 @@ import axios from "axios";
 import { fetchAll, getRole, getStoredUser } from "../data/dataService";
 import api from "../data/axiosConfig";
 import { useDateFilter } from "../components/dataFilter";
+import CRMEncryption from "../utils/CRMEncryption";
+
+const crm = new CRMEncryption();
 
 const BACKEND = 'https://skyup-crm-backend.onrender.com/api/twilio';
 
@@ -117,7 +120,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
       return;
     }
     const agentObj = agents.find(a => a.name === form.agent) ?? null;
-    const payload = {
+    const basePayload = {
       name:     form.name.trim(),
       mobile:   form.phone.trim(),
       source:   form.source,
@@ -130,6 +133,30 @@ function AddLeadModal({ agents, onClose, onAdd }) {
         ? { companyId: agentObj.company }
         : {}),
     };
+
+    // ── Zero-knowledge encryption ──────────────────────────────────────────
+    // If the client has a local encryption key, encrypt sensitive fields and
+    // attach them as `encryptedData`. The plain fields are kept so the server
+    // can still index/search by them if needed (or you can blank them out).
+    let payload = basePayload;
+    const keyString = crm.getLocalKey();
+    if (keyString) {
+      try {
+        const encryptedData = await crm.encrypt(
+          {
+            name:   basePayload.name,
+            mobile: basePayload.mobile,
+            email:  basePayload.email || "",
+            remark: basePayload.remark,
+          },
+          keyString
+        );
+        payload = { ...basePayload, encryptedData };
+      } catch {
+        // If encryption fails for any reason, send without it
+      }
+    }
+
     const role = getRole();
     const endpoint =
       role === "superadmin" ? "/lead/superadmin/create" :
@@ -309,7 +336,7 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
               role === "admin"      ? `/lead/admin/${leadId}` :
                                       `/lead/${leadId}`;
             try {
-              const payload = {
+              const basePayload = {
                 name:     form.name,
                 mobile:   form.phone || form.mobile,
                 source:   form.source,
@@ -317,6 +344,27 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
                 status:   form.status,
                 remark:   form.remark,
               };
+
+              // ── Zero-knowledge encryption on update ──────────────────────
+              let payload = basePayload;
+              const keyString = crm.getLocalKey();
+              if (keyString) {
+                try {
+                  const encryptedData = await crm.encrypt(
+                    {
+                      name:   basePayload.name,
+                      mobile: basePayload.mobile,
+                      email:  form.email || "",
+                      remark: basePayload.remark,
+                    },
+                    keyString
+                  );
+                  payload = { ...basePayload, encryptedData };
+                } catch {
+                  // Encryption failed — send plain
+                }
+              }
+
               await api.put(endpoint, payload);
               onSave(form);
               onClose();

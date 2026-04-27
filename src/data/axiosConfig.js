@@ -17,12 +17,14 @@ api.interceptors.request.use((config) => {
 });
 
 // Handle 401 — only log out on genuine JWT failures, not role-mismatch 403s
+// Handle 403 SUBSCRIPTION_EXPIRED — redirect to upgrade page
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status  = error.response?.status;
     const url     = error.config?.url || "";
     const message = error.response?.data?.message || "";
+    const code    = error.response?.data?.code || "";
 
     const isAuthEndpoint =
       url.includes("/auth/login") ||
@@ -38,6 +40,11 @@ api.interceptors.response.use(
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       window.location.href = "/login";
+    }
+
+    // ── Subscription expired — send admin to upgrade screen ────────────────
+    if (status === 403 && code === "SUBSCRIPTION_EXPIRED") {
+      window.location.href = "/upgrade";
     }
 
     return Promise.reject(error);

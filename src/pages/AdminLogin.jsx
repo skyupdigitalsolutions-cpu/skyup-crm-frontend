@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../data/axiosConfig";
+import CRMEncryption from "../utils/CRMEncryption";
+
+const crm = new CRMEncryption();
 
 export default function AdminLogin() {
   const [email,    setEmail]    = useState("");
@@ -8,6 +11,17 @@ export default function AdminLogin() {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState("");
   const [showPass, setShowPass] = useState(false);
+
+  // ── BIP39 mnemonic setup/restore state ─────────────────────────────────────
+  const [showMnemonicModal,   setShowMnemonicModal]   = useState(false);
+  const [showRestoreModal,    setShowRestoreModal]     = useState(false);
+  const [generatedMnemonic,   setGeneratedMnemonic]   = useState("");
+  const [restoreInput,        setRestoreInput]         = useState("");
+  const [mnemonicConfirmed,   setMnemonicConfirmed]   = useState(false);
+  const [restoreLoading,      setRestoreLoading]       = useState(false);
+  const [restoreError,        setRestoreError]         = useState("");
+  const [pendingToken,        setPendingToken]         = useState(null);
+
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -17,7 +31,9 @@ export default function AdminLogin() {
     setError("");
     try {
       const res = await api.post("/admin/login", { email, password });
-      localStorage.setItem("token", res.data.token);
+      const token = res.data.token;
+
+      localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify({
         _id:     res.data._id,
         name:    res.data.name,
@@ -25,11 +41,72 @@ export default function AdminLogin() {
         company: res.data.company,
         role:    "admin",
       }));
-      navigate("/dashboard");
+
+      // ── BIP39 Encryption Setup ────────────────────────────────────────────
+      const existingKey = crm.getLocalKey();
+      if (!existingKey) {
+        // No key in localStorage — either new device or first time
+        // Check server to know if encryption is already set up
+        try {
+          const statusRes = await api.get("/privacy/status", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const { dataEncryptionEnabled } = statusRes.data;
+
+          if (!dataEncryptionEnabled) {
+            // First-time setup — generate mnemonic, show to user
+            setPendingToken(token);
+            const { mnemonic } = await crm.setupEncryption(
+              import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+              token
+            );
+            setGeneratedMnemonic(mnemonic);
+            setShowMnemonicModal(true);
+            return; // don't navigate yet — wait for user to confirm they saved phrase
+          } else {
+            // Encryption is set up but key not in localStorage → restore flow
+            setPendingToken(token);
+            setShowRestoreModal(true);
+            return;
+          }
+        } catch {
+          // If privacy check fails, proceed to dashboard anyway
+          navigate("/dashboard");
+        }
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Login failed. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── User confirmed they saved the mnemonic phrase ─────────────────────────
+  const handleMnemonicConfirmed = () => {
+    setShowMnemonicModal(false);
+    setGeneratedMnemonic("");
+    navigate("/dashboard");
+  };
+
+  // ── User restores key from mnemonic on new device ─────────────────────────
+  const handleRestore = async () => {
+    if (!restoreInput.trim()) return setRestoreError("Please enter your 12-word phrase.");
+    setRestoreLoading(true);
+    setRestoreError("");
+    try {
+      await crm.restoreFromMnemonic(
+        restoreInput.trim(),
+        import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+        pendingToken
+      );
+      setShowRestoreModal(false);
+      navigate("/dashboard");
+    } catch (err) {
+      setRestoreError(err.message || "Could not restore key. Check your phrase.");
+    } finally {
+      setRestoreLoading(false);
     }
   };
 
@@ -121,6 +198,89 @@ export default function AdminLogin() {
           <Link to="/superadmin/login" className="text-[12px] text-[#8B92A9] hover:text-[#7C3AED] dark:hover:text-purple-400 transition">Sign in as SuperAdmin →</Link>
         </div>
       </div>
+
+      {/* ── BIP39 Mnemonic Setup Modal ────────────────────────────────────────── */}
+      {showMnemonicModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-lg bg-white dark:bg-[#13161E] rounded-3xl shadow-2xl p-8 border border-[#EDE9FE] dark:border-[#1E2130]">
+            <div className="w-12 h-12 rounded-2xl bg-yellow-50 dark:bg-yellow-500/10 flex items-center justify-center mb-5">
+              <svg className="w-6 h-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+            </div>
+            <h2 className="text-[20px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Save Your Recovery Phrase</h2>
+            <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mb-5">
+              These 12 words are your encryption key. Write them down and store safely.
+              If you lose them and clear your browser, <strong className="text-red-500">your lead data cannot be recovered</strong>.
+            </p>
+
+            {/* Mnemonic words grid */}
+            <div className="grid grid-cols-3 gap-2 mb-5">
+              {generatedMnemonic.split(" ").map((word, i) => (
+                <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#F8F7FF] dark:bg-[#0D0F14] border border-[#EDE9FE] dark:border-[#262A38]">
+                  <span className="text-[10px] font-bold text-[#8B92A9] w-4">{i + 1}.</span>
+                  <span className="text-[13px] font-semibold text-[#7C3AED] dark:text-purple-400">{word}</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-5">
+              ✅ A backup file was also downloaded to your computer.
+            </p>
+
+            <label className="flex items-start gap-3 cursor-pointer mb-5">
+              <input type="checkbox" checked={mnemonicConfirmed} onChange={e => setMnemonicConfirmed(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-purple-600" />
+              <span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+                I have written down all 12 words and saved the backup file. I understand that losing this phrase means losing access to my encrypted data.
+              </span>
+            </label>
+
+            <button onClick={handleMnemonicConfirmed} disabled={!mnemonicConfirmed}
+              className="w-full py-3 rounded-xl bg-[#7C3AED] text-white text-[14px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-700 transition">
+              I've saved my phrase — Continue to Dashboard
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── BIP39 Restore Modal (new device / cleared browser) ───────────────── */}
+      {showRestoreModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md bg-white dark:bg-[#13161E] rounded-3xl shadow-2xl p-8 border border-[#EDE9FE] dark:border-[#1E2130]">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center mb-5">
+              <svg className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+            </div>
+            <h2 className="text-[20px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Restore Encryption Key</h2>
+            <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mb-5">
+              Your encryption key is not found in this browser. Enter your 12-word recovery phrase to restore access to your data.
+            </p>
+
+            <label className="block text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1.5">
+              Recovery Phrase (12 words)
+            </label>
+            <textarea value={restoreInput} onChange={e => setRestoreInput(e.target.value)}
+              placeholder="apple orange river moon king fish table road cloud sun boat lamp"
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl border border-[#EDE9FE] dark:border-[#1E2130] bg-[#F8F7FF] dark:bg-[#0D0F14] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#C4C9D9] dark:placeholder:text-[#3A3F52] focus:outline-none focus:border-[#7C3AED] resize-none mb-3"
+            />
+
+            {restoreError && (
+              <p className="text-[12px] text-red-500 mb-3">{restoreError}</p>
+            )}
+
+            <button onClick={handleRestore} disabled={restoreLoading}
+              className="w-full py-3 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold disabled:opacity-60 hover:bg-blue-700 transition flex items-center justify-center gap-2">
+              {restoreLoading
+                ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Verifying...</>
+                : "Restore & Continue"
+              }
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
