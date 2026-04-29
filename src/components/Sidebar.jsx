@@ -172,7 +172,10 @@ export function Sidebar() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    navigate("/login");
+    // Use replace:true so the dashboard is removed from browser history.
+    // This prevents the user from pressing the Forward button after logout
+    // to return to an authenticated page without re-verifying credentials.
+    navigate("/login", { replace: true });
   };
 
   return (

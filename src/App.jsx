@@ -1,4 +1,5 @@
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import Campaigns from "./components/Campaigns";
@@ -25,8 +26,17 @@ function getStoredAuth() {
 }
 
 // ── Protected Route — redirects to /login if no token ─────────────────────────
+// useEffect re-checks auth on every render (including browser forward navigation)
+// to prevent bypassing authentication after logout via the Forward button.
 function ProtectedRoute({ children }) {
   const { token, user } = getStoredAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { token: t, user: u } = getStoredAuth();
+    if (!t || !u) navigate("/login", { replace: true });
+  });
+
   if (!token || !user) return <Navigate to="/login" replace />;
   return children;
 }
@@ -34,8 +44,18 @@ function ProtectedRoute({ children }) {
 // ── Admin-only Route ───────────────────────────────────────────────────────────
 function AdminRoute({ children }) {
   const { token, user } = getStoredAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { token: t, user: u } = getStoredAuth();
+    if (!t || !u) {
+      navigate("/login", { replace: true });
+    } else if (u.role === "user") {
+      navigate("/user/dashboard", { replace: true });
+    }
+  });
+
   if (!token || !user) return <Navigate to="/login" replace />;
-  // If a plain user somehow hits an admin route, send them to user dashboard
   if (user.role === "user") return <Navigate to="/user/dashboard" replace />;
   return children;
 }
@@ -43,8 +63,18 @@ function AdminRoute({ children }) {
 // ── User-only Route ────────────────────────────────────────────────────────────
 function UserRoute({ children }) {
   const { token, user } = getStoredAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { token: t, user: u } = getStoredAuth();
+    if (!t || !u) {
+      navigate("/login", { replace: true });
+    } else if (u.role !== "user") {
+      navigate("/dashboard", { replace: true });
+    }
+  });
+
   if (!token || !user) return <Navigate to="/login" replace />;
-  // If an admin somehow hits a user route, send them to admin dashboard
   if (user.role !== "user") return <Navigate to="/dashboard" replace />;
   return children;
 }
@@ -113,10 +143,10 @@ export default function App() {
         }/>
 
         <Route path="/attendance" element={
-  <AdminRoute>
-    <AppLayout><AttendancePage /></AppLayout>
-  </AdminRoute>
-}/>
+          <AdminRoute>
+            <AppLayout><AttendancePage /></AppLayout>
+          </AdminRoute>
+        }/>
 
         <Route path="/upgrade-plan" element={
           <AdminRoute>
