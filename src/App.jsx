@@ -15,6 +15,7 @@ import SuperAdminLogin from "./pages/SuperAdminLogin";
 import AdminLeadsPage from "./components/AdminLeadsPage";
 import EmailHistory from "./components/EmailHistory";
 import AttendancePage from "./pages/AttendancePage";
+import WhatsAppChat from "./components/WhatsAppChat";
 
 
 // ── Helper to read stored user ─────────────────────────────────────────────────
@@ -149,6 +150,13 @@ export default function App() {
           <UserRoute>
             <AppLayout><UserTwilioPage /></AppLayout>
           </UserRoute>
+        }/>
+
+        {/* ── WhatsApp Chat — admin only ── */}
+        <Route path="/whatsapp" element={
+          <AdminRoute>
+            <AppLayout><WhatsAppChat /></AppLayout>
+          </AdminRoute>
         }/>
 
         {/* ── Fallback ── */}
