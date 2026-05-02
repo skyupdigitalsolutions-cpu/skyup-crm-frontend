@@ -7,7 +7,7 @@ import CRMEncryption from "../utils/CRMEncryption";
 
 const crm = new CRMEncryption();
 
-const BACKEND = "https://skyup-crm-backend.onrender.com/api/twilio";
+const CALL_LOGS_API = "/api/call-logs";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SOURCE_COLORS = {
@@ -450,72 +450,52 @@ function RemarksHistoryModal({ lead, onClose }) {
   );
 }
 
-// ── Recording Modal ───────────────────────────────────────────────────────────
-// BUG FIX (original): Matched recording to lead using lead.name string comparison
-// against call.contactName. This failed because:
-//   1. call.contactName might differ in casing/spacing from lead.name
-//   2. The Call model stores contactId (= the LeadId passed to /voice) so the
-//      correct match is: call.contactId === lead.id (MongoDB _id as string)
-//
-// FIX: Primary match on contactId === lead.id (exact, reliable).
-//      Fallback: phone number normalisation (strips +91, spaces).
-//      Last resort: name match (original logic, kept as tertiary fallback).
+// ── Recording & Remarks Modal ─────────────────────────────────────────────────
+// Uses mobile call logs API — shows ALL remarks and recordings for a lead.
 function RecordingModal({ lead, onClose }) {
-  const [recording, setRecording] = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
+  const [mobileLogs, setMobileLogs] = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
 
   useEffect(() => {
-    axios.get(`${BACKEND}/admin/recordings`)
+    // Fetch mobile call logs for this lead
+    api.get(`${CALL_LOGS_API}/lead/${lead.id || lead._id}`)
       .then(res => {
-        const calls = Array.isArray(res.data) ? res.data : [];
-        const normalizePhone = (p) => String(p || "").replace(/\D/g, "").slice(-10);
-        const leadPhone = normalizePhone(lead.phone || lead.mobile);
-        const leadId    = String(lead.id || lead._id || "");
-
-        // Priority 1: exact lead _id match (most reliable)
-        let match = calls.find(r =>
-          r.contactId && String(r.contactId) === leadId
-        );
-
-        // Priority 2: phone number match (normalized to last 10 digits)
-        if (!match && leadPhone) {
-          match = calls.find(r => {
-            const rPhone = normalizePhone(r.mobile || r.contactName || "");
-            return rPhone && rPhone === leadPhone;
-          });
-        }
-
-        // Priority 3: name match (original fallback — kept but least reliable)
-        if (!match) {
-          match = calls.find(r =>
-            r.contactName?.toLowerCase().trim() === lead.name?.toLowerCase().trim()
-          );
-        }
-
-        setRecording(match || null);
+        const logs = Array.isArray(res.data?.logs) ? res.data.logs : [];
+        setMobileLogs(logs);
       })
-      .catch(() => setError("Failed to fetch recordings."))
+      .catch(() => setError("Failed to fetch call logs."))
       .finally(() => setLoading(false));
   }, [lead]);
 
   const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
-  const audioSrc = recording?.recordingSid
-    ? `${BACKEND}/recording/${recording.recordingSid}/audio`
-    : null;
+
+  // All remarks: from lead.callHistory (CRM) + from mobile call logs
+  const allCallHistory = Array.isArray(lead.callHistory) ? [...lead.callHistory] : [];
+
+  // Recordings from both callHistory and mobile logs
+  const recordingsFromHistory = allCallHistory.filter(h => h.recordingUrl);
+  const recordingsFromMobile  = mobileLogs.filter(l => l.recordingUrl);
+
+  const fmtDur = (sec) => {
+    if (!sec) return null;
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
 
+        {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[11px] font-bold text-[#2563EB] dark:text-[#4F8EF7] shrink-0">
+            <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[11px] font-bold text-[#2563EB] shrink-0">
               {lead.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
             </div>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
-              <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{lead.phone}</p>
+              <p className="text-[12px] text-[#8B92A9] mt-0.5">{lead.phone}</p>
             </div>
           </div>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
@@ -523,39 +503,69 @@ function RecordingModal({ lead, onClose }) {
           </button>
         </div>
 
+        {/* Lead info grid */}
         <div className="grid grid-cols-2 gap-2 mb-4">
           {[
             { label: "Status",   value: <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${st.bg} ${st.text}`}>{lead.status}</span> },
             { label: "Source",   value: lead.source },
             { label: "Agent",    value: lead.agent },
             { label: "Date",     value: lead.date },
-            { label: "Campaign", value: lead.campaign || "—" },
           ].map(({ label, value }) => (
             <div key={label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5">
-              <p className="text-[10px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">{label}</p>
+              <p className="text-[10px] font-medium text-[#8B92A9] uppercase tracking-wide mb-1">{label}</p>
               <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{value}</div>
             </div>
           ))}
         </div>
 
-        {lead.remark && (
-          <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5 mb-4">
-            <p className="text-[10px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">Latest Remark</p>
-            <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB]">{lead.remark}</p>
-          </div>
-        )}
+        {/* ── All Remarks (CRM call history) ── */}
+        <div className="mb-4">
+          <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">
+            📋 All Remarks ({allCallHistory.length})
+          </p>
+          {allCallHistory.length === 0 ? (
+            <p className="text-[12px] text-[#8B92A9] italic px-1">No remarks recorded yet.</p>
+          ) : (
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {[...allCallHistory]
+                .sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt))
+                .map((h, i) => (
+                <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5 border border-[#E4E7EF] dark:border-[#262A38]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-semibold text-[#2563EB]">{h.userName || "Agent"}</span>
+                    <span className="text-[10px] text-[#8B92A9]">
+                      {h.calledAt ? new Date(h.calledAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
+                    </span>
+                  </div>
+                  {h.outcome && (
+                    <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EEF3FF] text-[#2563EB] mb-1">{h.outcome}</span>
+                  )}
+                  {h.remark ? (
+                    <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] italic">"{h.remark}"</p>
+                  ) : (
+                    <p className="text-[11px] text-[#C4C9D9] italic">No remark added</p>
+                  )}
+                  {/* Recording attached to this callHistory entry */}
+                  {h.recordingUrl && (
+                    <div className="mt-2">
+                      <audio controls src={h.recordingUrl} className="w-full h-7 rounded-lg accent-[#2563EB]" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
+        {/* ── Mobile Call Recordings ── */}
         <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-3.5">
           <div className="flex items-center gap-2 mb-3">
             <svg className="w-3.5 h-3.5 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
             </svg>
-            <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Call Recording</span>
-            {recording && (
-              <span className="ml-auto text-[11px] text-[#8B92A9] dark:text-[#565C75] bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-full">
-                {recording.recordingDuration}s
-              </span>
-            )}
+            <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+              Mobile Recordings ({recordingsFromMobile.length})
+            </span>
           </div>
 
           {loading && (
@@ -564,37 +574,38 @@ function RecordingModal({ lead, onClose }) {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
               </svg>
-              <span className="text-[12px] text-[#8B92A9]">Fetching recording...</span>
+              <span className="text-[12px] text-[#8B92A9]">Loading call recordings...</span>
             </div>
           )}
           {error && !loading && <p className="text-[12px] text-red-500 py-2">{error}</p>}
-          {!loading && !error && !recording && (
+          {!loading && !error && recordingsFromMobile.length === 0 && (
             <div className="flex items-center gap-2 py-2">
               <svg className="w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
-              <p className="text-[12px] text-[#8B92A9]">No recording found for this lead.</p>
+              <p className="text-[12px] text-[#8B92A9]">No mobile recordings uploaded for this lead.</p>
             </div>
           )}
-          {!loading && !error && recording && (
-            <>
-              {recording.recordedAt && (
-                <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-2">
-                  {new Date(recording.recordedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                </p>
-              )}
-              {audioSrc ? (
-                <audio controls src={audioSrc} className="w-full h-8 rounded-xl accent-[#2563EB]" />
-              ) : (
-                <div className="flex items-center gap-2 py-1">
-                  <svg className="w-3 h-3 animate-spin text-[#8B92A9]" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
-                  <p className="text-[12px] text-[#8B92A9] italic">Recording processing...</p>
+          {!loading && recordingsFromMobile.length > 0 && (
+            <div className="space-y-3">
+              {recordingsFromMobile.map((log, i) => (
+                <div key={log._id || i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
+                      {log.user?.name || "Agent"} · {log.callType}
+                    </span>
+                    <span className="text-[10px] text-[#8B92A9]">
+                      {log.timestamp ? new Date(log.timestamp).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
+                      {log.duration > 0 ? ` · ${fmtDur(log.duration)}` : ""}
+                    </span>
+                  </div>
+                  {log.remark && (
+                    <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic mb-1.5">"{log.remark}"</p>
+                  )}
+                  <audio controls src={log.recordingUrl} className="w-full h-7 rounded-lg accent-[#2563EB]" />
                 </div>
-              )}
-            </>
+              ))}
+            </div>
           )}
         </div>
       </div>
