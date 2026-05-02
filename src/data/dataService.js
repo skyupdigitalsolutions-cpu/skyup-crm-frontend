@@ -33,7 +33,6 @@ async function fetchUserData() {
   const user = getStoredUser();
   const leadsRes = await api.get("/lead/my-leads");
   const leads = await Promise.all(leadsRes.data.map(formatLead));
-  // Build a single "agent" entry for the logged-in user so filters work
   const agents = user
     ? [formatAgent({ _id: user._id || user.id, name: user.name, email: user.email, company: user.company })]
     : [];
@@ -65,11 +64,9 @@ async function fetchSuperAdminData() {
     companies.map((c) => api.get(`/superadmin/companies/${c._id}`))
   );
 
-  const leads = (
-    await Promise.all(
-      allLeadsRes.flatMap((res) =>
-        (res.data.leads || []).map(formatLead)
-      )
+  const leads = await Promise.all(
+    allLeadsRes.flatMap((res) =>
+      (res.data.leads || []).map(formatLead)
     )
   );
 
@@ -77,16 +74,18 @@ async function fetchSuperAdminData() {
     (res.data.users || []).map(u => formatAgent(u, companies[i]._id))
   );
 
-  return {
-    leads,
-    agents,
-    stats: dashboardRes.data,
-    companies,
-  };
+  return { leads, agents, stats: dashboardRes.data, companies };
 }
 
 // ── Format lead from DB to dashboard format ────────────────────────────────
-// Async: decrypts encryptedData if the client has a local encryption key
+// BUG FIX: The original version returned a plain object with only ~9 fields,
+// silently dropping callHistory, scheduledCalls, previousAgents, reassignCount,
+// voiceBot*, temperature, email, createdAt, updatedAt.
+// This caused LeadJourneyDrawer to always show "No calls recorded yet" even
+// though the data existed in MongoDB and was returned by the API.
+//
+// FIX: Spread the entire raw lead document first (...lead), then apply the
+// normalised / derived UI fields on top. Nothing is ever lost.
 async function formatLead(lead) {
   let name   = lead.name;
   let mobile = lead.mobile;
@@ -94,9 +93,6 @@ async function formatLead(lead) {
   let remark = lead.remark;
 
   // ── Zero-knowledge decryption ──────────────────────────────────────────
-  // If the server returned an `encryptedData` blob AND the client has a
-  // locally-stored encryption key, decrypt it. If anything fails (wrong
-  // key, no key, data not encrypted yet) we fall back to the plain values.
   const keyString = crm.getLocalKey();
   if (keyString && lead.encryptedData) {
     try {
@@ -106,11 +102,17 @@ async function formatLead(lead) {
       email  = decrypted.email  ?? email;
       remark = decrypted.remark ?? remark;
     } catch {
-      // Key mismatch or data not encrypted — silently use raw values
+      // Key mismatch or data not encrypted yet — silently use plain values
     }
   }
 
   return {
+    // ── Spread the ENTIRE raw document first so nothing is lost ───────────
+    // This is the critical fix: callHistory, scheduledCalls, previousAgents,
+    // reassignCount, voiceBot*, temperature, createdAt, updatedAt all survive.
+    ...lead,
+
+    // ── Normalised / derived UI fields (override raw where needed) ────────
     id:       String(lead._id),   // stringify so === comparisons work reliably
     name,
     mobile,
@@ -123,6 +125,28 @@ async function formatLead(lead) {
     remark,
     agent:    lead.user?.name || "Unknown",
     company:  lead.company,
+
+    // ── Rich history arrays (explicit for clarity — already in ...lead) ───
+    callHistory:    Array.isArray(lead.callHistory)    ? lead.callHistory    : [],
+    scheduledCalls: Array.isArray(lead.scheduledCalls) ? lead.scheduledCalls : [],
+    previousAgents: Array.isArray(lead.previousAgents) ? lead.previousAgents : [],
+    reassignCount:  lead.reassignCount ?? 0,
+
+    // ── VoiceBot fields (explicit for clarity — already in ...lead) ───────
+    voiceBotSummary:    lead.voiceBotSummary    ?? "",
+    voiceBotScore:      lead.voiceBotScore      ?? null,
+    voiceBotReason:     lead.voiceBotReason     ?? "",
+    voiceBotNextAction: lead.voiceBotNextAction ?? "",
+    voiceBotService:    lead.voiceBotService    ?? "",
+    voiceBotCallSid:    lead.voiceBotCallSid    ?? "",
+    voiceBotDuration:   lead.voiceBotDuration   ?? null,
+    voiceBotTranscript: lead.voiceBotTranscript ?? "",
+    lastCalledByBot:    lead.lastCalledByBot     ?? null,
+
+    // ── Aliases used by LeadJourneyDrawer ─────────────────────────────────
+    _raw_date:   lead.date,         // original ISO date before formatting
+    Quality:     lead.temperature,  // LeadJourneyDrawer reads lead.Quality
+    temperature: lead.temperature ?? null,
   };
 }
 
