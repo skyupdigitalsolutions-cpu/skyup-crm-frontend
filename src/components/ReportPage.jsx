@@ -30,12 +30,9 @@ const ALL_STATUSES = ["Converted", "In Progress", "Not Interested", "New"];
 
 let nextId = 100;
 
-// ── Helper: format today as "DD Mon YYYY" ─────────────────────────────────────
 function todayAsCustomDate() {
   return new Date().toLocaleDateString("en-GB", {
-    day:   "2-digit",
-    month: "short",
-    year:  "numeric",
+    day: "2-digit", month: "short", year: "numeric",
   });
 }
 
@@ -50,7 +47,6 @@ function StatCard({ label, value, sub, accent }) {
   );
 }
 
-// ── Mini bar ──────────────────────────────────────────────────────────────────
 function MiniBar({ value, max, color }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
@@ -63,7 +59,6 @@ function MiniBar({ value, max, color }) {
   );
 }
 
-// ── Loading skeleton ──────────────────────────────────────────────────────────
 function Skeleton() {
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-6 py-8 animate-pulse">
@@ -74,11 +69,6 @@ function Skeleton() {
           <div key={i} className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5 h-24" />
         ))}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-        <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl h-64" />
-        <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl h-64" />
-      </div>
-      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl h-96" />
     </div>
   );
 }
@@ -86,17 +76,12 @@ function Skeleton() {
 // ── Add Lead Modal ────────────────────────────────────────────────────────────
 function AddLeadModal({ agents, onClose, onAdd }) {
   const today = todayAsCustomDate();
-
   const [form, setForm] = useState({
     name: "", phone: "", source: "Google Ads", campaign: "",
     agent: agents[0]?.name || "", status: "New", date: today, remark: "",
   });
-
   const [errors, setErrors] = useState({});
-  const set = (k, v) => {
-    setForm(f => ({ ...f, [k]: v }));
-    setErrors(e => ({ ...e, [k]: "" }));
-  };
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
 
   const validate = () => {
     const newErrors = {};
@@ -115,10 +100,7 @@ function AddLeadModal({ agents, onClose, onAdd }) {
 
   const handleSubmit = async () => {
     const newErrors = validate();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
     const agentObj = agents.find(a => a.name === form.agent) ?? null;
     const basePayload = {
       name:     form.name.trim(),
@@ -129,53 +111,48 @@ function AddLeadModal({ agents, onClose, onAdd }) {
       date:     new Date(form.date),
       remark:   form.remark.trim() || "Manually added",
       ...(agentObj?.id ? { user: agentObj.id } : {}),
-      ...(getRole() === "superadmin" && agentObj?.company
-        ? { companyId: agentObj.company }
-        : {}),
+      ...(getRole() === "superadmin" && agentObj?.company ? { companyId: agentObj.company } : {}),
     };
 
-    // ── Zero-knowledge encryption ──────────────────────────────────────────
-    // If the client has a local encryption key, encrypt sensitive fields and
-    // attach them as `encryptedData`. The plain fields are kept so the server
-    // can still index/search by them if needed (or you can blank them out).
     let payload = basePayload;
     const keyString = crm.getLocalKey();
     if (keyString) {
       try {
         const encryptedData = await crm.encrypt(
-          {
-            name:   basePayload.name,
-            mobile: basePayload.mobile,
-            email:  basePayload.email || "",
-            remark: basePayload.remark,
-          },
+          { name: basePayload.name, mobile: basePayload.mobile, email: basePayload.email || "", remark: basePayload.remark },
           keyString
         );
         payload = { ...basePayload, encryptedData };
-      } catch {
-        // If encryption fails for any reason, send without it
-      }
+      } catch {}
     }
 
     const role = getRole();
     const endpoint =
       role === "superadmin" ? "/lead/superadmin/create" :
-      role === "admin"      ? "/lead/admin/create" :
-                              "/lead";
+      role === "admin"      ? "/lead/admin/create" : "/lead";
     try {
       const res = await api.post(endpoint, payload);
       const saved = res.data;
       onAdd({
-        id:       saved._id,
-        name:     saved.name,
-        mobile:   saved.mobile,
-        source:   saved.source   || "Web Form",
-        campaign: saved.campaign || "—",
-        status:   saved.status,
-        date:     new Date(saved.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-        remark:   saved.remark,
-        agent:    form.agent,
-        company:  saved.company,
+        id:             saved._id,
+        name:           saved.name,
+        // FIX #1: backend stores as `mobile`, not `phone`. Map correctly.
+        mobile:         saved.mobile,
+        phone:          saved.mobile,
+        source:         saved.source   || "Web Form",
+        campaign:       saved.campaign || "—",
+        status:         saved.status,
+        date:           new Date(saved.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        remark:         saved.remark,
+        // FIX #2: preserve full arrays so ReportPage + LeadJourneyDrawer can show them
+        callHistory:    saved.callHistory    || [],
+        scheduledCalls: saved.scheduledCalls || [],
+        previousAgents: saved.previousAgents || [],
+        reassignCount:  saved.reassignCount  || 0,
+        temperature:    saved.temperature    || null,
+        agent:          form.agent,
+        company:        saved.company,
+        createdAt:      saved.createdAt,
       });
       onClose();
     } catch (err) {
@@ -190,47 +167,32 @@ function AddLeadModal({ agents, onClose, onAdd }) {
     { label: "Campaign",    key: "campaign", placeholder: "Campaign name" },
     { label: "Remark",      key: "remark",   placeholder: "Notes" },
   ];
-
   const selectFields = [
     { label: "Source", key: "source", options: ALL_SOURCES },
     { label: "Agent",  key: "agent",  options: agents.map(a => a.name) },
     { label: "Status", key: "status", options: ALL_STATUSES },
   ];
-
   const inputCls = (key) =>
     `px-3 py-2 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
-    ${errors[key]
-      ? "border-red-400 dark:border-red-500 focus:border-red-500"
-      : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`;
+    ${errors[key] ? "border-red-400 dark:border-red-500 focus:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Add New Lead</h2>
-          <button onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {textFields.map(f => (
             <div key={f.key} className="flex flex-col gap-1">
               <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
-              <input
-                type="text"
-                placeholder={f.placeholder}
-                value={form[f.key]}
-                onChange={e => set(f.key, e.target.value)}
-                className={inputCls(f.key)}
-              />
+              <input type="text" placeholder={f.placeholder} value={form[f.key]} onChange={e => set(f.key, e.target.value)} className={inputCls(f.key)} />
               {errors[f.key] && (
                 <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
-                  <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                  </svg>
+                  <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
                   {errors[f.key]}
                 </span>
               )}
@@ -239,45 +201,26 @@ function AddLeadModal({ agents, onClose, onAdd }) {
           {selectFields.map(f => (
             <div key={f.key} className="flex flex-col gap-1">
               <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
-              <select
-                value={form[f.key]}
-                onChange={e => set(f.key, e.target.value)}
-                className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none">
+              <select value={form[f.key]} onChange={e => set(f.key, e.target.value)} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none">
                 {f.options.map(o => <option key={o}>{o}</option>)}
               </select>
             </div>
           ))}
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Date *</label>
-            <input
-              type="text"
-              value={form.date}
-              onChange={e => set("date", e.target.value)}
-              placeholder="25 Mar 2026"
-              className={inputCls("date")}
-            />
+            <input type="text" value={form.date} onChange={e => set("date", e.target.value)} placeholder="25 Mar 2026" className={inputCls("date")} />
             {errors.date && (
               <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
-                <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                </svg>
+                <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
                 {errors.date}
               </span>
             )}
           </div>
         </div>
-        {errors.submit && (
-          <p className="text-[12px] text-red-500 mt-3 text-center">{errors.submit}</p>
-        )}
+        {errors.submit && <p className="text-[12px] text-red-500 mt-3 text-center">{errors.submit}</p>}
         <div className="flex gap-2 mt-5">
-          <button onClick={onClose}
-            className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
-            Cancel
-          </button>
-          <button onClick={handleSubmit}
-            className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
-            Add Lead
-          </button>
+          <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+          <button onClick={handleSubmit} className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">Add Lead</button>
         </div>
       </div>
     </div>
@@ -301,14 +244,16 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
         <div className="grid grid-cols-2 gap-3">
           {[
             { label: "Lead Name", key: "name" },
-            { label: "Phone",     key: "phone" },
+            // FIX #3: EditModal was using form.phone but lead object stores `mobile`.
+            // Display as "phone" in UI but read from mobile field.
+            { label: "Phone",     key: "mobile" },
             { label: "Campaign",  key: "campaign" },
             { label: "Remark",    key: "remark" },
             { label: "Date",      key: "date" },
           ].map(f => (
             <div key={f.key} className="flex flex-col gap-1">
               <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
-              <input type="text" value={form[f.key]} onChange={e => set(f.key, e.target.value)}
+              <input type="text" value={form[f.key] || ""} onChange={e => set(f.key, e.target.value)}
                 className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]" />
             </div>
           ))}
@@ -333,40 +278,32 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
             const leadId = form.id;
             const endpoint =
               role === "superadmin" ? `/lead/superadmin/${leadId}` :
-              role === "admin"      ? `/lead/admin/${leadId}` :
-                                      `/lead/${leadId}`;
+              role === "admin"      ? `/lead/admin/${leadId}` : `/lead/${leadId}`;
             try {
               const basePayload = {
                 name:     form.name,
-                mobile:   form.phone || form.mobile,
+                // FIX #4: was sending form.phone which is undefined — field is `mobile`
+                mobile:   form.mobile,
                 source:   form.source,
                 campaign: form.campaign === "—" ? "" : form.campaign,
                 status:   form.status,
                 remark:   form.remark,
               };
 
-              // ── Zero-knowledge encryption on update ──────────────────────
               let payload = basePayload;
               const keyString = crm.getLocalKey();
               if (keyString) {
                 try {
                   const encryptedData = await crm.encrypt(
-                    {
-                      name:   basePayload.name,
-                      mobile: basePayload.mobile,
-                      email:  form.email || "",
-                      remark: basePayload.remark,
-                    },
+                    { name: basePayload.name, mobile: basePayload.mobile, email: form.email || "", remark: basePayload.remark },
                     keyString
                   );
                   payload = { ...basePayload, encryptedData };
-                } catch {
-                  // Encryption failed — send plain
-                }
+                } catch {}
               }
 
               await api.put(endpoint, payload);
-              onSave(form);
+              onSave({ ...form, mobile: form.mobile, phone: form.mobile });
               onClose();
             } catch (err) {
               alert("Failed to save: " + (err.response?.data?.message || err.message));
@@ -380,19 +317,26 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
 
 // ── Recording Modal ───────────────────────────────────────────────────────────
 function RecordingModal({ lead, onClose }) {
-  const [recording, setRecording] = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
+  // FIX #5: Was only fetching ONE recording per lead.
+  // Now fetches ALL recordings and filters by phone, shows full list.
+  const [recordings, setRecordings] = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
 
+  // FIX #6: /admin/recordings has no auth header — it's unauthenticated.
+  // Use `api` (axiosConfig with auth) instead of raw `axios`.
   useEffect(() => {
-    axios.get(`${BACKEND}/admin/recordings`)
+    api.get('/twilio/admin/recordings')
       .then(res => {
-        const match = res.data.find(r =>
-          r.contactName?.toLowerCase() === lead.name.toLowerCase() ||
-          r.contactName?.includes(lead.phone) ||
-          String(r.mobile || '').includes(String(lead.phone || '').replace('+91', ''))
-        );
-        setRecording(match || null);
+        const phone = String(lead.mobile || lead.phone || '').replace(/\D/g, '').slice(-10);
+        // FIX #7: Match on last 10 digits of mobile, not contactName string match
+        // (contactName in Call model may not match lead.name exactly).
+        const matches = res.data.filter(r => {
+          const recPhone = String(r.mobile || r.contactName || '').replace(/\D/g, '').slice(-10);
+          return recPhone === phone ||
+            r.contactName?.toLowerCase() === lead.name?.toLowerCase();
+        });
+        setRecordings(matches);
       })
       .catch(() => setError('Failed to fetch recordings.'))
       .finally(() => setLoading(false));
@@ -400,44 +344,32 @@ function RecordingModal({ lead, onClose }) {
 
   const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
 
-  const audioSrc = recording?.recordingSid
-    ? `${BACKEND}/recording/${recording.recordingSid}/audio`
-    : null;
+  // FIX #8: Also show full callHistory remarks in this modal (was missing entirely)
+  const callHistory = lead.callHistory || [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
-
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[11px] font-bold text-[#2563EB] dark:text-[#4F8EF7] shrink-0">
-              {lead.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+              {lead.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
             </div>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
-              <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{lead.phone}</p>
+              <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{lead.mobile || lead.phone}</p>
             </div>
           </div>
-          <button onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
-        {/* Lead details grid */}
+        {/* Lead details */}
         <div className="grid grid-cols-2 gap-2 mb-4">
           {[
-            {
-              label: 'Status',
-              value: (
-                <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${st.bg} ${st.text}`}>
-                  {lead.status}
-                </span>
-              ),
-            },
+            { label: 'Status',   value: <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${st.bg} ${st.text}`}>{lead.status}</span> },
             { label: 'Source',   value: lead.source },
             { label: 'Agent',    value: lead.agent },
             { label: 'Date',     value: lead.date },
@@ -450,26 +382,59 @@ function RecordingModal({ lead, onClose }) {
           ))}
         </div>
 
-        {/* Remark */}
-        {lead.remark && (
-          <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5 mb-4">
-            <p className="text-[10px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">Remark</p>
-            <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB]">{lead.remark}</p>
-          </div>
-        )}
+        {/* FIX #9: Remarks history — show ALL remarks from callHistory, not just lead.remark */}
+        <div className="mb-4">
+          <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-2">
+            Remarks History ({callHistory.length})
+          </p>
+          {callHistory.length === 0 ? (
+            <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5">
+              {lead.remark ? (
+                <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB] italic">"{lead.remark}"</p>
+              ) : (
+                <p className="text-[12px] text-[#8B92A9]">No remarks yet.</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* Always show current remark first */}
+              {lead.remark && (
+                <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5 border border-[#E4E7EF] dark:border-[#262A38]">
+                  <p className="text-[10px] font-medium text-[#2563EB] dark:text-[#4F8EF7] mb-1">Current Remark</p>
+                  <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB] italic">"{lead.remark}"</p>
+                </div>
+              )}
+              {/* All historical call remarks */}
+              {[...callHistory]
+                .sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt))
+                .map((call, i) => (
+                  <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5 border border-[#E4E7EF] dark:border-[#262A38]">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[10px] font-semibold text-[#8B92A9]">
+                        {call.userName || 'Agent'} · {call.outcome || 'Call'}
+                      </p>
+                      <p className="text-[10px] text-[#8B92A9]">
+                        {call.calledAt ? new Date(call.calledAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                      </p>
+                    </div>
+                    {call.remark && (
+                      <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] italic">"{call.remark}"</p>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
 
-        {/* Recording section */}
+        {/* Recordings section — all recordings for this lead */}
         <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-3.5">
           <div className="flex items-center gap-2 mb-3">
             <svg className="w-3.5 h-3.5 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
             </svg>
-            <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Call Recording</span>
-            {recording && (
-              <span className="ml-auto text-[11px] text-[#8B92A9] dark:text-[#565C75] bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-full">
-                {recording.recordingDuration}s
-              </span>
-            )}
+            <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+              Call Recordings ({recordings.length})
+            </span>
           </div>
 
           {loading && (
@@ -478,47 +443,40 @@ function RecordingModal({ lead, onClose }) {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
               </svg>
-              <span className="text-[12px] text-[#8B92A9]">Fetching recording...</span>
+              <span className="text-[12px] text-[#8B92A9]">Fetching recordings...</span>
             </div>
           )}
-
-          {error && !loading && (
-            <p className="text-[12px] text-red-500 py-2">{error}</p>
+          {error && !loading && <p className="text-[12px] text-red-500 py-2">{error}</p>}
+          {!loading && !error && recordings.length === 0 && (
+            <p className="text-[12px] text-[#8B92A9] py-2">No recordings found for this lead.</p>
           )}
 
-          {!loading && !error && !recording && (
-            <div className="flex items-center gap-2 py-2">
-              <svg className="w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              <p className="text-[12px] text-[#8B92A9]">No recording found for this lead.</p>
-            </div>
-          )}
-
-          {!loading && !error && recording && (
-            <>
-              {recording.recordedAt && (
-                <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-2">
-                  {new Date(recording.recordedAt).toLocaleString('en-IN', {
-                    day: '2-digit', month: 'short', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit',
-                  })}
-                </p>
-              )}
-              {audioSrc ? (
-                <audio controls src={audioSrc}
+          {/* FIX #10: Render ALL recordings, not just the first match */}
+          {!loading && !error && recordings.map((recording, i) => (
+            <div key={i} className="mb-3 last:mb-0">
+              <div className="flex items-center justify-between mb-1">
+                {recording.recordedAt && (
+                  <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">
+                    {new Date(recording.recordedAt).toLocaleString('en-IN', {
+                      day: '2-digit', month: 'short', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
+                    })}
+                  </p>
+                )}
+                {recording.recordingDuration && (
+                  <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-full">
+                    {recording.recordingDuration}s
+                  </span>
+                )}
+              </div>
+              {recording.recordingSid ? (
+                <audio controls src={`${BACKEND}/recording/${recording.recordingSid}/audio`}
                   className="w-full h-8 rounded-xl accent-[#2563EB]" />
               ) : (
-                <div className="flex items-center gap-2 py-1">
-                  <svg className="w-3 h-3 animate-spin text-[#8B92A9]" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
-                  <p className="text-[12px] text-[#8B92A9] italic">Recording processing...</p>
-                </div>
+                <p className="text-[12px] text-[#8B92A9] italic">Recording processing...</p>
               )}
-            </>
-          )}
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -532,15 +490,18 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
 
-  // ✅ FIX 1: Declare role at the top of the component so it's available in JSX
   const role = getRole();
 
   useEffect(() => {
     fetchAll()
       .then(({ agents, leads }) => {
         setAgents(agents);
+        // FIX #11: fetchAll must return leads with ALL fields including
+        // callHistory, scheduledCalls, previousAgents, temperature, mobile.
+        // If dataService.js strips these, LeadJourneyDrawer will always show empty.
+        // Ensure dataService maps: lead.mobile → lead.mobile AND lead.phone (both)
         setLeads(leads);
-        nextId = leads.reduce((m, l) => Math.max(m, l.id), 0) + 1;
+        nextId = leads.reduce((m, l) => Math.max(m, typeof l.id === 'number' ? l.id : 0), 0) + 1;
       })
       .catch(err => setFetchError(err.message))
       .finally(() => setLoading(false));
@@ -579,8 +540,9 @@ export default function ReportPage() {
     .filter(l => {
       if (!isWithinRange(l.date)) return false;
       const q = search.toLowerCase();
+      // FIX #12: search was checking l.phone (undefined) — use l.mobile
       return (
-        (!q || l.name.toLowerCase().includes(q) || l.phone.includes(q) || l.campaign.toLowerCase().includes(q)) &&
+        (!q || l.name?.toLowerCase().includes(q) || (l.mobile || '').includes(q) || (l.campaign || '').toLowerCase().includes(q)) &&
         (statusFilter === "All" || l.status === statusFilter) &&
         (agentFilter  === "All" || l.agent  === agentFilter)
       );
@@ -592,13 +554,17 @@ export default function ReportPage() {
   const paged      = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const addLead    = lead    => { setLeads(ls => [lead, ...ls]); setPage(1); };
-  const saveLead   = updated => setLeads(ls => ls.map(l => l.id === updated.id ? updated : l));
+  // FIX #13: saveLead must preserve callHistory/scheduledCalls from original lead
+  // EditModal only updates surface fields — don't wipe deep arrays on save
+  const saveLead   = updated => setLeads(ls => ls.map(l => l.id === updated.id
+    ? { ...l, ...updated, callHistory: l.callHistory, scheduledCalls: l.scheduledCalls, previousAgents: l.previousAgents }
+    : l
+  ));
+
   const deleteLead = async (id) => {
-    const role = getRole();
     const endpoint =
       role === "superadmin" ? `/lead/superadmin/${id}` :
-      role === "admin"      ? `/lead/admin/${id}` :
-                              `/lead/${id}`;
+      role === "admin"      ? `/lead/admin/${id}` : `/lead/${id}`;
     try {
       await api.delete(endpoint);
       setLeads(ls => ls.filter(l => l.id !== id));
@@ -618,8 +584,9 @@ export default function ReportPage() {
   const exportCSV = () => {
     const headers = ["#", "Name", "Phone", "Source", "Campaign", "Agent", "Status", "Date", "Remark"];
     const rows = filtered.map((l, i) =>
-      [i + 1, l.name, l.phone, l.source, l.campaign, l.agent, l.status, l.date, l.remark]
-        .map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")
+      // FIX #14: was using l.phone — use l.mobile
+      [i + 1, l.name, l.mobile, l.source, l.campaign, l.agent, l.status, l.date, l.remark]
+        .map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(",")
     );
     const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv" });
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "leads_export.csv" });
@@ -635,9 +602,7 @@ export default function ReportPage() {
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = "leads_import_template.csv";
-    a.click();
+    a.href = url; a.download = "leads_import_template.csv"; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -645,75 +610,44 @@ export default function ReportPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
-
     try {
       const text = await file.text();
+      const lines = text.trim().split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length < 2) { alert("❌ CSV must have a header row and at least one data row."); return; }
 
-      // Parse CSV — split on \r\n or \n, trim, drop blanks
-      const lines = text.trim().split(/\r?\n/)
-        .map(l => l.trim())
-        .filter(l => l.length > 0);
-
-      if (lines.length < 2) {
-        alert("❌ CSV must have a header row and at least one data row.");
-        return;
-      }
-
-      // Parse header row — lowercase all column names
       const parseCSVLine = (line) => {
-        const values = [];
-        let current = "", inQuotes = false;
+        const values = []; let current = "", inQuotes = false;
         for (let i = 0; i < line.length; i++) {
           const ch = line[i];
           if (ch === '"') { inQuotes = !inQuotes; }
           else if (ch === "," && !inQuotes) { values.push(current.trim()); current = ""; }
           else { current += ch; }
         }
-        values.push(current.trim());
-        return values;
+        values.push(current.trim()); return values;
       };
 
       const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase());
-
       const leadsToImport = [];
       for (let i = 1; i < lines.length; i++) {
         const values = parseCSVLine(lines[i]);
         const row = {};
         headers.forEach((h, idx) => { row[h] = (values[idx] || "").trim(); });
-
         const nameVal   = row.name || row["full name"] || row["fullname"] || row["full_name"] || "";
         const mobileVal = row.mobile || row.phone || row["phone number"] || row["phone_number"] || row["mobile_number"] || row["number"] || "";
         const cleanMobile = mobileVal.replace(/\D/g, "");
-
         if (!nameVal && !cleanMobile) continue;
-        if (!cleanMobile) continue; // skip rows without a mobile
-
+        if (!cleanMobile) continue;
         leadsToImport.push({
-          name:     nameVal   || "Unknown",
-          mobile:   cleanMobile,
-          email:    row.email    || "",
-          source:   row.source   || "CSV Import",
-          campaign: row.campaign || "",
-          status:   row.status   || "New",
-          date:     row.date     || null,
-          remark:   row.remark || row.notes || "Imported via CSV",
+          name: nameVal || "Unknown", mobile: cleanMobile, email: row.email || "",
+          source: row.source || "CSV Import", campaign: row.campaign || "",
+          status: row.status || "New", date: row.date || null,
+          remark: row.remark || row.notes || "Imported via CSV",
         });
       }
-
-      if (!leadsToImport.length) {
-        alert("❌ No valid rows found. Check that your CSV has 'name' and 'mobile' columns.");
-        return;
-      }
-
-      // Post parsed JSON — backend expects { leads: [...] }
+      if (!leadsToImport.length) { alert("❌ No valid rows found. Check that your CSV has 'name' and 'mobile' columns."); return; }
       const { data } = await api.post("/lead/admin/import-csv", { leads: leadsToImport });
       alert(`✅ ${data.message}\nImported: ${data.savedCount}  |  Failed: ${data.errorCount}`);
-
-      // Refresh leads list from server after import
-      fetchAll()
-        .then(({ agents: a, leads: l }) => { setAgents(a); setLeads(l); })
-        .catch(() => {});
-
+      fetchAll().then(({ agents: a, leads: l }) => { setAgents(a); setLeads(l); }).catch(() => {});
     } catch (err) {
       alert("❌ Import failed: " + (err.response?.data?.message || err.message));
     }
@@ -723,22 +657,15 @@ export default function ReportPage() {
     arr.map(v => (
       <button key={v} onClick={() => { setter(v); setPage(1); }}
         className={`px-3 py-1.5 rounded-full text-[12px] font-semibold transition whitespace-nowrap
-          ${v === current
-            ? "bg-[#2563EB] text-white"
-            : "bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB]"
-          }`}>{v}</button>
+          ${v === current ? "bg-[#2563EB] text-white" : "bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB]"}`}>{v}</button>
     ));
 
   if (loading) return <Skeleton />;
-
   if (fetchError) return (
     <div className="min-h-screen flex items-center justify-center bg-[#F8F9FC] dark:bg-[#0D0F14]">
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-8 max-w-sm text-center">
         <div className="text-red-500 text-[14px] font-semibold mb-2">Failed to load data</div>
         <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mb-4">{fetchError}</p>
-        <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75]">
-          Make sure <code className="bg-[#F1F4FF] dark:bg-[#262A38] px-1 rounded">mockData.json</code> is in the same directory and your dev server is running.
-        </p>
       </div>
     </div>
   );
@@ -779,35 +706,20 @@ export default function ReportPage() {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             Export CSV
           </button>
-          {/* ✅ FIX 1 applied: `role` is now defined above, so this conditional renders correctly */}
           {(role === "admin" || role === "superadmin") && (
             <>
               <input ref={importInputRef} type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
-      <div className="flex items-center rounded-xl overflow-hidden">
-  <button
-    onClick={() => importInputRef.current?.click()}
-    className="flex items-center gap-2 px-4 py-2 bg-[#7C3AED] text-white text-[13px] font-semibold hover:bg-violet-700 transition"
-  >
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-    </svg>
-    Import CSV
-  </button>
-
-  {/* Subtle divider */}
-  <div className="w-px h-5 bg-violet-400/40 bg-[#7C3AED]" />
-
-  <button
-    onClick={downloadCSVTemplate}
-    title="Download CSV template"
-    className="flex items-center gap-1.5 px-3 py-2 bg-[#7C3AED] text-violet-200 text-[12px] font-semibold hover:bg-violet-700 transition whitespace-nowrap"
-  >
-    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-    </svg>
-    Template
-  </button>
-</div>
+              <div className="flex items-center rounded-xl overflow-hidden">
+                <button onClick={() => importInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-[#7C3AED] text-white text-[13px] font-semibold hover:bg-violet-700 transition">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                  Import CSV
+                </button>
+                <div className="w-px h-5 bg-violet-400/40" />
+                <button onClick={downloadCSVTemplate} title="Download CSV template" className="flex items-center gap-1.5 px-3 py-2 bg-[#7C3AED] text-violet-200 text-[12px] font-semibold hover:bg-violet-700 transition whitespace-nowrap">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  Template
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -875,52 +787,35 @@ export default function ReportPage() {
         </div>
       </div>
 
+      {/* Leads table */}
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-              All leads
-              <span className="ml-2 text-[12px] font-medium text-[#8B92A9] dark:text-[#565C75]">
-                {filtered.length} results
-              </span>
+              All leads <span className="ml-2 text-[12px] font-medium text-[#8B92A9] dark:text-[#565C75]">{filtered.length} results</span>
             </h2>
             <div className="flex items-center gap-2">
-              <select
-                value={timeFilter}
-                onChange={e => { setTimeFilter(e.target.value); setPage(1); }}
-                className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none"
-              >
+              <select value={timeFilter} onChange={e => { setTimeFilter(e.target.value); setPage(1); }}
+                className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none">
                 <option value="All">Time: All</option>
                 <option value="Daily">Time: Daily</option>
                 <option value="Weekly">Time: Weekly</option>
                 <option value="Monthly">Time: Monthly</option>
                 <option value="Quarterly">Time: Quarterly</option>
               </select>
-              <select
-                value={sortBy}
-                onChange={e => { setSortBy(e.target.value); setPage(1); }}
-                className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none"
-              >
+              <select value={sortBy} onChange={e => { setSortBy(e.target.value); setPage(1); }}
+                className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none">
                 <option value="date">Sort: Latest</option>
                 <option value="name">Sort: Name A–Z</option>
               </select>
               <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={search}
-                  onChange={e => { setSearch(e.target.value); setPage(1); }}
-                  className="pl-8 pr-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] w-44"
-                />
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
+                <input type="text" placeholder="Search..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+                  className="pl-8 pr-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] w-44" />
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {filterBtn(statusFilter, setStatus, statuses)}
-          </div>
+          <div className="flex flex-wrap gap-1.5">{filterBtn(statusFilter, setStatus, statuses)}</div>
           <div className="flex flex-wrap gap-1.5 mt-2">
             <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] self-center mr-1">Agent:</span>
             {filterBtn(agentFilter, setAgent, agentNames)}
@@ -931,14 +826,14 @@ export default function ReportPage() {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                {["#", "Lead Name", "Phone", "Source", "Campaign", "Agent", "Status", "Date", "Remark", "Actions"].map(h => (
+                {["#", "Lead Name", "Phone", "Source", "Campaign", "Agent", "Status", "Date", "Remark", "Calls", "Actions"].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={10} className="px-4 py-12 text-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads match your filters.</td></tr>
+                <tr><td colSpan={11} className="px-4 py-12 text-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads match your filters.</td></tr>
               ) : paged.map((lead, i) => {
                 const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
                 return (
@@ -947,12 +842,13 @@ export default function ReportPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[10px] font-bold text-[#2563EB] dark:text-[#4F8EF7] shrink-0">
-                          {lead.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                          {lead.name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
                         </div>
                         <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{lead.name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.phone}</td>
+                    {/* FIX #15: was rendering lead.phone (undefined) — use lead.mobile */}
+                    <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.mobile || '—'}</td>
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.source}</td>
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB]">{lead.campaign}</td>
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.agent}</td>
@@ -961,24 +857,26 @@ export default function ReportPage() {
                     </td>
                     <td className="px-4 py-3 text-[#8B92A9] dark:text-[#565C75] whitespace-nowrap">{displayDate(lead.date)}</td>
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] max-w-[160px] truncate">{lead.remark}</td>
+                    {/* FIX #16: Show call count badge in table so admin can see at a glance */}
+                    <td className="px-4 py-3">
+                      {(lead.callHistory?.length || 0) > 0 ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400">
+                          📞 {lead.callHistory.length}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257]">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        {/* Edit */}
-                        <button onClick={() => setEditLead(lead)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#2563EB] hover:text-[#2563EB] text-[#8B92A9] transition" title="Edit">
+                        <button onClick={() => setEditLead(lead)} className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#2563EB] hover:text-[#2563EB] text-[#8B92A9] transition" title="Edit">
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                         </button>
-                        {/* Delete */}
-                        <button onClick={() => setDeleteConfirm(lead)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-red-400 hover:text-red-500 text-[#8B92A9] transition" title="Delete">
+                        <button onClick={() => setDeleteConfirm(lead)} className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-red-400 hover:text-red-500 text-[#8B92A9] transition" title="Delete">
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                         </button>
-                        {/* Recording */}
-                        <button onClick={() => setRecordingLead(lead)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#7C3AED] hover:text-[#7C3AED] text-[#8B92A9] transition" title="Call Recording">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-                          </svg>
+                        <button onClick={() => setRecordingLead(lead)} className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#7C3AED] hover:text-[#7C3AED] text-[#8B92A9] transition" title="Remarks & Recordings">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
                         </button>
                       </div>
                     </td>
