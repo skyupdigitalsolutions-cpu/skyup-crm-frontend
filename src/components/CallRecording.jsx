@@ -157,9 +157,19 @@ export default function CallRecording() {
                 </div>
               </div>
               {rec.remark && <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] italic mb-2">"{rec.remark}"</p>}
-              {rec.recordingUrl
-                ? <audio controls src={audioUrl(rec.recordingUrl)} className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none"/>
-                : <p className="text-[11px] text-[#8B92A9] italic">Recording not available</p>
+              {/* recordings[] array — new schema stores multiple files per call log */}
+              {Array.isArray(rec.recordings) && rec.recordings.length > 0
+                ? rec.recordings.map((r, ri) => (
+                    <audio key={ri} controls
+                      src={audioUrl(r.url)}
+                      className="w-full h-8 rounded-xl accent-[#2563EB] mb-1"
+                      preload="none"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  ))
+                : rec.recordingUrl
+                  ? <audio controls src={audioUrl(rec.recordingUrl)} className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none"/>
+                  : <p className="text-[11px] text-[#8B92A9] italic">Recording not available</p>
               }
             </div>
           ))}
