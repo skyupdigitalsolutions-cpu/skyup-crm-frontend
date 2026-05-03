@@ -16,6 +16,7 @@ import AdminLeadsPage from "./components/AdminLeadsPage";
 import EmailHistory from "./components/EmailHistory";
 import AttendancePage from "./pages/AttendancePage";
 import WhatsAppChat from "./components/WhatsAppChat";
+import CallRecording from "./components/CallRecording";
 
 
 // ── Helper to read stored user ─────────────────────────────────────────────────
@@ -183,6 +184,13 @@ export default function App() {
         <Route path="/whatsapp" element={
           <AdminRoute>
             <AppLayout><WhatsAppChat /></AppLayout>
+          </AdminRoute>
+        }/>
+
+        {/* ── Call Recordings — admin only ── */}
+        <Route path="/call-recordings" element={
+          <AdminRoute>
+            <AppLayout><CallRecording /></AppLayout>
           </AdminRoute>
         }/>
 
