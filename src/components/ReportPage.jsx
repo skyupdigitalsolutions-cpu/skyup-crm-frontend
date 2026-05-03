@@ -475,7 +475,7 @@ function RecordingModal({ lead, onClose }) {
 
   // Recordings from both callHistory and mobile logs
   const recordingsFromHistory = allCallHistory.filter(h => h.recordingUrl);
-  const recordingsFromMobile  = mobileLogs.filter(l => l.recordingUrl);
+  const recordingsFromMobile  = mobileLogs.filter(l => l.recordings?.length > 0);
 
   const fmtDur = (sec) => {
     if (!sec) return null;
@@ -548,7 +548,7 @@ function RecordingModal({ lead, onClose }) {
                   {/* Recording attached to this callHistory entry */}
                   {h.recordingUrl && (
                     <div className="mt-2">
-                      <audio controls src={h.recordingUrl} className="w-full h-7 rounded-lg accent-[#2563EB]" />
+                      <audio controls src={`https://skyup-crm-backend.onrender.com${h.recordingUrl}`} className="w-full h-7 rounded-lg accent-[#2563EB]" />
                     </div>
                   )}
                 </div>
@@ -602,7 +602,11 @@ function RecordingModal({ lead, onClose }) {
                   {log.remark && (
                     <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic mb-1.5">"{log.remark}"</p>
                   )}
-                  <audio controls src={log.recordingUrl} className="w-full h-7 rounded-lg accent-[#2563EB]" />
+                  {(log.recordings || []).map((rec, ri) => (
+                    <audio key={ri} controls
+                      src={`http://skyup-crm-backend.onrender.com${rec.url}`}
+                      className="w-full h-7 rounded-lg accent-[#2563EB] mb-1" />
+                  ))}
                 </div>
               ))}
             </div>
