@@ -191,7 +191,7 @@ export default function AdminLeadsPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get("/leads/admin/all");
+      const res = await api.get("/lead/admin/all");
       const raw = Array.isArray(res.data) ? res.data : (res.data?.data || []);
       setAllLeads(raw.map(mapLead));
       const agentSet = new Set();
