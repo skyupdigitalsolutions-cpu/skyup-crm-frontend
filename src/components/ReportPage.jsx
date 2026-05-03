@@ -471,32 +471,44 @@ function RemarksHistoryModal({ lead, onClose }) {
 }
 
 // ── Recording & Remarks Modal ─────────────────────────────────────────────────
+// Uses the same /call-logs/recordings endpoint as CallRecording.jsx,
+// filtered client-side by the lead's phone number.
 function RecordingModal({ lead, onClose }) {
-  const [mobileLogs, setMobileLogs] = useState([]);
+  const [recordings, setRecordings] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
 
   useEffect(() => {
-    api.get(`${CALL_LOGS_API}/lead/${lead.id || lead._id}`)
+    api.get("/call-logs/recordings?page=1&limit=200")
       .then(res => {
-        const logs = Array.isArray(res.data?.logs) ? res.data.logs : [];
-        setMobileLogs(logs);
+        const all = res.data.recordings || [];
+        // Match by phone number — strip non-digits for safe comparison
+        const phone = (lead.phone || lead.mobile || "").replace(/\D/g, "");
+        const matched = phone
+          ? all.filter(r => (r.phoneNumber || "").replace(/\D/g, "").endsWith(phone) ||
+                            phone.endsWith((r.phoneNumber || "").replace(/\D/g, "")))
+          : [];
+        setRecordings(matched);
       })
-      .catch(() => setError("Failed to fetch call logs."))
+      .catch(() => setError("Failed to fetch recordings."))
       .finally(() => setLoading(false));
   }, [lead]);
 
   const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
-
-  const allCallHistory = Array.isArray(lead.callHistory) ? [...lead.callHistory] : [];
-  // FIX 4: guard rec.url before filtering
-  const recordingsFromMobile = mobileLogs.filter(l => l.recordings?.some(r => r?.url));
 
   const fmtDur = (sec) => {
     if (!sec) return null;
     const m = Math.floor(sec / 60), s = sec % 60;
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   };
+
+  const callTypeColor = (type) => ({
+    incoming: "#059669",
+    outgoing: "#2563EB",
+    missed:   "#EF4444",
+    rejected: "#F59E0B",
+    blocked:  "#64748B",
+  }[type] || "#8B92A9");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -510,7 +522,7 @@ function RecordingModal({ lead, onClose }) {
             </div>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
-              <p className="text-[12px] text-[#8B92A9] mt-0.5">{lead.phone}</p>
+              <p className="text-[12px] text-[#8B92A9] mt-0.5">{lead.phone || lead.mobile}</p>
             </div>
           </div>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
@@ -519,12 +531,12 @@ function RecordingModal({ lead, onClose }) {
         </div>
 
         {/* Lead info grid */}
-        <div className="grid grid-cols-2 gap-2 mb-4">
+        <div className="grid grid-cols-2 gap-2 mb-5">
           {[
-            { label: "Status",   value: <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${st.bg} ${st.text}`}>{lead.status}</span> },
-            { label: "Source",   value: lead.source },
-            { label: "Agent",    value: lead.agent },
-            { label: "Date",     value: lead.date },
+            { label: "Status", value: <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${st.bg} ${st.text}`}>{lead.status}</span> },
+            { label: "Source", value: lead.source },
+            { label: "Agent",  value: lead.agent },
+            { label: "Date",   value: lead.date },
           ].map(({ label, value }) => (
             <div key={label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5">
               <p className="text-[10px] font-medium text-[#8B92A9] uppercase tracking-wide mb-1">{label}</p>
@@ -533,116 +545,86 @@ function RecordingModal({ lead, onClose }) {
           ))}
         </div>
 
-        {/* ── All Remarks (CRM call history) ── */}
-        <div className="mb-4">
-          <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">
-            📋 All Remarks ({allCallHistory.length})
-          </p>
-          {allCallHistory.length === 0 ? (
-            <p className="text-[12px] text-[#8B92A9] italic px-1">No remarks recorded yet.</p>
-          ) : (
-            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-              {[...allCallHistory]
-                .sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt))
-                .map((h, i) => {
-                  const resolvedUrl = audioUrl(h.recordingUrl);
-                  return (
-                    <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5 border border-[#E4E7EF] dark:border-[#262A38]">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] font-semibold text-[#2563EB]">{h.userName || "Agent"}</span>
-                        <span className="text-[10px] text-[#8B92A9]">
-                          {h.calledAt ? new Date(h.calledAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
-                        </span>
-                      </div>
-                      {h.outcome && (
-                        <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EEF3FF] text-[#2563EB] mb-1">{h.outcome}</span>
-                      )}
-                      {h.remark ? (
-                        <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] italic">"{h.remark}"</p>
-                      ) : (
-                        <p className="text-[11px] text-[#C4C9D9] italic">No remark added</p>
-                      )}
-                      {/* FIX 2+3: preload="metadata" + onError hide */}
-                      {resolvedUrl && (
-                        <div className="mt-2">
-                          <audio
-                            controls
-                            src={resolvedUrl}
-                            className="w-full h-7 rounded-lg accent-[#2563EB]"
-                            preload="metadata"
-                            onError={(e) => { e.target.style.display = "none"; }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
+        {/* ── Mobile Call Recordings (from /call-logs/recordings) ── */}
+        <div className="flex items-center gap-2 mb-3">
+          <svg className="w-4 h-4 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+          </svg>
+          <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+            Call Recordings
+          </span>
+          {!loading && (
+            <span className="ml-auto text-[11px] text-[#8B92A9] dark:text-[#565C75] bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-full">
+              {recordings.length} {recordings.length === 1 ? "entry" : "entries"}
+            </span>
           )}
         </div>
 
-        {/* ── Mobile Call Recordings ── */}
-        <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-3.5">
-          <div className="flex items-center gap-2 mb-3">
-            <svg className="w-3.5 h-3.5 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        {loading && (
+          <div className="flex items-center gap-2 py-6 justify-center">
+            <svg className="w-4 h-4 animate-spin text-[#2563EB]" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+            <span className="text-[13px] text-[#8B92A9]">Loading recordings...</span>
+          </div>
+        )}
+
+        {!loading && error && (
+          <p className="text-[12px] text-red-500 py-4 text-center">{error}</p>
+        )}
+
+        {!loading && !error && recordings.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
+            <svg className="w-8 h-8 text-[#C4C9D9] dark:text-[#3E4257]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
             </svg>
-            <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
-              Mobile Recordings ({recordingsFromMobile.length})
-            </span>
+            <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No recordings for this lead</p>
+            <p className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257]">Recordings upload automatically after calls on the mobile app</p>
           </div>
+        )}
 
-          {loading && (
-            <div className="flex items-center gap-2 py-2">
-              <svg className="w-3.5 h-3.5 animate-spin text-[#2563EB]" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
-              <span className="text-[12px] text-[#8B92A9]">Loading call recordings...</span>
-            </div>
-          )}
-          {error && !loading && <p className="text-[12px] text-red-500 py-2">{error}</p>}
-          {!loading && !error && recordingsFromMobile.length === 0 && (
-            <div className="flex items-center gap-2 py-2">
-              <svg className="w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              <p className="text-[12px] text-[#8B92A9]">No mobile recordings uploaded for this lead.</p>
-            </div>
-          )}
-          {!loading && recordingsFromMobile.length > 0 && (
-            <div className="space-y-3">
-              {recordingsFromMobile.map((log, i) => (
-                <div key={log._id || i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
-                      {log.user?.name || "Agent"} · {log.callType}
-                    </span>
-                    <span className="text-[10px] text-[#8B92A9]">
-                      {log.timestamp ? new Date(log.timestamp).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
-                      {log.duration > 0 ? ` · ${fmtDur(log.duration)}` : ""}
-                    </span>
+        {!loading && !error && recordings.length > 0 && (
+          <div className="space-y-3">
+            {recordings.map((rec, i) => (
+              <div key={rec._id || i} className="bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl px-3 py-3">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
+                      {rec.user?.name || "Agent"}
+                    </p>
+                    <p className="text-[10px] text-[#8B92A9] mt-0.5">
+                      {rec.timestamp ? new Date(rec.timestamp).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+                      {rec.duration > 0 ? ` · ${fmtDur(rec.duration)}` : ""}
+                    </p>
                   </div>
-                  {log.remark && (
-                    <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic mb-1.5">"{log.remark}"</p>
-                  )}
-                  {/* FIX 2+3+4: filter null urls, preload="metadata", onError hide */}
-                  {(log.recordings || [])
-                    .filter(rec => rec?.url)
-                    .map((rec, ri) => (
-                      <audio
-                        key={ri}
-                        controls
-                        src={audioUrl(rec.url)}
-                        className="w-full h-7 rounded-lg accent-[#2563EB] mb-1"
-                        preload="metadata"
-                        onError={(e) => { e.target.style.display = "none"; }}
-                      />
-                    ))}
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize"
+                    style={{ backgroundColor: callTypeColor(rec.callType) + "20", color: callTypeColor(rec.callType) }}>
+                    {rec.callType || "call"}
+                  </span>
                 </div>
-              ))}
-            </div>
-          )}
+                {rec.remark && (
+                  <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] italic mb-2">"{rec.remark}"</p>
+                )}
+                {rec.recordingUrl
+                  ? <audio
+                      controls
+                      src={audioUrl(rec.recordingUrl)}
+                      className="w-full h-8 rounded-xl accent-[#2563EB]"
+                      preload="metadata"
+                      onError={(e) => { e.target.style.display = "none"; }}
+                    />
+                  : <p className="text-[11px] text-[#8B92A9] italic">Recording not available</p>
+                }
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-5 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38]">
+          <button onClick={onClose} className="w-full py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
+            Close
+          </button>
         </div>
       </div>
     </div>
