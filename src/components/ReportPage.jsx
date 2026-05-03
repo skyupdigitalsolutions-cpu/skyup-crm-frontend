@@ -7,7 +7,7 @@ import CRMEncryption from "../utils/CRMEncryption";
 
 const crm = new CRMEncryption();
 
-const CALL_LOGS_API = "/api/call-logs";
+const CALL_LOGS_API = "/call-logs";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SOURCE_COLORS = {
