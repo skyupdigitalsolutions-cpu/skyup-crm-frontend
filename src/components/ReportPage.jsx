@@ -14,9 +14,11 @@ const BACKEND_ROOT = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace(/\/api$/, "")
   : "https://skyup-crm-backend.onrender.com";
 
+// FIX 1: Force https to avoid mixed-content browser block
 function audioUrl(url) {
   if (!url) return null;
-  if (url.startsWith("http")) return url;
+  if (url.startsWith("http://")) return url.replace("http://", "https://");
+  if (url.startsWith("https://")) return url;
   return `${BACKEND_ROOT}${url}`;
 }
 
@@ -408,6 +410,7 @@ function RemarksHistoryModal({ lead, onClose }) {
           ) : sorted.map((entry, i) => {
             const outcome = entry.outcome || "No Answer";
             const os = OUTCOME_STYLE[outcome] || OUTCOME_STYLE["No Answer"];
+            const resolvedAudioUrl = audioUrl(entry.recordingUrl);
             return (
               <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-3">
                 <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -440,14 +443,15 @@ function RemarksHistoryModal({ lead, onClose }) {
                 ) : (
                   <p className="ml-8 text-[11px] text-[#C4C9D9] dark:text-[#3E4257] italic">No remark added</p>
                 )}
-                {/* FIX: Use audioUrl() helper — handles both relative paths and absolute URLs over https */}
-                {entry.recordingUrl && audioUrl(entry.recordingUrl) && (
+                {/* FIX 2: preload="metadata" instead of "none"; FIX 3: onError hides broken player */}
+                {resolvedAudioUrl && (
                   <div className="mt-2 ml-8">
                     <audio
                       controls
-                      src={audioUrl(entry.recordingUrl)}
+                      src={resolvedAudioUrl}
                       className="w-full h-7 rounded-lg accent-[#2563EB]"
-                      preload="none"
+                      preload="metadata"
+                      onError={(e) => { e.target.style.display = "none"; }}
                     />
                   </div>
                 )}
@@ -485,7 +489,8 @@ function RecordingModal({ lead, onClose }) {
   const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
 
   const allCallHistory = Array.isArray(lead.callHistory) ? [...lead.callHistory] : [];
-  const recordingsFromMobile = mobileLogs.filter(l => l.recordings?.length > 0);
+  // FIX 4: guard rec.url before filtering
+  const recordingsFromMobile = mobileLogs.filter(l => l.recordings?.some(r => r?.url));
 
   const fmtDur = (sec) => {
     if (!sec) return null;
@@ -539,35 +544,39 @@ function RecordingModal({ lead, onClose }) {
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               {[...allCallHistory]
                 .sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt))
-                .map((h, i) => (
-                <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5 border border-[#E4E7EF] dark:border-[#262A38]">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-semibold text-[#2563EB]">{h.userName || "Agent"}</span>
-                    <span className="text-[10px] text-[#8B92A9]">
-                      {h.calledAt ? new Date(h.calledAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
-                    </span>
-                  </div>
-                  {h.outcome && (
-                    <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EEF3FF] text-[#2563EB] mb-1">{h.outcome}</span>
-                  )}
-                  {h.remark ? (
-                    <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] italic">"{h.remark}"</p>
-                  ) : (
-                    <p className="text-[11px] text-[#C4C9D9] italic">No remark added</p>
-                  )}
-                  {/* FIX: Use audioUrl() — resolves relative paths correctly over https */}
-                  {h.recordingUrl && audioUrl(h.recordingUrl) && (
-                    <div className="mt-2">
-                      <audio
-                        controls
-                        src={audioUrl(h.recordingUrl)}
-                        className="w-full h-7 rounded-lg accent-[#2563EB]"
-                        preload="none"
-                      />
+                .map((h, i) => {
+                  const resolvedUrl = audioUrl(h.recordingUrl);
+                  return (
+                    <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5 border border-[#E4E7EF] dark:border-[#262A38]">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-semibold text-[#2563EB]">{h.userName || "Agent"}</span>
+                        <span className="text-[10px] text-[#8B92A9]">
+                          {h.calledAt ? new Date(h.calledAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
+                        </span>
+                      </div>
+                      {h.outcome && (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EEF3FF] text-[#2563EB] mb-1">{h.outcome}</span>
+                      )}
+                      {h.remark ? (
+                        <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] italic">"{h.remark}"</p>
+                      ) : (
+                        <p className="text-[11px] text-[#C4C9D9] italic">No remark added</p>
+                      )}
+                      {/* FIX 2+3: preload="metadata" + onError hide */}
+                      {resolvedUrl && (
+                        <div className="mt-2">
+                          <audio
+                            controls
+                            src={resolvedUrl}
+                            className="w-full h-7 rounded-lg accent-[#2563EB]"
+                            preload="metadata"
+                            onError={(e) => { e.target.style.display = "none"; }}
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
+                  );
+                })}
             </div>
           )}
         </div>
@@ -617,16 +626,19 @@ function RecordingModal({ lead, onClose }) {
                   {log.remark && (
                     <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic mb-1.5">"{log.remark}"</p>
                   )}
-                  {/* FIX: Use audioUrl() — fixes http→https and relative path issues */}
-                  {(log.recordings || []).map((rec, ri) => (
-                    <audio
-                      key={ri}
-                      controls
-                      src={audioUrl(rec.url)}
-                      className="w-full h-7 rounded-lg accent-[#2563EB] mb-1"
-                      preload="none"
-                    />
-                  ))}
+                  {/* FIX 2+3+4: filter null urls, preload="metadata", onError hide */}
+                  {(log.recordings || [])
+                    .filter(rec => rec?.url)
+                    .map((rec, ri) => (
+                      <audio
+                        key={ri}
+                        controls
+                        src={audioUrl(rec.url)}
+                        className="w-full h-7 rounded-lg accent-[#2563EB] mb-1"
+                        preload="metadata"
+                        onError={(e) => { e.target.style.display = "none"; }}
+                      />
+                    ))}
                 </div>
               ))}
             </div>
