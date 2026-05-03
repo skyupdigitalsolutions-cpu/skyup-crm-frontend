@@ -42,9 +42,9 @@ function mapLead(l) {
     email:          l.email          || "",
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
-    agent:          l.assignedTo?.name || l.agent || "Unassigned",
+    agent:          l.user?.name || l.assignedTo?.name || l.agent || "Unassigned",
     status:         l.status         || "New",
-    Quality:        l.Quality        || null,
+    Quality:        l.temperature || l.Quality || null,
     remark:         l.remark         || "",
     date:           l.date ? new Date(l.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—",
     createdAt:      l.createdAt      || l.date || null,
@@ -195,7 +195,7 @@ export default function AdminLeadsPage() {
       const raw = Array.isArray(res.data) ? res.data : (res.data?.data || []);
       setAllLeads(raw.map(mapLead));
       const agentSet = new Set();
-      raw.forEach(l => { const n = l.assignedTo?.name || l.agent; if (n) agentSet.add(n); });
+      raw.forEach(l => { const n = l.user?.name || l.assignedTo?.name || l.agent; if (n) agentSet.add(n); });
       setAgents([...agentSet]);
     } catch {
       try {
