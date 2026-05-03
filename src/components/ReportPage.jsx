@@ -9,6 +9,17 @@ const crm = new CRMEncryption();
 
 const CALL_LOGS_API = "/call-logs";
 
+// ── FIX: Centralised backend root + audio URL helper ──────────────────────────
+const BACKEND_ROOT = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace(/\/api$/, "")
+  : "https://skyup-crm-backend.onrender.com";
+
+function audioUrl(url) {
+  if (!url) return null;
+  if (url.startsWith("http")) return url;
+  return `${BACKEND_ROOT}${url}`;
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SOURCE_COLORS = {
   "Google Ads":   "#2563EB",
@@ -152,7 +163,6 @@ function AddLeadModal({ agents, onClose, onAdd }) {
     try {
       const res = await api.post(endpoint, payload);
       const saved = res.data;
-      // BUG FIX: spread saved so callHistory/scheduledCalls etc. survive
       onAdd({
         ...saved,
         id:             String(saved._id),
@@ -322,7 +332,6 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
                 } catch { /* send plain */ }
               }
               await api.put(endpoint, payload);
-              // BUG FIX: preserve all rich fields when saving edits
               onSave({ ...lead, ...form });
               onClose();
             } catch (err) {
@@ -336,13 +345,9 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
 }
 
 // ── Remarks History Panel ─────────────────────────────────────────────────────
-// BUG FIX: Original ReportPage only ever showed the single `lead.remark` string.
-// The backend stores every agent interaction in lead.callHistory[].remark.
-// This component shows the full chronological history of all remarks + outcomes.
 function RemarksHistoryModal({ lead, onClose }) {
   const callHistory = Array.isArray(lead.callHistory) ? lead.callHistory : [];
 
-  // Sort newest first
   const sorted = [...callHistory].sort(
     (a, b) => new Date(b.calledAt) - new Date(a.calledAt)
   );
@@ -383,7 +388,7 @@ function RemarksHistoryModal({ lead, onClose }) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
           </svg>
           <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-            Call History & Remarks
+            Call History &amp; Remarks
           </span>
           <span className="ml-auto text-[11px] text-[#8B92A9] dark:text-[#565C75] bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-full">
             {sorted.length} {sorted.length === 1 ? "entry" : "entries"}
@@ -435,6 +440,17 @@ function RemarksHistoryModal({ lead, onClose }) {
                 ) : (
                   <p className="ml-8 text-[11px] text-[#C4C9D9] dark:text-[#3E4257] italic">No remark added</p>
                 )}
+                {/* FIX: Use audioUrl() helper — handles both relative paths and absolute URLs over https */}
+                {entry.recordingUrl && audioUrl(entry.recordingUrl) && (
+                  <div className="mt-2 ml-8">
+                    <audio
+                      controls
+                      src={audioUrl(entry.recordingUrl)}
+                      className="w-full h-7 rounded-lg accent-[#2563EB]"
+                      preload="none"
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -451,14 +467,12 @@ function RemarksHistoryModal({ lead, onClose }) {
 }
 
 // ── Recording & Remarks Modal ─────────────────────────────────────────────────
-// Uses mobile call logs API — shows ALL remarks and recordings for a lead.
 function RecordingModal({ lead, onClose }) {
   const [mobileLogs, setMobileLogs] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
 
   useEffect(() => {
-    // Fetch mobile call logs for this lead
     api.get(`${CALL_LOGS_API}/lead/${lead.id || lead._id}`)
       .then(res => {
         const logs = Array.isArray(res.data?.logs) ? res.data.logs : [];
@@ -470,12 +484,8 @@ function RecordingModal({ lead, onClose }) {
 
   const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
 
-  // All remarks: from lead.callHistory (CRM) + from mobile call logs
   const allCallHistory = Array.isArray(lead.callHistory) ? [...lead.callHistory] : [];
-
-  // Recordings from both callHistory and mobile logs
-  const recordingsFromHistory = allCallHistory.filter(h => h.recordingUrl);
-  const recordingsFromMobile  = mobileLogs.filter(l => l.recordings?.length > 0);
+  const recordingsFromMobile = mobileLogs.filter(l => l.recordings?.length > 0);
 
   const fmtDur = (sec) => {
     if (!sec) return null;
@@ -545,10 +555,15 @@ function RecordingModal({ lead, onClose }) {
                   ) : (
                     <p className="text-[11px] text-[#C4C9D9] italic">No remark added</p>
                   )}
-                  {/* Recording attached to this callHistory entry */}
-                  {h.recordingUrl && (
+                  {/* FIX: Use audioUrl() — resolves relative paths correctly over https */}
+                  {h.recordingUrl && audioUrl(h.recordingUrl) && (
                     <div className="mt-2">
-                      <audio controls src={`https://skyup-crm-backend.onrender.com${h.recordingUrl}`} className="w-full h-7 rounded-lg accent-[#2563EB]" />
+                      <audio
+                        controls
+                        src={audioUrl(h.recordingUrl)}
+                        className="w-full h-7 rounded-lg accent-[#2563EB]"
+                        preload="none"
+                      />
                     </div>
                   )}
                 </div>
@@ -602,10 +617,15 @@ function RecordingModal({ lead, onClose }) {
                   {log.remark && (
                     <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic mb-1.5">"{log.remark}"</p>
                   )}
+                  {/* FIX: Use audioUrl() — fixes http→https and relative path issues */}
                   {(log.recordings || []).map((rec, ri) => (
-                    <audio key={ri} controls
-                      src={`http://skyup-crm-backend.onrender.com${rec.url}`}
-                      className="w-full h-7 rounded-lg accent-[#2563EB] mb-1" />
+                    <audio
+                      key={ri}
+                      controls
+                      src={audioUrl(rec.url)}
+                      className="w-full h-7 rounded-lg accent-[#2563EB] mb-1"
+                      preload="none"
+                    />
                   ))}
                 </div>
               ))}
@@ -646,7 +666,6 @@ export default function ReportPage() {
   const [editLead, setEditLead]             = useState(null);
   const [deleteConfirm, setDeleteConfirm]   = useState(null);
   const [recordingLead, setRecordingLead]   = useState(null);
-  // BUG FIX: New state for the Remarks History modal
   const [remarksLead, setRemarksLead]       = useState(null);
   const [timeFilter, setTimeFilter]         = useState("All");
   const PER_PAGE = 8;
@@ -685,7 +704,6 @@ export default function ReportPage() {
   const paged      = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const addLead  = lead    => { setLeads(ls => [lead, ...ls]); setPage(1); };
-  // BUG FIX: saveLead must merge — not replace — so callHistory etc. survive edits
   const saveLead = updated => setLeads(ls => ls.map(l => l.id === updated.id ? { ...l, ...updated } : l));
 
   const deleteLead = async (id) => {
@@ -806,7 +824,6 @@ export default function ReportPage() {
       {showAddModal  && <AddLeadModal agents={agents} onClose={() => setAddModal(false)} onAdd={addLead} />}
       {editLead      && <EditLeadModal lead={editLead} agents={agents} onClose={() => setEditLead(null)} onSave={saveLead} />}
       {recordingLead && <RecordingModal lead={recordingLead} onClose={() => setRecordingLead(null)} />}
-      {/* BUG FIX: New remarks history modal */}
       {remarksLead   && <RemarksHistoryModal lead={remarksLead} onClose={() => setRemarksLead(null)} />}
 
       {deleteConfirm && (
@@ -966,7 +983,6 @@ export default function ReportPage() {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                {/* BUG FIX: Added "Calls" column to show call count at a glance */}
                 {["#", "Lead Name", "Phone", "Source", "Campaign", "Agent", "Status", "Date", "Calls", "Remark", "Actions"].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
@@ -997,7 +1013,6 @@ export default function ReportPage() {
                       <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${st.bg} ${st.text}`}>{lead.status}</span>
                     </td>
                     <td className="px-4 py-3 text-[#8B92A9] dark:text-[#565C75] whitespace-nowrap">{displayDate(lead.date)}</td>
-                    {/* BUG FIX: Show call count — clicking opens full remarks history */}
                     <td className="px-4 py-3">
                       <button
                         onClick={() => setRemarksLead(lead)}
