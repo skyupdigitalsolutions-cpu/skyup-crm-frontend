@@ -178,7 +178,6 @@ function AttendanceMiniWidget() {
   const isOnBreak    = record?.status === "on_break" || record?.status === "idle";
   const isActive     = record?.status === "active";
 
-  // Status config for chip
   const ST = {
     active:     { dot: "bg-emerald-400", color: "text-emerald-600 dark:text-emerald-400", label: "Active",     chipBg: "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800" },
     on_break:   { dot: "bg-amber-400",   color: "text-amber-600 dark:text-amber-400",     label: "On Break",   chipBg: "bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800" },
@@ -193,40 +192,27 @@ function AttendanceMiniWidget() {
 
   return (
     <div className="relative" ref={panelRef}>
-      {/* ── Chip trigger button ── */}
       <button
         onClick={() => setPanelOpen(v => !v)}
         className={"flex items-center gap-2 h-9 px-3 rounded-xl border text-[12px] font-semibold transition-all hover:shadow-sm " + st.chipBg}
       >
-        {/* Status dot */}
         <span className={"w-2 h-2 rounded-full shrink-0 " + st.dot + (isActive ? " animate-pulse" : "")} />
-
-        {/* Clock icon */}
         <svg className={"w-3.5 h-3.5 shrink-0 " + st.color} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/>
         </svg>
-
-        {/* Label + timer */}
         <span className={st.color}>
           {notClockedIn ? "Clock In" : isClockedOut ? "Clocked Out" : isActive ? fmtMins(Math.floor(elapsed / 60)) : st.label}
         </span>
-
-        {/* Idle alert badge */}
         {idleWarning && (
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
         )}
-
-        {/* Chevron */}
         <svg className={"w-3 h-3 transition-transform " + st.color + (panelOpen ? " rotate-180" : "")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
         </svg>
       </button>
 
-      {/* ── Dropdown panel ── */}
       {panelOpen && (
         <div className="absolute right-0 top-11 z-[200] w-72 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl overflow-hidden">
-
-          {/* Panel header */}
           <div className="px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] flex items-center justify-between">
             <div>
               <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Attendance</p>
@@ -239,7 +225,6 @@ function AttendanceMiniWidget() {
             )}
           </div>
 
-          {/* Idle warning */}
           {idleWarning && (
             <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 flex items-center justify-between gap-2">
               <div>
@@ -250,7 +235,6 @@ function AttendanceMiniWidget() {
             </div>
           )}
 
-          {/* Stats */}
           {record?.loginTime && (
             <div className="grid grid-cols-3 gap-2 px-3 pt-3">
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
@@ -268,7 +252,6 @@ function AttendanceMiniWidget() {
             </div>
           )}
 
-          {/* Actions */}
           <div className="px-3 py-3 flex gap-2">
             {notClockedIn && (
               <button onClick={clockIn} className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold transition flex items-center justify-center gap-1.5">
@@ -300,7 +283,6 @@ function AttendanceMiniWidget() {
             )}
           </div>
 
-          {/* Break log */}
           {record?.breaks?.length > 0 && (
             <div className="mx-3 mb-3 border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden">
               <p className="px-3 py-2 text-[9px] font-bold text-[#8B92A9] uppercase tracking-widest bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">Break Log</p>
@@ -430,6 +412,7 @@ function getTodayStr() {
   return new Date().toISOString().split("T")[0];
 }
 
+// ── FIX: UpdateStatusModal — guard for missing ID + safer patch ───────────────
 function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
   const [remark,       setRemark]       = useState(lead.remark || "");
@@ -448,16 +431,30 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   };
 
   const handleSave = async function() {
+    // ── FIX: resolve ID with fallback chain, guard if missing ──
+    const leadId = lead.id || lead._id;
+    if (!leadId || leadId === "undefined" || leadId === "null") {
+      setError("Lead ID is missing. Please close and try again.");
+      return;
+    }
+
     setLoading(true); setError("");
     try {
       const body = { status, remark };
       if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
-      await api.patch("/lead/" + (lead.id || lead._id), body);
-      if (temp) await api.patch("/lead/" + (lead.id || lead._id) + "/Quality", { Quality: temp });
+
+      await api.patch("/lead/" + leadId, body);
+
+      // ── FIX: only call Quality patch if temp changed and is set ──
+      if (temp && temp !== lead.Quality) {
+        await api.patch("/lead/" + leadId + "/Quality", { Quality: temp });
+      }
+
       onSaved(Object.assign({}, lead, { status, remark, Quality: temp || lead.Quality }));
       onClose();
     } catch (e) {
-      setError((e.response && e.response.data && e.response.data.message) || "Failed to update");
+      const msg = e.response && e.response.data && e.response.data.message;
+      setError(msg || ("Failed to update (HTTP " + (e.response && e.response.status) + ")"));
     } finally { setLoading(false); }
   };
 
@@ -680,7 +677,23 @@ function AddLeadModal({ onClose, onAdd }) {
     try {
       const res = await api.post("/lead", { name:form.name.trim(), mobile:form.phone.trim(), source:form.source, campaign:form.campaign.trim()||null, status:form.status, date:new Date(), remark:form.remark.trim()||"Manually added" });
       const saved = res.data;
-      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
+      onAdd({
+        id:             String(saved._id),
+        _id:            String(saved._id),   // ── FIX: keep _id for fallback
+        name:           saved.name,
+        phone:          saved.mobile || "",
+        mobile:         saved.mobile || "",
+        source:         saved.source || "Web Form",
+        campaign:       saved.campaign || "—",
+        status:         saved.status,
+        Quality:        saved.Quality || null,
+        remark:         saved.remark || "",
+        date:           new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}),
+        _raw_date:      saved.date || saved.createdAt || null,
+        callHistory:    [],
+        scheduledCalls: [],
+        reassignCount:  0,
+      });
       onClose();
     } catch (err) {
       setErrors({ submit:(err.response&&err.response.data&&err.response.data.message)||"Failed to save lead." });
@@ -766,9 +779,7 @@ function UserChatWidget() {
     });
 
     socket.on("message_saved", function(data) {
-      // Update optimistic message with real _id from server
       setMessages(function(prev) {
-        // Replace the last "You" message that has no _id yet
         const idx = [...prev].reverse().findIndex(function(m){ return m.from === "You" && !m._id; });
         if (idx === -1) return prev;
         const realIdx = prev.length - 1 - idx;
@@ -783,7 +794,6 @@ function UserChatWidget() {
       setOpen(function(isOpen) { if (!isOpen) setUnread(function(n){ return n + 1; }); return isOpen; });
     });
 
-    // Real-time edit sync
     socket.on("message_edited", function({ _id, newText, editedAt }) {
       setMessages(function(prev) {
         return prev.map(function(m) {
@@ -794,7 +804,6 @@ function UserChatWidget() {
       });
     });
 
-    // Real-time delete sync
     socket.on("message_deleted", function({ _id }) {
       setMessages(function(prev) {
         return prev.map(function(m) {
@@ -816,7 +825,6 @@ function UserChatWidget() {
     const msg = message.trim();
     if (!msg || !socketRef.current) return;
     socketRef.current.emit("user_message", { message: msg, username });
-    // Optimistic: no _id yet; server will echo back 'message_saved' with _id
     setMessages(function(prev){ return prev.concat([{ from: "You", message: msg, isDeleted: false }]); });
     setMessage("");
   };
@@ -899,8 +907,6 @@ function UserChatWidget() {
                         {m.editedAt && !m.isDeleted && (
                           <span className="text-[9px] opacity-60 ml-1">(edited)</span>
                         )}
-
-                        {/* Action buttons — only for own non-deleted messages */}
                         {isYou && !m.isDeleted && m._id && (
                           <div className="absolute top-1 -left-14 hidden group-hover:flex items-center gap-1">
                             <button
@@ -964,16 +970,18 @@ function getGreeting() {
   return { text: "Good evening", emoji: "🌙" };
 }
 
+// ── FIX: mapLead now preserves both id AND _id ────────────────────────────────
 function mapLead(l) {
   return {
     id:             String(l._id),
+    _id:            String(l._id),   // ── FIX: keep _id as fallback for edit/delete
     name:           l.name           || "Unknown",
     phone:          l.mobile         || l.phone || "",
     mobile:         l.mobile         || l.phone || "",
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
     status:         l.status         || "New",
-    Quality:    l.Quality    || null,
+    Quality:        l.Quality        || null,
     remark:         l.remark         || "",
     date:           l.date ? new Date(l.date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—",
     _raw_date:      l.date           || l.createdAt || null,
@@ -1063,20 +1071,32 @@ export default function UserDashboard() {
     return leads.slice().sort(function(a,b){ return new Date(b._raw_date||0) - new Date(a._raw_date||0); }).slice(0, 8);
   }, [leads]);
 
+  // ── FIX: handleUpdate preserves id/_id through merge ─────────────────────
   const handleUpdate = function(updated) {
     if (updated._reassigned) {
       setLeads(function(prev){ return prev.filter(function(l){ return l.id !== (updated.id || updated._id); }); });
       setSelected(null);
       return;
     }
-    const mapped = updated._id ? mapLead(updated) : updated;
-    setLeads(function(prev){ return prev.map(function(l){ return l.id === mapped.id ? Object.assign({}, l, mapped) : l; }); });
-    if (selected && selected.id === mapped.id) setSelected(function(s){ return Object.assign({}, s, mapped); });
+    // If the updated object came raw from backend (has _id but no id), map it
+    const mapped = (updated._id && !updated.id) ? mapLead(updated) : updated;
+    setLeads(function(prev){
+      return prev.map(function(l){ return l.id === mapped.id ? Object.assign({}, l, mapped) : l; });
+    });
+    if (selected && selected.id === mapped.id) {
+      setSelected(function(s){ return Object.assign({}, s, mapped); });
+    }
   };
+
   const handleAddLead = function(newLead) { setLeads(function(prev){ return [newLead].concat(prev); }); setPage(1); };
+
   const handleDeleteLead = async function(id) {
-    try { await api.delete("/lead/" + id); setLeads(function(prev){ return prev.filter(function(l){ return l.id !== id; }); }); if (selected && selected.id === id) setSelected(null); }
-    catch(e) { /* silently ignore */ } finally { setDeleteConfirm(null); }
+    try {
+      await api.delete("/lead/" + id);
+      setLeads(function(prev){ return prev.filter(function(l){ return l.id !== id; }); });
+      if (selected && selected.id === id) setSelected(null);
+    } catch(e) { /* silently ignore */ }
+    finally { setDeleteConfirm(null); }
   };
 
   const [csvImporting, setCsvImporting] = useState(false);
@@ -1150,17 +1170,13 @@ export default function UserDashboard() {
             </h1>
           </div>
 
-          {/* Action buttons row */}
           <div className="flex items-center gap-2 flex-wrap">
-
-            {/* Add Lead */}
             <button onClick={function(){ setShowAddModal(true); }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               Add Lead
             </button>
 
-            {/* Import CSV + Template */}
             <div className="flex items-center rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
               <label
                 className={`flex items-center gap-2 px-4 py-2 text-[#4B5168] dark:text-[#9DA3BB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition cursor-pointer border-r border-[#E4E7EF] dark:border-[#262A38] ${csvImporting ? "opacity-60 cursor-not-allowed" : ""}`}
@@ -1181,10 +1197,8 @@ export default function UserDashboard() {
               </button>
             </div>
 
-            {/* ── Attendance Mini Widget ── */}
             <AttendanceMiniWidget />
 
-            {/* CSV result toast */}
             {csvResult && (
               <div className={`flex flex-col gap-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${csvResult.error || csvResult.saved === 0 ? "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400" : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400"}`}>
                 <div className="flex items-center gap-1.5">
@@ -1199,14 +1213,12 @@ export default function UserDashboard() {
               </div>
             )}
 
-            {/* Avatar */}
             <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[13px] font-black text-[#2563EB] dark:text-[#4F8EF7] border border-[#C7D7FF] dark:border-[#2D3A6B]">
               {initials}
             </div>
           </div>
         </div>
 
-        {/* Quick stats strip */}
         <div className="flex items-center gap-6 mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex-wrap">
           {[
             { label:"My Total Leads", value:kpi.total,          color:"text-[#0F1117] dark:text-[#F0F2FA]" },
@@ -1233,7 +1245,6 @@ export default function UserDashboard() {
           </div>
         )}
 
-        {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon="👤" />
           <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon="✅" trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
@@ -1241,7 +1252,6 @@ export default function UserDashboard() {
           <KpiCard label="Hot Leads "   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="" />
         </div>
 
-        {/* Middle row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
@@ -1297,7 +1307,6 @@ export default function UserDashboard() {
           </div>
         </div>
 
-        {/* Status filter chips */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label:"New",           count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-50 dark:bg-blue-950/30",       icon:"🆕" },
@@ -1318,7 +1327,6 @@ export default function UserDashboard() {
           ); })}
         </div>
 
-        {/* Leads / Activity tabs */}
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
           <div className="flex items-center border-b border-[#E4E7EF] dark:border-[#262A38] px-5">
             {[
