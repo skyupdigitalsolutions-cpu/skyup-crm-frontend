@@ -406,7 +406,7 @@ function getTodayStr() {
   return new Date().toISOString().split("T")[0];
 }
 
-// ── UpdateStatusModal — Quality merged into single PATCH (no /Quality route) ──
+// ── UpdateStatusModal — Quality fix: always send Quality to server ──
 function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
   const [remark,       setRemark]       = useState(lead.remark || "");
@@ -424,7 +424,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
     setStatus(val);
   };
 
-  // ── FIX: Quality merged into main PATCH body — no separate /Quality route ──
+  // ── FIX: Always send Quality to server so it persists on refresh ──
   const handleSave = async function() {
     const leadId = lead.id || lead._id;
     if (!leadId || leadId === "undefined" || leadId === "null") {
@@ -434,13 +434,22 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
 
     setLoading(true); setError("");
     try {
-      const body = { status, remark };
-      if (temp) body.Quality = temp;
-      if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
+      const body = {
+        status,
+        remark,
+        Quality: temp || null,  // ← always send; null clears it on the server
+      };
+      if (status !== "Not Interested") {
+        body.followUpDate = followUpDate || getTomorrowStr();
+      }
 
       await api.patch("/lead/" + leadId, body);
 
-      onSaved(Object.assign({}, lead, { status, remark, Quality: temp || lead.Quality }));
+      onSaved(Object.assign({}, lead, {
+        status,
+        remark,
+        Quality: temp || null,  // ← match server truth so refresh shows same value
+      }));
       onClose();
     } catch (e) {
       const msg = e.response && e.response.data && e.response.data.message;
