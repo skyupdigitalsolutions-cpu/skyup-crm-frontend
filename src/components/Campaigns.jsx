@@ -664,53 +664,6 @@ function LeadDrawer({ campaign, onClose }) {
           ))}
         </div>
 
-        {/* Email coverage bar */}
-        <div className="px-6 py-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
-              Email coverage —{" "}
-              <span className="text-[#7C3AED]">{leadsWithEmail}</span> of{" "}
-              {leads.length} leads have email
-            </span>
-            <button
-              onClick={() => setShowBulkImport(true)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] text-[11px] font-semibold hover:bg-[#dce7ff] transition"
-            >
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
-              Bulk Import Emails
-            </button>
-          </div>
-          <div className="h-1.5 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full bg-[#7C3AED] transition-all"
-              style={{
-                width:
-                  leads.length > 0
-                    ? `${Math.round((leadsWithEmail / leads.length) * 100)}%`
-                    : "0%",
-              }}
-            />
-          </div>
-          {leadsWithoutEmail > 0 && (
-            <p className="text-[10px] text-[#D97706] mt-1">
-              ⚠️ {leadsWithoutEmail} lead(s) missing email — add emails to
-              include them in campaigns
-            </p>
-          )}
-        </div>
-
         {/* Leads list */}
         <div className="px-6 py-4">
           <h3 className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-3">
@@ -4314,6 +4267,48 @@ export default function Campaigns() {
         defaultRemark: cfg.defaultRemark || "Lead from Google Ads",
       }));
 
+      // ── FIX: Fetch real lead counts for Google campaigns from the DB ─────────
+      // GoogleAdsConfig had no `leads` field, so cfg.leads was always 0.
+      // We now read the actual Lead documents (same as Website campaigns).
+      // The backend also now increments GoogleAdsConfig.leads on each webhook,
+      // so going forward cfg.leads will be correct — this fetch acts as fallback
+      // for all existing leads that were saved before the fix.
+      const googleLeadCounts = await Promise.allSettled(
+        googleList.map((cfg) =>
+          api
+            .get(`/lead/by-campaign?campaign=${encodeURIComponent(cfg.campaignName)}`)
+            .then((r) => (Array.isArray(r.data) ? r.data : r.data?.data || []).length)
+            .catch(() => cfg.leads ?? 0),
+        ),
+      );
+
+      // Re-shape Google with real counts
+      const shapedGoogleFixed = googleList.map((cfg, idx) => ({
+        _id: cfg._id,
+        _isGoogle: true,
+        id: cfg._id,
+        name: cfg.campaignName,
+        channel: "Google",
+        status: cfg.isActive ? "Active" : "Paused",
+        sent: cfg.sent ?? 0,
+        leads:
+          googleLeadCounts[idx]?.status === "fulfilled"
+            ? googleLeadCounts[idx].value
+            : cfg.leads ?? 0,
+        converted: cfg.converted ?? 0,
+        cost: cfg.cost ?? 0,
+        date: fmtDate(cfg.createdAt),
+        createdAt: cfg.createdAt,
+        color: GOOGLE_COLORS[idx % GOOGLE_COLORS.length],
+        googleKey: cfg.googleKey,
+        campaignId: cfg.campaignId || "",
+        formId: cfg.formId || "",
+        company: cfg.company,
+        isActive: cfg.isActive,
+        defaultStatus: cfg.defaultStatus || "New",
+        defaultRemark: cfg.defaultRemark || "Lead from Google Ads",
+      }));
+
       // Fetch real lead counts for each website campaign
       const websiteLeadCounts = await Promise.allSettled(
         websiteList.map((cfg) =>
@@ -4354,7 +4349,7 @@ export default function Campaigns() {
         defaultRemark: cfg.defaultRemark || "Lead from Website",
       }));
 
-      setCampaigns([...shapedMeta, ...shapedGoogle, ...shapedWebsite]);
+      setCampaigns([...shapedMeta, ...shapedGoogleFixed, ...shapedWebsite]);
     } catch (err) {
       console.error("Failed to load campaigns:", err);
       setCampaigns([]);
