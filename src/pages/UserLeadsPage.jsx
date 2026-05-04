@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import api from "../data/axiosConfig";
 
-// ── Phone masking (matches UserDailyReport style) ─────────────────────────────
-// Shows first 2 + last 2 digits, masks middle: 98•••••10
 function maskPhone(phone) {
   if (!phone) return "—";
   const digits = phone.replace(/\D/g, "");
@@ -10,22 +8,20 @@ function maskPhone(phone) {
   return digits.slice(0, 2) + "•••••" + digits.slice(-2);
 }
 
-// ── Status / Temp config ──────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  "New":            { bg: "bg-blue-100 dark:bg-blue-950/40",    text: "text-blue-600 dark:text-blue-400",    dot: "#2563EB" },
-  "In Progress":    { bg: "bg-amber-100 dark:bg-amber-950/40",  text: "text-amber-600 dark:text-amber-400",  dot: "#D97706" },
+  "New":            { bg: "bg-blue-100 dark:bg-blue-950/40",       text: "text-blue-600 dark:text-blue-400",       dot: "#2563EB" },
+  "In Progress":    { bg: "bg-amber-100 dark:bg-amber-950/40",     text: "text-amber-600 dark:text-amber-400",     dot: "#D97706" },
   "Converted":      { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-600 dark:text-emerald-400", dot: "#059669" },
-  "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",      text: "text-red-600 dark:text-red-400",      dot: "#DC2626" },
+  "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",         text: "text-red-600 dark:text-red-400",         dot: "#DC2626" },
 };
 const TEMP_CONFIG = {
   Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400",    icon: "🔥" },
   Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400",icon: "☀️" },
   Cold: { bg: "bg-blue-100 dark:bg-blue-950/40",  text: "text-blue-600 dark:text-blue-400",  icon: "❄️" },
 };
-const STATUS_OPTIONS = ["New", "In Progress", "Converted", "Not Interested"];
-const OUTCOME_OPTIONS = ["Call Back", "Interested", "Not Reachable", "Meeting Scheduled", "Demo Done", "Converted", "Not Interested"];
+const STATUS_OPTIONS   = ["New", "In Progress", "Converted", "Not Interested"];
+const OUTCOME_OPTIONS  = ["Call Back", "Interested", "Not Reachable", "Meeting Scheduled", "Demo Done", "Converted", "Not Interested"];
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtDate(iso) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -41,23 +37,30 @@ function daysSince(iso) {
 }
 
 function mapLead(l) {
+  // Check if any recording has a done transcription
+  const recs = Array.isArray(l.recordings) ? l.recordings : [];
+  const hasRecording  = recs.length > 0;
+  const hasAiSummary  = recs.some(r => r.transcribeStatus === "done" && r.summary);
+
   return {
-    id:          String(l._id),
-    name:        l.name        || "Unknown",
-    phone:       l.mobile      || l.phone || "",
-    email:       l.email       || "",
-    source:      l.source      || "—",
-    campaign:    l.campaign    || "—",
-    status:      l.status      || "New",
-    temperature: l.temperature || l.Quality || null,
-    remark:      l.remark      || "",
-    date:        fmtDate(l.date || l.createdAt),
-    _raw_date:   l.date        || l.createdAt || null,
-    callHistory: Array.isArray(l.callHistory) ? l.callHistory : [],
+    id:           String(l._id),
+    name:         l.name        || "Unknown",
+    phone:        l.mobile      || l.phone || "",
+    email:        l.email       || "",
+    source:       l.source      || "—",
+    campaign:     l.campaign    || "—",
+    status:       l.status      || "New",
+    temperature:  l.temperature || l.Quality || null,
+    remark:       l.remark      || "",
+    date:         fmtDate(l.date || l.createdAt),
+    _raw_date:    l.date        || l.createdAt || null,
+    callHistory:  Array.isArray(l.callHistory) ? l.callHistory : [],
+    hasRecording,
+    hasAiSummary,
   };
 }
 
-// ── Mini components ───────────────────────────────────────────────────────────
+// ── Badges ────────────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const s = STATUS_CONFIG[status] || STATUS_CONFIG["New"];
   return (
@@ -78,6 +81,34 @@ function TempBadge({ temp }) {
   );
 }
 
+// ── Recording icon ────────────────────────────────────────────────────────────
+function RecordingIcon({ title = "Has call recording" }) {
+  return (
+    <span title={title}
+      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400"
+    >
+      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round"
+          d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+      </svg>
+    </span>
+  );
+}
+
+// ── AI summary icon ───────────────────────────────────────────────────────────
+function AiSummaryIcon({ title = "AI summary available" }) {
+  return (
+    <span title={title}
+      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400"
+    >
+      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round"
+          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+      </svg>
+    </span>
+  );
+}
+
 // ── Update drawer ─────────────────────────────────────────────────────────────
 function UpdateDrawer({ lead, onClose, onSaved }) {
   const [status,  setStatus]  = useState(lead.status);
@@ -86,7 +117,6 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState("");
 
-  // Not Interested requires separate endpoint
   const isNI = status === "Not Interested";
 
   const handleSave = async () => {
@@ -97,11 +127,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
       if (isNI) {
         await api.patch(`/lead/${lead.id}/not-interested`, { remark: remark.trim() });
       } else {
-        await api.patch(`/lead/${lead.id}`, {
-          status,
-          remark:  remark.trim(),
-          outcome,
-        });
+        await api.patch(`/lead/${lead.id}`, { status, remark: remark.trim(), outcome });
       }
       onSaved({ ...lead, status, remark: remark.trim() });
       onClose();
@@ -116,10 +142,9 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div
-        className="w-full max-w-md bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-y-auto flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-y-auto flex flex-col"
+        onClick={e => e.stopPropagation()}>
+
         {/* Header */}
         <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-start justify-between shrink-0">
           <div>
@@ -130,15 +155,15 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
               </div>
               <div>
                 <p className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
-                <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] font-mono mt-0.5">
-                  {maskPhone(lead.phone)}
-                </p>
+                <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] font-mono mt-0.5">{maskPhone(lead.phone)}</p>
               </div>
             </div>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <StatusBadge status={lead.status} />
               {lead.temperature && <TempBadge temp={lead.temperature} />}
               <span className="text-[10px] text-[#8B92A9]">{lead.source}</span>
+              {lead.hasRecording && <RecordingIcon />}
+              {lead.hasAiSummary && <AiSummaryIcon />}
             </div>
           </div>
           <button onClick={onClose}
@@ -187,9 +212,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{h.outcome || "Call Back"}</span>
-                      <span className="text-[#8B92A9] shrink-0 text-[10px]">
-                        {h.calledAt ? fmtDate(h.calledAt) : "—"}
-                      </span>
+                      <span className="text-[#8B92A9] shrink-0 text-[10px]">{h.calledAt ? fmtDate(h.calledAt) : "—"}</span>
                     </div>
                     <p className="text-[#4B5168] dark:text-[#9DA3BB] italic truncate">{h.remark || "—"}</p>
                   </div>
@@ -208,7 +231,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Status</label>
             <div className="grid grid-cols-2 gap-2">
               {STATUS_OPTIONS.map(s => {
-                const sc2 = STATUS_CONFIG[s];
+                const sc2   = STATUS_CONFIG[s];
                 const active = status === s;
                 return (
                   <button key={s} onClick={() => setStatus(s)}
@@ -225,7 +248,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             </div>
           </div>
 
-          {/* Outcome (only when not NI) */}
+          {/* Outcome */}
           {!isNI && (
             <div>
               <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Call Outcome</label>
@@ -268,10 +291,8 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
             {saving
               ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saving…</>
-              : <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
-                  Save Update
-                </>}
+              : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Save Update</>
+            }
           </button>
         </div>
       </div>
@@ -298,9 +319,8 @@ export default function UserLeadsPage() {
   const [leads,    setLeads]    = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState("");
-  const [selected, setSelected] = useState(null); // lead open in drawer
+  const [selected, setSelected] = useState(null);
 
-  // Filters
   const [search,     setSearch]     = useState("");
   const [filterSt,   setFilterSt]   = useState("All");
   const [filterTemp, setFilterTemp] = useState("All");
@@ -324,17 +344,14 @@ export default function UserLeadsPage() {
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
-  // After save, update lead in local state
   const handleSaved = useCallback((updated) => {
     setLeads(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l));
   }, []);
 
-  // Unique sources
   const sources = useMemo(() =>
     [...new Set(leads.map(l => l.source).filter(s => s && s !== "—"))],
   [leads]);
 
-  // KPIs
   const kpi = useMemo(() => ({
     total:      leads.length,
     newLeads:   leads.filter(l => l.status === "New").length,
@@ -344,14 +361,13 @@ export default function UserLeadsPage() {
     hot:        leads.filter(l => l.temperature === "Hot").length,
   }), [leads]);
 
-  // Filtered + sorted
   const displayed = useMemo(() => {
     let res = leads.filter(l => {
-      const q = search.toLowerCase();
+      const q           = search.toLowerCase();
       const matchSearch = !q || l.name.toLowerCase().includes(q) || l.source.toLowerCase().includes(q) || l.campaign.toLowerCase().includes(q);
-      const matchSt     = filterSt   === "All" || l.status      === filterSt;
-      const matchTemp   = filterTemp === "All" || l.temperature  === filterTemp;
-      const matchSrc    = filterSrc  === "All" || l.source       === filterSrc;
+      const matchSt     = filterSt   === "All" || l.status     === filterSt;
+      const matchTemp   = filterTemp === "All" || l.temperature === filterTemp;
+      const matchSrc    = filterSrc  === "All" || l.source      === filterSrc;
       return matchSearch && matchSt && matchTemp && matchSrc;
     });
     return res.slice().sort((a, b) => {
@@ -369,7 +385,6 @@ export default function UserLeadsPage() {
   const clearFilters = () => {
     setSearch(""); setFilterSt("All"); setFilterTemp("All"); setFilterSrc("All"); setPage(1);
   };
-
   const hasFilter = search || filterSt !== "All" || filterTemp !== "All" || filterSrc !== "All";
 
   const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition";
@@ -377,7 +392,7 @@ export default function UserLeadsPage() {
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-6 py-8">
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">My Leads</h1>
@@ -394,20 +409,19 @@ export default function UserLeadsPage() {
         </button>
       </div>
 
-      {/* ── KPI pills ───────────────────────────────────────────────────── */}
+      {/* KPI pills */}
       <div className="flex flex-wrap gap-2 mb-6">
         {[
-          { label: "Total",         value: kpi.total,      color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30",    text: "text-blue-700 dark:text-blue-300",    filter: "All" },
-          { label: "New",           value: kpi.newLeads,   color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30",    text: "text-blue-600 dark:text-blue-400",    filter: "New" },
-          { label: "In Progress",   value: kpi.inProgress, color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30",  text: "text-amber-600 dark:text-amber-400",  filter: "In Progress" },
-          { label: "Converted",     value: kpi.converted,  color: "#059669", bg: "bg-emerald-50 dark:bg-emerald-950/30", text: "text-emerald-600 dark:text-emerald-400", filter: "Converted" },
-          { label: "Not Interested",value: kpi.notInt,     color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30",     text: "text-red-600 dark:text-red-400",      filter: "Not Interested" },
+          { label: "Total",          value: kpi.total,      color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30",       text: "text-blue-700 dark:text-blue-300",       filter: "All"           },
+          { label: "New",            value: kpi.newLeads,   color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30",       text: "text-blue-600 dark:text-blue-400",       filter: "New"           },
+          { label: "In Progress",    value: kpi.inProgress, color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30",     text: "text-amber-600 dark:text-amber-400",     filter: "In Progress"   },
+          { label: "Converted",      value: kpi.converted,  color: "#059669", bg: "bg-emerald-50 dark:bg-emerald-950/30", text: "text-emerald-600 dark:text-emerald-400", filter: "Converted"     },
+          { label: "Not Interested", value: kpi.notInt,     color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30",         text: "text-red-600 dark:text-red-400",         filter: "Not Interested"},
         ].map(s => (
           <KpiPill key={s.label} {...s}
             active={filterSt === s.filter}
             onClick={() => { setFilterSt(filterSt === s.filter ? "All" : s.filter); setPage(1); }} />
         ))}
-
         {kpi.hot > 0 && (
           <button
             onClick={() => { setFilterTemp(filterTemp === "Hot" ? "All" : "Hot"); setPage(1); }}
@@ -419,10 +433,9 @@ export default function UserLeadsPage() {
         )}
       </div>
 
-      {/* ── Filters ─────────────────────────────────────────────────────── */}
+      {/* Filters */}
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-4 mb-4">
         <div className="flex flex-wrap gap-3 items-center">
-          {/* Search */}
           <div className="relative flex-1 min-w-[180px]">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -431,27 +444,20 @@ export default function UserLeadsPage() {
               placeholder="Search name, source, campaign…"
               className={INP + " pl-9 w-full"} />
           </div>
-
-          {/* Source */}
           <select value={filterSrc} onChange={e => { setFilterSrc(e.target.value); setPage(1); }} className={INP}>
             <option value="All">All sources</option>
             {sources.map(s => <option key={s}>{s}</option>)}
           </select>
-
-          {/* Temperature */}
           <select value={filterTemp} onChange={e => { setFilterTemp(e.target.value); setPage(1); }} className={INP}>
             <option value="All">All quality</option>
             <option>Hot</option><option>Warm</option><option>Cold</option>
           </select>
-
-          {/* Sort */}
           <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={INP}>
             <option value="date_desc">Newest first</option>
             <option value="date_asc">Oldest first</option>
             <option value="name_asc">Name A–Z</option>
             <option value="status">By status</option>
           </select>
-
           {hasFilter && (
             <button onClick={clearFilters}
               className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[12px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition">
@@ -466,7 +472,7 @@ export default function UserLeadsPage() {
         </p>
       </div>
 
-      {/* ── Error ───────────────────────────────────────────────────────── */}
+      {/* Error */}
       {error && (
         <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-[12px]">
           <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -477,7 +483,7 @@ export default function UserLeadsPage() {
         </div>
       )}
 
-      {/* ── Table ───────────────────────────────────────────────────────── */}
+      {/* Table */}
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-[#8B92A9]">
@@ -506,7 +512,8 @@ export default function UserLeadsPage() {
               <table className="w-full text-[12px]">
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Lead", "Phone 📵", "Source / Campaign", "Date", "Status", "Quality", "Calls", ""].map(h => (
+                    {/* Removed last empty "" column — no more edit button column */}
+                    {["Lead", "Phone 📵", "Source / Campaign", "Date", "Status", "Quality", "Calls", "Media"].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -516,7 +523,7 @@ export default function UserLeadsPage() {
                     const sc = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
                     return (
                       <tr key={l.id}
-                        className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition cursor-pointer group"
+                        className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition cursor-pointer"
                         onClick={() => setSelected(l)}>
 
                         {/* Name */}
@@ -533,7 +540,7 @@ export default function UserLeadsPage() {
                           </div>
                         </td>
 
-                        {/* Phone — MASKED */}
+                        {/* Phone — masked */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             <span className="font-mono text-[#4B5168] dark:text-[#9DA3BB] tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[11px]">
@@ -577,17 +584,17 @@ export default function UserLeadsPage() {
                           )}
                         </td>
 
-                        {/* Update button */}
+                        {/* ── Media icons (recording + AI summary) ── */}
                         <td className="px-4 py-3">
-                          <button
-                            onClick={e => { e.stopPropagation(); setSelected(l); }}
-                            className="px-2.5 py-1.5 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] text-[10px] font-bold opacity-0 group-hover:opacity-100 transition flex items-center gap-1 whitespace-nowrap">
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                            </svg>
-                            Update
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            {l.hasRecording  && <RecordingIcon />}
+                            {l.hasAiSummary  && <AiSummaryIcon />}
+                            {!l.hasRecording && !l.hasAiSummary && (
+                              <span className="text-[11px] text-[#8B92A9]">—</span>
+                            )}
+                          </div>
                         </td>
+
                       </tr>
                     );
                   })}
@@ -626,18 +633,14 @@ export default function UserLeadsPage() {
         )}
       </div>
 
-      {/* Masking notice footer */}
+      {/* Footer note */}
       <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] text-center mt-4">
         📵 Phone numbers are masked — only your admin can see full numbers · Updates are saved to your call history
       </p>
 
-      {/* Update drawer */}
+      {/* Drawer */}
       {selected && (
-        <UpdateDrawer
-          lead={selected}
-          onClose={() => setSelected(null)}
-          onSaved={handleSaved}
-        />
+        <UpdateDrawer lead={selected} onClose={() => setSelected(null)} onSaved={handleSaved} />
       )}
     </div>
   );
