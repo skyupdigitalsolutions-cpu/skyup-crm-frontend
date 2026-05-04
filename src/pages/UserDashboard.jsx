@@ -468,10 +468,11 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const handleSave = async function() {
     setLoading(true); setError("");
     try {
+      // Send status, remark, outcome and temperature all in one PATCH call
       const body = { status, remark, outcome };
+      if (temp) body.temperature = temp;  // backend patchLead handles temperature field
       if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
       await api.patch("/lead/" + (lead.id || lead._id), body);
-      if (temp) await api.patch("/lead/" + (lead.id || lead._id) + "/Quality", { Quality: temp });
       onSaved(Object.assign({}, lead, {
         status,
         remark,
