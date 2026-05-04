@@ -34,8 +34,8 @@ const TEMP_STYLE = {
   Cold: { bg: "bg-blue-50 dark:bg-blue-900/20",     text: "text-blue-500 dark:text-blue-400",     dot: "bg-blue-400" },
 };
 
-const STATUS_OPTIONS   = ["New", "In Progress", "Converted", "Not Interested"];
-const OUTCOME_OPTIONS  = ["Call Back", "Interested", "Not Reachable", "Meeting Scheduled", "Demo Done", "Converted", "Not Interested"];
+const STATUS_OPTIONS  = ["New", "In Progress", "Converted", "Not Interested"];
+const OUTCOME_OPTIONS = ["Call Back", "Interested", "Not Reachable", "Meeting Scheduled", "Demo Done", "Converted", "Not Interested"];
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -53,22 +53,22 @@ function daysSince(iso) {
 
 function mapLead(l) {
   const recs = Array.isArray(l.recordings) ? l.recordings : [];
-  const hasRecording  = recs.length > 0;
-  const hasAiSummary  = recs.some(r => r.transcribeStatus === "done" && r.summary);
+  const hasRecording = recs.length > 0;
+  const hasAiSummary = recs.some(r => r.transcribeStatus === "done" && r.summary);
   return {
-    id:           String(l._id),
-    name:         l.name        || "Unknown",
-    phone:        l.mobile      || l.phone || "",
-    email:        l.email       || "",
-    source:       l.source      || "—",
-    campaign:     l.campaign    || "—",
-    status:       l.status      || "New",
-    temperature:  l.temperature || l.Quality || null,
-    remark:       l.remark      || "",
-    date:         fmtDate(l.date || l.createdAt),
-    _raw_date:    l.date        || l.createdAt || null,
-    callHistory:  Array.isArray(l.callHistory) ? l.callHistory : [],
-    recordings:   recs,
+    id:          String(l._id),
+    name:        l.name        || "Unknown",
+    phone:       l.mobile      || l.phone || "",
+    email:       l.email       || "",
+    source:      l.source      || "—",
+    campaign:    l.campaign    || "—",
+    status:      l.status      || "New",
+    temperature: l.temperature || l.Quality || null,
+    remark:      l.remark      || "",
+    date:        fmtDate(l.date || l.createdAt),
+    _raw_date:   l.date        || l.createdAt || null,
+    callHistory: Array.isArray(l.callHistory) ? l.callHistory : [],
+    recordings:  recs,
     hasRecording,
     hasAiSummary,
   };
@@ -95,34 +95,8 @@ function TempBadge({ temp }) {
   );
 }
 
-// ── Recording icon ────────────────────────────────────────────────────────────
-function RecordingIcon({ title = "Has call recording" }) {
-  return (
-    <span title={title}
-      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400">
-      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round"
-          d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-      </svg>
-    </span>
-  );
-}
-
-// ── AI summary icon ───────────────────────────────────────────────────────────
-function AiSummaryIcon({ title = "AI summary available" }) {
-  return (
-    <span title={title}
-      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
-      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round"
-          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-      </svg>
-    </span>
-  );
-}
-
-// ── Transcription panel (for each recording) ──────────────────────────────────
-function TranscriptionPanel({ leadId, recording, contactName }) {
+// ── TranscriptionPanel ────────────────────────────────────────────────────────
+function TranscriptionPanel({ callLogId, recording, contactName }) {
   const [status,     setStatus]     = useState(recording.transcribeStatus || "pending");
   const [transcript, setTranscript] = useState(recording.transcript || null);
   const [summary,    setSummary]    = useState(recording.summary    || null);
@@ -134,7 +108,7 @@ function TranscriptionPanel({ leadId, recording, contactName }) {
     if (status !== "processing") return;
     const interval = setInterval(async () => {
       try {
-        const res = await api.get(`/transcription/mobile/${leadId}/${recId}`);
+        const res = await api.get(`/transcription/mobile/${callLogId}/${recId}`);
         const s = res.data.transcribeStatus;
         setStatus(s);
         if (s === "done") {
@@ -148,13 +122,13 @@ function TranscriptionPanel({ leadId, recording, contactName }) {
       } catch { /* keep polling */ }
     }, 3000);
     return () => clearInterval(interval);
-  }, [status, leadId, recId]);
+  }, [status, callLogId, recId]);
 
   const handleTranscribe = async () => {
     setStatus("processing");
     setError(null);
     try {
-      const res = await api.post(`/transcription/mobile/${leadId}/${recId}`, {
+      const res = await api.post(`/transcription/mobile/${callLogId}/${recId}`, {
         contactName: contactName || "the customer",
       });
       setStatus("done");
@@ -168,12 +142,11 @@ function TranscriptionPanel({ leadId, recording, contactName }) {
 
   if (status === "pending") {
     return (
-      <div className="mt-1.5">
+      <div className="mt-2">
         <button onClick={handleTranscribe}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] hover:bg-[#DBEAFE] dark:hover:bg-[#1E2E55] transition">
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-[#DBEAFE] transition">
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
           </svg>
           AI Transcribe &amp; Summarize
         </button>
@@ -183,7 +156,7 @@ function TranscriptionPanel({ leadId, recording, contactName }) {
 
   if (status === "processing") {
     return (
-      <div className="mt-1.5 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#F1F4FF] dark:bg-[#1A2540]">
+      <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#F1F4FF] dark:bg-[#1A2540]">
         <svg className="w-3.5 h-3.5 animate-spin text-[#2563EB]" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
@@ -195,7 +168,7 @@ function TranscriptionPanel({ leadId, recording, contactName }) {
 
   if (status === "failed") {
     return (
-      <div className="mt-1.5 space-y-1.5">
+      <div className="mt-2 space-y-1.5">
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20">
           <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -216,13 +189,12 @@ function TranscriptionPanel({ leadId, recording, contactName }) {
   return (
     <div className="mt-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
       <button onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center justify-between px-3 py-2.5 bg-[#F1F4FF] dark:bg-[#1A2540] hover:bg-[#EEF3FF] dark:hover:bg-[#1E2E55] transition">
+        className="w-full flex items-center justify-between px-3 py-2.5 bg-[#F1F4FF] dark:bg-[#1A2540] hover:bg-[#EEF3FF] transition">
         <div className="flex items-center gap-2 flex-wrap">
           <svg className="w-3.5 h-3.5 text-[#2563EB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
           </svg>
-          <span className="text-[11px] font-bold text-[#2563EB] dark:text-[#4F8EF7]">AI Summary</span>
+          <span className="text-[11px] font-bold text-[#2563EB]">AI Summary</span>
           {sent && (
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
           )}
@@ -238,7 +210,6 @@ function TranscriptionPanel({ leadId, recording, contactName }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
         </svg>
       </button>
-
       {expanded && (
         <div className="px-3 py-3 space-y-3 bg-white dark:bg-[#13161E]">
           {summary?.summary && (
@@ -292,11 +263,38 @@ function TranscriptionPanel({ leadId, recording, contactName }) {
   );
 }
 
-// ── Recordings panel (shown inside the drawer when lead has recordings) ────────
-function RecordingsPanel({ lead }) {
-  const [open, setOpen] = useState(false);
-  const recs = lead.recordings || [];
-  if (recs.length === 0) return null;
+// ── RecordingsTab — fetches from /call-logs/recordings, filters by this lead ──
+function RecordingsTab({ lead }) {
+  const [callLogs, setCallLogs] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
+
+  const fetchCallLogs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch with a large limit so we capture all call logs for this lead
+      const res = await api.get("/call-logs/recordings?page=1&limit=200");
+      const all = res.data.recordings || [];
+
+      // Match by lead ID or by last-6-digits of phone number
+      const phone6 = lead.phone ? lead.phone.replace(/\D/g, "").slice(-6) : null;
+      const matched = all.filter(r => {
+        const byId    = r.matchedLead && String(r.matchedLead._id) === String(lead.id);
+        const byPhone = phone6 && r.phoneNumber &&
+          r.phoneNumber.replace(/\D/g, "").endsWith(phone6);
+        return byId || byPhone;
+      });
+
+      setCallLogs(matched);
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to load recordings.");
+    } finally {
+      setLoading(false);
+    }
+  }, [lead.id, lead.phone]);
+
+  useEffect(() => { fetchCallLogs(); }, [fetchCallLogs]);
 
   const audioUrl = (url) => {
     if (!url) return null;
@@ -304,119 +302,186 @@ function RecordingsPanel({ lead }) {
     return `${BACKEND_ROOT}${url}`;
   };
 
-  return (
-    <div className="border-b border-[#E4E7EF] dark:border-[#262A38] shrink-0">
-      {/* Section toggle button */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-6 py-3 hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition"
-      >
-        <div className="flex items-center gap-2">
-          {/* Mic icon */}
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400">
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round"
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-            </svg>
-          </span>
-          <span className="text-[12px] font-bold text-[#4B5168] dark:text-[#9DA3BB]">
-            Call Recordings
-          </span>
-          <span className="text-[10px] font-semibold bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 px-2 py-0.5 rounded-full">
-            {recs.length}
-          </span>
-          {/* AI badge if any have summaries */}
-          {lead.hasAiSummary && (
-            <span className="flex items-center gap-1 text-[10px] font-semibold bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-full">
-              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round"
-                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-              </svg>
-              AI Ready
-            </span>
-          )}
-        </div>
-        <svg className={`w-3.5 h-3.5 text-[#8B92A9] transition-transform ${open ? "rotate-180" : ""}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
+  const fmtDuration = (sec) => {
+    if (!sec) return "—";
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
+
+  const callTypeColor = (type) => ({
+    incoming: "#059669",
+    outgoing: "#2563EB",
+    missed:   "#EF4444",
+    rejected: "#F59E0B",
+    blocked:  "#64748B",
+  }[type] || "#8B92A9");
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-[#8B92A9]">
+        <svg className="w-5 h-5 animate-spin text-[#2563EB]" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
         </svg>
-      </button>
+        <span className="text-[13px]">Loading recordings…</span>
+      </div>
+    );
+  }
 
-      {open && (
-        <div className="px-6 pb-4 space-y-4">
-          {recs.map((r, i) => (
-            <div key={r._id || i}
-              className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] overflow-hidden">
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <p className="text-[13px] text-red-500">{error}</p>
+        <button onClick={fetchCallLogs} className="text-[12px] text-[#2563EB] underline">Retry</button>
+      </div>
+    );
+  }
 
-              {/* Recording header */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-md bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 flex items-center justify-center text-[10px] font-black">
-                    {i + 1}
-                  </span>
-                  <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
-                    Recording {i + 1}
-                  </span>
-                </div>
-                {/* Status badge */}
-                {r.transcribeStatus === "done" ? (
-                  <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
-                    </svg>
-                    Transcribed
-                  </span>
-                ) : r.transcribeStatus === "processing" ? (
-                  <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full">
-                    Processing…
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-semibold text-[#8B92A9] bg-[#F1F4FF] dark:bg-[#1E2130] px-2 py-0.5 rounded-full">
-                    Not transcribed
-                  </span>
+  if (callLogs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 px-6 text-center">
+        <svg className="w-10 h-10 text-[#E4E7EF] dark:text-[#262A38]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round"
+            d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+        </svg>
+        <p className="text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No recordings found</p>
+        <p className="text-[11px] text-[#8B92A9]">
+          Recordings upload automatically from the mobile app after calls.
+        </p>
+        <button onClick={fetchCallLogs}
+          className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] transition">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 py-4 space-y-5">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">
+          {callLogs.length} Call Log{callLogs.length > 1 ? "s" : ""} with Recordings
+        </p>
+        <button onClick={fetchCallLogs}
+          className="w-6 h-6 flex items-center justify-center rounded-lg bg-[#F1F4FF] dark:bg-[#1E2130] text-[#2563EB] hover:bg-[#EEF3FF] transition" title="Refresh">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </button>
+      </div>
+
+      {callLogs.map((log, li) => (
+        <div key={log._id || li} className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+
+          {/* Call log header */}
+          <div className="flex items-center justify-between px-3 py-2.5 bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-md bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 flex items-center justify-center text-[10px] font-black shrink-0">
+                {li + 1}
+              </span>
+              <div>
+                <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
+                  {new Date(log.timestamp).toLocaleString("en-IN", {
+                    day: "2-digit", month: "short", year: "numeric",
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                </p>
+                {log.user?.name && (
+                  <p className="text-[10px] text-[#8B92A9] mt-0.5">Agent: {log.user.name}</p>
                 )}
-              </div>
-
-              {/* Audio player */}
-              <div className="px-3 pt-2 pb-1">
-                {r.url ? (
-                  <audio
-                    controls
-                    src={audioUrl(r.url)}
-                    className="w-full h-8 rounded-xl accent-[#2563EB]"
-                    preload="none"
-                    onError={e => { e.target.style.display = "none"; }}
-                  />
-                ) : (
-                  <p className="text-[11px] text-[#8B92A9] italic py-1">Audio not available</p>
-                )}
-              </div>
-
-              {/* Transcription panel — note: uses lead.id as callLogId */}
-              <div className="px-3 pb-3">
-                <TranscriptionPanel
-                  leadId={lead.id}
-                  recording={r}
-                  contactName={lead.name}
-                />
               </div>
             </div>
-          ))}
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize"
+                style={{ backgroundColor: callTypeColor(log.callType) + "20", color: callTypeColor(log.callType) }}>
+                {log.callType || "call"}
+              </span>
+              <span className="flex items-center gap-1 text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                {fmtDuration(log.duration)}
+              </span>
+            </div>
+          </div>
+
+          {log.remark && (
+            <div className="px-3 py-2 border-b border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]">
+              <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] italic">"{log.remark}"</p>
+            </div>
+          )}
+
+          {/* Recordings inside this call log */}
+          <div className="p-3 space-y-3 bg-white dark:bg-[#1A1D27]">
+            {Array.isArray(log.recordings) && log.recordings.length > 0 ? (
+              log.recordings.map((r, ri) => (
+                <div key={r._id || ri}
+                  className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden bg-[#F8F9FC] dark:bg-[#13161E]">
+
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
+                    <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
+                      Recording {ri + 1}
+                    </span>
+                    {r.transcribeStatus === "done" ? (
+                      <span className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded-full">
+                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Transcribed
+                      </span>
+                    ) : r.transcribeStatus === "processing" ? (
+                      <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full">Processing…</span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-[#8B92A9] bg-[#F1F4FF] dark:bg-[#1E2130] px-2 py-0.5 rounded-full">Not transcribed</span>
+                    )}
+                  </div>
+
+                  <div className="px-3 pt-2.5 pb-1">
+                    {r.url ? (
+                      <audio controls src={audioUrl(r.url)}
+                        className="w-full h-8 rounded-xl accent-[#2563EB]"
+                        preload="none"
+                        onError={e => { e.target.style.display = "none"; }}
+                      />
+                    ) : (
+                      <p className="text-[11px] text-[#8B92A9] italic py-1">Audio file not available</p>
+                    )}
+                  </div>
+
+                  <div className="px-3 pb-3">
+                    <TranscriptionPanel
+                      callLogId={log._id}
+                      recording={r}
+                      contactName={lead.name}
+                    />
+                  </div>
+                </div>
+              ))
+            ) : log.recordingUrl ? (
+              <div className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] p-3 bg-[#F8F9FC] dark:bg-[#13161E]">
+                <audio controls src={audioUrl(log.recordingUrl)}
+                  className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none"/>
+              </div>
+            ) : (
+              <p className="text-[11px] text-[#8B92A9] italic">Recording file not available</p>
+            )}
+          </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }
 
 // ── Update drawer ─────────────────────────────────────────────────────────────
 function UpdateDrawer({ lead, onClose, onSaved }) {
-  const [status,  setStatus]  = useState(lead.status);
-  const [remark,  setRemark]  = useState("");
-  const [outcome, setOutcome] = useState("Call Back");
-  const [saving,  setSaving]  = useState(false);
-  const [error,   setError]   = useState("");
-
-  // Tab state: "update" | "recordings"
+  const [status,    setStatus]    = useState(lead.status);
+  const [remark,    setRemark]    = useState("");
+  const [outcome,   setOutcome]   = useState("Call Back");
+  const [saving,    setSaving]    = useState(false);
+  const [error,     setError]     = useState("");
   const [activeTab, setActiveTab] = useState("update");
 
   const isNI = status === "Not Interested";
@@ -441,7 +506,6 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
   };
 
   const sc = STATUS_CONFIG[status] || STATUS_CONFIG["New"];
-  const hasMedia = lead.hasRecording || lead.hasAiSummary;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -465,8 +529,6 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
               <StatusBadge status={lead.status} />
               {lead.temperature && <TempBadge temp={lead.temperature} />}
               <span className="text-[10px] text-[#8B92A9]">{lead.source}</span>
-              {lead.hasRecording && <RecordingIcon />}
-              {lead.hasAiSummary && <AiSummaryIcon />}
             </div>
           </div>
           <button onClick={onClose}
@@ -492,55 +554,36 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
           ))}
         </div>
 
-        {/* ── Tab switcher (only if this lead has recordings) ─── */}
-        {hasMedia && (
-          <div className="px-6 pt-3 pb-0 shrink-0 flex gap-1 border-b border-[#E4E7EF] dark:border-[#262A38]">
-            {[
-              { id: "update",     label: "Update Lead", icon: (
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-              )},
-              { id: "recordings", label: "Recordings & AI", icon: (
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round"
-                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-                </svg>
-              ), badge: lead.recordings.length },
-            ].map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold border-b-2 transition -mb-px ${
-                  activeTab === tab.id
-                    ? "border-[#2563EB] text-[#2563EB]"
-                    : "border-transparent text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#9DA3BB]"
-                }`}>
-                {tab.icon}
-                {tab.label}
-                {tab.badge != null && (
-                  <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
-                    activeTab === tab.id
-                      ? "bg-[#2563EB] text-white"
-                      : "bg-[#F1F4FF] dark:bg-[#1E2130] text-[#8B92A9]"
-                  }`}>{tab.badge}</span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Tab bar — always visible */}
+        <div className="px-6 shrink-0 flex border-b border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]">
+          {[
+            { id: "update", label: "Update Lead",
+              icon: <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg> },
+            { id: "recordings", label: "Recordings & AI",
+              icon: <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg> },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-3 text-[12px] font-semibold border-b-2 transition -mb-px ${
+                activeTab === tab.id
+                  ? "border-[#2563EB] text-[#2563EB]"
+                  : "border-transparent text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#9DA3BB]"
+              }`}>
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        {/* ── Tab: Update ─────────────────────────────────────── */}
+        {/* ── Tab: Update ───────────────────────────────────── */}
         {activeTab === "update" && (
           <div className="flex flex-col flex-1 overflow-hidden">
             <div className="flex-1 overflow-y-auto">
-              {/* Last remark */}
               {lead.remark && (
                 <div className="px-6 py-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
                   <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Last Remark</p>
                   <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] italic">"{lead.remark}"</p>
                 </div>
               )}
-
-              {/* Call history */}
               {lead.callHistory.length > 0 && (
                 <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
                   <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">
@@ -564,12 +607,8 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                   </div>
                 </div>
               )}
-
-              {/* Update form */}
               <div className="px-6 py-5 space-y-4">
                 <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Update Lead</p>
-
-                {/* Status */}
                 <div>
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Status</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -590,8 +629,6 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                     })}
                   </div>
                 </div>
-
-                {/* Outcome */}
                 {!isNI && (
                   <div>
                     <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Call Outcome</label>
@@ -601,12 +638,10 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                     </select>
                   </div>
                 )}
-
-                {/* Remark */}
                 <div>
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
                     Remark <span className="text-red-500">*</span>
-                    {isNI && <span className="ml-1 font-normal text-[10px] text-[#8B92A9]">(reason required for Not Interested)</span>}
+                    {isNI && <span className="ml-1 font-normal text-[10px] text-[#8B92A9]">(reason required)</span>}
                   </label>
                   <textarea
                     value={remark}
@@ -616,7 +651,6 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                     className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition resize-none"
                   />
                 </div>
-
                 {error && (
                   <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5 text-[12px] text-red-600 dark:text-red-400">
                     ⚠️ {error}
@@ -624,8 +658,6 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 )}
               </div>
             </div>
-
-            {/* Footer */}
             <div className="px-6 pb-6 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-3 shrink-0">
               <button onClick={onClose}
                 className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
@@ -642,88 +674,10 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
           </div>
         )}
 
-        {/* ── Tab: Recordings & AI ─────────────────────────────── */}
+        {/* ── Tab: Recordings & AI ──────────────────────────── */}
         {activeTab === "recordings" && (
           <div className="flex-1 overflow-y-auto">
-            {lead.recordings.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3 text-[#8B92A9]">
-                <svg className="w-10 h-10 text-[#E4E7EF] dark:text-[#262A38]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round"
-                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-                </svg>
-                <p className="text-[13px]">No recordings for this lead</p>
-              </div>
-            ) : (
-              <div className="px-6 py-4 space-y-4">
-                <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">
-                  {lead.recordings.length} Recording{lead.recordings.length > 1 ? "s" : ""}
-                </p>
-                {lead.recordings.map((r, i) => {
-                  const audioUrl = (url) => {
-                    if (!url) return null;
-                    if (url.startsWith("http")) return url;
-                    return `${BACKEND_ROOT}${url}`;
-                  };
-                  return (
-                    <div key={r._id || i}
-                      className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] overflow-hidden">
-
-                      {/* Recording header */}
-                      <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#E4E7EF] dark:border-[#262A38]">
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-md bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 flex items-center justify-center text-[10px] font-black">
-                            {i + 1}
-                          </span>
-                          <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
-                            Recording {i + 1}
-                          </span>
-                        </div>
-                        {r.transcribeStatus === "done" ? (
-                          <span className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded-full">
-                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            Transcribed
-                          </span>
-                        ) : r.transcribeStatus === "processing" ? (
-                          <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full">
-                            Processing…
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-semibold text-[#8B92A9] bg-[#F1F4FF] dark:bg-[#1E2130] px-2 py-0.5 rounded-full">
-                            Not transcribed
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Audio player */}
-                      <div className="px-3 pt-2.5 pb-1">
-                        {r.url ? (
-                          <audio
-                            controls
-                            src={audioUrl(r.url)}
-                            className="w-full h-8 rounded-xl accent-[#2563EB]"
-                            preload="none"
-                            onError={e => { e.target.style.display = "none"; }}
-                          />
-                        ) : (
-                          <p className="text-[11px] text-[#8B92A9] italic py-1">Audio not available</p>
-                        )}
-                      </div>
-
-                      {/* Transcription/AI panel */}
-                      <div className="px-3 pb-3">
-                        <TranscriptionPanel
-                          leadId={lead.id}
-                          recording={r}
-                          contactName={lead.name}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <RecordingsTab lead={lead} />
           </div>
         )}
       </div>
@@ -823,7 +777,6 @@ export default function UserLeadsPage() {
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-6 py-8">
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">My Leads</h1>
@@ -832,15 +785,13 @@ export default function UserLeadsPage() {
           </p>
         </div>
         <button onClick={fetchLeads}
-          className="p-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#8B92A9] hover:text-[#2563EB] transition"
-          title="Refresh">
+          className="p-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#8B92A9] hover:text-[#2563EB] transition" title="Refresh">
           <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
         </button>
       </div>
 
-      {/* KPI pills */}
       <div className="flex flex-wrap gap-2 mb-6">
         {[
           { label: "Total",          value: kpi.total,      color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30",       text: "text-blue-700 dark:text-blue-300",       filter: "All"           },
@@ -864,7 +815,6 @@ export default function UserLeadsPage() {
         )}
       </div>
 
-      {/* Filters */}
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-4 mb-4">
         <div className="flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-[180px]">
@@ -903,7 +853,6 @@ export default function UserLeadsPage() {
         </p>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-[12px]">
           <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -914,7 +863,6 @@ export default function UserLeadsPage() {
         </div>
       )}
 
-      {/* Table */}
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-[#8B92A9]">
@@ -943,8 +891,8 @@ export default function UserLeadsPage() {
               <table className="w-full text-[12px]">
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Lead", "Phone 📵", "Source / Campaign", "Date", "Status", "Quality", "Calls", "Media"].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
+                    {["Lead", "Phone 📵", "Source / Campaign", "Date", "Status", "Quality", "Calls", ""].map((h, i) => (
+                      <th key={i} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -956,7 +904,6 @@ export default function UserLeadsPage() {
                         className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition cursor-pointer group"
                         onClick={() => setSelected(l)}>
 
-                        {/* Name */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
@@ -970,13 +917,10 @@ export default function UserLeadsPage() {
                           </div>
                         </td>
 
-                        {/* Phone — masked */}
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-[#4B5168] dark:text-[#9DA3BB] tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[11px]">
-                              {maskPhone(l.phone)}
-                            </span>
-                          </div>
+                          <span className="font-mono text-[#4B5168] dark:text-[#9DA3BB] tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[11px]">
+                            {maskPhone(l.phone)}
+                          </span>
                           {l.email && (
                             <p className="text-[10px] text-[#8B92A9] mt-0.5 truncate max-w-[120px]">
                               {l.email.replace(/(.{2})(.*)(@.*)/, "$1••••$3")}
@@ -984,7 +928,6 @@ export default function UserLeadsPage() {
                           )}
                         </td>
 
-                        {/* Source / Campaign */}
                         <td className="px-4 py-3">
                           <p className="text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[120px]">{l.source}</p>
                           {l.campaign !== "—" && (
@@ -992,18 +935,13 @@ export default function UserLeadsPage() {
                           )}
                         </td>
 
-                        {/* Date */}
                         <td className="px-4 py-3 whitespace-nowrap">
                           <p className="text-[#0F1117] dark:text-[#F0F2FA]">{l.date}</p>
                         </td>
 
-                        {/* Status */}
                         <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
-
-                        {/* Quality */}
                         <td className="px-4 py-3"><TempBadge temp={l.temperature} /></td>
 
-                        {/* Calls */}
                         <td className="px-4 py-3">
                           {l.callHistory.length > 0 ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
@@ -1014,39 +952,19 @@ export default function UserLeadsPage() {
                           )}
                         </td>
 
-                        {/* ── Media column: recording + AI summary icons ── */}
+                        {/* Recordings shortcut — appears on row hover */}
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
-                            {l.hasRecording && (
-                              <span
-                                title={`${l.recordings.length} recording${l.recordings.length > 1 ? "s" : ""} — click to listen`}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 group-hover:bg-violet-200 dark:group-hover:bg-violet-900/50 transition"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round"
-                                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-                                </svg>
-                                {l.recordings.length}
-                              </span>
-                            )}
-                            {l.hasAiSummary && (
-                              <span
-                                title="AI summary available"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-200 dark:group-hover:bg-indigo-900/50 transition"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round"
-                                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                                </svg>
-                                AI
-                              </span>
-                            )}
-                            {!l.hasRecording && !l.hasAiSummary && (
-                              <span className="text-[11px] text-[#8B92A9]">—</span>
-                            )}
-                          </div>
+                          <button
+                            title="View recordings & AI summary"
+                            onClick={e => { e.stopPropagation(); setSelected(l); }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 border border-violet-100 dark:border-violet-900/50 transition opacity-0 group-hover:opacity-100">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round"
+                                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                            </svg>
+                            Recordings
+                          </button>
                         </td>
-
                       </tr>
                     );
                   })}
@@ -1054,7 +972,6 @@ export default function UserLeadsPage() {
               </table>
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
               <div className="px-5 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between bg-[#F8F9FC] dark:bg-[#13161E]">
                 <span className="text-[11px] text-[#8B92A9]">
@@ -1085,12 +1002,10 @@ export default function UserLeadsPage() {
         )}
       </div>
 
-      {/* Footer note */}
       <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] text-center mt-4">
         📵 Phone numbers are masked — only your admin can see full numbers · Updates are saved to your call history
       </p>
 
-      {/* Drawer */}
       {selected && (
         <UpdateDrawer lead={selected} onClose={() => setSelected(null)} onSaved={handleSaved} />
       )}
