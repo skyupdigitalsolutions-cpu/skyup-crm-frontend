@@ -35,6 +35,10 @@ function TempBadge({ temp }) {
 }
 
 function mapLead(l) {
+  const callHistory = Array.isArray(l.callHistory) ? l.callHistory : [];
+  const lastCall    = callHistory.length > 0
+    ? [...callHistory].sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt))[0]
+    : null;
   return {
     id:             String(l._id),
     name:           l.name           || "Unknown",
@@ -49,11 +53,21 @@ function mapLead(l) {
     date:           l.date ? new Date(l.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—",
     createdAt:      l.createdAt      || l.date || null,
     _raw_date:      l.date           || l.createdAt || null,
-    callHistory:    Array.isArray(l.callHistory)    ? l.callHistory    : [],
+    callHistory,
     scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
     previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
     reassignCount:  l.reassignCount  || 0,
+    lastOutcome:    lastCall?.outcome  || null,
+    lastCalledAt:   lastCall?.calledAt || null,
+    lastRemark:     lastCall?.remark   || null,
   };
+}
+
+function journeyProgress(lead) {
+  if (lead.status === "Converted")      return 100;
+  if (lead.status === "Not Interested") return 60;
+  if (lead.status === "In Progress")    return Math.min(30 + lead.callHistory.length * 10, 80);
+  return Math.min(lead.callHistory.length * 10, 25);
 }
 
 function fmtShortDate(iso) {
@@ -69,6 +83,96 @@ function daysSince(iso) {
   if (days < 30)  return `${days}d ago`;
   const mo = Math.floor(days / 30);
   return `${mo}mo ago`;
+}
+
+// ── Progress cell — the key upgrade ─────────────────────────────────────────
+function ProgressCell({ lead }) {
+  const sc    = STATUS_CONFIG[lead.status] || STATUS_CONFIG["New"];
+  const pct   = journeyProgress(lead);
+  const calls = lead.callHistory;
+  const sched = lead.scheduledCalls;
+
+  // Last call info
+  const lastCall = calls.length
+    ? [...calls].sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt))[0]
+    : null;
+
+  // Next scheduled
+  const nextSched = sched
+    .filter(s => !s.done)
+    .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt))[0];
+
+  const overdue = sched.filter(s => !s.done && new Date(s.scheduledAt) < new Date()).length;
+
+  return (
+    <div className="min-w-[190px] max-w-[220px]">
+      {/* Progress bar */}
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <div className="flex-1 h-1.5 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${pct}%`, background: sc.dot }} />
+        </div>
+        <span className="text-[10px] font-bold shrink-0" style={{ color: sc.dot }}>{pct}%</span>
+      </div>
+
+      {/* Stage mini-dots */}
+      <div className="flex items-center gap-1 mb-2">
+        {["In", "Assigned", "Called", "F/up", "Done"].map((s, i) => {
+          const done = i === 0 ? true
+            : i === 1 ? !!lead.agent
+            : i === 2 ? calls.length > 0
+            : i === 3 ? sched.some(c => c.done)
+            : lead.status === "Converted";
+          return (
+            <div key={s} className="flex flex-col items-center gap-0.5" title={s}>
+              <div className="w-1.5 h-1.5 rounded-full transition-all"
+                style={{ background: done ? sc.dot : "#E4E7EF" }} />
+            </div>
+          );
+        })}
+        <span className="text-[9px] text-[#C4C9D9] dark:text-[#3E4257] ml-0.5">
+          {["Created", "Assigned", "Called", "Follow-up", "Converted"].filter((_, i) => {
+            return i === 0 ? true
+              : i === 1 ? !!lead.agent
+              : i === 2 ? calls.length > 0
+              : i === 3 ? sched.some(c => c.done)
+              : lead.status === "Converted";
+          }).length}/5 stages
+        </span>
+      </div>
+
+      {/* Last call remark */}
+      {lastCall && (
+        <div className="mb-1.5">
+          <div className="flex items-start gap-1">
+            <span className="text-[9px] text-[#8B92A9] shrink-0 mt-0.5 font-semibold">Last call</span>
+            <span className="text-[9px] text-[#8B92A9] shrink-0">{lastCall.calledAt ? `· ${fmtShortDate(lastCall.calledAt)}` : ""}</span>
+          </div>
+          {lastCall.remark ? (
+            <p className="text-[10px] text-[#4B5168] dark:text-[#9DA3BB] leading-snug truncate italic">
+              "{lastCall.remark}"
+            </p>
+          ) : (
+            <p className="text-[10px] text-[#C4C9D9] dark:text-[#3E4257]">No remark</p>
+          )}
+        </div>
+      )}
+
+      {/* Next scheduled */}
+      {nextSched && (
+        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold w-fit ${overdue > 0 ? "bg-red-50 dark:bg-red-950/40 text-red-500" : "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"}`}>
+          {overdue > 0 ? "⚠️" : "📅"} {overdue > 0 ? `${overdue} overdue` : `Due ${fmtShortDate(nextSched.scheduledAt)}`}
+        </div>
+      )}
+
+      {/* Call count */}
+      <p className="text-[9px] text-[#8B92A9] mt-1">
+        {calls.length} call{calls.length !== 1 ? "s" : ""}
+        {sched.length > 0 ? ` · ${sched.length} scheduled` : ""}
+        {lead.reassignCount > 0 ? ` · 🔄${lead.reassignCount}` : ""}
+      </p>
+    </div>
+  );
 }
 
 const PER_PAGE = 15;
@@ -147,6 +251,7 @@ export default function AdminLeadsPage() {
       if (sortBy === "date_asc")  return new Date(a._raw_date || 0) - new Date(b._raw_date || 0);
       if (sortBy === "name_asc")  return a.name.localeCompare(b.name);
       if (sortBy === "status")    return a.status.localeCompare(b.status);
+      if (sortBy === "progress")  return journeyProgress(b) - journeyProgress(a);
       return 0;
     });
     return res;
@@ -278,6 +383,7 @@ export default function AdminLeadsPage() {
             <option value="date_asc">Oldest first</option>
             <option value="name_asc">Name A–Z</option>
             <option value="status">By status</option>
+            <option value="progress">By journey progress</option>
           </select>
           {(search || filterSt !== "All" || filterAgent !== "All" || filterSrc !== "All" || filterTemp !== "All" || dateFrom || dateTo) && (
             <button onClick={clearFilters} className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[12px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition">
@@ -318,7 +424,7 @@ export default function AdminLeadsPage() {
               <table className="w-full text-[12px]">
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Lead", "Contact", "Agent", "Source / Campaign", "Date", "Status", "Quality", ""].map(h => (
+                    {["Lead", "Contact", "Agent", "Source / Campaign", "Date", "Status", "Quality", "Last Outcome", "Progress & Activity", ""].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -380,6 +486,33 @@ export default function AdminLeadsPage() {
 
                         {/* Quality */}
                         <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
+
+                        {/* Last Call Outcome */}
+                        <td className="px-4 py-3">
+                          {l.lastOutcome ? (
+                            <div>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${
+                                l.lastOutcome === "Interested" || l.lastOutcome === "Converted"
+                                  ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                                  : l.lastOutcome === "Not Interested" || l.lastOutcome === "Not Reachable"
+                                  ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
+                                  : "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
+                              }`}>
+                                📞 {l.lastOutcome}
+                              </span>
+                              {l.lastCalledAt && (
+                                <p className="text-[9px] text-[#8B92A9] mt-0.5">{daysSince(l.lastCalledAt)}</p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-[#8B92A9]">—</span>
+                          )}
+                        </td>
+
+                        {/* Progress & Activity — the upgraded column */}
+                        <td className="px-4 py-3">
+                          <ProgressCell lead={l} />
+                        </td>
 
                         {/* Open button */}
                         <td className="px-4 py-3">
