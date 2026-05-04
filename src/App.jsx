@@ -13,6 +13,7 @@ import UserDailyReport from "./pages/UserDailyReport";
 import AdminLogin from "./pages/AdminLogin";
 import SuperAdminLogin from "./pages/SuperAdminLogin";
 import AdminLeadsPage from "./components/AdminLeadsPage";
+import UserLeadsPage from "./pages/UserLeadsPage";  // ← NEW
 import EmailHistory from "./components/EmailHistory";
 import AttendancePage from "./pages/AttendancePage";
 import WhatsAppChat from "./components/WhatsAppChat";
@@ -27,8 +28,6 @@ function getStoredAuth() {
 }
 
 // ── Protected Route — redirects to /login if no token ─────────────────────────
-// useEffect re-checks auth on every render (including browser forward navigation)
-// to prevent bypassing authentication after logout via the Forward button.
 function ProtectedRoute({ children }) {
   const { token, user } = getStoredAuth();
   const navigate = useNavigate();
@@ -137,28 +136,35 @@ export default function App() {
             <AppLayout><Campaigns /></AppLayout>
           </AdminRoute>
         }/>
-        <Route path="/leads" element={
-          <AdminRoute>
-            <AppLayout><AdminLeadsPage /></AppLayout>
-          </AdminRoute>
-        }/>
-
         <Route path="/attendance" element={
           <AdminRoute>
             <AppLayout><AttendancePage /></AppLayout>
           </AdminRoute>
         }/>
-
         <Route path="/upgrade-plan" element={
           <AdminRoute>
             <AppLayout><UpgradePlan /></AppLayout>
           </AdminRoute>
         }/>
-
         <Route path="/email-history" element={
           <AdminRoute>
             <AppLayout><EmailHistory /></AppLayout>
           </AdminRoute>
+        }/>
+
+        {/* ── Leads — role-aware (/leads) ── */}
+        {/* Admin/superadmin → AdminLeadsPage, user → UserLeadsPage */}
+        <Route path="/leads" element={
+          <ProtectedRoute>
+            <AppLayout>
+              {(() => {
+                const { user } = getStoredAuth();
+                return user?.role === "user"
+                  ? <UserLeadsPage />
+                  : <AdminLeadsPage />;
+              })()}
+            </AppLayout>
+          </ProtectedRoute>
         }/>
 
         {/* ── Daily report — role-aware ── */}
