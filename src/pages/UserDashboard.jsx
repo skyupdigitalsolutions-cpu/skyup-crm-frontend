@@ -85,7 +85,7 @@ function TempBadge({ temp }) {
   );
 }
 
-// ── Attendance Mini Widget ────────────────────────────────────────────────────
+// ── Attendance Mini Widget (inline header chip) ───────────────────────────────
 const IDLE_MS = 5 * 60 * 1000;
 
 function fmtMins(mins) {
@@ -98,12 +98,12 @@ function fmtTime(d) {
 }
 
 function AttendanceMiniWidget() {
-  const [record, setRecord]           = useState(null);
-  const [loading, setLoading]         = useState(true);
-  const [elapsed, setElapsed]         = useState(0);
+  const [record, setRecord]       = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [elapsed, setElapsed]     = useState(0);
   const [idleWarning, setIdleWarning] = useState(false);
-  const [panelOpen, setPanelOpen]     = useState(false);
-  const panelRef     = useRef(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const panelRef = useRef(null);
   const lastMoveRef  = useRef(Date.now());
   const idleTimerRef = useRef(null);
   const pingTimerRef = useRef(null);
@@ -116,6 +116,7 @@ function AttendanceMiniWidget() {
 
   useEffect(() => { fetchRecord(); }, [fetchRecord]);
 
+  // Close panel on outside click
   useEffect(() => {
     if (!panelOpen) return;
     const handler = (e) => { if (panelRef.current && !panelRef.current.contains(e.target)) setPanelOpen(false); };
@@ -123,6 +124,7 @@ function AttendanceMiniWidget() {
     return () => document.removeEventListener("mousedown", handler);
   }, [panelOpen]);
 
+  // Live timer
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime) { setElapsed(0); return; }
     const tick = () => {
@@ -138,6 +140,7 @@ function AttendanceMiniWidget() {
     return () => clearInterval(tickTimerRef.current);
   }, [record]);
 
+  // Ping
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime) return;
     pingTimerRef.current = setInterval(async () => {
@@ -146,6 +149,7 @@ function AttendanceMiniWidget() {
     return () => clearInterval(pingTimerRef.current);
   }, [record?.loginTime, record?.logoutTime]);
 
+  // Idle detection
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime || record?.status !== "active") return;
     const resetIdle = () => {
@@ -174,6 +178,7 @@ function AttendanceMiniWidget() {
   const isOnBreak    = record?.status === "on_break" || record?.status === "idle";
   const isActive     = record?.status === "active";
 
+  // Status config for chip
   const ST = {
     active:     { dot: "bg-emerald-400", color: "text-emerald-600 dark:text-emerald-400", label: "Active",     chipBg: "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800" },
     on_break:   { dot: "bg-amber-400",   color: "text-amber-600 dark:text-amber-400",     label: "On Break",   chipBg: "bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800" },
@@ -188,25 +193,40 @@ function AttendanceMiniWidget() {
 
   return (
     <div className="relative" ref={panelRef}>
+      {/* ── Chip trigger button ── */}
       <button
         onClick={() => setPanelOpen(v => !v)}
         className={"flex items-center gap-2 h-9 px-3 rounded-xl border text-[12px] font-semibold transition-all hover:shadow-sm " + st.chipBg}
       >
+        {/* Status dot */}
         <span className={"w-2 h-2 rounded-full shrink-0 " + st.dot + (isActive ? " animate-pulse" : "")} />
+
+        {/* Clock icon */}
         <svg className={"w-3.5 h-3.5 shrink-0 " + st.color} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/>
         </svg>
+
+        {/* Label + timer */}
         <span className={st.color}>
           {notClockedIn ? "Clock In" : isClockedOut ? "Clocked Out" : isActive ? fmtMins(Math.floor(elapsed / 60)) : st.label}
         </span>
-        {idleWarning && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
+
+        {/* Idle alert badge */}
+        {idleWarning && (
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+        )}
+
+        {/* Chevron */}
         <svg className={"w-3 h-3 transition-transform " + st.color + (panelOpen ? " rotate-180" : "")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
         </svg>
       </button>
 
+      {/* ── Dropdown panel ── */}
       {panelOpen && (
         <div className="absolute right-0 top-11 z-[200] w-72 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl overflow-hidden">
+
+          {/* Panel header */}
           <div className="px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] flex items-center justify-between">
             <div>
               <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Attendance</p>
@@ -219,6 +239,7 @@ function AttendanceMiniWidget() {
             )}
           </div>
 
+          {/* Idle warning */}
           {idleWarning && (
             <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 flex items-center justify-between gap-2">
               <div>
@@ -229,6 +250,7 @@ function AttendanceMiniWidget() {
             </div>
           )}
 
+          {/* Stats */}
           {record?.loginTime && (
             <div className="grid grid-cols-3 gap-2 px-3 pt-3">
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
@@ -246,6 +268,7 @@ function AttendanceMiniWidget() {
             </div>
           )}
 
+          {/* Actions */}
           <div className="px-3 py-3 flex gap-2">
             {notClockedIn && (
               <button onClick={clockIn} className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold transition flex items-center justify-center gap-1.5">
@@ -277,6 +300,7 @@ function AttendanceMiniWidget() {
             )}
           </div>
 
+          {/* Break log */}
           {record?.breaks?.length > 0 && (
             <div className="mx-3 mb-3 border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden">
               <p className="px-3 py-2 text-[9px] font-bold text-[#8B92A9] uppercase tracking-widest bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">Break Log</p>
@@ -392,6 +416,23 @@ function ActivityItem({ lead, isLast }) {
         {lead.remark && (
           <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-1 italic">"{lead.remark}"</p>
         )}
+        {/* Last call outcome badge */}
+        {lead.lastOutcome && (
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+              lead.lastOutcome === "Interested"     ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" :
+              lead.lastOutcome === "Not Interested" ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400" :
+              lead.lastOutcome === "Converted"      ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" :
+              lead.lastOutcome === "Not Reachable"  ? "bg-gray-100 dark:bg-gray-900/40 text-gray-500 dark:text-gray-400" :
+              "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
+            }`}>
+              📞 {lead.lastOutcome}
+            </span>
+            {lead.lastCalledAt && (
+              <span className="text-[10px] text-[#8B92A9]">{timeAgo(lead.lastCalledAt)}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -406,7 +447,6 @@ function getTodayStr() {
   return new Date().toISOString().split("T")[0];
 }
 
-// ── UpdateStatusModal — Quality fix: always send Quality to server ──
 function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
   const [remark,       setRemark]       = useState(lead.remark || "");
@@ -424,36 +464,27 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
     setStatus(val);
   };
 
-  // ── FIX: Always send Quality to server so it persists on refresh ──
   const handleSave = async function() {
-    const leadId = lead.id || lead._id;
-    if (!leadId || leadId === "undefined" || leadId === "null") {
-      setError("Lead ID is missing. Please close and try again.");
-      return;
-    }
-
     setLoading(true); setError("");
     try {
-      const body = {
-        status,
-        remark,
-        Quality: temp || null,  // ← always send; null clears it on the server
-      };
-      if (status !== "Not Interested") {
-        body.followUpDate = followUpDate || getTomorrowStr();
-      }
-
-      await api.patch("/lead/" + leadId, body);
-
+      const body = { status, remark };
+      if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
+      await api.patch("/lead/" + (lead.id || lead._id), body);
+      if (temp) await api.patch("/lead/" + (lead.id || lead._id) + "/Quality", { Quality: temp });
       onSaved(Object.assign({}, lead, {
         status,
         remark,
-        Quality: temp || null,  // ← match server truth so refresh shows same value
+        Quality: temp || lead.Quality,
+        _newEntry: {
+          outcome:  outcome || status,
+          remark:   remark,
+          calledAt: new Date().toISOString(),
+          userName: "You",
+        },
       }));
       onClose();
     } catch (e) {
-      const msg = e.response && e.response.data && e.response.data.message;
-      setError(msg || ("Failed to update (HTTP " + (e.response && e.response.status) + ")"));
+      setError((e.response && e.response.data && e.response.data.message) || "Failed to update");
     } finally { setLoading(false); }
   };
 
@@ -676,23 +707,7 @@ function AddLeadModal({ onClose, onAdd }) {
     try {
       const res = await api.post("/lead", { name:form.name.trim(), mobile:form.phone.trim(), source:form.source, campaign:form.campaign.trim()||null, status:form.status, date:new Date(), remark:form.remark.trim()||"Manually added" });
       const saved = res.data;
-      onAdd({
-        id:             String(saved._id),
-        _id:            String(saved._id),
-        name:           saved.name,
-        phone:          saved.mobile || "",
-        mobile:         saved.mobile || "",
-        source:         saved.source || "Web Form",
-        campaign:       saved.campaign || "—",
-        status:         saved.status,
-        Quality:        saved.Quality || null,
-        remark:         saved.remark || "",
-        date:           new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}),
-        _raw_date:      saved.date || saved.createdAt || null,
-        callHistory:    [],
-        scheduledCalls: [],
-        reassignCount:  0,
-      });
+      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
       onClose();
     } catch (err) {
       setErrors({ submit:(err.response&&err.response.data&&err.response.data.message)||"Failed to save lead." });
@@ -766,12 +781,21 @@ function UserChatWidget() {
 
     socket.on("chat_history", function(history) {
       setMessages(history.map(function(m) {
-        return { _id: m._id, from: m.from === "admin" ? "Admin" : "You", message: m.message, ts: m.timestamp, isDeleted: m.isDeleted || false, editedAt: m.editedAt || null };
+        return {
+          _id:       m._id,
+          from:      m.from === "admin" ? "Admin" : "You",
+          message:   m.message,
+          ts:        m.timestamp,
+          isDeleted: m.isDeleted || false,
+          editedAt:  m.editedAt  || null,
+        };
       }));
     });
 
     socket.on("message_saved", function(data) {
+      // Update optimistic message with real _id from server
       setMessages(function(prev) {
+        // Replace the last "You" message that has no _id yet
         const idx = [...prev].reverse().findIndex(function(m){ return m.from === "You" && !m._id; });
         if (idx === -1) return prev;
         const realIdx = prev.length - 1 - idx;
@@ -786,18 +810,24 @@ function UserChatWidget() {
       setOpen(function(isOpen) { if (!isOpen) setUnread(function(n){ return n + 1; }); return isOpen; });
     });
 
+    // Real-time edit sync
     socket.on("message_edited", function({ _id, newText, editedAt }) {
       setMessages(function(prev) {
         return prev.map(function(m) {
-          return m._id && m._id.toString() === _id.toString() ? { ...m, message: newText, editedAt } : m;
+          return m._id && m._id.toString() === _id.toString()
+            ? { ...m, message: newText, editedAt }
+            : m;
         });
       });
     });
 
+    // Real-time delete sync
     socket.on("message_deleted", function({ _id }) {
       setMessages(function(prev) {
         return prev.map(function(m) {
-          return m._id && m._id.toString() === _id.toString() ? { ...m, message: "This message was deleted", isDeleted: true } : m;
+          return m._id && m._id.toString() === _id.toString()
+            ? { ...m, message: "This message was deleted", isDeleted: true }
+            : m;
         });
       });
     });
@@ -813,18 +843,34 @@ function UserChatWidget() {
     const msg = message.trim();
     if (!msg || !socketRef.current) return;
     socketRef.current.emit("user_message", { message: msg, username });
+    // Optimistic: no _id yet; server will echo back 'message_saved' with _id
     setMessages(function(prev){ return prev.concat([{ from: "You", message: msg, isDeleted: false }]); });
     setMessage("");
   };
 
-  const startEdit  = function(m) { if (m.isDeleted) return; setEditingId(m._id); setEditingText(m.message); };
+  const startEdit = function(m) {
+    if (m.isDeleted) return;
+    setEditingId(m._id);
+    setEditingText(m.message);
+  };
+
   const submitEdit = function() {
     if (!editingText.trim() || !editingId) return;
-    socketRef.current && socketRef.current.emit("edit_message", { _id: editingId, newText: editingText.trim(), requester: username });
-    setEditingId(null); setEditingText("");
+    socketRef.current && socketRef.current.emit("edit_message", {
+      _id: editingId,
+      newText: editingText.trim(),
+      requester: username,
+    });
+    setEditingId(null);
+    setEditingText("");
   };
-  const cancelEdit = function() { setEditingId(null); setEditingText(""); };
-  const deleteMsg  = function(msgId) {
+
+  const cancelEdit = function() {
+    setEditingId(null);
+    setEditingText("");
+  };
+
+  const deleteMsg = function(msgId) {
     if (!window.confirm("Delete this message?")) return;
     socketRef.current && socketRef.current.emit("delete_message", { _id: msgId, requester: username });
   };
@@ -842,6 +888,7 @@ function UserChatWidget() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
+
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-[#F8F9FC] dark:bg-[#13161E]">
             {messages.length === 0 && (
               <div className="text-center py-8">
@@ -850,36 +897,56 @@ function UserChatWidget() {
               </div>
             )}
             {messages.map(function(m, i) {
-              const isYou     = m.from === "You";
+              const isYou    = m.from === "You";
               const isEditing = editingId === m._id;
               return (
                 <div key={m._id || i} className={"flex group " + (isYou ? "justify-end" : "justify-start")}>
                   <div className="flex flex-col gap-0.5 max-w-[80%]">
                     {isEditing ? (
                       <div className="flex items-center gap-1">
-                        <input autoFocus value={editingText} onChange={function(e){ setEditingText(e.target.value); }}
+                        <input
+                          autoFocus
+                          value={editingText}
+                          onChange={function(e){ setEditingText(e.target.value); }}
                           onKeyDown={function(e){ if(e.key==="Enter") submitEdit(); if(e.key==="Escape") cancelEdit(); }}
-                          className="px-2 py-1 rounded-lg border border-[#2563EB] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] bg-white dark:bg-[#1A1D27] focus:outline-none w-40" />
+                          className="px-2 py-1 rounded-lg border border-[#2563EB] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] bg-white dark:bg-[#1A1D27] focus:outline-none w-40"
+                        />
                         <button onClick={submitEdit} className="text-[10px] text-[#2563EB] font-semibold hover:underline">Save</button>
                         <button onClick={cancelEdit}  className="text-[10px] text-[#8B92A9] hover:underline">Cancel</button>
                       </div>
                     ) : (
                       <div className={"relative px-3 py-2 rounded-2xl text-[12px] " + (
-                        m.isDeleted ? "italic text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#1A1D27] border border-dashed border-[#E4E7EF] dark:border-[#262A38]"
-                          : isYou   ? "bg-[#2563EB] text-white rounded-br-none"
-                                    : "bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-[#F0F2FA] rounded-bl-none border border-[#E4E7EF] dark:border-[#262A38]"
+                        m.isDeleted
+                          ? "italic text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#1A1D27] border border-dashed border-[#E4E7EF] dark:border-[#262A38]"
+                          : isYou
+                            ? "bg-[#2563EB] text-white rounded-br-none"
+                            : "bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-[#F0F2FA] rounded-bl-none border border-[#E4E7EF] dark:border-[#262A38]"
                       )}>
                         {m.message}
-                        {m.editedAt && !m.isDeleted && <span className="text-[9px] opacity-60 ml-1">(edited)</span>}
+                        {m.editedAt && !m.isDeleted && (
+                          <span className="text-[9px] opacity-60 ml-1">(edited)</span>
+                        )}
+
+                        {/* Action buttons — only for own non-deleted messages */}
                         {isYou && !m.isDeleted && m._id && (
                           <div className="absolute top-1 -left-14 hidden group-hover:flex items-center gap-1">
-                            <button onClick={function(){ startEdit(m); }} title="Edit"
-                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] transition shadow-sm">
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            <button
+                              onClick={function(){ startEdit(m); }}
+                              title="Edit"
+                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] transition shadow-sm"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                              </svg>
                             </button>
-                            <button onClick={function(){ deleteMsg(m._id); }} title="Delete"
-                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-red-500 transition shadow-sm">
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            <button
+                              onClick={function(){ deleteMsg(m._id); }}
+                              title="Delete"
+                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-red-500 transition shadow-sm"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                              </svg>
                             </button>
                           </div>
                         )}
@@ -891,6 +958,7 @@ function UserChatWidget() {
             })}
             <div ref={bottomRef} />
           </div>
+
           <div className="px-3 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-2 bg-white dark:bg-[#1A1D27]">
             <input value={message} onChange={function(e){ setMessage(e.target.value); }} onKeyDown={function(e){ if(e.key==="Enter") sendMessage(); }} placeholder="Type a message…"
               className="flex-1 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition" />
@@ -924,9 +992,12 @@ function getGreeting() {
 }
 
 function mapLead(l) {
+  const callHistory = Array.isArray(l.callHistory) ? l.callHistory : [];
+  const lastCall    = callHistory.length > 0
+    ? [...callHistory].sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt))[0]
+    : null;
   return {
     id:             String(l._id),
-    _id:            String(l._id),
     name:           l.name           || "Unknown",
     phone:          l.mobile         || l.phone || "",
     mobile:         l.mobile         || l.phone || "",
@@ -937,10 +1008,13 @@ function mapLead(l) {
     remark:         l.remark         || "",
     date:           l.date ? new Date(l.date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—",
     _raw_date:      l.date           || l.createdAt || null,
-    callHistory:    Array.isArray(l.callHistory)    ? l.callHistory    : [],
+    callHistory,
     scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
     previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
     reassignCount:  l.reassignCount  || 0,
+    lastOutcome:    lastCall?.outcome  || null,
+    lastCalledAt:   lastCall?.calledAt || null,
+    lastRemark:     lastCall?.remark   || null,
   };
 }
 
@@ -1002,7 +1076,7 @@ export default function UserDashboard() {
     let res = leads.filter(function(l) {
       const q = search.toLowerCase();
       const matchSearch = !q || l.name.toLowerCase().includes(q) || (l.phone||"").includes(q) || (l.campaign||"").toLowerCase().includes(q);
-      const matchSt   = filterSt   === "All" || l.status  === filterSt;
+      const matchSt   = filterSt   === "All" || l.status      === filterSt;
       const matchTemp = filterTemp === "All" || l.Quality === filterTemp;
       return matchSearch && matchSt && matchTemp;
     });
@@ -1029,24 +1103,24 @@ export default function UserDashboard() {
       setSelected(null);
       return;
     }
-    const mapped = (updated._id && !updated.id) ? mapLead(updated) : updated;
-    setLeads(function(prev){
-      return prev.map(function(l){ return l.id === mapped.id ? Object.assign({}, l, mapped) : l; });
-    });
-    if (selected && selected.id === mapped.id) {
-      setSelected(function(s){ return Object.assign({}, s, mapped); });
+    const mapped = updated._id ? mapLead(updated) : updated;
+    // Optimistically apply lastOutcome from _newEntry (set by UpdateDrawer after saving remark)
+    if (mapped._newEntry) {
+      const entry = mapped._newEntry;
+      const newHistory = [...(mapped.callHistory || []), entry];
+      mapped.lastOutcome  = entry.outcome  || mapped.lastOutcome;
+      mapped.lastCalledAt = entry.calledAt || mapped.lastCalledAt;
+      mapped.lastRemark   = entry.remark   || mapped.lastRemark;
+      mapped.callHistory  = newHistory;
+      delete mapped._newEntry;
     }
+    setLeads(function(prev){ return prev.map(function(l){ return l.id === mapped.id ? Object.assign({}, l, mapped) : l; }); });
+    if (selected && selected.id === mapped.id) setSelected(function(s){ return Object.assign({}, s, mapped); });
   };
-
   const handleAddLead = function(newLead) { setLeads(function(prev){ return [newLead].concat(prev); }); setPage(1); };
-
   const handleDeleteLead = async function(id) {
-    try {
-      await api.delete("/lead/" + id);
-      setLeads(function(prev){ return prev.filter(function(l){ return l.id !== id; }); });
-      if (selected && selected.id === id) setSelected(null);
-    } catch(e) { /* silently ignore */ }
-    finally { setDeleteConfirm(null); }
+    try { await api.delete("/lead/" + id); setLeads(function(prev){ return prev.filter(function(l){ return l.id !== id; }); }); if (selected && selected.id === id) setSelected(null); }
+    catch(e) { /* silently ignore */ } finally { setDeleteConfirm(null); }
   };
 
   const [csvImporting, setCsvImporting] = useState(false);
@@ -1059,7 +1133,9 @@ export default function UserDashboard() {
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "leads_import_template.csv"; a.click();
+    a.href = url;
+    a.download = "leads_import_template.csv";
+    a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -1067,7 +1143,8 @@ export default function UserDashboard() {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     e.target.value = "";
-    setCsvImporting(true); setCsvResult(null);
+    setCsvImporting(true);
+    setCsvResult(null);
     try {
       const text = await file.text();
       const lines = text.trim().split("\n").map(function(l){ return l.replace(/\r$/, ""); }).filter(Boolean);
@@ -1104,27 +1181,34 @@ export default function UserDashboard() {
   return (
     <div className="min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
 
-      {/* Header */}
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="px-6 py-5 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38]">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <p className="text-[#8B92A9] dark:text-[#565C75] text-[12px] font-medium">{greeting.emoji} {greeting.text}</p>
+            <p className="text-[#8B92A9] dark:text-[#565C75] text-[12px] font-medium">
+              {greeting.emoji} {greeting.text}
+            </p>
             <h1 className="text-[22px] font-black text-[#0F1117] dark:text-[#F0F2FA] mt-0.5">
               {(user && user.name) || "Agent"}
               <span className="text-[#8B92A9] dark:text-[#565C75] text-[16px] font-normal ml-2">— My Workspace</span>
             </h1>
           </div>
 
+          {/* Action buttons row */}
           <div className="flex items-center gap-2 flex-wrap">
+
+            {/* Add Lead */}
             <button onClick={function(){ setShowAddModal(true); }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               Add Lead
             </button>
 
+            {/* Import CSV + Template */}
             <div className="flex items-center rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
-              <label className={`flex items-center gap-2 px-4 py-2 text-[#4B5168] dark:text-[#9DA3BB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition cursor-pointer border-r border-[#E4E7EF] dark:border-[#262A38] ${csvImporting ? "opacity-60 cursor-not-allowed" : ""}`}
-                title="Import CSV">
+              <label
+                className={`flex items-center gap-2 px-4 py-2 text-[#4B5168] dark:text-[#9DA3BB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition cursor-pointer border-r border-[#E4E7EF] dark:border-[#262A38] ${csvImporting ? "opacity-60 cursor-not-allowed" : ""}`}
+                title="Import CSV — columns: name, mobile, email, source, campaign, status, remark">
                 <input type="file" accept=".csv" className="hidden" disabled={csvImporting} onChange={handleImportCSV}/>
                 {csvImporting
                   ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
@@ -1132,15 +1216,19 @@ export default function UserDashboard() {
                 }
                 {csvImporting ? "Importing…" : "Import CSV"}
               </label>
-              <button onClick={downloadCSVTemplate} title="Download CSV template"
+              <button
+                onClick={downloadCSVTemplate}
+                title="Download CSV template"
                 className="flex items-center gap-1.5 px-3 py-2 text-[#2563EB] dark:text-[#4F8EF7] text-[12px] font-semibold hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition whitespace-nowrap">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Template
               </button>
             </div>
 
+            {/* ── Attendance Mini Widget ── */}
             <AttendanceMiniWidget />
 
+            {/* CSV result toast */}
             {csvResult && (
               <div className={`flex flex-col gap-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${csvResult.error || csvResult.saved === 0 ? "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400" : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400"}`}>
                 <div className="flex items-center gap-1.5">
@@ -1155,12 +1243,14 @@ export default function UserDashboard() {
               </div>
             )}
 
+            {/* Avatar */}
             <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[13px] font-black text-[#2563EB] dark:text-[#4F8EF7] border border-[#C7D7FF] dark:border-[#2D3A6B]">
               {initials}
             </div>
           </div>
         </div>
 
+        {/* Quick stats strip */}
         <div className="flex items-center gap-6 mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex-wrap">
           {[
             { label:"My Total Leads", value:kpi.total,          color:"text-[#0F1117] dark:text-[#F0F2FA]" },
@@ -1187,13 +1277,15 @@ export default function UserDashboard() {
           </div>
         )}
 
+        {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon="👤" />
           <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon="✅" trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
           <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon="⏳" />
-          <KpiCard label="Hot Leads"      value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="🔥" />
+          <KpiCard label="Hot Leads "   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="" />
         </div>
 
+        {/* Middle row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
@@ -1226,9 +1318,9 @@ export default function UserDashboard() {
             </div>
             <div className="space-y-3">
               {[
-                { label:"Hot",          count:kpi.hot,          color:"#DC2626", icon:"🔥" },
-                { label:"Warm",         count:kpi.warm,         color:"#D97706", icon:"☀️" },
-                { label:"Cold",         count:kpi.cold,         color:"#2563EB", icon:"❄️" },
+                { label:"Hot",          count:kpi.hot,          color:"#DC2626", icon:"" },
+                { label:"Warm",         count:kpi.warm,         color:"#D97706", icon:"" },
+                { label:"Cold",         count:kpi.cold,         color:"#2563EB", icon:"" },
                 { label:"Unclassified", count:kpi.unclassified, color:"#8B92A9", icon:"—"  },
               ].map(function(item){ return (
                 <div key={item.label} className="flex items-center gap-2">
@@ -1249,6 +1341,7 @@ export default function UserDashboard() {
           </div>
         </div>
 
+        {/* Status filter chips */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label:"New",           count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-50 dark:bg-blue-950/30",       icon:"🆕" },
@@ -1269,6 +1362,7 @@ export default function UserDashboard() {
           ); })}
         </div>
 
+        {/* Leads / Activity tabs */}
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
           <div className="flex items-center border-b border-[#E4E7EF] dark:border-[#262A38] px-5">
             {[
@@ -1345,7 +1439,9 @@ export default function UserDashboard() {
                               </div>
                               <div>
                                 <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.name}</span>
-                                {l.reassignCount > 0 && <span className="ml-1.5 text-[9px] font-bold text-purple-500">🔄{l.reassignCount}</span>}
+                                {l.reassignCount > 0 && (
+                                  <span className="ml-1.5 text-[9px] font-bold text-purple-500">🔄{l.reassignCount}</span>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -1364,12 +1460,10 @@ export default function UserDashboard() {
                           <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                              <button onClick={function(e){ e.stopPropagation(); setSelected(l); }}
-                                className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] transition" title="View details">
+                              <button onClick={function(e){ e.stopPropagation(); setSelected(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] transition" title="View details">
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
                               </button>
-                              <button onClick={function(e){ e.stopPropagation(); setDeleteConfirm(l); }}
-                                className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 transition" title="Delete lead">
+                              <button onClick={function(e){ e.stopPropagation(); setDeleteConfirm(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 transition" title="Delete lead">
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                               </button>
                             </div>
@@ -1384,17 +1478,13 @@ export default function UserDashboard() {
                 <div className="px-5 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between bg-[#F8F9FC] dark:bg-[#13161E]">
                   <span className="text-[11px] text-[#8B92A9]">Showing {((page-1)*PER_PAGE)+1}–{Math.min(page*PER_PAGE, displayed.length)} of {displayed.length} leads</span>
                   <div className="flex items-center gap-1">
-                    <button onClick={function(){ setPage(function(p){ return Math.max(1, p-1); }); }} disabled={page === 1}
-                      className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27] disabled:opacity-40 transition">
+                    <button onClick={function(){ setPage(function(p){ return Math.max(1, p-1); }); }} disabled={page === 1} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27] disabled:opacity-40 transition">
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
                     </button>
                     {Array.from({ length: Math.min(totalPages, 5) }, function(_, i){ const n = Math.max(1, Math.min(totalPages - 4, page - 2)) + i; return (
-                      <button key={n} onClick={function(){ setPage(n); }}
-                        className={"w-7 h-7 rounded-lg text-[11px] font-semibold transition " + (page === n ? "bg-[#2563EB] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27]")}>{n}
-                      </button>
+                      <button key={n} onClick={function(){ setPage(n); }} className={"w-7 h-7 rounded-lg text-[11px] font-semibold transition " + (page === n ? "bg-[#2563EB] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27]")}>{n}</button>
                     ); })}
-                    <button onClick={function(){ setPage(function(p){ return Math.min(totalPages, p+1); }); }} disabled={page === totalPages}
-                      className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27] disabled:opacity-40 transition">
+                    <button onClick={function(){ setPage(function(p){ return Math.min(totalPages, p+1); }); }} disabled={page === totalPages} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27] disabled:opacity-40 transition">
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
                     </button>
                   </div>
@@ -1437,7 +1527,7 @@ export default function UserDashboard() {
                 {kpi.convRate >= 50 ? "Outstanding performance! You're a top converter!" :
                  kpi.convRate >= 30 ? "Great work! Your conversion rate is above average." :
                  kpi.convRate >= 15 ? "Good progress! Keep following up on hot leads." :
-                 "Every lead counts — focus on your hot leads today!"}
+                 "Every lead counts — focus on your hot leads today! "}
               </p>
               <p className="text-[11px] text-[#8B92A9] mt-0.5">
                 {kpi.hot > 0 ? "You have " + kpi.hot + " hot lead" + (kpi.hot > 1 ? "s" : "") + " waiting for a call." : "Classify leads by Quality to prioritize your calls."}
@@ -1450,7 +1540,6 @@ export default function UserDashboard() {
 
       {selected && <LeadDrawer lead={selected} onClose={function(){ setSelected(null); }} onUpdate={handleUpdate} />}
       {showAddModal && <AddLeadModal onClose={function(){ setShowAddModal(false); }} onAdd={handleAddLead} />}
-
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
