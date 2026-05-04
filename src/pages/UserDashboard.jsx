@@ -416,23 +416,6 @@ function ActivityItem({ lead, isLast }) {
         {lead.remark && (
           <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-1 italic">"{lead.remark}"</p>
         )}
-        {/* Last call outcome badge */}
-        {lead.lastOutcome && (
-          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-              lead.lastOutcome === "Interested"     ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" :
-              lead.lastOutcome === "Not Interested" ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400" :
-              lead.lastOutcome === "Converted"      ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" :
-              lead.lastOutcome === "Not Reachable"  ? "bg-gray-100 dark:bg-gray-900/40 text-gray-500 dark:text-gray-400" :
-              "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
-            }`}>
-              📞 {lead.lastOutcome}
-            </span>
-            {lead.lastCalledAt && (
-              <span className="text-[10px] text-[#8B92A9]">{timeAgo(lead.lastCalledAt)}</span>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -451,7 +434,6 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
   const [remark,       setRemark]       = useState(lead.remark || "");
   const [temp,         setTemp]         = useState(lead.Quality || "");
-  const [outcome,      setOutcome]      = useState("Call Back");
   const [followUpDate, setFollowUpDate] = useState(getTomorrowStr());
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
@@ -468,9 +450,9 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const handleSave = async function() {
     setLoading(true); setError("");
     try {
-      // Send status, remark, outcome and temperature all in one PATCH call
+      // FIX: send temperature in the same PATCH body — /lead/:id/Quality route does not exist
       const body = { status, remark, outcome };
-      if (temp) body.temperature = temp;  // backend patchLead handles temperature field
+      if (temp) body.temperature = temp;   // backend patchLead accepts 'temperature'
       if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
       await api.patch("/lead/" + (lead.id || lead._id), body);
       onSaved(Object.assign({}, lead, {
@@ -521,17 +503,6 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Remark</label>
             <textarea value={remark} onChange={function(e){ setRemark(e.target.value); }} rows={2} className={CLS + " resize-none"} placeholder="Add a note…" />
           </div>
-
-          {/* Call Outcome dropdown */}
-          <div>
-            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">📞 Call Outcome</label>
-            <select value={outcome} onChange={function(e){ setOutcome(e.target.value); }} className={CLS}>
-              {["Call Back","Interested","Not Reachable","Meeting Scheduled","Demo Done","Converted","Not Interested"].map(function(o){
-                return <option key={o}>{o}</option>;
-              })}
-            </select>
-          </div>
-
           {showDatePicker && (
             <div>
               <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">📅 Follow-up Date</label>
@@ -1005,10 +976,6 @@ function getGreeting() {
 }
 
 function mapLead(l) {
-  const callHistory = Array.isArray(l.callHistory) ? l.callHistory : [];
-  const lastCall    = callHistory.length > 0
-    ? [...callHistory].sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt))[0]
-    : null;
   return {
     id:             String(l._id),
     name:           l.name           || "Unknown",
@@ -1017,17 +984,14 @@ function mapLead(l) {
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
     status:         l.status         || "New",
-    Quality:        l.Quality        || null,
+    Quality:    l.Quality    || null,
     remark:         l.remark         || "",
     date:           l.date ? new Date(l.date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—",
     _raw_date:      l.date           || l.createdAt || null,
-    callHistory,
+    callHistory:    Array.isArray(l.callHistory)    ? l.callHistory    : [],
     scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
     previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
     reassignCount:  l.reassignCount  || 0,
-    lastOutcome:    lastCall?.outcome  || null,
-    lastCalledAt:   lastCall?.calledAt || null,
-    lastRemark:     lastCall?.remark   || null,
   };
 }
 
@@ -1117,16 +1081,6 @@ export default function UserDashboard() {
       return;
     }
     const mapped = updated._id ? mapLead(updated) : updated;
-    // Optimistically apply lastOutcome from _newEntry (set by UpdateDrawer after saving remark)
-    if (mapped._newEntry) {
-      const entry = mapped._newEntry;
-      const newHistory = [...(mapped.callHistory || []), entry];
-      mapped.lastOutcome  = entry.outcome  || mapped.lastOutcome;
-      mapped.lastCalledAt = entry.calledAt || mapped.lastCalledAt;
-      mapped.lastRemark   = entry.remark   || mapped.lastRemark;
-      mapped.callHistory  = newHistory;
-      delete mapped._newEntry;
-    }
     setLeads(function(prev){ return prev.map(function(l){ return l.id === mapped.id ? Object.assign({}, l, mapped) : l; }); });
     if (selected && selected.id === mapped.id) setSelected(function(s){ return Object.assign({}, s, mapped); });
   };
