@@ -451,6 +451,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
   const [remark,       setRemark]       = useState(lead.remark || "");
   const [temp,         setTemp]         = useState(lead.Quality || "");
+  const [outcome,      setOutcome]      = useState("Call Back");
   const [followUpDate, setFollowUpDate] = useState(getTomorrowStr());
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
@@ -467,7 +468,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const handleSave = async function() {
     setLoading(true); setError("");
     try {
-      const body = { status, remark };
+      const body = { status, remark, outcome };
       if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
       await api.patch("/lead/" + (lead.id || lead._id), body);
       if (temp) await api.patch("/lead/" + (lead.id || lead._id) + "/Quality", { Quality: temp });
@@ -519,6 +520,17 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Remark</label>
             <textarea value={remark} onChange={function(e){ setRemark(e.target.value); }} rows={2} className={CLS + " resize-none"} placeholder="Add a note…" />
           </div>
+
+          {/* Call Outcome dropdown */}
+          <div>
+            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">📞 Call Outcome</label>
+            <select value={outcome} onChange={function(e){ setOutcome(e.target.value); }} className={CLS}>
+              {["Call Back","Interested","Not Reachable","Meeting Scheduled","Demo Done","Converted","Not Interested"].map(function(o){
+                return <option key={o}>{o}</option>;
+              })}
+            </select>
+          </div>
+
           {showDatePicker && (
             <div>
               <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">📅 Follow-up Date</label>
