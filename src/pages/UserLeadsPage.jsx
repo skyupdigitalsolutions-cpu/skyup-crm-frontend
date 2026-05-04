@@ -477,12 +477,13 @@ function RecordingsTab({ lead }) {
 
 // ── Update drawer ─────────────────────────────────────────────────────────────
 function UpdateDrawer({ lead, onClose, onSaved }) {
-  const [status,    setStatus]    = useState(lead.status);
-  const [remark,    setRemark]    = useState("");
-  const [outcome,   setOutcome]   = useState("Call Back");
-  const [saving,    setSaving]    = useState(false);
-  const [error,     setError]     = useState("");
-  const [activeTab, setActiveTab] = useState("update");
+  const [status,      setStatus]      = useState(lead.status);
+  const [remark,      setRemark]      = useState("");
+  const [outcome,     setOutcome]     = useState("Call Back");
+  const [temperature, setTemperature] = useState(lead.temperature || "");
+  const [saving,      setSaving]      = useState(false);
+  const [error,       setError]       = useState("");
+  const [activeTab,   setActiveTab]   = useState("update");
 
   const isNI = status === "Not Interested";
 
@@ -494,9 +495,11 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
       if (isNI) {
         await api.patch(`/lead/${lead.id}/not-interested`, { remark: remark.trim() });
       } else {
-        await api.patch(`/lead/${lead.id}`, { status, remark: remark.trim(), outcome });
+        const body = { status, remark: remark.trim(), outcome };
+        if (temperature) body.temperature = temperature;
+        await api.patch(`/lead/${lead.id}`, body);
       }
-      onSaved({ ...lead, status, remark: remark.trim() });
+      onSaved({ ...lead, status, remark: remark.trim(), temperature: temperature || lead.temperature });
       onClose();
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Update failed");
@@ -638,6 +641,27 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                     </select>
                   </div>
                 )}
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Lead Quality</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {["", "Hot", "Warm", "Cold"].map(q => {
+                      const colors = { Hot: "#DC2626", Warm: "#D97706", Cold: "#2563EB", "": "#8B92A9" };
+                      const labels = { Hot: "🔥 Hot", Warm: "☀️ Warm", Cold: "❄️ Cold", "": "— None" };
+                      const active = temperature === q;
+                      return (
+                        <button key={q} type="button" onClick={() => setTemperature(q)}
+                          className={`px-2 py-2 rounded-xl border-2 text-[11px] font-semibold transition ${
+                            active
+                              ? "border-current"
+                              : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#CBD5E1]"
+                          }`}
+                          style={active ? { color: colors[q], borderColor: colors[q], background: colors[q] + "15" } : {}}>
+                          {labels[q]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div>
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
                     Remark <span className="text-red-500">*</span>
