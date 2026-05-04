@@ -8,12 +8,11 @@ import UpgradePlan from "./components/UpgradePlan";
 import ReportPage from "./components/ReportPage";
 import UserLogin from "./pages/UserLogin";
 import UserDashboard from "./pages/UserDashboard";
-import UserTwilioPage from "./pages/UserTwilioPage";
 import UserDailyReport from "./pages/UserDailyReport";
 import AdminLogin from "./pages/AdminLogin";
 import SuperAdminLogin from "./pages/SuperAdminLogin";
 import AdminLeadsPage from "./components/AdminLeadsPage";
-import UserLeadsPage from "./pages/UserLeadsPage";  // ← NEW
+import UserLeadsPage from "./pages/UserLeadsPage";
 import EmailHistory from "./components/EmailHistory";
 import AttendancePage from "./pages/AttendancePage";
 import WhatsAppChat from "./components/WhatsAppChat";
@@ -153,7 +152,6 @@ export default function App() {
         }/>
 
         {/* ── Leads — role-aware (/leads) ── */}
-        {/* Admin/superadmin → AdminLeadsPage, user → UserLeadsPage */}
         <Route path="/leads" element={
           <ProtectedRoute>
             <AppLayout>
@@ -177,13 +175,6 @@ export default function App() {
               })()}
             </AppLayout>
           </ProtectedRoute>
-        }/>
-
-        {/* ── Twilio page — users only ── */}
-        <Route path="/user/twilio" element={
-          <UserRoute>
-            <AppLayout><UserTwilioPage /></AppLayout>
-          </UserRoute>
         }/>
 
         {/* ── WhatsApp Chat — admin only ── */}
