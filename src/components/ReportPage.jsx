@@ -296,7 +296,7 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
           <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
           <button onClick={async () => {
             const role = getRole();
-            const leadId = form.id;
+            const leadId = form._id || form.id;  // FIX: prefer raw _id in case id is stale
             const endpoint =
               role === "superadmin" ? `/lead/superadmin/${leadId}` :
               role === "admin"      ? `/lead/admin/${leadId}` :
@@ -604,7 +604,9 @@ function RecordingModal({ lead, onClose }) {
                   )}
                   {(log.recordings || []).map((rec, ri) => (
                     <audio key={ri} controls
-                      src={`http://skyup-crm-backend.onrender.com${rec.url}`}
+                      src={rec.url?.startsWith("http") ? rec.url : `https://skyup-crm-backend.onrender.com${rec.url}`}
+                      preload="none"
+                      onError={(e) => { e.target.style.display = "none"; }}
                       className="w-full h-7 rounded-lg accent-[#2563EB] mb-1" />
                   ))}
                 </div>
