@@ -242,10 +242,7 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
   const totalCalls   = callHistory.length;
   const lastCallAt   = sortedCalls[0]?.calledAt || null; // FIX 4: reuse sortedCalls
 
-  // FIX 5: separate pending (not done, not overdue) from overdue — show both clearly
-  const overdueCalls  = scheduledCalls.filter(c => !c.done && new Date(c.scheduledAt) < new Date()).length;
-  const pendingCalls  = scheduledCalls.filter(c => !c.done && new Date(c.scheduledAt) >= new Date()).length;
-  const doneSched     = scheduledCalls.filter(c => c.done).length;
+  const overdueCalls = scheduledCalls.filter(c => !c.done && new Date(c.scheduledAt) < new Date()).length;
 
   // FIX 2: allAgents dedup — match by name string, mark current correctly
   const allAgents = useMemo(() => {
@@ -323,14 +320,10 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
         <JourneyProgressBar lead={lead} totalCalls={totalCalls} scheduledCalls={scheduledCalls} />
 
         {/* ── Quick stats ── */}
-        {/* FIX 5: Pending now shows truly pending (future), Overdue shown separately */}
-        <div className="px-6 py-4 grid grid-cols-4 gap-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
+        <div className="px-6 py-4 grid grid-cols-2 gap-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[
-            { label: "Calls Made",    value: totalCalls,                                   color: "#0891B2" },
-            { label: "Pending",       value: pendingCalls,                                  color: "#D97706" },
-            { label: overdueCalls > 0 ? "Overdue" : "Completed",
-                                      value: overdueCalls > 0 ? overdueCalls : doneSched,   color: overdueCalls > 0 ? "#DC2626" : "#059669" },
-            { label: "Last Activity", value: lastCallAt ? daysSince(lastCallAt) : "—",      color: "#7C3AED" },
+            { label: "Calls Made",    value: totalCalls,                              color: "#0891B2" },
+            { label: "Last Activity", value: lastCallAt ? daysSince(lastCallAt) : "—", color: "#7C3AED" },
           ].map(item => (
             <div key={item.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-2.5 text-center">
               <p className="text-[9px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">{item.label}</p>
