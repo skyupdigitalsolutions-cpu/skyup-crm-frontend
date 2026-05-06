@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { updateAttendance, removeAttendance } from "../services/attendanceService";
-import api from "../services/api"; // your configured axios instance
+import axios from "axios";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -205,7 +205,11 @@ function UserDetailDrawer({ user, records, onClose }) {
     if (!user?._id) return;
     setCallLogs([]);
     setLogsLoading(true);
-    api.get("/call-logs/recordings")
+    const token = localStorage.getItem("token");
+    const base  = import.meta.env.VITE_API_URL || "";
+    axios.get(`${base}/api/call-logs/recordings`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
       .then(res => {
         const all = res.data?.recordings || [];
         setCallLogs(
