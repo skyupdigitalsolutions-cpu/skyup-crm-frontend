@@ -221,7 +221,6 @@ function DeleteModal({ id, onClose, onRefresh }) {
 }
 
 // ─── Call Log Card ────────────────────────────────────────────────────────────
-// Shows one MobileCallLog document with expandable recordings + AI summary
 
 function CallLogCard({ log }) {
   const [expanded, setExpanded] = useState(false);
@@ -293,7 +292,6 @@ function CallLogCard({ log }) {
         <div className="border-t border-[#E4E7EF] dark:border-[#262A38] px-4 py-3 space-y-4">
           {log.recordings.map((rec, i) => (
             <div key={rec._id || i} className="space-y-2.5">
-              {/* Audio player */}
               {rec.url && (
                 <div>
                   <p className="text-[10px] font-semibold text-[#8B92A9] mb-1.5 uppercase tracking-wider">
@@ -308,7 +306,6 @@ function CallLogCard({ log }) {
                 </div>
               )}
 
-              {/* Transcription status badge (when not done) */}
               {rec.transcribeStatus && rec.transcribeStatus !== "done" && !rec.transcript && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-100 dark:border-amber-900/40">
                   <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -321,7 +318,6 @@ function CallLogCard({ log }) {
                 </div>
               )}
 
-              {/* Transcript */}
               {rec.transcript && (
                 <div>
                   <p className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wider mb-1">Transcript</p>
@@ -331,7 +327,6 @@ function CallLogCard({ log }) {
                 </div>
               )}
 
-              {/* AI Summary block */}
               {rec.summary && (
                 <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-lg px-3 py-2.5 border border-indigo-100 dark:border-indigo-900/40 space-y-2">
                   <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">AI Summary</p>
@@ -385,11 +380,6 @@ function CallLogCard({ log }) {
 function UserDetailDrawer({ user, records, onClose }) {
   if (!user) return null;
 
-  // ── Fetch MobileCallLog records for this user ─────────────────────────────
-  // Endpoint: GET /api/call-logs/recordings  (protectAny — admin token accepted)
-  // Response: { recordings: MobileCallLog[], total, page, totalPages }
-  // Fields per log: phoneNumber, name, callType, duration(s), timestamp,
-  //                 matchedLead{name,mobile,status}, recordings[]{url,transcript,summary,transcribeStatus}
   const [callLogs,    setCallLogs]    = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError,   setLogsError]   = useState("");
@@ -402,15 +392,14 @@ function UserDetailDrawer({ user, records, onClose }) {
     setLogsPage(1);
     setLogsError("");
     setLogsLoading(true);
-   // AFTER — correct endpoint + correct response key
-axios.get(`${BASE}/api/call-logs/all?limit=500`, { headers: authHeaders() })
-  .then(res => {
-    const all = res.data?.logs || [];
-    const filtered = all
-      .filter(l => String(l.user?._id || l.user) === String(user._id))
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    setCallLogs(filtered);
-  })
+    axios.get(`${BASE}/api/call-logs/all?limit=500`, { headers: authHeaders() })
+      .then(res => {
+        const all = res.data?.logs || [];
+        const filtered = all
+          .filter(l => String(l.user?._id || l.user) === String(user._id))
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setCallLogs(filtered);
+      })
       .catch(err => {
         console.error("Call logs fetch failed:", err);
         setLogsError("Failed to load call logs.");
@@ -559,7 +548,6 @@ axios.get(`${BASE}/api/call-logs/all?limit=500`, { headers: authHeaders() })
 
           {/* ── Device Call Logs ── */}
           <div>
-            {/* Section header */}
             <div className="flex items-center gap-2 mb-3">
               <span className="text-[14px]">📞</span>
               <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Device Call Logs</p>
@@ -569,7 +557,6 @@ axios.get(`${BASE}/api/call-logs/all?limit=500`, { headers: authHeaders() })
               </span>
             </div>
 
-            {/* Summary stats strip */}
             {!logsLoading && !logsError && totalCalls > 0 && (
               <div className="grid grid-cols-4 gap-2 mb-3">
                 {[
@@ -588,7 +575,6 @@ axios.get(`${BASE}/api/call-logs/all?limit=500`, { headers: authHeaders() })
               </div>
             )}
 
-            {/* Log list / states */}
             {logsLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3].map(i => (
@@ -608,7 +594,6 @@ axios.get(`${BASE}/api/call-logs/all?limit=500`, { headers: authHeaders() })
                   ))}
                 </div>
 
-                {/* Pagination */}
                 {totalPages > 1 && (
                   <div className="flex items-center justify-between pt-3">
                     <button
@@ -801,7 +786,8 @@ function UsersTab({ records, onUserClick }) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    // FIX: Added `items-start` so cards don't stretch to match their row neighbour's height
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
       {users.map(user => {
         const recs    = user._records || [];
         const total   = recs.length;
@@ -821,11 +807,13 @@ function UsersTab({ records, onUserClick }) {
             className="text-left bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-4 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md transition group"
           >
             <div className="flex items-start justify-between gap-2 mb-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <Avatar name={user.name} size="md" />
-                <div>
-                  <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">{user.name || "Unknown"}</p>
-                  <p className="text-[10px] text-[#8B92A9] truncate max-w-[140px]">{user.email || "—"}</p>
+                {/* FIX: Added min-w-0 to allow text truncation inside flex child */}
+                <div className="min-w-0">
+                  {/* FIX: Added line-clamp-1 so long names don't wrap and expand card height */}
+                  <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition line-clamp-1">{user.name || "Unknown"}</p>
+                  <p className="text-[10px] text-[#8B92A9] truncate">{user.email || "—"}</p>
                 </div>
               </div>
               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${user.isActive !== false ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" : "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"}`}>
