@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { updateAttendance, removeAttendance } from "../services/attendanceService";
-import axios from "axios";
-
+import api from "../axiosConfig";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CRM_STATUS_STYLE = {
@@ -69,12 +68,7 @@ function fmtDuration(seconds) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-// Auth helpers — same pattern as your other services
-function authHeaders() {
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-const BASE = import.meta.env.VITE_API_URL || "";
+
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 
@@ -392,8 +386,8 @@ function UserDetailDrawer({ user, records, onClose }) {
     setLogsPage(1);
     setLogsError("");
     setLogsLoading(true);
-    axios.get(`${BASE}/api/call-logs/all?limit=500`, { headers: authHeaders() })
-      .then(res => {
+      api.get(`/call-logs/all?limit=500`)    
+  .then(res => {
         const all = res.data?.logs || [];
         const filtered = all
           .filter(l => String(l.user?._id || l.user) === String(user._id))
