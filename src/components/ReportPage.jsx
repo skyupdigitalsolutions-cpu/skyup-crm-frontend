@@ -727,7 +727,6 @@ export default function ReportPage() {
 
   const downloadCSVTemplate = () => {
     const headers = ["name", "mobile", "email", "source", "campaign", "status", "remark"];
-    const example = ["John Doe", "9876543210", "john@example.com", "Website", "Summer Campaign", "New", "Interested in premium plan"];
     const blob = new Blob([[headers.join(","), example.join(",")].join("\n")], { type: "text/csv" });
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "leads_import_template.csv" });
     a.click();
