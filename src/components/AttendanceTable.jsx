@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { updateAttendance, removeAttendance } from "../services/attendanceService";
+import api from "../services/api"; // your configured axios instance
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,12 @@ function combineDateTime(dateStr, timeStr) {
 }
 function initials(name) {
   return (name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+}
+function fmtDuration(seconds) {
+  if (!seconds && seconds !== 0) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -190,10 +197,28 @@ function DeleteModal({ id, onClose, onRefresh }) {
 function UserDetailDrawer({ user, records, onClose }) {
   if (!user) return null;
 
-  // All attendance records for this user
+  // ── Call logs: fetch from dedicated endpoint ──────────────────────────────
+  const [callLogs,    setCallLogs]    = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user?._id) return;
+    setCallLogs([]);
+    setLogsLoading(true);
+    api.get("/call-logs/recordings")
+      .then(res => {
+        const all = res.data?.recordings || [];
+        setCallLogs(
+          all.filter(l => String(l.user?._id || l.user) === String(user._id))
+        );
+      })
+      .catch(err => console.error("Call logs fetch failed:", err))
+      .finally(() => setLogsLoading(false));
+  }, [user._id]);
+
+  // ── Attendance stats ──────────────────────────────────────────────────────
   const userRecs = records.filter(r => (r.user?._id || r.user?.id) === (user._id || user.id));
 
-  // Stats
   const total    = userRecs.length;
   const present  = userRecs.filter(r => r.derivedCrmStatus === "present").length;
   const absent   = userRecs.filter(r => r.derivedCrmStatus === "absent").length;
@@ -202,22 +227,18 @@ function UserDetailDrawer({ user, records, onClose }) {
   const halfDay  = userRecs.filter(r => r.derivedCrmStatus === "half_day").length;
   const attendancePct = total > 0 ? Math.round(((present + late + halfDay) / total) * 100) : 0;
 
-  // Last seen
   const sorted = [...userRecs].sort((a, b) => new Date(b.date) - new Date(a.date));
   const lastRec = sorted[0];
 
-  // Device/app info from last login record
-  const deviceInfo = lastRec?.deviceInfo || user.deviceInfo || null;
-  const appName    = lastRec?.appName    || user.appName    || null;
-  const appVersion = lastRec?.appVersion || user.appVersion || null;
-  const platform   = lastRec?.platform   || user.platform   || null;
-  const deviceModel= lastRec?.deviceModel|| user.deviceModel|| null;
-  const osVersion  = lastRec?.osVersion  || user.osVersion  || null;
-  const fcmToken   = lastRec?.fcmToken   || user.fcmToken   || null;
-  const lastSynced = lastRec?.updatedAt  || lastRec?.loginTime || null;
-
-  // Call logs from user object or records
-  const callLogs = user.callLogs || user.callHistory || [];
+  // ── Device / app info from most recent attendance record ──────────────────
+  const deviceInfo  = lastRec?.deviceInfo  || user.deviceInfo  || null;
+  const appName     = lastRec?.appName     || user.appName     || null;
+  const appVersion  = lastRec?.appVersion  || user.appVersion  || null;
+  const platform    = lastRec?.platform    || user.platform    || null;
+  const deviceModel = lastRec?.deviceModel || user.deviceModel || null;
+  const osVersion   = lastRec?.osVersion   || user.osVersion   || null;
+  const fcmToken    = lastRec?.fcmToken    || user.fcmToken    || null;
+  const lastSynced  = lastRec?.updatedAt   || lastRec?.loginTime || null;
 
   const statItems = [
     { label: "Present",  value: present,  color: "#059669" },
@@ -322,9 +343,19 @@ function UserDetailDrawer({ user, records, onClose }) {
               <span className="text-[14px]">📞</span>
               <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Call Logs Sync</p>
               <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
-              <span className="text-[10px] font-bold text-[#8B92A9]">{callLogs.length}</span>
+              <span className="text-[10px] font-bold text-[#8B92A9]">
+                {logsLoading ? "…" : callLogs.length}
+              </span>
             </div>
-            {callLogs.length > 0 ? (
+
+            {logsLoading ? (
+              // Loading skeleton
+              <div className="space-y-2">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-14 rounded-xl bg-[#F1F4FF] dark:bg-[#262A38] animate-pulse" />
+                ))}
+              </div>
+            ) : callLogs.length > 0 ? (
               <div className="space-y-2">
                 {callLogs.slice(0, 10).map((log, i) => (
                   <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-4 py-3">
@@ -336,20 +367,38 @@ function UserDetailDrawer({ user, records, onClose }) {
                           </svg>
                         </div>
                         <div>
-                          <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{log.number || log.phone || "Unknown"}</p>
-                          <p className="text-[10px] text-[#8B92A9]">{log.name || log.contactName || ""}</p>
+                          <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+                            {log.phoneNumber || "Unknown"}
+                          </p>
+                          <p className="text-[10px] text-[#8B92A9]">{log.name || ""}</p>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-[10px] text-[#8B92A9]">{log.calledAt ? fmtDateTime(log.calledAt) : log.date || "—"}</p>
-                        {log.duration && <p className="text-[10px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">{log.duration}</p>}
-                        {log.type && (
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                            log.type === "incoming" ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
-                            : log.type === "outgoing" ? "bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
-                            : "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
-                          }`}>{log.type}</span>
+                        <p className="text-[10px] text-[#8B92A9]">
+                          {log.timestamp ? fmtDateTime(log.timestamp) : "—"}
+                        </p>
+                        {log.duration != null && (
+                          <p className="text-[10px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
+                            {fmtDuration(log.duration)}
+                          </p>
                         )}
+                        <div className="flex items-center justify-end gap-1 mt-0.5 flex-wrap">
+                          {log.callType && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                              log.callType === "incoming"  ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                              : log.callType === "outgoing" ? "bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                              : log.callType === "missed"   ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
+                              : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
+                            }`}>
+                              {log.callType}
+                            </span>
+                          )}
+                          {log.matchedLead && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                              {log.matchedLead.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -508,7 +557,6 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
 // ─── Sub-page: User Details Grid ─────────────────────────────────────────────
 
 function UsersTab({ records, onUserClick }) {
-  // Deduplicate users from records
   const users = useMemo(() => {
     const map = new Map();
     records.forEach(r => {
@@ -534,15 +582,15 @@ function UsersTab({ records, onUserClick }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {users.map(user => {
-        const recs     = user._records || [];
-        const total    = recs.length;
-        const present  = recs.filter(r => r.derivedCrmStatus === "present").length;
-        const late     = recs.filter(r => r.derivedCrmStatus === "late").length;
-        const absent   = recs.filter(r => r.derivedCrmStatus === "absent").length;
-        const halfDay  = recs.filter(r => r.derivedCrmStatus === "half_day").length;
-        const pct      = total > 0 ? Math.round(((present + late + halfDay) / total) * 100) : 0;
-        const sorted   = [...recs].sort((a, b) => new Date(b.date) - new Date(a.date));
-        const lastRec  = sorted[0];
+        const recs    = user._records || [];
+        const total   = recs.length;
+        const present = recs.filter(r => r.derivedCrmStatus === "present").length;
+        const late    = recs.filter(r => r.derivedCrmStatus === "late").length;
+        const absent  = recs.filter(r => r.derivedCrmStatus === "absent").length;
+        const halfDay = recs.filter(r => r.derivedCrmStatus === "half_day").length;
+        const pct     = total > 0 ? Math.round(((present + late + halfDay) / total) * 100) : 0;
+        const sorted  = [...recs].sort((a, b) => new Date(b.date) - new Date(a.date));
+        const lastRec = sorted[0];
         const deviceInfo = lastRec?.appName || lastRec?.platform || lastRec?.deviceInfo;
 
         return (
@@ -608,7 +656,7 @@ function UsersTab({ records, onUserClick }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AttendancePage({ records = [], loading = false, onRefresh = () => {} }) {
-  const [activeTab,   setActiveTab]   = useState("attendance"); // "attendance" | "users"
+  const [activeTab,    setActiveTab]    = useState("attendance"); // "attendance" | "users"
   const [selectedUser, setSelectedUser] = useState(null);
 
   const tabs = [
