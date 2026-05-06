@@ -402,14 +402,15 @@ function UserDetailDrawer({ user, records, onClose }) {
     setLogsPage(1);
     setLogsError("");
     setLogsLoading(true);
-    axios.get(`${BASE}/api/call-logs/recordings?limit=200`, { headers: authHeaders() })
-      .then(res => {
-        const all = res.data?.recordings || [];
-        const filtered = all
-          .filter(l => String(l.user?._id || l.user) === String(user._id))
-          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        setCallLogs(filtered);
-      })
+   // AFTER — correct endpoint + correct response key
+axios.get(`${BASE}/api/call-logs/all?limit=500`, { headers: authHeaders() })
+  .then(res => {
+    const all = res.data?.logs || [];
+    const filtered = all
+      .filter(l => String(l.user?._id || l.user) === String(user._id))
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    setCallLogs(filtered);
+  })
       .catch(err => {
         console.error("Call logs fetch failed:", err);
         setLogsError("Failed to load call logs.");
