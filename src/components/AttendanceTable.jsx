@@ -13,6 +13,16 @@ const CRM_STATUS_STYLE = {
 };
 const STATUS_ENUM = ["present", "absent", "late", "half_day", "leave"];
 
+const CALL_TYPE_STYLE = {
+  incoming : { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-700 dark:text-emerald-400", icon: "↙", label: "Incoming"  },
+  outgoing : { bg: "bg-blue-100 dark:bg-blue-950/40",       text: "text-blue-700 dark:text-blue-400",       icon: "↗", label: "Outgoing"  },
+  missed   : { bg: "bg-red-100 dark:bg-red-950/40",         text: "text-red-700 dark:text-red-400",         icon: "↗", label: "Missed"    },
+  rejected : { bg: "bg-orange-100 dark:bg-orange-950/40",   text: "text-orange-700 dark:text-orange-400",   icon: "✕", label: "Rejected"  },
+  blocked  : { bg: "bg-gray-100 dark:bg-gray-800",          text: "text-gray-600 dark:text-gray-400",       icon: "⊘", label: "Blocked"   },
+  voicemail: { bg: "bg-purple-100 dark:bg-purple-950/40",   text: "text-purple-700 dark:text-purple-400",   icon: "✉", label: "Voicemail" },
+  unknown  : { bg: "bg-gray-100 dark:bg-gray-800",          text: "text-gray-600 dark:text-gray-400",       icon: "?", label: "Unknown"   },
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmtTime(d) {
@@ -52,11 +62,19 @@ function initials(name) {
   return (name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 }
 function fmtDuration(seconds) {
-  if (!seconds && seconds !== 0) return "—";
+  if (!seconds && seconds !== 0) return null;
+  if (seconds === 0) return "0s";
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
+
+// Auth helpers — same pattern as your other services
+function authHeaders() {
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+const BASE = import.meta.env.VITE_API_URL || "";
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 
@@ -65,6 +83,16 @@ function StatusBadge({ status }) {
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${s.bg} ${s.text}`}>
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.dot }} />
+      {s.label}
+    </span>
+  );
+}
+
+function CallTypeBadge({ callType }) {
+  const s = CALL_TYPE_STYLE[callType] || CALL_TYPE_STYLE["unknown"];
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold ${s.bg} ${s.text}`}>
+      <span>{s.icon}</span>
       {s.label}
     </span>
   );
@@ -192,54 +220,231 @@ function DeleteModal({ id, onClose, onRefresh }) {
   );
 }
 
+// ─── Call Log Card ────────────────────────────────────────────────────────────
+// Shows one MobileCallLog document with expandable recordings + AI summary
+
+function CallLogCard({ log }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasRecordings = log.recordings?.length > 0;
+  const hasSummary    = log.recordings?.some(r => r.summary || r.transcript);
+  const dur           = fmtDuration(log.duration);
+
+  return (
+    <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+      {/* Main row */}
+      <div className="px-4 py-3 flex items-start justify-between gap-3">
+        {/* Left: call type icon + number + contact name */}
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[14px] font-bold
+            ${log.callType === "incoming"  ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" :
+              log.callType === "outgoing"  ? "bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"             :
+              log.callType === "missed"    ? "bg-red-100 dark:bg-red-950/40 text-red-500 dark:text-red-400"                 :
+              log.callType === "rejected"  ? "bg-orange-100 dark:bg-orange-950/40 text-orange-500 dark:text-orange-400"     :
+              log.callType === "voicemail" ? "bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400"     :
+              "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"}`}>
+            {log.callType === "incoming"  ? "↙" :
+             log.callType === "outgoing"  ? "↗" :
+             log.callType === "missed"    ? "↗" :
+             log.callType === "rejected"  ? "✕" :
+             log.callType === "voicemail" ? "✉" : "?"}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">
+              {log.phoneNumber || "Unknown"}
+            </p>
+            {log.name && (
+              <p className="text-[11px] text-[#8B92A9] truncate">{log.name}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Right: badges + timestamp + duration + expand toggle */}
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            <CallTypeBadge callType={log.callType} />
+            {log.matchedLead && (
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400">
+                {log.matchedLead.name}
+              </span>
+            )}
+            {hasRecordings && (
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400">
+                🎙 {log.recordings.length}
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-[#8B92A9]">{fmtDateTime(log.timestamp)}</p>
+          {dur && (
+            <p className="text-[10px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">{dur}</p>
+          )}
+          {(hasRecordings || hasSummary) && (
+            <button
+              onClick={() => setExpanded(e => !e)}
+              className="text-[10px] font-semibold text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition mt-0.5"
+            >
+              {expanded ? "Hide ▲" : "Details ▼"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded: recordings player + transcript + AI summary */}
+      {expanded && (hasRecordings || hasSummary) && (
+        <div className="border-t border-[#E4E7EF] dark:border-[#262A38] px-4 py-3 space-y-4">
+          {log.recordings.map((rec, i) => (
+            <div key={rec._id || i} className="space-y-2.5">
+              {/* Audio player */}
+              {rec.url && (
+                <div>
+                  <p className="text-[10px] font-semibold text-[#8B92A9] mb-1.5 uppercase tracking-wider">
+                    Recording {log.recordings.length > 1 ? i + 1 : ""}
+                  </p>
+                  <audio
+                    controls
+                    src={rec.url}
+                    className="w-full"
+                    style={{ height: "36px", accentColor: "#6366f1" }}
+                  />
+                </div>
+              )}
+
+              {/* Transcription status badge (when not done) */}
+              {rec.transcribeStatus && rec.transcribeStatus !== "done" && !rec.transcript && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-100 dark:border-amber-900/40">
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    rec.transcribeStatus === "processing" ? "bg-amber-400 animate-pulse" :
+                    rec.transcribeStatus === "failed"     ? "bg-red-400" : "bg-gray-400"
+                  }`} />
+                  <p className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold capitalize">
+                    Transcription {rec.transcribeStatus}
+                  </p>
+                </div>
+              )}
+
+              {/* Transcript */}
+              {rec.transcript && (
+                <div>
+                  <p className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wider mb-1">Transcript</p>
+                  <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed bg-white dark:bg-[#1A1D27] rounded-lg px-3 py-2 border border-[#E4E7EF] dark:border-[#262A38] max-h-36 overflow-y-auto">
+                    {rec.transcript}
+                  </p>
+                </div>
+              )}
+
+              {/* AI Summary block */}
+              {rec.summary && (
+                <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-lg px-3 py-2.5 border border-indigo-100 dark:border-indigo-900/40 space-y-2">
+                  <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">AI Summary</p>
+
+                  {rec.summary.summary && (
+                    <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">
+                      {rec.summary.summary}
+                    </p>
+                  )}
+
+                  {rec.summary.keyPoints?.length > 0 && (
+                    <ul className="space-y-0.5">
+                      {rec.summary.keyPoints.map((pt, j) => (
+                        <li key={j} className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] flex gap-1.5">
+                          <span className="text-indigo-400 shrink-0 mt-0.5">•</span>
+                          {pt}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <div className="flex items-center gap-3 pt-0.5 flex-wrap">
+                    {rec.summary.sentiment && (
+                      <span className="text-[10px] font-semibold text-[#8B92A9]">
+                        Sentiment: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{rec.summary.sentiment}</span>
+                      </span>
+                    )}
+                    {rec.summary.nextAction && (
+                      <span className="text-[10px] font-semibold text-[#8B92A9]">
+                        Next action: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{rec.summary.nextAction}</span>
+                      </span>
+                    )}
+                    {rec.summary.suggestedTemp && (
+                      <span className="text-[10px] font-semibold text-[#8B92A9]">
+                        Lead temp: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{rec.summary.suggestedTemp}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── User Detail Drawer ───────────────────────────────────────────────────────
 
 function UserDetailDrawer({ user, records, onClose }) {
   if (!user) return null;
 
-  // ── Call logs: fetch from dedicated endpoint ──────────────────────────────
+  // ── Fetch MobileCallLog records for this user ─────────────────────────────
+  // Endpoint: GET /api/call-logs/recordings  (protectAny — admin token accepted)
+  // Response: { recordings: MobileCallLog[], total, page, totalPages }
+  // Fields per log: phoneNumber, name, callType, duration(s), timestamp,
+  //                 matchedLead{name,mobile,status}, recordings[]{url,transcript,summary,transcribeStatus}
   const [callLogs,    setCallLogs]    = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError,   setLogsError]   = useState("");
+  const [logsPage,    setLogsPage]    = useState(1);
+  const LOGS_PER_PAGE = 20;
 
   useEffect(() => {
     if (!user?._id) return;
     setCallLogs([]);
+    setLogsPage(1);
+    setLogsError("");
     setLogsLoading(true);
-    const token = localStorage.getItem("token");
-    const base  = import.meta.env.VITE_API_URL || "";
-    axios.get(`${base}/api/call-logs/recordings`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    axios.get(`${BASE}/api/call-logs/recordings?limit=200`, { headers: authHeaders() })
       .then(res => {
         const all = res.data?.recordings || [];
-        setCallLogs(
-          all.filter(l => String(l.user?._id || l.user) === String(user._id))
-        );
+        const filtered = all
+          .filter(l => String(l.user?._id || l.user) === String(user._id))
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setCallLogs(filtered);
       })
-      .catch(err => console.error("Call logs fetch failed:", err))
+      .catch(err => {
+        console.error("Call logs fetch failed:", err);
+        setLogsError("Failed to load call logs.");
+      })
       .finally(() => setLogsLoading(false));
   }, [user._id]);
 
   // ── Attendance stats ──────────────────────────────────────────────────────
-  const userRecs = records.filter(r => (r.user?._id || r.user?.id) === (user._id || user.id));
-
-  const total    = userRecs.length;
-  const present  = userRecs.filter(r => r.derivedCrmStatus === "present").length;
-  const absent   = userRecs.filter(r => r.derivedCrmStatus === "absent").length;
-  const late     = userRecs.filter(r => r.derivedCrmStatus === "late").length;
-  const leave    = userRecs.filter(r => r.derivedCrmStatus === "leave").length;
-  const halfDay  = userRecs.filter(r => r.derivedCrmStatus === "half_day").length;
+  const userRecs      = records.filter(r => (r.user?._id || r.user?.id) === (user._id || user.id));
+  const total         = userRecs.length;
+  const present       = userRecs.filter(r => r.derivedCrmStatus === "present").length;
+  const absent        = userRecs.filter(r => r.derivedCrmStatus === "absent").length;
+  const late          = userRecs.filter(r => r.derivedCrmStatus === "late").length;
+  const leave         = userRecs.filter(r => r.derivedCrmStatus === "leave").length;
+  const halfDay       = userRecs.filter(r => r.derivedCrmStatus === "half_day").length;
   const attendancePct = total > 0 ? Math.round(((present + late + halfDay) / total) * 100) : 0;
+  const sortedAtt     = [...userRecs].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const lastRec       = sortedAtt[0];
 
-  const sorted = [...userRecs].sort((a, b) => new Date(b.date) - new Date(a.date));
-  const lastRec = sorted[0];
+  // ── Call log summary stats ────────────────────────────────────────────────
+  const totalCalls    = callLogs.length;
+  const totalDuration = callLogs.reduce((s, l) => s + (l.duration || 0), 0);
+  const withRecording = callLogs.filter(l => l.recordings?.length > 0).length;
+  const missedCalls   = callLogs.filter(l => l.callType === "missed").length;
 
-  // ── Device / app info from most recent attendance record ──────────────────
-  const deviceInfo  = lastRec?.deviceInfo  || user.deviceInfo  || null;
+  // ── Pagination ────────────────────────────────────────────────────────────
+  const totalPages = Math.ceil(totalCalls / LOGS_PER_PAGE);
+  const pagedLogs  = callLogs.slice((logsPage - 1) * LOGS_PER_PAGE, logsPage * LOGS_PER_PAGE);
+
+  // ── Device / app info ─────────────────────────────────────────────────────
   const appName     = lastRec?.appName     || user.appName     || null;
   const appVersion  = lastRec?.appVersion  || user.appVersion  || null;
   const platform    = lastRec?.platform    || user.platform    || null;
   const deviceModel = lastRec?.deviceModel || user.deviceModel || null;
+  const deviceInfo  = lastRec?.deviceInfo  || user.deviceInfo  || null;
   const osVersion   = lastRec?.osVersion   || user.osVersion   || null;
   const fcmToken    = lastRec?.fcmToken    || user.fcmToken    || null;
   const lastSynced  = lastRec?.updatedAt   || lastRec?.loginTime || null;
@@ -255,10 +460,10 @@ function UserDetailDrawer({ user, records, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div
-        className="w-full max-w-[520px] bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-y-auto flex flex-col"
+        className="w-full max-w-[540px] bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-y-auto flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] sticky top-0 z-10">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -275,7 +480,11 @@ function UserDetailDrawer({ user, records, onClose }) {
                   {user.phone && (
                     <span className="text-[10px] font-mono text-[#8B92A9]">{user.phone}</span>
                   )}
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${user.isActive !== false ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" : "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"}`}>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    user.isActive !== false
+                      ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                      : "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
+                  }`}>
                     {user.isActive !== false ? "Active" : "Inactive"}
                   </span>
                 </div>
@@ -290,20 +499,26 @@ function UserDetailDrawer({ user, records, onClose }) {
           </div>
         </div>
 
-        {/* Attendance % bar */}
+        {/* ── Attendance % bar ── */}
         <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[11px] font-bold text-[#0F1117] dark:text-[#F0F2FA] uppercase tracking-widest">Attendance Rate</p>
-            <span className="text-[13px] font-black" style={{ color: attendancePct >= 80 ? "#059669" : attendancePct >= 60 ? "#D97706" : "#DC2626" }}>{attendancePct}%</span>
+            <span className="text-[13px] font-black" style={{
+              color: attendancePct >= 80 ? "#059669" : attendancePct >= 60 ? "#D97706" : "#DC2626"
+            }}>{attendancePct}%</span>
           </div>
           <div className="h-2 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${attendancePct}%`, background: attendancePct >= 80 ? "#059669" : attendancePct >= 60 ? "#D97706" : "#DC2626" }} />
+            <div className="h-full rounded-full transition-all duration-500" style={{
+              width: `${attendancePct}%`,
+              background: attendancePct >= 80 ? "#059669" : attendancePct >= 60 ? "#D97706" : "#DC2626"
+            }} />
           </div>
-          <p className="text-[10px] text-[#8B92A9] mt-1">{total} records total · Last seen {daysSince(lastRec?.date || lastRec?.loginTime)}</p>
+          <p className="text-[10px] text-[#8B92A9] mt-1">
+            {total} records total · Last seen {daysSince(lastRec?.date || lastRec?.loginTime)}
+          </p>
         </div>
 
-        {/* Stats grid */}
+        {/* ── Attendance stats grid ── */}
         <div className="px-6 py-4 grid grid-cols-5 gap-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {statItems.map(s => (
             <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-2 text-center">
@@ -313,10 +528,10 @@ function UserDetailDrawer({ user, records, onClose }) {
           ))}
         </div>
 
-        {/* Body */}
+        {/* ── Body ── */}
         <div className="px-6 py-5 flex-1 space-y-6">
 
-          {/* Device / App Info */}
+          {/* ── Device / App Info ── */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <span className="text-[14px]">📱</span>
@@ -341,94 +556,96 @@ function UserDetailDrawer({ user, records, onClose }) {
             </div>
           </div>
 
-          {/* Call Logs */}
+          {/* ── Device Call Logs ── */}
           <div>
+            {/* Section header */}
             <div className="flex items-center gap-2 mb-3">
               <span className="text-[14px]">📞</span>
-              <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Call Logs Sync</p>
+              <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Device Call Logs</p>
               <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
               <span className="text-[10px] font-bold text-[#8B92A9]">
-                {logsLoading ? "…" : callLogs.length}
+                {logsLoading ? "…" : `${totalCalls} calls`}
               </span>
             </div>
 
-            {logsLoading ? (
-              // Loading skeleton
-              <div className="space-y-2">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="h-14 rounded-xl bg-[#F1F4FF] dark:bg-[#262A38] animate-pulse" />
-                ))}
-              </div>
-            ) : callLogs.length > 0 ? (
-              <div className="space-y-2">
-                {callLogs.slice(0, 10).map((log, i) => (
-                  <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-4 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-cyan-100 dark:bg-cyan-950/40 flex items-center justify-center shrink-0">
-                          <svg className="w-3 h-3 text-cyan-600 dark:text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
-                            {log.phoneNumber || "Unknown"}
-                          </p>
-                          <p className="text-[10px] text-[#8B92A9]">{log.name || ""}</p>
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-[10px] text-[#8B92A9]">
-                          {log.timestamp ? fmtDateTime(log.timestamp) : "—"}
-                        </p>
-                        {log.duration != null && (
-                          <p className="text-[10px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
-                            {fmtDuration(log.duration)}
-                          </p>
-                        )}
-                        <div className="flex items-center justify-end gap-1 mt-0.5 flex-wrap">
-                          {log.callType && (
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                              log.callType === "incoming"  ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
-                              : log.callType === "outgoing" ? "bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
-                              : log.callType === "missed"   ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
-                              : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
-                            }`}>
-                              {log.callType}
-                            </span>
-                          )}
-                          {log.matchedLead && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
-                              {log.matchedLead.name}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+            {/* Summary stats strip */}
+            {!logsLoading && !logsError && totalCalls > 0 && (
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                {[
+                  { label: "Total",     value: totalCalls,                    color: "#6366f1" },
+                  { label: "Missed",    value: missedCalls,                   color: "#DC2626" },
+                  { label: "Recorded",  value: withRecording,                 color: "#0891b2" },
+                  { label: "Talk time", value: fmtDuration(totalDuration) || "0s", color: "#059669", small: true },
+                ].map(s => (
+                  <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-2 text-center border border-[#E4E7EF] dark:border-[#262A38]">
+                    <p className="text-[9px] font-bold text-[#8B92A9] uppercase tracking-wide mb-0.5">{s.label}</p>
+                    <p className={`font-black ${s.small ? "text-[11px]" : "text-[15px]"}`} style={{ color: s.color }}>
+                      {s.value}
+                    </p>
                   </div>
                 ))}
-                {callLogs.length > 10 && (
-                  <p className="text-[11px] text-center text-[#8B92A9] py-1">+{callLogs.length - 10} more call logs</p>
-                )}
               </div>
+            )}
+
+            {/* Log list / states */}
+            {logsLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-16 rounded-xl bg-[#F1F4FF] dark:bg-[#262A38] animate-pulse" />
+                ))}
+              </div>
+            ) : logsError ? (
+              <div className="flex flex-col items-center justify-center py-6 gap-2 bg-red-50 dark:bg-red-950/20 rounded-xl border border-dashed border-red-200 dark:border-red-900/40">
+                <span className="text-[28px]">⚠️</span>
+                <p className="text-[12px] text-red-500">{logsError}</p>
+              </div>
+            ) : pagedLogs.length > 0 ? (
+              <>
+                <div className="space-y-2">
+                  {pagedLogs.map((log, i) => (
+                    <CallLogCard key={log._id || i} log={log} />
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between pt-3">
+                    <button
+                      disabled={logsPage <= 1}
+                      onClick={() => setLogsPage(p => p - 1)}
+                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white disabled:opacity-40 transition"
+                    >
+                      ← Prev
+                    </button>
+                    <p className="text-[11px] text-[#8B92A9]">Page {logsPage} of {totalPages}</p>
+                    <button
+                      disabled={logsPage >= totalPages}
+                      onClick={() => setLogsPage(p => p + 1)}
+                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white disabled:opacity-40 transition"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
                 <span className="text-[28px]">📵</span>
-                <p className="text-[12px] text-[#8B92A9]">No call logs synced</p>
+                <p className="text-[12px] text-[#8B92A9]">No call logs synced for this user</p>
               </div>
             )}
           </div>
 
-          {/* Recent Attendance Records */}
+          {/* ── Recent Attendance Records ── */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <span className="text-[14px]">🗓️</span>
               <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Recent Attendance</p>
               <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
             </div>
-            {sorted.length > 0 ? (
+            {sortedAtt.length > 0 ? (
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
-                {sorted.slice(0, 7).map((rec, i) => (
+                {sortedAtt.slice(0, 7).map((rec, i) => (
                   <div key={i} className={`flex items-center justify-between px-4 py-2.5 ${i > 0 ? "border-t border-[#F0F2FA] dark:border-[#1E2130]" : ""}`}>
                     <div className="flex items-center gap-3">
                       <StatusBadge status={rec.derivedCrmStatus || "absent"} />
@@ -503,7 +720,6 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
             ) : (
               records.map((rec, i) => (
                 <tr key={rec._id || i} className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition group">
-                  {/* Employee — clickable */}
                   <td className={tdCls}>
                     <button
                       onClick={() => onUserClick(rec.user)}
@@ -603,7 +819,6 @@ function UsersTab({ records, onUserClick }) {
             onClick={() => onUserClick(user)}
             className="text-left bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-4 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md transition group"
           >
-            {/* Top row */}
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="flex items-center gap-3">
                 <Avatar name={user.name} size="md" />
@@ -617,7 +832,6 @@ function UsersTab({ records, onUserClick }) {
               </span>
             </div>
 
-            {/* Attendance bar */}
             <div className="mb-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] text-[#8B92A9]">Attendance</span>
@@ -628,7 +842,6 @@ function UsersTab({ records, onUserClick }) {
               </div>
             </div>
 
-            {/* Mini stats */}
             <div className="flex items-center gap-2 mb-3">
               {[
                 { label: "P", value: present, color: "#059669" },
@@ -642,7 +855,6 @@ function UsersTab({ records, onUserClick }) {
               ))}
             </div>
 
-            {/* Device info & last seen */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 min-w-0">
                 <span className="text-[11px]">📱</span>
@@ -660,7 +872,7 @@ function UsersTab({ records, onUserClick }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AttendancePage({ records = [], loading = false, onRefresh = () => {} }) {
-  const [activeTab,    setActiveTab]    = useState("attendance"); // "attendance" | "users"
+  const [activeTab,    setActiveTab]    = useState("attendance");
   const [selectedUser, setSelectedUser] = useState(null);
 
   const tabs = [
@@ -670,14 +882,11 @@ export default function AttendancePage({ records = [], loading = false, onRefres
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-6 py-8">
-
-      {/* Page header */}
       <div className="mb-6">
         <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Attendance</h1>
         <p className="text-[13px] text-[#8B92A9] mt-0.5">Track employee attendance, device info, and call log sync</p>
       </div>
 
-      {/* Sub-page tabs */}
       <div className="flex items-center gap-1 mb-6 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-1 w-fit">
         {tabs.map(tab => (
           <button
@@ -695,7 +904,6 @@ export default function AttendancePage({ records = [], loading = false, onRefres
         ))}
       </div>
 
-      {/* Sub-page content */}
       {activeTab === "attendance" && (
         <AttendanceTab
           records={records}
@@ -711,7 +919,6 @@ export default function AttendancePage({ records = [], loading = false, onRefres
         />
       )}
 
-      {/* User detail drawer */}
       {selectedUser && (
         <UserDetailDrawer
           user={selectedUser}
