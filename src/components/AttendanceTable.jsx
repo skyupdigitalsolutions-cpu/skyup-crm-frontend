@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { updateAttendance, removeAttendance } from "../services/attendanceService";
-import api from "../axiosConfig";
+import api from "../data/axiosConfig";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CRM_STATUS_STYLE = {
