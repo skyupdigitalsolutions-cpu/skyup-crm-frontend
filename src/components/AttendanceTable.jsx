@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { updateAttendance, removeAttendance } from "../services/attendanceService";
-import api from "../data/axiosConfig";
+import axios from "axios";
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CRM_STATUS_STYLE = {
@@ -68,7 +69,12 @@ function fmtDuration(seconds) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-
+// Auth helpers — same pattern as your other services
+function authHeaders() {
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+const BASE = import.meta.env.VITE_API_URL || "";
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 
@@ -386,8 +392,8 @@ function UserDetailDrawer({ user, records, onClose }) {
     setLogsPage(1);
     setLogsError("");
     setLogsLoading(true);
-      api.get(`/call-logs/all?limit=500`)    
-  .then(res => {
+    axios.get(`${BASE}/api/call-logs/all?limit=500`, { headers: authHeaders() })
+      .then(res => {
         const all = res.data?.logs || [];
         const filtered = all
           .filter(l => String(l.user?._id || l.user) === String(user._id))
@@ -424,14 +430,16 @@ function UserDetailDrawer({ user, records, onClose }) {
   const pagedLogs  = callLogs.slice((logsPage - 1) * LOGS_PER_PAGE, logsPage * LOGS_PER_PAGE);
 
   // ── Device / app info ─────────────────────────────────────────────────────
-  const appName     = lastRec?.appName     || user.appName     || null;
-  const appVersion  = lastRec?.appVersion  || user.appVersion  || null;
-  const platform    = lastRec?.platform    || user.platform    || null;
-  const deviceModel = lastRec?.deviceModel || user.deviceModel || null;
-  const deviceInfo  = lastRec?.deviceInfo  || user.deviceInfo  || null;
-  const osVersion   = lastRec?.osVersion   || user.osVersion   || null;
-  const fcmToken    = lastRec?.fcmToken    || user.fcmToken    || null;
-  const lastSynced  = lastRec?.updatedAt   || lastRec?.loginTime || null;
+  // User document is kept fresh on every login + clock-in by the mobile app.
+  // Prefer user.* so the drawer always shows the latest device even if
+  // the most recent attendance record predates the device info rollout.
+  const appName     = user.appName     || lastRec?.appName     || null;
+  const appVersion  = user.appVersion  || lastRec?.appVersion  || null;
+  const platform    = user.platform    || lastRec?.platform    || null;
+  const deviceModel = user.deviceModel || lastRec?.deviceModel || null;
+  const osVersion   = user.osVersion   || lastRec?.osVersion   || null;
+  const fcmToken    = user.fcmToken    || lastRec?.fcmToken    || null;
+  const lastSynced  = lastRec?.updatedAt || lastRec?.loginTime  || null;
 
   const statItems = [
     { label: "Present",  value: present,  color: "#059669" },
@@ -527,7 +535,7 @@ function UserDetailDrawer({ user, records, onClose }) {
                 { label: "App Name",     value: appName     || "—" },
                 { label: "App Version",  value: appVersion  || "—" },
                 { label: "Platform",     value: platform    || "—" },
-                { label: "Device Model", value: deviceModel || (deviceInfo ? String(deviceInfo) : "—") },
+                { label: "Device Model", value: deviceModel || "—" },
                 { label: "OS Version",   value: osVersion   || "—" },
                 { label: "Last Synced",  value: lastSynced ? fmtDateTime(lastSynced) : "—" },
                 { label: "FCM Token",    value: fcmToken ? fcmToken.slice(0, 24) + "…" : "—" },
