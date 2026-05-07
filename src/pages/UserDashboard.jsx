@@ -355,13 +355,13 @@ function MiniBarChart({ data, labels, color }) {
   color = color || "#2563EB";
   const max = Math.max(...data, 1);
   return (
-    <div className="flex items-end gap-1.5 h-16">
+    <div className="flex items-end gap-2 h-18">
       {data.map(function(v, i) {
         return (
           <div key={i} className="flex-1 flex flex-col items-center gap-1">
             <div className="w-full rounded-t-sm transition-all duration-500"
-              style={{ height: ((v / max) * 52) + "px", background: i === data.length - 1 ? color : color + "60", minHeight: 2 }} />
-            <span className="text-[8px] text-[#8B92A9] dark:text-[#D1D5DB]">{labels[i]}</span>
+              style={{ height: ((v / max) * 52) + "px", background: i === data.length - 1 ? color : color + "60", minHeight: 3 }} />
+            <span className="text-[10px] text-[#8B92A9] dark:text-[#D1D5DB]">{labels[i]}</span>
           </div>
         );
       })}
@@ -1402,8 +1402,7 @@ export default function UserDashboard() {
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">My Weekly Activity</p>
             </div>
             <p className="text-[12px] text-[#8B92A9] mb-4">{kpi.weekLeads} leads added this week</p>
-           <div className="h-[260px] w-full mt-2">
-  <MiniBarChart data={kpi.weekData} labels={kpi.weekLabels} color="#2563EB" height={260}/></div>
+              <MiniBarChart data={kpi.weekData} labels={kpi.weekLabels} color="#2563EB" />
           </div>
 
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
