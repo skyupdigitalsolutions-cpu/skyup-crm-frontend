@@ -307,7 +307,7 @@ function KpiCard({ label, value, sub, color, icon, trend, trendUp }) {
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5 flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-widest">{label}</span>
+        <span className="text-[12px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-widest">{label}</span>
         <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[18px]" style={{ background: color + "18" }}>{icon}</div>
       </div>
       <div>
@@ -1399,10 +1399,11 @@ export default function UserDashboard() {
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[14px]">📊</span>
-              <p className="text-[12px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">My Weekly Activity</p>
+              <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">My Weekly Activity</p>
             </div>
-            <p className="text-[10px] text-[#8B92A9] mb-4">{kpi.weekLeads} leads added this week</p>
-            <MiniBarChart data={kpi.weekData} labels={kpi.weekLabels} color="#2563EB" />
+            <p className="text-[12px] text-[#8B92A9] mb-4">{kpi.weekLeads} leads added this week</p>
+           <div className="h-[260px] w-full mt-2">
+  <MiniBarChart data={kpi.weekData} labels={kpi.weekLabels} color="#2563EB" height={260}/></div>
           </div>
 
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
