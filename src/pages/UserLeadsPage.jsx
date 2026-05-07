@@ -913,7 +913,7 @@ export default function UserLeadsPage() {
               <table className="w-full text-[14px]">
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Lead", "Phone 📵", "Source / Campaign", "Date", "Status", "Quality", "Calls", ""].map((h, i) => (
+                    {["Lead", "Phone", "Source / Campaign", "Date", "Status", "Quality", "Calls", ""].map((h, i) => (
                       <th key={i} className="px-4 py-3 text-left text-[14px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
