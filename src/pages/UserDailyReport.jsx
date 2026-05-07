@@ -31,7 +31,7 @@ const TEMP_STYLE = {
 };
 const SOURCE_COLORS = {
   "Google Ads":"#2563EB","Facebook Ads":"#0891B2","Web Form":"#059669",
-  "Referral":"#D97706","Campaign":"#7C3AED","Other":"#8B92A9",
+  "Referral":"#D97706","Campaign":"#7C3AED","Other":"#F3F4F6",
 };
 
 // ── mapLead — stores _raw ISO for reliable date comparisons ──────────────────
@@ -61,11 +61,11 @@ function StatCard({ label, value, sub, icon, color, trend }) {
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
       <div className="flex items-start justify-between mb-3">
-        <span className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{label}</span>
+        <span className="text-[11px] font-semibold text-[#F3F4F6] dark:text-[#D1D5DB] uppercase tracking-wide">{label}</span>
         <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[15px]" style={{ background: color + "20" }}>{icon}</div>
       </div>
-      <div className="text-[28px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none mb-1">{value}</div>
-      {sub && <div className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">{sub}</div>}
+      <div className="text-[28px] font-bold text-[#0F1117] dark:text-white leading-none mb-1">{value}</div>
+      {sub && <div className="text-[11px] text-[#F3F4F6] dark:text-[#D1D5DB]">{sub}</div>}
       {trend !== undefined && (
         <div className={`text-[11px] font-semibold mt-1 ${trend >= 0 ? "text-[#059669]" : "text-[#DC2626]"}`}>
           {trend >= 0 ? "▲" : "▼"} {Math.abs(trend)} vs yesterday
@@ -101,10 +101,10 @@ function FunnelBar({ label, value, total, color }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{label}</span>
+        <span className="text-[12px] text-[#4B5168] dark:text-[#E5E7EB]">{label}</span>
         <div className="flex items-center gap-2">
-          <span className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{value}</span>
-          <span className="text-[10px] text-[#8B92A9] w-8 text-right">{pct}%</span>
+          <span className="text-[12px] font-bold text-[#0F1117] dark:text-white">{value}</span>
+          <span className="text-[10px] text-[#F3F4F6] w-8 text-right">{pct}%</span>
         </div>
       </div>
       <div className="h-2 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
@@ -118,7 +118,7 @@ function Card({ title, badge, bc, children }) {
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
       <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-2">
-        <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] flex-1">{title}</h2>
+        <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-white flex-1">{title}</h2>
         {badge !== undefined && (
           <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
             style={{ background: (bc || "#2563EB") + "20", color: bc || "#2563EB" }}>{badge}</span>
@@ -150,14 +150,14 @@ function WeekChart({ allLeads, viewDate }) {
             <div key={i} className="flex-1 flex flex-col items-center gap-1">
               <div className="w-full rounded-t-md transition-all duration-500"
                 style={{ height: `${h}px`, background: isSelected ? "#2563EB" : "#BFDBFE" }} />
-              <span className="text-[9px] text-[#8B92A9] dark:text-[#565C75]">
+              <span className="text-[9px] text-[#F3F4F6] dark:text-[#D1D5DB]">
                 {d.toLocaleDateString("en-GB", { weekday: "short" }).slice(0, 2)}
               </span>
             </div>
           );
         })}
       </div>
-      <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-2">Last 7 days · blue bar = selected date</p>
+      <p className="text-[10px] text-[#F3F4F6] dark:text-[#D1D5DB] mt-2">Last 7 days · blue bar = selected date</p>
     </div>
   );
 }
@@ -282,13 +282,13 @@ export default function UserDailyReport() {
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className={`w-2 h-2 rounded-full ${isToday ? "bg-[#059669] animate-pulse" : "bg-[#8B92A9]"}`} />
-            <span className={`text-[11px] font-semibold uppercase tracking-wide ${isToday ? "text-[#059669]" : "text-[#8B92A9]"}`}>
+            <span className={`w-2 h-2 rounded-full ${isToday ? "bg-[#059669] animate-pulse" : "bg-[#F3F4F6]"}`} />
+            <span className={`text-[11px] font-semibold uppercase tracking-wide ${isToday ? "text-[#059669]" : "text-[#F3F4F6]"}`}>
               {isToday ? "Live — today" : "Historical report"}
             </span>
           </div>
-          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">My Daily Report</h1>
-          <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
+          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-white">My Daily Report</h1>
+          <p className="text-[13px] text-[#F3F4F6] dark:text-[#D1D5DB] mt-0.5">
             {fmtLong(viewDate)} · <span className="font-semibold text-[#2563EB]">{user?.name || "Agent"}</span>
           </p>
         </div>
@@ -296,18 +296,18 @@ export default function UserDailyReport() {
         {/* Date nav */}
         <div className="flex items-center gap-1 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-1">
           <button onClick={goBack}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] transition">
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#4B5168] dark:text-[#E5E7EB] transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <button onClick={goToday}
-            className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition ${isToday ? "bg-[#2563EB] text-white" : "text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38]"}`}>
+            className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition ${isToday ? "bg-[#2563EB] text-white" : "text-[#4B5168] dark:text-[#E5E7EB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38]"}`}>
             {isToday ? "Today" : fmtShort(viewDate)}
           </button>
           {/* FIX 10: Forward button disabled when isToday */}
           <button onClick={goForward} disabled={isToday}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] disabled:opacity-30 disabled:cursor-not-allowed transition">
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#4B5168] dark:text-[#E5E7EB] disabled:opacity-30 disabled:cursor-not-allowed transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
@@ -356,7 +356,7 @@ export default function UserDailyReport() {
         {TABS.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-semibold whitespace-nowrap transition ${
-              activeTab === t.id ? "bg-[#2563EB] text-white" : "text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A]"
+              activeTab === t.id ? "bg-[#2563EB] text-white" : "text-[#4B5168] dark:text-[#E5E7EB] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A]"
             }`}>
             {t.label}
             {t.count !== null && t.count > 0 && (
@@ -383,7 +383,7 @@ export default function UserDailyReport() {
               </div>
               {stats.total > 0 && (
                 <div className="mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
-                  <span className="text-[12px] text-[#8B92A9]">Conversion rate</span>
+                  <span className="text-[12px] text-[#F3F4F6]">Conversion rate</span>
                   <span className="text-[22px] font-bold text-[#059669] dark:text-[#34D399]">{stats.convRate}%</span>
                 </div>
               )}
@@ -391,7 +391,7 @@ export default function UserDailyReport() {
 
             <Card title="Leads by source" badge={stats.total} bc="#2563EB">
               {sources.length === 0 ? (
-                <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] py-8 text-center">No leads for {fmtShort(viewDate)}.</p>
+                <p className="text-[13px] text-[#F3F4F6] dark:text-[#D1D5DB] py-8 text-center">No leads for {fmtShort(viewDate)}.</p>
               ) : (
                 <div className="space-y-3.5">
                   {sources.map(s => (
@@ -399,11 +399,11 @@ export default function UserDailyReport() {
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
-                          <span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{s.label}</span>
+                          <span className="text-[12px] text-[#4B5168] dark:text-[#E5E7EB]">{s.label}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{s.count}</span>
-                          <span className="text-[10px] text-[#8B92A9] w-8 text-right">
+                          <span className="text-[12px] font-semibold text-[#0F1117] dark:text-white">{s.count}</span>
+                          <span className="text-[10px] text-[#F3F4F6] w-8 text-right">
                             {Math.round(s.count / (stats.total || 1) * 100)}%
                           </span>
                         </div>
@@ -468,7 +468,7 @@ export default function UserDailyReport() {
           {dayLeads.length === 0 ? (
             <div className="py-14 text-center">
               <div className="text-[40px] mb-3">📋</div>
-              <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads for {fmtShort(viewDate)}.</p>
+              <p className="text-[13px] text-[#F3F4F6] dark:text-[#D1D5DB]">No leads for {fmtShort(viewDate)}.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -480,20 +480,20 @@ export default function UserDailyReport() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{l.name}</span>
+                      <span className="text-[13px] font-semibold text-[#0F1117] dark:text-white">{l.name}</span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                        style={{ background: (SOURCE_COLORS[l.source] || "#8B92A9") + "20", color: SOURCE_COLORS[l.source] || "#8B92A9" }}>
+                        style={{ background: (SOURCE_COLORS[l.source] || "#F3F4F6") + "20", color: SOURCE_COLORS[l.source] || "#F3F4F6" }}>
                         {l.source}
                       </span>
                       <StatusBadge status={l.status} />
                       <TempBadge quality={l.quality} />
-                      {l.remark && <span className="text-[10px] text-[#8B92A9] italic truncate max-w-[180px]">{l.remark}</span>}
+                      {l.remark && <span className="text-[10px] text-[#F3F4F6] italic truncate max-w-[180px]">{l.remark}</span>}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75]">{l.date}</div>
+                    <div className="text-[10px] text-[#F3F4F6] dark:text-[#D1D5DB]">{l.date}</div>
                   </div>
                 </div>
               ))}
@@ -513,7 +513,7 @@ export default function UserDailyReport() {
 
           <Card title="Pending follow-ups" badge={followUps.length} bc="#D97706">
             {followUps.length === 0 ? (
-              <p className="text-[13px] text-center text-[#8B92A9] dark:text-[#565C75] py-10">No pending follow-ups. Great work! 🎉</p>
+              <p className="text-[13px] text-center text-[#F3F4F6] dark:text-[#D1D5DB] py-10">No pending follow-ups. Great work! 🎉</p>
             ) : (
               <div className="space-y-2">
                 {followUps.map((l, i) => {
@@ -525,19 +525,19 @@ export default function UserDailyReport() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{l.name}</span>
+                            <span className="text-[13px] font-semibold text-[#0F1117] dark:text-white">{l.name}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <TempBadge quality={l.quality} />
                             <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                              style={{ background: (SOURCE_COLORS[l.source] || "#8B92A9") + "20", color: SOURCE_COLORS[l.source] || "#8B92A9" }}>
+                              style={{ background: (SOURCE_COLORS[l.source] || "#F3F4F6") + "20", color: SOURCE_COLORS[l.source] || "#F3F4F6" }}>
                               {l.source}
                             </span>
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
-                          <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic">{l.remark || "Follow-up required"}</p>
-                          <span className="text-[10px] text-[#8B92A9] shrink-0 ml-2">{l.date}</span>
+                          <p className="text-[12px] text-[#4B5168] dark:text-[#E5E7EB] italic">{l.remark || "Follow-up required"}</p>
+                          <span className="text-[12px] text-[#F3F4F6] shrink-0 ml-2">{l.date}</span>
                         </div>
                       </div>
                     </div>
@@ -565,7 +565,7 @@ export default function UserDailyReport() {
             {conversions.length === 0 ? (
               <div className="py-14 text-center">
                 <div className="text-[40px] mb-3">🎯</div>
-                <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No conversions on {fmtShort(viewDate)}.</p>
+                <p className="text-[14px] text-[#F3F4F6] dark:text-[#D1D5DB]">No conversions on {fmtShort(viewDate)}.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -577,17 +577,17 @@ export default function UserDailyReport() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                        <span className="text-[13px] font-semibold text-[#065F46] dark:text-[#34D399]">{l.name}</span>
+                        <span className="text-[14px] font-semibold text-[#065F46] dark:text-[#34D399]">{l.name}</span>
                         {l.campaign !== "—" && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 text-[#065F46] dark:text-[#34D399] font-medium">{l.campaign}</span>
+                          <span className="text-[12px] px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 text-[#065F46] dark:text-[#34D399] font-medium">{l.campaign}</span>
                         )}
                       </div>
-                      <div className="text-[11px] text-[#059669] dark:text-[#34D399] opacity-80">
+                      <div className="text-[12px] text-[#059669] dark:text-[#34D399] opacity-80">
                         {l.source} · {l.date}
                       </div>
-                      {l.remark && <p className="text-[11px] text-[#059669] opacity-60 italic mt-0.5">{l.remark}</p>}
+                      {l.remark && <p className="text-[12px] text-[#059669] opacity-60 italic mt-0.5">{l.remark}</p>}
                     </div>
-                    <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#059669] text-white shrink-0">Converted</span>
+                    <span className="px-2.5 py-1 rounded-lg text-[12px] font-bold bg-[#059669] text-white shrink-0">Converted</span>
                   </div>
                 ))}
               </div>
@@ -613,23 +613,23 @@ export default function UserDailyReport() {
                   { label:"Not interested",         value:allLeads.filter(l => l.status === "Not Interested").length,     color:"#DC2626" },
                   { label:"New (untouched)",         value:allLeads.filter(l => l.status === "New").length,               color:"#7C3AED" },
                 ].map(s => (
-                  <div key={s.label} className="flex items-center justify-between py-2 border-b border-[#F0F2FA] dark:border-[#1E2130] last:border-0">
+                  <div key={s.label} className="flex items-center justify-between py-2 border-b border-white dark:border-[#1E2130] last:border-0">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
-                      <span className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB]">{s.label}</span>
+                      <span className="text-[14px] text-[#4B5168] dark:text-[#E5E7EB]">{s.label}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="w-20 h-1.5 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
                         <div className="h-full rounded-full"
                           style={{ width: `${allLeads.length > 0 ? Math.round(s.value / allLeads.length * 100) : 0}%`, background: s.color }} />
                       </div>
-                      <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA] w-6 text-right">{s.value}</span>
+                      <span className="text-[14px] font-bold text-[#0F1117] dark:text-white w-6 text-right">{s.value}</span>
                     </div>
                   </div>
                 ))}
               </div>
               <div className="mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
-                <span className="text-[12px] text-[#8B92A9]">Overall conversion rate</span>
+                <span className="text-[14px] text-[#F3F4F6]">Overall conversion rate</span>
                 <span className="text-[22px] font-bold text-[#059669] dark:text-[#34D399]">
                   {allLeads.length > 0 ? Math.round(allLeads.filter(l => l.status === "Converted").length / allLeads.length * 100) : 0}%
                 </span>
@@ -639,7 +639,7 @@ export default function UserDailyReport() {
             {/* Hot leads pipeline */}
             <Card title="Hot leads — act now 🔥">
               {allLeads.filter(l => l.quality === "Hot" && l.status !== "Converted").length === 0 ? (
-                <p className="text-[13px] text-center text-[#8B92A9] dark:text-[#565C75] py-10">No hot leads right now.</p>
+                <p className="text-[14px] text-center text-[#F3F4F6] dark:text-[#D1D5DB] py-10">No hot leads right now.</p>
               ) : (
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {allLeads
@@ -649,8 +649,8 @@ export default function UserDailyReport() {
                         className="flex items-center gap-3 p-3 rounded-xl bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D]">
                         <span className="text-[18px]">🔥</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[12px] font-semibold text-[#DC2626] dark:text-[#F87171] truncate">{l.name}</p>
-                          <p className="text-[10px] text-[#8B92A9]">{l.source}</p>
+                          <p className="text-[14px] font-semibold text-[#DC2626] dark:text-[#F87171] truncate">{l.name}</p>
+                          <p className="text-[14px] text-[#F3F4F6]">{l.source}</p>
                         </div>
                         <StatusBadge status={l.status} />
                       </div>
