@@ -1231,7 +1231,6 @@ export default function UserDashboard() {
 
   const downloadCSVTemplate = function() {
     const headers = ["name", "mobile", "email", "source", "campaign", "status", "remark"];
-    const example = ["John Doe", "9876543210", "john@example.com", "Website", "Summer Campaign", "New", "Interested in premium plan"];
     const csv = [headers.join(","), example.join(",")].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
