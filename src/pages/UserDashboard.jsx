@@ -1396,14 +1396,14 @@ export default function UserDashboard() {
             </p>
           </div>
 
-          <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
+          {/* <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[14px]">📊</span>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">My Weekly Activity</p>
             </div>
             <p className="text-[12px] text-[#8B92A9] mb-4">{kpi.weekLeads} leads added this week</p>
               <MiniBarChart data={kpi.weekData} labels={kpi.weekLabels} color="#2563EB" />
-          </div>
+          </div> */}
 
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
@@ -1438,7 +1438,7 @@ export default function UserDashboard() {
         {/* Status filter chips */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label:"New",           count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-50 dark:bg-blue-950/30",       icon:"🆕" },
+            { label:"New",           count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-100 dark:bg-blue-950/70",       icon:"🆕" },
             { label:"In Progress",   count:kpi.inProgress, color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30",     icon:"⏳" },
             { label:"Converted",     count:kpi.converted,  color:"#059669", bg:"bg-emerald-50 dark:bg-emerald-950/30", icon:"✅" },
             { label:"Not Interested",count:kpi.notInt,     color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30",         icon:"❌" },
