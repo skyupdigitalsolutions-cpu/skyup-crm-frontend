@@ -120,7 +120,7 @@ const ADMIN_NAV_ITEMS = [
 // Added:   My Leads
 const USER_NAV_ITEMS = [
   {
-    to: "/dashboard",
+    to: "/user/dashboard",
     label: "Dashboard",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -132,7 +132,7 @@ const USER_NAV_ITEMS = [
     ),
   },
   {
-    to: "/my-leads",
+    to: "/leads",
     label: "My Leads",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
