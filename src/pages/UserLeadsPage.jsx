@@ -872,8 +872,6 @@ export default function UserLeadsPage() {
         </div>
         <p className="text-[14px] text-[#8B92A9] dark:text-gray-400 mt-2">
           {displayed.length} leads {displayed.length !== leads.length ? `(filtered from ${leads.length})` : ""}
-          {" · "}
-          <span className="text-[#E84444] dark:text-[#F87171] font-medium">📵 Phone numbers are masked for security</span>
         </p>
       </div>
 
