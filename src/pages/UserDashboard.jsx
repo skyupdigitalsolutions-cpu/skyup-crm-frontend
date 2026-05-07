@@ -60,9 +60,9 @@ const STATUS_CONFIG = {
   "Not Interested": { bg:"bg-red-50 dark:bg-red-950/40",      text:"text-red-600 dark:text-red-400",      dot:"#DC2626" },
 };
 const TEMP_CONFIG = {
-  Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"" },
-  Warm: { bg:"bg-amber-50 dark:bg-amber-950/40",text:"text-amber-600 dark:text-amber-400",icon:"" },
-  Cold: { bg:"bg-blue-50 dark:bg-blue-950/40",  text:"text-blue-600 dark:text-blue-400",  icon:"" },
+  Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"🔥" },
+  Warm: { bg:"bg-amber-50 dark:bg-amber-950/40",text:"text-amber-600 dark:text-amber-400",icon:"☀️" },
+  Cold: { bg:"bg-blue-50 dark:bg-blue-950/40",  text:"text-blue-600 dark:text-blue-400",  icon:"❄️" },
 };
 
 function StatusBadge({ status }) {
@@ -116,7 +116,6 @@ function AttendanceMiniWidget() {
 
   useEffect(() => { fetchRecord(); }, [fetchRecord]);
 
-  // Close panel on outside click
   useEffect(() => {
     if (!panelOpen) return;
     const handler = (e) => { if (panelRef.current && !panelRef.current.contains(e.target)) setPanelOpen(false); };
@@ -124,7 +123,6 @@ function AttendanceMiniWidget() {
     return () => document.removeEventListener("mousedown", handler);
   }, [panelOpen]);
 
-  // Live timer
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime) { setElapsed(0); return; }
     const tick = () => {
@@ -140,7 +138,6 @@ function AttendanceMiniWidget() {
     return () => clearInterval(tickTimerRef.current);
   }, [record]);
 
-  // Ping
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime) return;
     pingTimerRef.current = setInterval(async () => {
@@ -149,7 +146,6 @@ function AttendanceMiniWidget() {
     return () => clearInterval(pingTimerRef.current);
   }, [record?.loginTime, record?.logoutTime]);
 
-  // Idle detection
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime || record?.status !== "active") return;
     const resetIdle = () => {
@@ -178,7 +174,6 @@ function AttendanceMiniWidget() {
   const isOnBreak    = record?.status === "on_break" || record?.status === "idle";
   const isActive     = record?.status === "active";
 
-  // Status config for chip
   const ST = {
     active:     { dot: "bg-emerald-400", color: "text-emerald-600 dark:text-emerald-400", label: "Active",     chipBg: "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800" },
     on_break:   { dot: "bg-amber-400",   color: "text-amber-600 dark:text-amber-400",     label: "On Break",   chipBg: "bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800" },
@@ -193,40 +188,27 @@ function AttendanceMiniWidget() {
 
   return (
     <div className="relative" ref={panelRef}>
-      {/* ── Chip trigger button ── */}
       <button
         onClick={() => setPanelOpen(v => !v)}
         className={"flex items-center gap-2 h-9 px-3 rounded-xl border text-[12px] font-semibold transition-all hover:shadow-sm " + st.chipBg}
       >
-        {/* Status dot */}
         <span className={"w-2 h-2 rounded-full shrink-0 " + st.dot + (isActive ? " animate-pulse" : "")} />
-
-        {/* Clock icon */}
         <svg className={"w-3.5 h-3.5 shrink-0 " + st.color} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/>
         </svg>
-
-        {/* Label + timer */}
         <span className={st.color}>
           {notClockedIn ? "Clock In" : isClockedOut ? "Clocked Out" : isActive ? fmtMins(Math.floor(elapsed / 60)) : st.label}
         </span>
-
-        {/* Idle alert badge */}
         {idleWarning && (
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
         )}
-
-        {/* Chevron */}
         <svg className={"w-3 h-3 transition-transform " + st.color + (panelOpen ? " rotate-180" : "")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
         </svg>
       </button>
 
-      {/* ── Dropdown panel ── */}
       {panelOpen && (
         <div className="absolute right-0 top-11 z-[200] w-72 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl overflow-hidden">
-
-          {/* Panel header */}
           <div className="px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] flex items-center justify-between">
             <div>
               <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Attendance</p>
@@ -239,7 +221,6 @@ function AttendanceMiniWidget() {
             )}
           </div>
 
-          {/* Idle warning */}
           {idleWarning && (
             <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 flex items-center justify-between gap-2">
               <div>
@@ -250,7 +231,6 @@ function AttendanceMiniWidget() {
             </div>
           )}
 
-          {/* Stats */}
           {record?.loginTime && (
             <div className="grid grid-cols-3 gap-2 px-3 pt-3">
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
@@ -268,7 +248,6 @@ function AttendanceMiniWidget() {
             </div>
           )}
 
-          {/* Actions */}
           <div className="px-3 py-3 flex gap-2">
             {notClockedIn && (
               <button onClick={clockIn} className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold transition flex items-center justify-center gap-1.5">
@@ -300,7 +279,6 @@ function AttendanceMiniWidget() {
             )}
           </div>
 
-          {/* Break log */}
           {record?.breaks?.length > 0 && (
             <div className="mx-3 mb-3 border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden">
               <p className="px-3 py-2 text-[9px] font-bold text-[#8B92A9] uppercase tracking-widest bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">Break Log</p>
@@ -430,92 +408,231 @@ function getTodayStr() {
   return new Date().toISOString().split("T")[0];
 }
 
+// ── OUTCOME OPTIONS ────────────────────────────────────────────────────────────
+const OUTCOME_OPTIONS = [
+  "Call Back",
+  "Interested",
+  "Not Reachable",
+  "Meeting Scheduled",
+  "Demo Done",
+  "Converted",
+  "Not Interested",
+];
+
+// ── FIX: UpdateStatusModal — outcome declared, temperature synced ─────────────
 function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
+  // FIX 1: read temperature from both field names
+  const [temp,         setTemp]         = useState(lead.temperature || lead.Quality || "");
+  // FIX 2: outcome is now a proper state variable — was missing entirely
+  const [outcome,      setOutcome]      = useState("Call Back");
   const [remark,       setRemark]       = useState(lead.remark || "");
-  const [temp,         setTemp]         = useState(lead.Quality || "");
   const [followUpDate, setFollowUpDate] = useState(getTomorrowStr());
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
+
   const CLS = "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition";
 
-  const showDatePicker = status !== "Not Interested";
-
-  const handleStatusChange = function(e) {
+  const handleStatusChange = (e) => {
     const val = e.target.value;
     if (val === "Not Interested") { onNotInterested(); return; }
     setStatus(val);
   };
 
-  const handleSave = async function() {
-    setLoading(true); setError("");
+  const handleSave = async () => {
+    setLoading(true);
+    setError("");
     try {
-      // FIX: send temperature in the same PATCH body — /lead/:id/Quality route does not exist
-      const body = { status, remark, outcome };
-      if (temp) body.temperature = temp;   // backend patchLead accepts 'temperature'
-      if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
-      await api.patch("/lead/" + (lead.id || lead._id), body);
-      onSaved(Object.assign({}, lead, {
+      // FIX 3: build body correctly — outcome now properly declared
+      const body = {
         status,
         remark,
-        Quality: temp || lead.Quality,
+        outcome,
+      };
+
+      // FIX 4: send temperature (and Quality as fallback) so backend stores it
+      if (temp) {
+        body.temperature = temp;
+        body.Quality     = temp;
+      }
+
+      if (status !== "Not Interested") {
+        body.followUpDate = followUpDate || getTomorrowStr();
+      }
+
+      const res = await api.patch(`/lead/${lead.id || lead._id}`, body);
+      const savedLead = res.data;
+
+      // FIX 5: pass actual server response back so parent state is correct,
+      //         and keep both temperature + Quality in sync for all consumers
+      onSaved({
+        ...lead,
+        ...(savedLead || {}),
+        id:          lead.id || String(lead._id),
+        status,
+        remark,
+        outcome,
+        temperature: temp || savedLead?.temperature || null,
+        Quality:     temp || savedLead?.temperature || null,
         _newEntry: {
-          outcome:  outcome || status,
+          outcome:  outcome,
           remark:   remark,
           calledAt: new Date().toISOString(),
           userName: "You",
         },
-      }));
+      });
       onClose();
     } catch (e) {
-      setError((e.response && e.response.data && e.response.data.message) || "Failed to update");
-    } finally { setLoading(false); }
+      setError(
+        (e.response && e.response.data && e.response.data.message) ||
+        "Failed to update. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-6 shadow-2xl" onClick={function(e){ e.stopPropagation(); }}>
+      <div
+        className="w-full max-w-sm bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
-            <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
           </div>
           <div>
             <h3 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Update Lead</h3>
             <p className="text-[11px] text-[#8B92A9] truncate">{lead.name}</p>
           </div>
         </div>
+
         <div className="space-y-3 mb-4">
+          {/* Status */}
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Status</label>
             <select value={status} onChange={handleStatusChange} className={CLS}>
-              {["New","In Progress","Converted","Not Interested"].map(function(s){ return <option key={s}>{s}</option>; })}
+              {["New", "In Progress", "Converted", "Not Interested"].map((s) => (
+                <option key={s}>{s}</option>
+              ))}
             </select>
-            <p className="text-[10px] text-amber-500 mt-1">⚠ Selecting "Not Interested" opens the reassignment workflow.</p>
+            <p className="text-[10px] text-amber-500 mt-1">
+              ⚠ Selecting "Not Interested" opens the reassignment workflow.
+            </p>
           </div>
+
+          {/* Call Outcome — FIX: now renders and uses the outcome state */}
           <div>
-            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Lead Quality</label>
-            <select value={temp} onChange={function(e){ setTemp(e.target.value); }} className={CLS}>
-              <option value="">— Not set —</option>
-              <option>Hot</option><option>Warm</option><option>Cold</option>
+            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Call Outcome</label>
+            <select value={outcome} onChange={(e) => setOutcome(e.target.value)} className={CLS}>
+              {OUTCOME_OPTIONS.map((o) => (
+                <option key={o}>{o}</option>
+              ))}
             </select>
           </div>
+
+          {/* Lead Quality — visual button picker */}
+          <div>
+            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
+              Lead Quality
+              {temp && (
+                <span className="ml-2 text-[10px] font-normal normal-case text-[#8B92A9]">
+                  (currently: <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{temp}</span>)
+                </span>
+              )}
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { val: "",     label: "None",    color: "#8B92A9", bg: "bg-gray-50 dark:bg-gray-900/30" },
+                { val: "Hot",  label: "🔥 Hot",  color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30" },
+                { val: "Warm", label: "☀️ Warm", color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30" },
+                { val: "Cold", label: "❄️ Cold", color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30" },
+              ].map((q) => (
+                <button
+                  key={q.val}
+                  type="button"
+                  onClick={() => setTemp(q.val)}
+                  className={`py-2 px-1 rounded-xl border-2 text-[11px] font-semibold transition ${q.bg} ${
+                    temp === q.val
+                      ? "border-current scale-[1.03]"
+                      : "border-transparent opacity-60 hover:opacity-100"
+                  }`}
+                  style={{ color: q.color, borderColor: temp === q.val ? q.color : undefined }}
+                >
+                  {q.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Remark */}
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Remark</label>
-            <textarea value={remark} onChange={function(e){ setRemark(e.target.value); }} rows={2} className={CLS + " resize-none"} placeholder="Add a note…" />
+            <textarea
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
+              rows={2}
+              className={CLS + " resize-none"}
+              placeholder="Add a note…"
+            />
           </div>
-          {showDatePicker && (
+
+          {/* Follow-up date */}
+          {status !== "Not Interested" && (
             <div>
-              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">📅 Follow-up Date</label>
-              <input type="date" value={followUpDate} min={getTodayStr()} onChange={function(e){ setFollowUpDate(e.target.value); }} className={CLS} />
-              <p className="text-[10px] text-[#8B92A9] mt-1">Leave as tomorrow (default) or pick a future date.</p>
+              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
+                📅 Follow-up Date
+              </label>
+              <input
+                type="date"
+                value={followUpDate}
+                min={getTodayStr()}
+                onChange={(e) => setFollowUpDate(e.target.value)}
+                className={CLS}
+              />
+              <p className="text-[10px] text-[#8B92A9] mt-1">
+                Leave as tomorrow (default) or pick a future date.
+              </p>
             </div>
           )}
         </div>
-        {error && <p className="text-[11px] text-red-500 mb-3">{error}</p>}
+
+        {error && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 mb-3">
+            <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
         <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
-          <button onClick={handleSave} disabled={loading} className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60">
-            {loading ? "Saving…" : "Save Changes"}
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                Saving…
+              </>
+            ) : (
+              "Save Changes"
+            )}
           </button>
         </div>
       </div>
@@ -559,7 +676,8 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={lead.status} />
-            <TempBadge temp={lead.Quality} />
+            {/* FIX: read both Quality and temperature so badge always shows */}
+            <TempBadge temp={lead.Quality || lead.temperature} />
             {lead.reassignCount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
                 🔄 Reassigned {lead.reassignCount}×
@@ -691,7 +809,7 @@ function AddLeadModal({ onClose, onAdd }) {
     try {
       const res = await api.post("/lead", { name:form.name.trim(), mobile:form.phone.trim(), source:form.source, campaign:form.campaign.trim()||null, status:form.status, date:new Date(), remark:form.remark.trim()||"Manually added" });
       const saved = res.data;
-      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
+      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, temperature:saved.temperature||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
       onClose();
     } catch (err) {
       setErrors({ submit:(err.response&&err.response.data&&err.response.data.message)||"Failed to save lead." });
@@ -777,9 +895,7 @@ function UserChatWidget() {
     });
 
     socket.on("message_saved", function(data) {
-      // Update optimistic message with real _id from server
       setMessages(function(prev) {
-        // Replace the last "You" message that has no _id yet
         const idx = [...prev].reverse().findIndex(function(m){ return m.from === "You" && !m._id; });
         if (idx === -1) return prev;
         const realIdx = prev.length - 1 - idx;
@@ -794,7 +910,6 @@ function UserChatWidget() {
       setOpen(function(isOpen) { if (!isOpen) setUnread(function(n){ return n + 1; }); return isOpen; });
     });
 
-    // Real-time edit sync
     socket.on("message_edited", function({ _id, newText, editedAt }) {
       setMessages(function(prev) {
         return prev.map(function(m) {
@@ -805,7 +920,6 @@ function UserChatWidget() {
       });
     });
 
-    // Real-time delete sync
     socket.on("message_deleted", function({ _id }) {
       setMessages(function(prev) {
         return prev.map(function(m) {
@@ -827,7 +941,6 @@ function UserChatWidget() {
     const msg = message.trim();
     if (!msg || !socketRef.current) return;
     socketRef.current.emit("user_message", { message: msg, username });
-    // Optimistic: no _id yet; server will echo back 'message_saved' with _id
     setMessages(function(prev){ return prev.concat([{ from: "You", message: msg, isDeleted: false }]); });
     setMessage("");
   };
@@ -910,8 +1023,6 @@ function UserChatWidget() {
                         {m.editedAt && !m.isDeleted && (
                           <span className="text-[9px] opacity-60 ml-1">(edited)</span>
                         )}
-
-                        {/* Action buttons — only for own non-deleted messages */}
                         {isYou && !m.isDeleted && m._id && (
                           <div className="absolute top-1 -left-14 hidden group-hover:flex items-center gap-1">
                             <button
@@ -956,7 +1067,7 @@ function UserChatWidget() {
         className="relative w-14 h-14 rounded-full bg-[#2563EB] text-white shadow-lg flex items-center justify-center transition hover:bg-blue-700 hover:scale-105 active:scale-95">
         {open
           ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-          : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 11.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
         }
         {!open && unread > 0 && (
           <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
@@ -984,7 +1095,9 @@ function mapLead(l) {
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
     status:         l.status         || "New",
-    Quality:    l.Quality    || null,
+    // FIX: keep both Quality and temperature populated from whichever the backend returns
+    Quality:        l.temperature    || l.Quality    || null,
+    temperature:    l.temperature    || l.Quality    || null,
     remark:         l.remark         || "",
     date:           l.date ? new Date(l.date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—",
     _raw_date:      l.date           || l.createdAt || null,
@@ -1074,16 +1187,39 @@ export default function UserDashboard() {
     return leads.slice().sort(function(a,b){ return new Date(b._raw_date||0) - new Date(a._raw_date||0); }).slice(0, 8);
   }, [leads]);
 
+  // ── FIX: handleUpdate — correctly syncs temperature → Quality ────────────────
   const handleUpdate = function(updated) {
     if (updated._reassigned) {
-      setLeads(function(prev){ return prev.filter(function(l){ return l.id !== (updated.id || updated._id); }); });
+      setLeads(function(prev) {
+        return prev.filter(function(l) {
+          return l.id !== (updated.id || String(updated._id));
+        });
+      });
       setSelected(null);
       return;
     }
-    const mapped = updated._id ? mapLead(updated) : updated;
-    setLeads(function(prev){ return prev.map(function(l){ return l.id === mapped.id ? Object.assign({}, l, mapped) : l; }); });
-    if (selected && selected.id === mapped.id) setSelected(function(s){ return Object.assign({}, s, mapped); });
+
+    // Normalize: backend returns `temperature`, frontend uses `Quality`
+    const normalized = {
+      ...updated,
+      id:          updated.id || String(updated._id),
+      Quality:     updated.temperature || updated.Quality || null,
+      temperature: updated.temperature || updated.Quality || null,
+    };
+
+    setLeads(function(prev) {
+      return prev.map(function(l) {
+        return l.id === normalized.id ? Object.assign({}, l, normalized) : l;
+      });
+    });
+
+    if (selected && selected.id === normalized.id) {
+      setSelected(function(s) {
+        return Object.assign({}, s, normalized);
+      });
+    }
   };
+
   const handleAddLead = function(newLead) { setLeads(function(prev){ return [newLead].concat(prev); }); setPage(1); };
   const handleDeleteLead = async function(id) {
     try { await api.delete("/lead/" + id); setLeads(function(prev){ return prev.filter(function(l){ return l.id !== id; }); }); if (selected && selected.id === id) setSelected(null); }
@@ -1161,17 +1297,13 @@ export default function UserDashboard() {
             </h1>
           </div>
 
-          {/* Action buttons row */}
           <div className="flex items-center gap-2 flex-wrap">
-
-            {/* Add Lead */}
             <button onClick={function(){ setShowAddModal(true); }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               Add Lead
             </button>
 
-            {/* Import CSV + Template */}
             <div className="flex items-center rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
               <label
                 className={`flex items-center gap-2 px-4 py-2 text-[#4B5168] dark:text-[#9DA3BB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition cursor-pointer border-r border-[#E4E7EF] dark:border-[#262A38] ${csvImporting ? "opacity-60 cursor-not-allowed" : ""}`}
@@ -1192,10 +1324,8 @@ export default function UserDashboard() {
               </button>
             </div>
 
-            {/* ── Attendance Mini Widget ── */}
             <AttendanceMiniWidget />
 
-            {/* CSV result toast */}
             {csvResult && (
               <div className={`flex flex-col gap-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${csvResult.error || csvResult.saved === 0 ? "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400" : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400"}`}>
                 <div className="flex items-center gap-1.5">
@@ -1210,14 +1340,12 @@ export default function UserDashboard() {
               </div>
             )}
 
-            {/* Avatar */}
             <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[13px] font-black text-[#2563EB] dark:text-[#4F8EF7] border border-[#C7D7FF] dark:border-[#2D3A6B]">
               {initials}
             </div>
           </div>
         </div>
 
-        {/* Quick stats strip */}
         <div className="flex items-center gap-6 mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex-wrap">
           {[
             { label:"My Total Leads", value:kpi.total,          color:"text-[#0F1117] dark:text-[#F0F2FA]" },
@@ -1249,7 +1377,7 @@ export default function UserDashboard() {
           <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon="👤" />
           <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon="✅" trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
           <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon="⏳" />
-          <KpiCard label="Hot Leads "   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="" />
+          <KpiCard label="Hot Leads 🔥"   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="🔥" />
         </div>
 
         {/* Middle row */}
@@ -1285,9 +1413,9 @@ export default function UserDashboard() {
             </div>
             <div className="space-y-3">
               {[
-                { label:"Hot",          count:kpi.hot,          color:"#DC2626", icon:"" },
-                { label:"Warm",         count:kpi.warm,         color:"#D97706", icon:"" },
-                { label:"Cold",         count:kpi.cold,         color:"#2563EB", icon:"" },
+                { label:"Hot",          count:kpi.hot,          color:"#DC2626", icon:"🔥" },
+                { label:"Warm",         count:kpi.warm,         color:"#D97706", icon:"☀️" },
+                { label:"Cold",         count:kpi.cold,         color:"#2563EB", icon:"❄️" },
                 { label:"Unclassified", count:kpi.unclassified, color:"#8B92A9", icon:"—"  },
               ].map(function(item){ return (
                 <div key={item.label} className="flex items-center gap-2">
@@ -1494,7 +1622,7 @@ export default function UserDashboard() {
                 {kpi.convRate >= 50 ? "Outstanding performance! You're a top converter!" :
                  kpi.convRate >= 30 ? "Great work! Your conversion rate is above average." :
                  kpi.convRate >= 15 ? "Good progress! Keep following up on hot leads." :
-                 "Every lead counts — focus on your hot leads today! "}
+                 "Every lead counts — focus on your hot leads today!"}
               </p>
               <p className="text-[11px] text-[#8B92A9] mt-0.5">
                 {kpi.hot > 0 ? "You have " + kpi.hot + " hot lead" + (kpi.hot > 1 ? "s" : "") + " waiting for a call." : "Classify leads by Quality to prioritize your calls."}
