@@ -26,6 +26,30 @@ function getStoredAuth() {
   return { token, user };
 }
 
+// ── Role-aware page switches ─────────────────────────────────────────────────
+// IMPORTANT: these MUST be components, not IIFEs inside <Route element={...}>.
+// IIFEs run once at App's first render and the result is baked into the Route
+// element forever (App has no state, so it never re-renders). That caused the
+// admin page to show even after a user logged in, until a hard refresh
+// remounted <App> and re-ran the IIFE. As components, they re-read localStorage
+// every time the route mounts.
+function LeadsRoleSwitch() {
+  const { user } = getStoredAuth();
+  return user?.role === "user" ? <UserLeadsPage /> : <AdminLeadsPage />;
+}
+
+function DailyReportRoleSwitch() {
+  const { user } = getStoredAuth();
+  return user?.role === "user" ? <UserDailyReport /> : <Dailyreport />;
+}
+
+function RootRedirect() {
+  const { user } = getStoredAuth();
+  return user?.role === "user"
+    ? <Navigate to="/user/dashboard" replace />
+    : <Navigate to="/dashboard" replace />;
+}
+
 // ── Protected Route — redirects to /login if no token ─────────────────────────
 function ProtectedRoute({ children }) {
   const { token, user } = getStoredAuth();
@@ -101,12 +125,7 @@ export default function App() {
         {/* ── Root redirect: role-aware ── */}
         <Route path="/" element={
           <ProtectedRoute>
-            {(() => {
-              const { user } = getStoredAuth();
-              return user?.role === "user"
-                ? <Navigate to="/user/dashboard" replace />
-                : <Navigate to="/dashboard" replace />;
-            })()}
+            <RootRedirect />
           </ProtectedRoute>
         }/>
 
@@ -155,12 +174,7 @@ export default function App() {
         <Route path="/leads" element={
           <ProtectedRoute>
             <AppLayout>
-              {(() => {
-                const { user } = getStoredAuth();
-                return user?.role === "user"
-                  ? <UserLeadsPage />
-                  : <AdminLeadsPage />;
-              })()}
+              <LeadsRoleSwitch />
             </AppLayout>
           </ProtectedRoute>
         }/>
@@ -169,10 +183,7 @@ export default function App() {
         <Route path="/daily-report" element={
           <ProtectedRoute>
             <AppLayout>
-              {(() => {
-                const { user } = getStoredAuth();
-                return user?.role === "user" ? <UserDailyReport /> : <Dailyreport />;
-              })()}
+              <DailyReportRoleSwitch />
             </AppLayout>
           </ProtectedRoute>
         }/>
