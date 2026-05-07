@@ -89,7 +89,7 @@ function TempBadge({ temp }) {
   const s = TEMP_CONFIG[temp];
   if (!s) return null;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${s.bg} ${s.text}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[14px] font-semibold ${s.bg} ${s.text}`}>
       {s.icon} {temp}
     </span>
   );
@@ -161,7 +161,7 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
         </svg>
-        <span className="text-[11px] text-[#2563EB] font-medium">Transcribing with Whisper AI…</span>
+        <span className="text-[14px] text-[#2563EB] font-medium">Transcribing with Whisper AI…</span>
       </div>
     );
   }
@@ -173,9 +173,9 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
           <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
-          <span className="text-[11px] text-red-500">{error || "Transcription failed."}</span>
+          <span className="text-[14px] text-red-500">{error || "Transcription failed."}</span>
         </div>
-        <button onClick={handleTranscribe} className="text-[11px] text-[#2563EB] underline pl-1">Retry</button>
+        <button onClick={handleTranscribe} className="text-[14px] text-[#2563EB] underline pl-1">Retry</button>
       </div>
     );
   }
@@ -194,7 +194,7 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
           <svg className="w-3.5 h-3.5 text-[#2563EB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
           </svg>
-          <span className="text-[11px] font-bold text-[#2563EB]">AI Summary</span>
+          <span className="text-[14px] font-bold text-[#2563EB]">AI Summary</span>
           {sent && (
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
           )}
@@ -214,16 +214,16 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
         <div className="px-3 py-3 space-y-3 bg-white dark:bg-[#13161E]">
           {summary?.summary && (
             <div>
-              <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Summary</p>
-              <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{summary.summary}</p>
+              <p className="text-[14px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Summary</p>
+              <p className="text-[14px] text-[#4B5168] dark:text-white leading-relaxed">{summary.summary}</p>
             </div>
           )}
           {Array.isArray(summary?.keyPoints) && summary.keyPoints.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Key Points</p>
+              <p className="text-[14px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Key Points</p>
               <ul className="space-y-1">
                 {summary.keyPoints.map((pt, i) => (
-                  <li key={i} className="flex items-start gap-1.5 text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+                  <li key={i} className="flex items-start gap-1.5 text-[12px] text-[#4B5168] dark:text-white">
                     <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#2563EB] shrink-0"/>
                     {pt}
                   </li>
@@ -237,8 +237,8 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
               <div>
-                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Next Action</p>
-                <p className="text-[12px] text-emerald-700 dark:text-emerald-300">{summary.nextAction}</p>
+                <p className="text-[14px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Next Action</p>
+                <p className="text-[14px] text-emerald-700 dark:text-emerald-300">{summary.nextAction}</p>
               </div>
             </div>
           )}
@@ -251,7 +251,7 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
                 Full Transcript
               </summary>
               <div className="mt-2 max-h-40 overflow-y-auto">
-                <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] leading-relaxed whitespace-pre-wrap font-mono bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-lg px-3 py-2">
+                <p className="text-[14px] text-[#64748B] dark:text-[#94A3B8] leading-relaxed whitespace-pre-wrap font-mono bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-lg px-3 py-2">
                   {transcript}
                 </p>
               </div>
@@ -344,12 +344,12 @@ function RecordingsTab({ lead }) {
           <path strokeLinecap="round" strokeLinejoin="round"
             d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
         </svg>
-        <p className="text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No recordings found</p>
+        <p className="text-[13px] font-semibold text-[#4B5168] dark:text-white">No recordings found</p>
         <p className="text-[11px] text-[#8B92A9]">
           Recordings upload automatically from the mobile app after calls.
         </p>
         <button onClick={fetchCallLogs}
-          className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] transition">
+          className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-white hover:border-[#2563EB] hover:text-[#2563EB] transition">
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
@@ -362,7 +362,7 @@ function RecordingsTab({ lead }) {
   return (
     <div className="px-6 py-4 space-y-5">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">
+        <p className="text-[11px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest">
           {callLogs.length} Call Log{callLogs.length > 1 ? "s" : ""} with Recordings
         </p>
         <button onClick={fetchCallLogs}
@@ -383,7 +383,7 @@ function RecordingsTab({ lead }) {
                 {li + 1}
               </span>
               <div>
-                <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
+                <p className="text-[12px] font-semibold text-[#0F1117] dark:text-white leading-none">
                   {new Date(log.timestamp).toLocaleString("en-IN", {
                     day: "2-digit", month: "short", year: "numeric",
                     hour: "2-digit", minute: "2-digit",
@@ -399,7 +399,7 @@ function RecordingsTab({ lead }) {
                 style={{ backgroundColor: callTypeColor(log.callType) + "20", color: callTypeColor(log.callType) }}>
                 {log.callType || "call"}
               </span>
-              <span className="flex items-center gap-1 text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
+              <span className="flex items-center gap-1 text-[11px] font-semibold text-[#4B5168] dark:text-white">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
@@ -422,7 +422,7 @@ function RecordingsTab({ lead }) {
                   className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden bg-[#F8F9FC] dark:bg-[#13161E]">
 
                   <div className="flex items-center justify-between px-3 py-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
+                    <span className="text-[11px] font-semibold text-[#4B5168] dark:text-white">
                       Recording {ri + 1}
                     </span>
                     {r.transcribeStatus === "done" ? (
@@ -524,8 +524,8 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 {lead.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
               </div>
               <div>
-                <p className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
-                <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] font-mono mt-0.5">{maskPhone(lead.phone)}</p>
+                <p className="text-[15px] font-bold text-[#0F1117] dark:text-white leading-none">{lead.name}</p>
+                <p className="text-[12px] text-[#8B92A9] dark:text-gray-400 font-mono mt-0.5">{maskPhone(lead.phone)}</p>
               </div>
             </div>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -535,7 +535,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             </div>
           </div>
           <button onClick={onClose}
-            className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition shrink-0">
+            className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white transition shrink-0">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -552,7 +552,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
           ].map(({ label, value }) => (
             <div key={label}>
               <p className="text-[9px] font-bold text-[#8B92A9] uppercase tracking-widest">{label}</p>
-              <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{value}</p>
+              <p className="text-[12px] font-semibold text-[#0F1117] dark:text-white truncate">{value}</p>
             </div>
           ))}
         </div>
@@ -569,7 +569,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
               className={`flex items-center gap-1.5 px-3 py-3 text-[12px] font-semibold border-b-2 transition -mb-px ${
                 activeTab === tab.id
                   ? "border-[#2563EB] text-[#2563EB]"
-                  : "border-transparent text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#9DA3BB]"
+                  : "border-transparent text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-white"
               }`}>
               {tab.icon}
               {tab.label}
@@ -584,7 +584,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
               {lead.remark && (
                 <div className="px-6 py-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
                   <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Last Remark</p>
-                  <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] italic">"{lead.remark}"</p>
+                  <p className="text-[12px] text-[#4B5168] dark:text-white italic">"{lead.remark}"</p>
                 </div>
               )}
               {lead.callHistory.length > 0 && (
@@ -600,10 +600,10 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{h.outcome || "Call Back"}</span>
+                            <span className="font-semibold text-[#0F1117] dark:text-white truncate">{h.outcome || "Call Back"}</span>
                             <span className="text-[#8B92A9] shrink-0 text-[10px]">{h.calledAt ? fmtDate(h.calledAt) : "—"}</span>
                           </div>
-                          <p className="text-[#4B5168] dark:text-[#9DA3BB] italic truncate">{h.remark || "—"}</p>
+                          <p className="text-[#4B5168] dark:text-white italic truncate">{h.remark || "—"}</p>
                         </div>
                       </div>
                     ))}
@@ -611,19 +611,19 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 </div>
               )}
               <div className="px-6 py-5 space-y-4">
-                <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Update Lead</p>
+                <p className="text-[14px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest">Update Lead</p>
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Status</label>
+                  <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Status</label>
                   <div className="grid grid-cols-2 gap-2">
                     {STATUS_OPTIONS.map(s => {
                       const sc2   = STATUS_CONFIG[s];
                       const active = status === s;
                       return (
                         <button key={s} onClick={() => setStatus(s)}
-                          className={`px-3 py-2 rounded-xl border-2 text-[12px] font-semibold transition flex items-center gap-1.5 ${
+                          className={`px-3 py-2 rounded-xl border-2 text-[14px] font-semibold transition flex items-center gap-1.5 ${
                             active
                               ? `${sc2.bg} ${sc2.text} border-current`
-                              : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#CBD5E1]"
+                              : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-white hover:border-[#CBD5E1]"
                           }`}>
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: active ? sc2.dot : "#CBD5E1" }} />
                           {s}
@@ -634,15 +634,15 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 </div>
                 {!isNI && (
                   <div>
-                    <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Call Outcome</label>
+                    <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Call Outcome</label>
                     <select value={outcome} onChange={e => setOutcome(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition">
+                      className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition">
                       {OUTCOME_OPTIONS.map(o => <option key={o}>{o}</option>)}
                     </select>
                   </div>
                 )}
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Lead Quality</label>
+                  <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Lead Quality</label>
                   <div className="grid grid-cols-4 gap-2">
                     {["", "Hot", "Warm", "Cold"].map(q => {
                       const colors = { Hot: "#DC2626", Warm: "#D97706", Cold: "#2563EB", "": "#8B92A9" };
@@ -650,10 +650,10 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                       const active = temperature === q;
                       return (
                         <button key={q} type="button" onClick={() => setTemperature(q)}
-                          className={`px-2 py-2 rounded-xl border-2 text-[11px] font-semibold transition ${
+                          className={`px-2 py-2 rounded-xl border-2 text-[14px] font-semibold transition ${
                             active
                               ? "border-current"
-                              : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#CBD5E1]"
+                              : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-white hover:border-[#CBD5E1]"
                           }`}
                           style={active ? { color: colors[q], borderColor: colors[q], background: colors[q] + "15" } : {}}>
                           {labels[q]}
@@ -663,16 +663,16 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
                     Remark <span className="text-red-500">*</span>
-                    {isNI && <span className="ml-1 font-normal text-[10px] text-[#8B92A9]">(reason required)</span>}
+                    {isNI && <span className="ml-1 font-normal text-[14px] text-[#8B92A9]">(reason required)</span>}
                   </label>
                   <textarea
                     value={remark}
                     onChange={e => { setRemark(e.target.value); setError(""); }}
                     rows={4}
                     placeholder="Add your call notes…"
-                    className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition resize-none"
+                    className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition resize-none"
                   />
                 </div>
                 {error && (
@@ -684,11 +684,11 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             </div>
             <div className="px-6 pb-6 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-3 shrink-0">
               <button onClick={onClose}
-                className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
+                className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-white hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
                 Cancel
               </button>
               <button onClick={handleSave} disabled={saving || !remark.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
                 {saving
                   ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saving…</>
                   : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Save Update</>
@@ -796,15 +796,15 @@ export default function UserLeadsPage() {
   };
   const hasFilter = search || filterSt !== "All" || filterTemp !== "All" || filterSrc !== "All";
 
-  const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition";
+  const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition";
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-6 py-8">
 
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">My Leads</h1>
-          <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
+          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-white">My Leads</h1>
+          <p className="text-[14px] text-[#8B92A9] dark:text-gray-400 mt-0.5">
             Your assigned leads — click any row to update status &amp; add call notes
           </p>
         </div>
@@ -870,7 +870,7 @@ export default function UserLeadsPage() {
             </button>
           )}
         </div>
-        <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-2">
+        <p className="text-[14px] text-[#8B92A9] dark:text-gray-400 mt-2">
           {displayed.length} leads {displayed.length !== leads.length ? `(filtered from ${leads.length})` : ""}
           {" · "}
           <span className="text-[#E84444] dark:text-[#F87171] font-medium">📵 Phone numbers are masked for security</span>
@@ -894,17 +894,17 @@ export default function UserLeadsPage() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
             </svg>
-            <span className="text-[13px]">Loading your leads…</span>
+            <span className="text-[14px]">Loading your leads…</span>
           </div>
         ) : paged.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <span className="text-[48px]">🔍</span>
-            <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+            <p className="text-[14px] font-semibold text-[#0F1117] dark:text-white">
               {leads.length === 0 ? "No leads assigned yet" : "No leads match your filters"}
             </p>
             {leads.length > 0 && (
               <button onClick={clearFilters}
-                className="mt-1 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-blue-700 transition">
+                className="mt-1 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 transition">
                 Clear Filters
               </button>
             )}
@@ -912,15 +912,15 @@ export default function UserLeadsPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-[12px]">
+              <table className="w-full text-[14px]">
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
                     {["Lead", "Phone 📵", "Source / Campaign", "Date", "Status", "Quality", "Calls", ""].map((h, i) => (
-                      <th key={i} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
+                      <th key={i} className="px-4 py-3 text-left text-[14px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
+                <tbody className="divide-y divide-white dark:divide-[#1E2130]">
                   {paged.map(l => {
                     const sc = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
                     return (
@@ -935,32 +935,32 @@ export default function UserLeadsPage() {
                               {l.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
                             </div>
                             <div>
-                              <p className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.name}</p>
-                              <p className="text-[10px] text-[#8B92A9]">{daysSince(l._raw_date) || "—"}</p>
+                              <p className="font-semibold text-[#0F1117] dark:text-white whitespace-nowrap">{l.name}</p>
+                              <p className="text-[14px] text-[#8B92A9]">{daysSince(l._raw_date) || "—"}</p>
                             </div>
                           </div>
                         </td>
 
                         <td className="px-4 py-3">
-                          <span className="font-mono text-[#4B5168] dark:text-[#9DA3BB] tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[11px]">
+                          <span className="font-mono text-[#4B5168] dark:text-white tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[11px]">
                             {maskPhone(l.phone)}
                           </span>
                           {l.email && (
-                            <p className="text-[10px] text-[#8B92A9] mt-0.5 truncate max-w-[120px]">
+                            <p className="text-[14px] text-[#8B92A9] mt-0.5 truncate max-w-[120px]">
                               {l.email.replace(/(.{2})(.*)(@.*)/, "$1••••$3")}
                             </p>
                           )}
                         </td>
 
                         <td className="px-4 py-3">
-                          <p className="text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[120px]">{l.source}</p>
+                          <p className="text-[#0F1117] dark:text-white truncate max-w-[120px]">{l.source}</p>
                           {l.campaign !== "—" && (
-                            <p className="text-[10px] text-[#8B92A9] truncate max-w-[120px]">{l.campaign}</p>
+                            <p className="text-[14px] text-[#8B92A9] truncate max-w-[120px]">{l.campaign}</p>
                           )}
                         </td>
 
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <p className="text-[#0F1117] dark:text-[#F0F2FA]">{l.date}</p>
+                          <p className="text-[#0F1117] dark:text-white">{l.date}</p>
                         </td>
 
                         <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
@@ -968,11 +968,11 @@ export default function UserLeadsPage() {
 
                         <td className="px-4 py-3">
                           {l.callHistory.length > 0 ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[14px] font-semibold bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
                               📞 {l.callHistory.length}
                             </span>
                           ) : (
-                            <span className="text-[11px] text-[#8B92A9]">—</span>
+                            <span className="text-[14px] text-[#8B92A9]">—</span>
                           )}
                         </td>
 
@@ -981,7 +981,7 @@ export default function UserLeadsPage() {
                           <button
                             title="View recordings & AI summary"
                             onClick={e => { e.stopPropagation(); setSelected(l); }}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 border border-violet-100 dark:border-violet-900/50 transition opacity-0 group-hover:opacity-100">
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[14px] font-semibold bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 border border-violet-100 dark:border-violet-900/50 transition opacity-0 group-hover:opacity-100">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round"
                                 d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
@@ -998,7 +998,7 @@ export default function UserLeadsPage() {
 
             {totalPages > 1 && (
               <div className="px-5 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between bg-[#F8F9FC] dark:bg-[#13161E]">
-                <span className="text-[11px] text-[#8B92A9]">
+                <span className="text-[14px] text-[#8B92A9]">
                   Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, displayed.length)} of {displayed.length}
                 </span>
                 <div className="flex items-center gap-1">
@@ -1010,7 +1010,7 @@ export default function UserLeadsPage() {
                     const n = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
                     return (
                       <button key={n} onClick={() => setPage(n)}
-                        className={`w-7 h-7 rounded-lg text-[11px] font-semibold transition ${page === n ? "bg-[#2563EB] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27]"}`}>
+                        className={`w-7 h-7 rounded-lg text-[14px] font-semibold transition ${page === n ? "bg-[#2563EB] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27]"}`}>
                         {n}
                       </button>
                     );
@@ -1026,7 +1026,7 @@ export default function UserLeadsPage() {
         )}
       </div>
 
-      <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] text-center mt-4">
+      <p className="text-[14px] text-[#8B92A9] dark:text-gray-400 text-center mt-4">
         📵 Phone numbers are masked — only your admin can see full numbers · Updates are saved to your call history
       </p>
 
