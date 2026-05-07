@@ -1,27 +1,21 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import api from "../data/axiosConfig";
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
-function parseDate(str) {
-  if (!str) return new Date(NaN);
-  const m = str.match(/^(\d{1,2})\s([A-Za-z]{3})\s(\d{4})$/);
-  if (m) {
-    const mo = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
-    return new Date(+m[3], mo[m[2]], +m[1], 12);
-  }
-  return new Date(str);
-}
-function isSameDay(str, ref) {
-  const d = parseDate(str);
+// FIX 1: Use _raw (ISO string) for ALL date comparisons instead of the
+//         formatted display string, which is locale-dependent and fragile.
+function isSameDay(isoOrRaw, refDate) {
+  if (!isoOrRaw) return false;
+  const d = new Date(isoOrRaw);
   return (
-    d.getDate() === ref.getDate() &&
-    d.getMonth() === ref.getMonth() &&
-    d.getFullYear() === ref.getFullYear()
+    d.getDate()     === refDate.getDate()   &&
+    d.getMonth()    === refDate.getMonth()  &&
+    d.getFullYear() === refDate.getFullYear()
   );
 }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
-function fmtLong(d)  { return d.toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" }); }
-function fmtShort(d) { return d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }); }
+function fmtLong(d)    { return d.toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" }); }
+function fmtShort(d)   { return d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }); }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const STATUS_STYLE = {
@@ -40,22 +34,25 @@ const SOURCE_COLORS = {
   "Referral":"#D97706","Campaign":"#7C3AED","Other":"#8B92A9",
 };
 
-// ── mapLead — FIX: reads both Quality and temperature ─────────────────────────
+// ── mapLead — stores _raw ISO for reliable date comparisons ──────────────────
+// FIX 2: Keep _raw as the ISO date string from the server; use it everywhere
+//         for isSameDay comparisons instead of the formatted display date.
 function mapLead(l) {
+  const rawDate = l.date || l.createdAt || null;
   return {
-    id:          String(l._id),
-    name:        l.name        || "Unknown",
-    phone:       l.mobile      || l.phone || "",
-    source:      l.source      || "Other",
-    campaign:    l.campaign    || "—",
-    status:      l.status      || "New",
-    // FIX 1: read Quality first (backend field), fall back to temperature
-    quality:     l.Quality     || l.temperature || null,
-    remark:      l.remark      || "",
-    date:        l.date
-      ? new Date(l.date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })
+    id:       String(l._id),
+    name:     l.name        || "Unknown",
+    phone:    l.mobile      || l.phone || "",
+    source:   l.source      || "Other",
+    campaign: l.campaign    || "—",
+    status:   l.status      || "New",
+    // FIX 3: read Quality (backend field name) first, fall back to temperature
+    quality:  l.Quality     || l.temperature || null,
+    remark:   l.remark      || "",
+    date:     rawDate
+      ? new Date(rawDate).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })
       : "—",
-    _raw:        l.date || l.createdAt || null,
+    _raw:     rawDate,   // ← ISO string used for all date math
   };
 }
 
@@ -88,7 +85,6 @@ function StatusBadge({ status }) {
   );
 }
 
-// FIX 2: TempBadge now reads l.quality (normalized field)
 function TempBadge({ quality }) {
   if (!quality) return null;
   const s = TEMP_STYLE[quality];
@@ -134,15 +130,21 @@ function Card({ title, badge, bc, children }) {
 }
 
 // ── 7-day bar chart ───────────────────────────────────────────────────────────
+// FIX 4: Use l._raw (ISO) for isSameDay comparisons, not l.date (display string).
+//         Also fixed the "selected" highlight to correctly compare against viewDate.
 function WeekChart({ allLeads, viewDate }) {
-  const days = Array.from({ length: 7 }, (_, i) => addDays(viewDate, i - 6));
-  const counts = days.map(d => allLeads.filter(l => isSameDay(l.date, d)).length);
-  const max = Math.max(...counts, 1);
+  const days   = Array.from({ length: 7 }, (_, i) => addDays(viewDate, i - 6));
+  const counts = days.map(d => allLeads.filter(l => isSameDay(l._raw, d)).length);
+  const max    = Math.max(...counts, 1);
   return (
     <div>
       <div className="flex items-end gap-1.5 h-20">
         {days.map((d, i) => {
-          const isSelected = isSameDay(d.toISOString(), viewDate);
+          // FIX 5: compare the chart day to viewDate by value, not by reference
+          const isSelected =
+            d.getDate()     === viewDate.getDate()   &&
+            d.getMonth()    === viewDate.getMonth()  &&
+            d.getFullYear() === viewDate.getFullYear();
           const h = Math.max(4, Math.round((counts[i] / max) * 72));
           return (
             <div key={i} className="flex-1 flex flex-col items-center gap-1">
@@ -179,35 +181,60 @@ function Skeleton() {
 export default function UserDailyReport() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
-  const [allLeads,  setAllLeads]  = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [viewDate,  setViewDate]  = useState(new Date());
+  const [allLeads, setAllLeads] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  // FIX 6: Added error state so fetch failures are visible to the user
+  const [error,    setError]    = useState("");
+  const [viewDate, setViewDate] = useState(new Date());
   const [activeTab, setActiveTab] = useState("overview");
 
-  const isToday = isSameDay(viewDate.toISOString(), new Date());
+  // FIX 7: isToday computed as a stable boolean from normalized midnight comparison
+  const isToday = useMemo(() => {
+    const today = new Date();
+    return (
+      viewDate.getDate()     === today.getDate()   &&
+      viewDate.getMonth()    === today.getMonth()  &&
+      viewDate.getFullYear() === today.getFullYear()
+    );
+  }, [viewDate]);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   useEffect(() => {
+    setLoading(true);
+    setError("");
     api.get("/lead/my-leads")
       .then(res => {
         const raw = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-        // FIX 3: use mapLead() which normalizes Quality → quality
         setAllLeads(raw.map(mapLead));
       })
-      .catch(() => {})
+      .catch(() => setError("Failed to load your leads. Please refresh."))
       .finally(() => setLoading(false));
   }, []);
 
   // ── Date nav ──────────────────────────────────────────────────────────────
   const goBack    = () => setViewDate(d => addDays(d, -1));
-  const goForward = () => { if (!isToday) setViewDate(d => addDays(d, 1)); };
+  // FIX 8: Prevent navigating beyond today at the state level, not just the button
+  const goForward = () => {
+    setViewDate(d => {
+      const next = addDays(d, 1);
+      const today = new Date();
+      // clamp to today
+      return next > today ? today : next;
+    });
+  };
   const goToday   = () => setViewDate(new Date());
 
-  // ── Filter for selected date ──────────────────────────────────────────────
-  const dayLeads  = useMemo(() => allLeads.filter(l => isSameDay(l.date, viewDate)), [allLeads, viewDate]);
-  const prevLeads = useMemo(() => allLeads.filter(l => isSameDay(l.date, addDays(viewDate, -1))), [allLeads, viewDate]);
+  // ── Filter for selected date — FIX 9: use l._raw not l.date ──────────────
+  const dayLeads  = useMemo(
+    () => allLeads.filter(l => isSameDay(l._raw, viewDate)),
+    [allLeads, viewDate]
+  );
+  const prevLeads = useMemo(
+    () => allLeads.filter(l => isSameDay(l._raw, addDays(viewDate, -1))),
+    [allLeads, viewDate]
+  );
 
-  // ── KPIs — FIX 4: use l.quality (normalized) everywhere ──────────────────
+  // ── KPIs ──────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const total      = dayLeads.length;
     const converted  = dayLeads.filter(l => l.status === "Converted").length;
@@ -221,14 +248,16 @@ export default function UserDailyReport() {
     const convRate   = total > 0 ? Math.round((converted / total) * 100) : 0;
     const prevTotal  = prevLeads.length;
     const prevConv   = prevLeads.filter(l => l.status === "Converted").length;
-    return { total, converted, inProgress, notInt, newLeads, contacted, hot, warm, cold, convRate,
-      trendTotal: total - prevTotal, trendConv: converted - prevConv };
+    return { total, converted, inProgress, notInt, newLeads, contacted,
+             hot, warm, cold, convRate,
+             trendTotal: total - prevTotal, trendConv: converted - prevConv };
   }, [dayLeads, prevLeads]);
 
   // ── Sources ───────────────────────────────────────────────────────────────
   const sources = useMemo(() =>
     Object.entries(SOURCE_COLORS).map(([label, color]) => ({
-      label, color, count: dayLeads.filter(l => l.source === label).length,
+      label, color,
+      count: dayLeads.filter(l => l.source === label).length,
     })).filter(s => s.count > 0),
   [dayLeads]);
 
@@ -268,23 +297,45 @@ export default function UserDailyReport() {
         <div className="flex items-center gap-1 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-1">
           <button onClick={goBack}
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] transition">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
           </button>
           <button onClick={goToday}
             className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition ${isToday ? "bg-[#2563EB] text-white" : "text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38]"}`}>
             {isToday ? "Today" : fmtShort(viewDate)}
           </button>
+          {/* FIX 10: Forward button disabled when isToday */}
           <button onClick={goForward} disabled={isToday}
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] disabled:opacity-30 disabled:cursor-not-allowed transition">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
           </button>
         </div>
       </div>
 
+      {/* FIX 11: Show fetch error prominently */}
+      {error && (
+        <div className="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800">
+          <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-[12px] font-semibold text-red-600 dark:text-red-400 flex-1">{error}</p>
+          <button
+            onClick={() => { setError(""); setLoading(true); api.get("/lead/my-leads").then(res => { const raw = Array.isArray(res.data) ? res.data : (res.data?.data || []); setAllLeads(raw.map(mapLead)); }).catch(() => setError("Failed to load your leads. Please refresh.")).finally(() => setLoading(false)); }}
+            className="text-red-600 dark:text-red-400 underline underline-offset-2 text-[11px] font-semibold whitespace-nowrap">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* ── No leads banner ─────────────────────────────────────────────── */}
-      {dayLeads.length === 0 && (
+      {!error && dayLeads.length === 0 && (
         <div className="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl bg-[#EEF3FF] dark:bg-[#1A2540] border border-[#C7D7FF] dark:border-[#2D3A6B]">
-          <svg className="w-4 h-4 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z" /></svg>
+          <svg className="w-4 h-4 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z" />
+          </svg>
           <p className="text-[12px] font-semibold text-[#1D4ED8] dark:text-[#4F8EF7]">
             No leads recorded for {fmtShort(viewDate)}.{" "}
             {isToday ? "New leads will appear here as you add them." : "Try navigating to another date."}
@@ -294,11 +345,10 @@ export default function UserDailyReport() {
 
       {/* ── KPI cards ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Leads today"   value={stats.total}      icon="📋" color="#2563EB" sub="Assigned to you"                         trend={stats.trendTotal} />
-        <StatCard label="Converted"     value={stats.converted}  icon="✅" color="#059669" sub={`${stats.convRate}% conv. rate`}          trend={stats.trendConv} />
-        <StatCard label="In progress"   value={stats.inProgress} icon="⏳" color="#D97706" sub="Need follow-up" />
-        {/* FIX 5: use stats.hot (from l.quality) not l.Quality */}
-        <StatCard label="Hot leads"     value={stats.hot}        icon="🔥" color="#DC2626" sub={`${stats.warm} warm · ${stats.cold} cold`} />
+        <StatCard label="Leads today"  value={stats.total}      icon="📋" color="#2563EB" sub="Assigned to you"                          trend={stats.trendTotal} />
+        <StatCard label="Converted"    value={stats.converted}  icon="✅" color="#059669" sub={`${stats.convRate}% conv. rate`}           trend={stats.trendConv} />
+        <StatCard label="In progress"  value={stats.inProgress} icon="⏳" color="#D97706" sub="Need follow-up" />
+        <StatCard label="Hot leads"    value={stats.hot}        icon="🔥" color="#DC2626" sub={`${stats.warm} warm · ${stats.cold} cold`} />
       </div>
 
       {/* ── Tabs ────────────────────────────────────────────────────────── */}
@@ -353,11 +403,14 @@ export default function UserDailyReport() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{s.count}</span>
-                          <span className="text-[10px] text-[#8B92A9] w-8 text-right">{Math.round(s.count / (stats.total || 1) * 100)}%</span>
+                          <span className="text-[10px] text-[#8B92A9] w-8 text-right">
+                            {Math.round(s.count / (stats.total || 1) * 100)}%
+                          </span>
                         </div>
                       </div>
                       <div className="h-2 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${Math.round(s.count / (stats.total || 1) * 100)}%`, background: s.color }} />
+                        <div className="h-full rounded-full"
+                          style={{ width: `${Math.round(s.count / (stats.total || 1) * 100)}%`, background: s.color }} />
                       </div>
                     </div>
                   ))}
@@ -368,16 +421,18 @@ export default function UserDailyReport() {
             <Card title="Status breakdown">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label:"New",          value:stats.newLeads,   ...STATUS_STYLE["New"] },
-                  { label:"In progress",  value:stats.inProgress, ...STATUS_STYLE["In Progress"] },
-                  { label:"Converted",    value:stats.converted,  ...STATUS_STYLE["Converted"] },
-                  { label:"Not int.",     value:stats.notInt,     ...STATUS_STYLE["Not Interested"] },
+                  { label:"New",         value:stats.newLeads,   ...STATUS_STYLE["New"] },
+                  { label:"In progress", value:stats.inProgress, ...STATUS_STYLE["In Progress"] },
+                  { label:"Converted",   value:stats.converted,  ...STATUS_STYLE["Converted"] },
+                  { label:"Not int.",    value:stats.notInt,     ...STATUS_STYLE["Not Interested"] },
                 ].map(s => (
                   <div key={s.label} className={`rounded-xl px-4 py-3.5 ${s.bg}`}>
                     <div className={`text-[24px] font-bold ${s.text}`}>{s.value}</div>
                     <div className={`text-[11px] font-semibold ${s.text} opacity-80 mt-0.5`}>{s.label}</div>
                     {stats.total > 0 && (
-                      <div className={`text-[10px] ${s.text} opacity-60 mt-0.5`}>{Math.round(s.value / (stats.total || 1) * 100)}%</div>
+                      <div className={`text-[10px] ${s.text} opacity-60 mt-0.5`}>
+                        {Math.round(s.value / (stats.total || 1) * 100)}%
+                      </div>
                     )}
                   </div>
                 ))}
@@ -385,7 +440,7 @@ export default function UserDailyReport() {
             </Card>
           </div>
 
-          {/* Quality heatmap — FIX 6: values come from stats.hot/warm/cold (based on l.quality) */}
+          {/* Quality heatmap */}
           <Card title="Lead quality — today">
             <div className="grid grid-cols-3 gap-4">
               {[
@@ -397,7 +452,8 @@ export default function UserDailyReport() {
                   <div className={`text-[30px] font-bold ${t.text}`}>{t.value}</div>
                   <div className={`text-[12px] font-semibold ${t.text} mt-1`}>{t.label}</div>
                   <div className="h-1.5 bg-white/40 dark:bg-black/20 rounded-full mt-3 overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${stats.total > 0 ? Math.round(t.value / stats.total * 100) : 0}%`, background: t.bar }} />
+                    <div className="h-full rounded-full"
+                      style={{ width: `${stats.total > 0 ? Math.round(t.value / stats.total * 100) : 0}%`, background: t.bar }} />
                   </div>
                 </div>
               ))}
@@ -432,7 +488,6 @@ export default function UserDailyReport() {
                         {l.source}
                       </span>
                       <StatusBadge status={l.status} />
-                      {/* FIX 7: pass l.quality not l.Quality */}
                       <TempBadge quality={l.quality} />
                       {l.remark && <span className="text-[10px] text-[#8B92A9] italic truncate max-w-[180px]">{l.remark}</span>}
                     </div>
@@ -451,9 +506,9 @@ export default function UserDailyReport() {
       {activeTab === "followups" && (
         <div className="space-y-5">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <StatCard label="Total follow-ups"      value={followUps.length}                           icon="⏳" color="#D97706" sub="In progress leads" />
-            <StatCard label="Hot follow-ups"         value={followUps.filter(l => l.quality === "Hot").length} icon="🔥" color="#DC2626" sub="Call them now" />
-            <StatCard label="All-time in progress"  value={allLeads.filter(l => l.status === "In Progress").length} icon="📌" color="#7C3AED" sub="Across all days" />
+            <StatCard label="Total follow-ups"     value={followUps.length}                                    icon="⏳" color="#D97706" sub="In progress leads" />
+            <StatCard label="Hot follow-ups"        value={followUps.filter(l => l.quality === "Hot").length}  icon="🔥" color="#DC2626" sub="Call them now" />
+            <StatCard label="All-time in progress" value={allLeads.filter(l => l.status === "In Progress").length} icon="📌" color="#7C3AED" sub="Across all days" />
           </div>
 
           <Card title="Pending follow-ups" badge={followUps.length} bc="#D97706">
@@ -498,7 +553,7 @@ export default function UserDailyReport() {
       {activeTab === "conversions" && (
         <div className="space-y-5">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="Today's closures"  value={conversions.length}   icon="🏆" color="#059669" sub={fmtShort(viewDate)}             trend={stats.trendConv} />
+            <StatCard label="Today's closures"  value={conversions.length}   icon="🏆" color="#059669" sub={fmtShort(viewDate)}  trend={stats.trendConv} />
             <StatCard label="Conv. rate today"  value={`${stats.convRate}%`} icon="📈" color="#7C3AED" sub="For selected day" />
             <StatCard label="All-time conv."    value={allLeads.filter(l => l.status === "Converted").length} icon="✅" color="#2563EB" sub="Total converted" />
             <StatCard label="All-time rate"
@@ -552,11 +607,11 @@ export default function UserDailyReport() {
             <Card title="All-time summary">
               <div className="space-y-3">
                 {[
-                  { label:"Total leads assigned", value:allLeads.length,                                                         color:"#2563EB" },
-                  { label:"Converted",             value:allLeads.filter(l => l.status === "Converted").length,                   color:"#059669" },
-                  { label:"In progress",           value:allLeads.filter(l => l.status === "In Progress").length,                 color:"#D97706" },
-                  { label:"Not interested",        value:allLeads.filter(l => l.status === "Not Interested").length,              color:"#DC2626" },
-                  { label:"New (untouched)",        value:allLeads.filter(l => l.status === "New").length,                        color:"#7C3AED" },
+                  { label:"Total leads assigned",  value:allLeads.length,                                                color:"#2563EB" },
+                  { label:"Converted",              value:allLeads.filter(l => l.status === "Converted").length,          color:"#059669" },
+                  { label:"In progress",            value:allLeads.filter(l => l.status === "In Progress").length,        color:"#D97706" },
+                  { label:"Not interested",         value:allLeads.filter(l => l.status === "Not Interested").length,     color:"#DC2626" },
+                  { label:"New (untouched)",         value:allLeads.filter(l => l.status === "New").length,               color:"#7C3AED" },
                 ].map(s => (
                   <div key={s.label} className="flex items-center justify-between py-2 border-b border-[#F0F2FA] dark:border-[#1E2130] last:border-0">
                     <div className="flex items-center gap-2">
@@ -565,7 +620,8 @@ export default function UserDailyReport() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="w-20 h-1.5 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${allLeads.length > 0 ? Math.round(s.value / allLeads.length * 100) : 0}%`, background: s.color }} />
+                        <div className="h-full rounded-full"
+                          style={{ width: `${allLeads.length > 0 ? Math.round(s.value / allLeads.length * 100) : 0}%`, background: s.color }} />
                       </div>
                       <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA] w-6 text-right">{s.value}</span>
                     </div>
@@ -580,22 +636,25 @@ export default function UserDailyReport() {
               </div>
             </Card>
 
-            {/* Hot leads pipeline — FIX 8: filter by l.quality */}
+            {/* Hot leads pipeline */}
             <Card title="Hot leads — act now 🔥">
               {allLeads.filter(l => l.quality === "Hot" && l.status !== "Converted").length === 0 ? (
                 <p className="text-[13px] text-center text-[#8B92A9] dark:text-[#565C75] py-10">No hot leads right now.</p>
               ) : (
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                  {allLeads.filter(l => l.quality === "Hot" && l.status !== "Converted").map((l, i) => (
-                    <div key={l.id || i} className="flex items-center gap-3 p-3 rounded-xl bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D]">
-                      <span className="text-[18px]">🔥</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-semibold text-[#DC2626] dark:text-[#F87171] truncate">{l.name}</p>
-                        <p className="text-[10px] text-[#8B92A9]">{l.source}</p>
+                  {allLeads
+                    .filter(l => l.quality === "Hot" && l.status !== "Converted")
+                    .map((l, i) => (
+                      <div key={l.id || i}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D]">
+                        <span className="text-[18px]">🔥</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12px] font-semibold text-[#DC2626] dark:text-[#F87171] truncate">{l.name}</p>
+                          <p className="text-[10px] text-[#8B92A9]">{l.source}</p>
+                        </div>
+                        <StatusBadge status={l.status} />
                       </div>
-                      <StatusBadge status={l.status} />
-                    </div>
-                  ))}
+                    ))}
                 </div>
               )}
             </Card>
