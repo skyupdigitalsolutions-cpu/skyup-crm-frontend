@@ -51,11 +51,12 @@ const ADMIN_NAV_ITEMS = [
     ),
   },
   {
-    to: "/email-history",
-    label: "Email History",
+    to: "/communications",
+    label: "Communications",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-        <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        <path d="M8 10h8M8 14h5" />
       </svg>
     ),
   },
@@ -87,15 +88,6 @@ const ADMIN_NAV_ITEMS = [
     ),
   },
   {
-    to: "/whatsapp",
-    label: "WhatsApp",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-      </svg>
-    ),
-  },
-  {
     to: "/call-recordings",
     label: "Call Recordings",
     icon: (
@@ -116,8 +108,6 @@ const ADMIN_NAV_ITEMS = [
 ];
 
 // ── Nav items for USER role ───────────────────────────────────────────────────
-// Removed: Call Recordings
-// Added:   My Leads
 const USER_NAV_ITEMS = [
   {
     to: "/user/dashboard",
@@ -171,7 +161,7 @@ export function Sidebar() {
     ? user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "?";
 
-  // ── Role styles with .toLowerCase() + nullish fallback to prevent crash ───
+  // ── Role styles ───────────────────────────────────────────────────────────
   const roleStyle = {
     superadmin: { border: "border-amber-500/30",  bg: "bg-amber-500/10",  text: "text-amber-400"  },
     admin:      { border: "border-purple-500/30", bg: "bg-purple-500/10", text: "text-purple-400" },
