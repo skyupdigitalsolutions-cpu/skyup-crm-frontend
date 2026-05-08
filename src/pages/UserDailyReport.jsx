@@ -25,9 +25,9 @@ const STATUS_STYLE = {
   "Not Interested": { bg:"bg-[#FEF2F2] dark:bg-[#2D0A0A]", text:"text-[#DC2626] dark:text-[#F87171]", dot:"#DC2626" },
 };
 const TEMP_STYLE = {
-  Hot:  { bg:"bg-[#FEF2F2] dark:bg-[#2D0A0A]", text:"text-[#DC2626] dark:text-[#F87171]", icon:"🔥" },
-  Warm: { bg:"bg-[#FFFBEB] dark:bg-[#2D1F00]", text:"text-[#D97706] dark:text-[#FCD34D]", icon:"☀️" },
-  Cold: { bg:"bg-[#EEF3FF] dark:bg-[#1A2540]", text:"text-[#2563EB] dark:text-[#4F8EF7]", icon:"❄️" },
+  Hot:  { bg:"bg-[#FEF2F2] dark:bg-[#2D0A0A]", text:"text-[#DC2626] dark:text-[#F87171]", icon:"" },
+  Warm: { bg:"bg-[#FFFBEB] dark:bg-[#2D1F00]", text:"text-[#D97706] dark:text-[#FCD34D]", icon:"" },
+  Cold: { bg:"bg-[#EEF3FF] dark:bg-[#1A2540]", text:"text-[#2563EB] dark:text-[#4F8EF7]", icon:"" },
 };
 const SOURCE_COLORS = {
   "Google Ads":"#2563EB","Facebook Ads":"#0891B2","Web Form":"#059669",
@@ -345,10 +345,10 @@ export default function UserDailyReport() {
 
       {/* ── KPI cards ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Leads today"  value={stats.total}      icon="📋" color="#2563EB" sub="Assigned to you"                          trend={stats.trendTotal} />
-        <StatCard label="Converted"    value={stats.converted}  icon="✅" color="#059669" sub={`${stats.convRate}% conv. rate`}           trend={stats.trendConv} />
-        <StatCard label="In progress"  value={stats.inProgress} icon="⏳" color="#D97706" sub="Need follow-up" />
-        <StatCard label="Hot leads"    value={stats.hot}        icon="🔥" color="#DC2626" sub={`${stats.warm} warm · ${stats.cold} cold`} />
+        <StatCard label="Leads today"  value={stats.total}      icon="" color="#2563EB" sub="Assigned to you"                          trend={stats.trendTotal} />
+        <StatCard label="Converted"    value={stats.converted}  icon="" color="#059669" sub={`${stats.convRate}% conv. rate`}           trend={stats.trendConv} />
+        <StatCard label="In progress"  value={stats.inProgress} icon="" color="#D97706" sub="Need follow-up" />
+        <StatCard label="Hot leads"    value={stats.hot}        icon="" color="#DC2626" sub={`${stats.warm} warm · ${stats.cold} cold`} />
       </div>
 
       {/* ── Tabs ────────────────────────────────────────────────────────── */}
@@ -467,7 +467,7 @@ export default function UserDailyReport() {
         <Card title={`Leads on ${fmtShort(viewDate)}`} badge={dayLeads.length} bc="#2563EB">
           {dayLeads.length === 0 ? (
             <div className="py-14 text-center">
-              <div className="text-[40px] mb-3">📋</div>
+              <div className="text-[40px] mb-3"></div>
               <p className="text-[13px] text-[#F3F4F6] dark:text-[#D1D5DB]">No leads for {fmtShort(viewDate)}.</p>
             </div>
           ) : (
@@ -506,9 +506,9 @@ export default function UserDailyReport() {
       {activeTab === "followups" && (
         <div className="space-y-5">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <StatCard label="Total follow-ups"     value={followUps.length}                                    icon="⏳" color="#D97706" sub="In progress leads" />
-            <StatCard label="Hot follow-ups"        value={followUps.filter(l => l.quality === "Hot").length}  icon="🔥" color="#DC2626" sub="Call them now" />
-            <StatCard label="All-time in progress" value={allLeads.filter(l => l.status === "In Progress").length} icon="📌" color="#7C3AED" sub="Across all days" />
+            <StatCard label="Total follow-ups"     value={followUps.length}                                    icon="" color="#D97706" sub="In progress leads" />
+            <StatCard label="Hot follow-ups"        value={followUps.filter(l => l.quality === "Hot").length}  icon="" color="#DC2626" sub="Call them now" />
+            <StatCard label="All-time in progress" value={allLeads.filter(l => l.status === "In Progress").length} icon="" color="#7C3AED" sub="Across all days" />
           </div>
 
           <Card title="Pending follow-ups" badge={followUps.length} bc="#D97706">
@@ -553,9 +553,9 @@ export default function UserDailyReport() {
       {activeTab === "conversions" && (
         <div className="space-y-5">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="Today's closures"  value={conversions.length}   icon="🏆" color="#059669" sub={fmtShort(viewDate)}  trend={stats.trendConv} />
-            <StatCard label="Conv. rate today"  value={`${stats.convRate}%`} icon="📈" color="#7C3AED" sub="For selected day" />
-            <StatCard label="All-time conv."    value={allLeads.filter(l => l.status === "Converted").length} icon="✅" color="#2563EB" sub="Total converted" />
+            <StatCard label="Today's closures"  value={conversions.length}   icon="" color="#059669" sub={fmtShort(viewDate)}  trend={stats.trendConv} />
+            <StatCard label="Conv. rate today"  value={`${stats.convRate}%`} icon="" color="#7C3AED" sub="For selected day" />
+            <StatCard label="All-time conv."    value={allLeads.filter(l => l.status === "Converted").length} icon="" color="#2563EB" sub="Total converted" />
             <StatCard label="All-time rate"
               value={`${allLeads.length > 0 ? Math.round(allLeads.filter(l => l.status === "Converted").length / allLeads.length * 100) : 0}%`}
               icon="%" color="#D97706" sub="Overall" />
@@ -564,7 +564,7 @@ export default function UserDailyReport() {
           <Card title={`Conversions on ${fmtShort(viewDate)}`} badge={conversions.length} bc="#059669">
             {conversions.length === 0 ? (
               <div className="py-14 text-center">
-                <div className="text-[40px] mb-3">🎯</div>
+                <div className="text-[40px] mb-3"></div>
                 <p className="text-[14px] text-[#F3F4F6] dark:text-[#D1D5DB]">No conversions on {fmtShort(viewDate)}.</p>
               </div>
             ) : (
@@ -637,7 +637,7 @@ export default function UserDailyReport() {
             </Card>
 
             {/* Hot leads pipeline */}
-            <Card title="Hot leads — act now 🔥">
+            <Card title="Hot leads — act now ">
               {allLeads.filter(l => l.quality === "Hot" && l.status !== "Converted").length === 0 ? (
                 <p className="text-[14px] text-center text-[#F3F4F6] dark:text-[#D1D5DB] py-10">No hot leads right now.</p>
               ) : (
@@ -647,7 +647,7 @@ export default function UserDailyReport() {
                     .map((l, i) => (
                       <div key={l.id || i}
                         className="flex items-center gap-3 p-3 rounded-xl bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D]">
-                        <span className="text-[18px]">🔥</span>
+                        <span className="text-[18px]"></span>
                         <div className="flex-1 min-w-0">
                           <p className="text-[14px] font-semibold text-[#DC2626] dark:text-[#F87171] truncate">{l.name}</p>
                           <p className="text-[14px] text-[#F3F4F6]">{l.source}</p>
