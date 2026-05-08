@@ -19,9 +19,9 @@ const STATUS_CONFIG = {
   "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",         text: "text-red-600 dark:text-red-400",         dot: "#DC2626" },
 };
 const TEMP_CONFIG = {
-  Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400",    icon: "🔥" },
-  Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400",icon: "☀️" },
-  Cold: { bg: "bg-blue-100 dark:bg-blue-950/40",  text: "text-blue-600 dark:text-blue-400",  icon: "❄️" },
+  Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400",    icon: "" },
+  Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400",icon: "" },
+  Cold: { bg: "bg-blue-100 dark:bg-blue-950/40",  text: "text-blue-600 dark:text-blue-400",  icon: "" },
 };
 const SENTIMENT_STYLE = {
   Positive: { bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-600 dark:text-emerald-400" },
@@ -646,7 +646,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                   <div className="grid grid-cols-4 gap-2">
                     {["", "Hot", "Warm", "Cold"].map(q => {
                       const colors = { Hot: "#DC2626", Warm: "#D97706", Cold: "#2563EB", "": "#8B92A9" };
-                      const labels = { Hot: "🔥 Hot", Warm: "☀️ Warm", Cold: "❄️ Cold", "": "— None" };
+                      const labels = { Hot: "Hot", Warm: " Warm", Cold: " Cold", "": "— None" };
                       const active = temperature === q;
                       return (
                         <button key={q} type="button" onClick={() => setTemperature(q)}
@@ -834,7 +834,7 @@ export default function UserLeadsPage() {
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition font-semibold text-[13px] bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 ${filterTemp === "Hot" ? "" : "border-transparent"}`}
             style={{ borderColor: filterTemp === "Hot" ? "#DC2626" : undefined }}>
             <span className="text-[18px] font-black">{kpi.hot}</span>
-            🔥 Hot
+             Hot
           </button>
         )}
       </div>
@@ -896,7 +896,7 @@ export default function UserLeadsPage() {
           </div>
         ) : paged.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <span className="text-[48px]">🔍</span>
+            <span className="text-[48px]"></span>
             <p className="text-[14px] font-semibold text-[#0F1117] dark:text-white">
               {leads.length === 0 ? "No leads assigned yet" : "No leads match your filters"}
             </p>
@@ -967,7 +967,7 @@ export default function UserLeadsPage() {
                         <td className="px-4 py-3">
                           {l.callHistory.length > 0 ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[14px] font-semibold bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
-                              📞 {l.callHistory.length}
+                               {l.callHistory.length}
                             </span>
                           ) : (
                             <span className="text-[14px] text-[#8B92A9]">—</span>
@@ -1024,10 +1024,7 @@ export default function UserLeadsPage() {
         )}
       </div>
 
-      <p className="text-[14px] text-[#8B92A9] dark:text-gray-400 text-center mt-4">
-        📵 Phone numbers are masked — only your admin can see full numbers · Updates are saved to your call history
-      </p>
-
+     
       {selected && (
         <UpdateDrawer lead={selected} onClose={() => setSelected(null)} onSaved={handleSaved} />
       )}
