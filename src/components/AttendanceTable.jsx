@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { CalendarDays, Users } from "lucide-react";
 import { updateAttendance, removeAttendance } from "../services/attendanceService";
 import axios from "axios";
 
@@ -392,8 +393,8 @@ function UserDetailDrawer({ user, records, onClose }) {
     setLogsPage(1);
     setLogsError("");
     setLogsLoading(true);
-axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
-  .then(res => {
+    axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
+      .then(res => {
         const all = res.data?.logs || [];
         const filtered = all
           .filter(l => String(l.user?._id || l.user) === String(user._id))
@@ -430,9 +431,6 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
   const pagedLogs  = callLogs.slice((logsPage - 1) * LOGS_PER_PAGE, logsPage * LOGS_PER_PAGE);
 
   // ── Device / app info ─────────────────────────────────────────────────────
-  // User document is kept fresh on every login + clock-in by the mobile app.
-  // Prefer user.* so the drawer always shows the latest device even if
-  // the most recent attendance record predates the device info rollout.
   const appName     = user.appName     || lastRec?.appName     || null;
   const appVersion  = user.appVersion  || lastRec?.appVersion  || null;
   const platform    = user.platform    || lastRec?.platform    || null;
@@ -526,7 +524,6 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
           {/* ── Device / App Info ── */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-[14px]"></span>
               <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Login Device & App</p>
               <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
             </div>
@@ -551,7 +548,6 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
           {/* ── Device Call Logs ── */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-[14px]"></span>
               <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Device Call Logs</p>
               <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
               <span className="text-[10px] font-bold text-[#8B92A9]">
@@ -585,7 +581,7 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
               </div>
             ) : logsError ? (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-red-50 dark:bg-red-950/20 rounded-xl border border-dashed border-red-200 dark:border-red-900/40">
-                <span className="text-[28px]"></span>
+                <span className="text-[28px]">⚠️</span>
                 <p className="text-[12px] text-red-500">{logsError}</p>
               </div>
             ) : pagedLogs.length > 0 ? (
@@ -618,7 +614,7 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
               </>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                <span className="text-[28px]"></span>
+                <span className="text-[28px]">📵</span>
                 <p className="text-[12px] text-[#8B92A9]">No call logs synced for this user</p>
               </div>
             )}
@@ -627,7 +623,7 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
           {/* ── Recent Attendance Records ── */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-[14px]">🗓️</span>
+              <CalendarDays className="w-3.5 h-3.5 text-[#8B92A9]" />
               <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Recent Attendance</p>
               <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
             </div>
@@ -650,7 +646,7 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                <span className="text-[28px]"></span>
+                <span className="text-[28px]">📭</span>
                 <p className="text-[12px] text-[#8B92A9]">No attendance records found</p>
               </div>
             )}
@@ -701,7 +697,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
             ) : records.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-12 text-center">
-                  <span className="text-[36px] block mb-2"></span>
+                  <span className="text-[36px] block mb-2">📭</span>
                   <p className="text-[13px] text-[#8B92A9]">No attendance records found.</p>
                 </td>
               </tr>
@@ -780,7 +776,7 @@ function UsersTab({ records, onUserClick }) {
   if (users.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <span className="text-[48px]"></span>
+        <span className="text-[48px]">👥</span>
         <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">No users found</p>
         <p className="text-[12px] text-[#8B92A9]">Users will appear here once attendance records are loaded.</p>
       </div>
@@ -788,7 +784,6 @@ function UsersTab({ records, onUserClick }) {
   }
 
   return (
-    // FIX: Added `items-start` so cards don't stretch to match their row neighbour's height
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
       {users.map(user => {
         const recs    = user._records || [];
@@ -811,9 +806,7 @@ function UsersTab({ records, onUserClick }) {
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="flex items-center gap-3 min-w-0">
                 <Avatar name={user.name} size="md" />
-                {/* FIX: Added min-w-0 to allow text truncation inside flex child */}
                 <div className="min-w-0">
-                  {/* FIX: Added line-clamp-1 so long names don't wrap and expand card height */}
                   <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition line-clamp-1">{user.name || "Unknown"}</p>
                   <p className="text-[10px] text-[#8B92A9] truncate">{user.email || "—"}</p>
                 </div>
@@ -848,7 +841,7 @@ function UsersTab({ records, onUserClick }) {
 
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 min-w-0">
-                <span className="text-[11px]"></span>
+                <span className="text-[11px]">📱</span>
                 <span className="text-[10px] text-[#8B92A9] truncate">{deviceInfo || "No device info"}</span>
               </div>
               <span className="text-[10px] text-[#8B92A9] shrink-0">{daysSince(lastRec?.date || lastRec?.loginTime)}</span>
@@ -867,8 +860,8 @@ export default function AttendancePage({ records = [], loading = false, onRefres
   const [selectedUser, setSelectedUser] = useState(null);
 
   const tabs = [
-    { key: "attendance", label: "Attendance",   icon: "" },
-    { key: "users",      label: "User Details", icon: "" },
+    { key: "attendance", label: "Attendance",   icon: <CalendarDays className="w-4 h-4" /> },
+    { key: "users",      label: "User Details", icon: <Users className="w-4 h-4" /> },
   ];
 
   return (
@@ -889,7 +882,7 @@ export default function AttendancePage({ records = [], loading = false, onRefres
                 : "text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]"
             }`}
           >
-            <span>{tab.icon}</span>
+            {tab.icon}
             {tab.label}
           </button>
         ))}
