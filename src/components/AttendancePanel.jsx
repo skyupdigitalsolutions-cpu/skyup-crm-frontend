@@ -137,8 +137,8 @@ export default function AttendancePanel() {
       {idleWarning && (
         <div className="mb-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl p-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-[12px] font-bold text-red-600 dark:text-red-400">⚠️ You've been idle for 5 minutes</p>
-            <p className="text-[11px] text-red-400">Break started automatically. Click Resume to continue.</p>
+            <p className="text-[14px] font-bold text-red-600 dark:text-red-400"> You've been idle for 5 minutes</p>
+            <p className="text-[14px] text-red-400">Break started automatically. Click Resume to continue.</p>
           </div>
           <button onClick={endBreak} className="shrink-0 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[12px] font-bold transition">Resume</button>
         </div>
@@ -172,23 +172,23 @@ export default function AttendancePanel() {
       <div className="flex gap-2">
         {notClockedIn && (
           <button onClick={clockIn} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-bold transition">
-            🟢 Clock In
+             Clock In
           </button>
         )}
         {record?.loginTime && !isClockedOut && (
           <>
             {record.status !== "on_break" && record.status !== "idle" && (
               <button onClick={startBreak} className="flex-1 py-2.5 rounded-xl bg-amber-100 dark:bg-amber-950/40 hover:bg-amber-200 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[13px] font-bold transition">
-                ⏸ Break
+                 Break
               </button>
             )}
             {(record.status === "on_break" || record.status === "idle") && (
               <button onClick={endBreak} className="flex-1 py-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 hover:bg-emerald-200 text-emerald-700 dark:text-emerald-400 text-[13px] font-bold transition">
-                ▶ Resume
+                 Resume
               </button>
             )}
             <button onClick={clockOut} className="flex-1 py-2.5 rounded-xl bg-red-100 dark:bg-red-950/40 hover:bg-red-200 text-red-600 dark:text-red-400 text-[13px] font-bold transition">
-              ⏹ Clock Out
+              Clock Out
             </button>
           </>
         )}
