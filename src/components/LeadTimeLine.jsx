@@ -8,7 +8,7 @@ export default function LeadTimeline({ lead }) {
   // 1. Lead created
   events.push({
     type: "created",
-    icon: "✨",
+    icon: "",
     color: "#2563EB",
     title: "Lead Created",
     subtitle: `Source: ${lead.source || "—"}  •  Campaign: ${lead.campaign || "—"}`,
@@ -19,7 +19,7 @@ export default function LeadTimeline({ lead }) {
   if (lead.user) {
     events.push({
       type: "assigned",
-      icon: "👤",
+      icon: "",
       color: "#7C3AED",
       title: `Assigned to ${lead.user?.name || lead.agent || "Agent"}`,
       subtitle: lead.user?.email || "",
@@ -31,7 +31,7 @@ export default function LeadTimeline({ lead }) {
   (lead.callHistory || []).forEach((h, i) => {
     events.push({
       type: "call",
-      icon: "📞",
+      icon: "",
       color: h.outcome === "Not Interested" ? "#DC2626" : "#059669",
       title: `Called by ${h.userName || "Agent"}`,
       subtitle: `Outcome: ${h.outcome || "—"}  •  Remark: ${h.remark || "—"}`,
@@ -43,7 +43,7 @@ export default function LeadTimeline({ lead }) {
   (lead.scheduledCalls || []).forEach((sc, i) => {
     events.push({
       type: sc.done ? "schedule_done" : "schedule_pending",
-      icon: sc.done ? "✅" : "🗓️",
+      icon: sc.done ? "" : "",
       color: sc.done ? "#059669" : "#D97706",
       title: `${sc.type === "follow-up" ? "Follow-up" : "Verification"} Call ${sc.done ? "(Done)" : "(Scheduled)"}`,
       subtitle: `${sc.note || ""}  •  ${formatDate(sc.scheduledAt)}${sc.doneAt ? `  •  Completed: ${formatDate(sc.doneAt)}` : ""}`,
@@ -57,7 +57,7 @@ export default function LeadTimeline({ lead }) {
   // 5. Final status at end
   events.push({
     type: "status",
-    icon: lead.status === "Converted" ? "🎉" : lead.status === "Not Interested" ? "❌" : "🔄",
+    icon: lead.status === "Converted" ? "" : lead.status === "Not Interested" ? "" : "",
     color: lead.status === "Converted" ? "#059669" : lead.status === "Not Interested" ? "#DC2626" : "#D97706",
     title: `Current Status: ${lead.status}`,
     subtitle: `Quality: ${lead.Quality || "Not set"}  •  Remark: ${lead.remark || "—"}`,
