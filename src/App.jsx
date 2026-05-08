@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
@@ -24,6 +24,31 @@ function getStoredAuth() {
   const token = localStorage.getItem("token");
   const user  = JSON.parse(localStorage.getItem("user") || "null");
   return { token, user };
+}
+
+// ── Helper to wipe auth from storage ──────────────────────────────────────────
+function clearAuth() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+}
+
+// ── Login Guard — clears session & blocks forward-button bypass ───────────────
+// When any login page mounts it means the user intends to be logged out.
+// We clear localStorage immediately so protected routes find no token,
+// and replace the current history entry so the browser's forward button
+// cannot jump back to a protected page without re-authenticating.
+function LoginGuard({ children }) {
+  const location = useLocation();
+
+  useEffect(() => {
+    // Clear any stale session every time a login page is visited
+    clearAuth();
+    // Replace the history entry for this login page so the forward button
+    // cannot skip past it back into a protected route
+    window.history.replaceState(null, "", location.pathname);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return children;
 }
 
 // ── Role-aware page switches ─────────────────────────────────────────────────
@@ -118,9 +143,11 @@ export default function App() {
       <Routes>
 
         {/* ── Public login routes 🔓 ── */}
-        <Route path="/login"            element={<UserLogin />} />
-        <Route path="/admin/login"      element={<AdminLogin />} />
-        <Route path="/superadmin/login" element={<SuperAdminLogin />} />
+        {/* LoginGuard clears localStorage on mount so any stale token is wiped  */}
+        {/* and replaces the history entry so → (forward) cannot skip past login */}
+        <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
+        <Route path="/admin/login"      element={<LoginGuard><AdminLogin /></LoginGuard>} />
+        <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
 
         {/* ── Root redirect: role-aware ── */}
         <Route path="/" element={
