@@ -77,17 +77,17 @@ const LEAD_TEMP_STYLE = {
   Hot: {
     bg: "bg-[#FEF2F2] dark:bg-[#2D0A0A]",
     text: "text-[#DC2626] dark:text-[#F87171]",
-    icon: "🔥",
+    icon: "",
   },
   Warm: {
     bg: "bg-[#FFFBEB] dark:bg-[#2D1F00]",
     text: "text-[#D97706] dark:text-[#FCD34D]",
-    icon: "☀️",
+    icon: "",
   },
   Cold: {
     bg: "bg-[#EEF3FF] dark:bg-[#1A2540]",
     text: "text-[#2563EB] dark:text-[#4F8EF7]",
-    icon: "❄️",
+    icon: "",
   },
 };
 
@@ -378,7 +378,7 @@ function BulkEmailImportModal({ campaign, onClose }) {
         </div>
         <div className="overflow-y-auto px-6 py-5 space-y-4">
           <div className="bg-[#EEF3FF] dark:bg-[#1A2540] rounded-xl px-4 py-3 text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
-            <p className="font-semibold text-[#2563EB] mb-1">📋 CSV Format</p>
+            <p className="font-semibold text-[#2563EB] mb-1"> CSV Format</p>
             <p>
               First row must be:{" "}
               <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono">
@@ -465,7 +465,7 @@ function BulkEmailImportModal({ campaign, onClose }) {
                 </div>
                 {invalidCount > 0 && (
                   <p className="text-[10px] text-[#DC2626] mt-1.5">
-                    ⚠️ Invalid emails (highlighted red) won't be imported. Fix them before proceeding.
+                     Invalid emails (highlighted red) won't be imported. Fix them before proceeding.
                   </p>
                 )}
               </div>
@@ -474,7 +474,7 @@ function BulkEmailImportModal({ campaign, onClose }) {
 
           {error && (
             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">
-              ⚠️ {error}
+               {error}
             </div>
           )}
         </div>
@@ -977,7 +977,7 @@ function CreateModal({ onClose, onCreated }) {
           </p>
           <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-4 py-3 text-left text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-5 space-y-1 border border-[#E4E7EF] dark:border-[#262A38]">
             <p className="font-semibold text-[#4B5168] dark:text-[#9DA3BB] text-[12px] mb-2">
-              📋 Add these to your server{" "}
+               Add these to your server{" "}
               <code className="bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] px-1 rounded">
                 .env
               </code>
@@ -1254,7 +1254,7 @@ function CreateModal({ onClose, onCreated }) {
 
           {error && (
             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">
-              ⚠️ {error}
+               {error}
             </div>
           )}
         </div>
@@ -1640,7 +1640,7 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
 
           {error && (
             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">
-              ⚠️ {error}
+               {error}
             </div>
           )}
         </div>
@@ -1978,7 +1978,7 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
 
           {error && (
             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">
-              ⚠️ {error}
+               {error}
             </div>
           )}
         </div>
@@ -2113,7 +2113,7 @@ function CreateGoogleModal({ onClose, onCreated }) {
           </p>
           <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-4 py-3 text-left text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-5 space-y-2 border border-[#E4E7EF] dark:border-[#262A38]">
             <p className="font-semibold text-[#4B5168] dark:text-[#9DA3BB] text-[12px] mb-1">
-              📋 Add this webhook in Google Ads
+               Add this webhook in Google Ads
             </p>
             <p className="text-[10px]">
               Go to:{" "}
@@ -2385,7 +2385,7 @@ function CreateGoogleModal({ onClose, onCreated }) {
 
           {error && (
             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">
-              ⚠️ {error}
+               {error}
             </div>
           )}
         </div>
@@ -2504,7 +2504,7 @@ function CreateWebsiteModal({ onClose, onCreated }) {
       message: "[" + (lead.form_source || "${sourceName}") + "] " + (lead.form_message || ""),
     }),
   })
-  .then(function(r){ console.log("CRM: lead sent ✅", r.status); })
+  .then(function(r){ console.log("CRM: lead sent ", r.status); })
   .catch(function(e){ console.warn("CRM: fetch failed", e); });
 })();
 <\/script>`;
@@ -2949,7 +2949,7 @@ window.dataLayer.push({
 
           {error && (
             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">
-              ⚠️ {error}
+               {error}
             </div>
           )}
         </div>
@@ -3255,7 +3255,7 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
 
           {error && (
             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">
-              ⚠️ {error}
+               {error}
             </div>
           )}
         </div>
@@ -3948,7 +3948,7 @@ function EmailCampaignModal({ campaigns, onClose }) {
               </div>
               {csvError && (
                 <p className="text-[11px] text-[#DC2626] mt-1.5">
-                  ⚠️ {csvError}
+                   {csvError}
                 </p>
               )}
               {csvParsed && csvParsed.length > 0 && (
@@ -4114,7 +4114,7 @@ function EmailCampaignModal({ campaigns, onClose }) {
 
           {error && (
             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">
-              ⚠️ {error}
+               {error}
             </div>
           )}
         </div>
