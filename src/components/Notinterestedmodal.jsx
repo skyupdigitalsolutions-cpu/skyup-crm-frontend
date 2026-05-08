@@ -139,9 +139,9 @@ export default function NotInterestedModal({ lead, onClose, onSuccess }) {
             <p className="font-semibold">What happens next:</p>
             <ul className="list-disc list-inside space-y-1 text-[11px]">
               <li>Lead will be <strong>auto-reassigned</strong> to another available agent</li>
-              <li>📞 Follow-up call in <strong>3 days</strong> ({fmt(now + 3 * 86400000)})</li>
-              <li>✅ Verification call in <strong>7 days</strong> ({fmt(now + 7 * 86400000)})</li>
-              <li>✅ Verification call in <strong>30 days</strong> ({fmt(now + 30 * 86400000)})</li>
+              <li> Follow-up call in <strong>3 days</strong> ({fmt(now + 3 * 86400000)})</li>
+              <li> Verification call in <strong>7 days</strong> ({fmt(now + 7 * 86400000)})</li>
+              <li> Verification call in <strong>30 days</strong> ({fmt(now + 30 * 86400000)})</li>
               <li>Full call history passed to new agent</li>
             </ul>
           </div>
