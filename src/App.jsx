@@ -32,21 +32,38 @@ function clearAuth() {
   localStorage.removeItem("user");
 }
 
-// ── Login Guard — clears session & blocks forward-button bypass ───────────────
-// When any login page mounts it means the user intends to be logged out.
-// We clear localStorage immediately so protected routes find no token,
-// and replace the current history entry so the browser's forward button
-// cannot jump back to a protected page without re-authenticating.
+// ── Login Guard ────────────────────────────────────────────────────────────────
+// Two scenarios when a login page mounts:
+//   A) User clicked Sign Out → token already cleared by Sidebar → show login ✅
+//   B) User pressed ← back button while still logged in → send them back to dashboard ✅
+//
+// We detect (B): if a valid token still exists when the login page mounts,
+// it means the user pressed ← back (Sign Out always clears the token first).
+// In that case we redirect them back to their dashboard instead of logging them out.
+// In case (A) the token is already gone so we just show the login page normally.
 function LoginGuard({ children }) {
   const location = useLocation();
+  const navigate  = useNavigate();
+  const { token, user } = getStoredAuth();
 
   useEffect(() => {
-    // Clear any stale session every time a login page is visited
-    clearAuth();
-    // Replace the history entry for this login page so the forward button
-    // cannot skip past it back into a protected route
+    const { token: t, user: u } = getStoredAuth();
+
+    if (t && u) {
+      // Token still present → user reached login via ← back button, not sign out
+      // Redirect them back to their dashboard
+      const home = u.role === "user" ? "/user/dashboard" : "/dashboard";
+      navigate(home, { replace: true });
+      return;
+    }
+
+    // No token → normal sign-out flow. Kill the forward button so → cannot
+    // skip back into a protected route without re-authenticating.
     window.history.replaceState(null, "", location.pathname);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Don't flash the login form while redirecting back to dashboard
+  if (token && user) return null;
 
   return children;
 }
