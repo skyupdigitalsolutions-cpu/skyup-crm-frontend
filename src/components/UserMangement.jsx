@@ -115,7 +115,7 @@ function CredentialsModal({ member, onClose, navigate }) {
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] text-center mb-4">⚠️ Share these credentials securely. Password can be changed later.</p>
+        <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] text-center mb-4"> Share these credentials securely. Password can be changed later.</p>
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-xs font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Done</button>
           {isUser && (
