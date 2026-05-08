@@ -581,7 +581,7 @@ function UserDetailDrawer({ user, records, onClose }) {
               </div>
             ) : logsError ? (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-red-50 dark:bg-red-950/20 rounded-xl border border-dashed border-red-200 dark:border-red-900/40">
-                <span className="text-[28px]">⚠️</span>
+                <span className="text-[28px]"></span>
                 <p className="text-[12px] text-red-500">{logsError}</p>
               </div>
             ) : pagedLogs.length > 0 ? (
@@ -614,7 +614,7 @@ function UserDetailDrawer({ user, records, onClose }) {
               </>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                <span className="text-[28px]">📵</span>
+                <span className="text-[28px]"></span>
                 <p className="text-[12px] text-[#8B92A9]">No call logs synced for this user</p>
               </div>
             )}
@@ -646,8 +646,8 @@ function UserDetailDrawer({ user, records, onClose }) {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                <span className="text-[28px]">📭</span>
-                <p className="text-[12px] text-[#8B92A9]">No attendance records found</p>
+                <span className="text-[28px]"></span>
+                <p className="text-[14px] text-[#8B92A9]">No attendance records found</p>
               </div>
             )}
           </div>
@@ -697,8 +697,8 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
             ) : records.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-12 text-center">
-                  <span className="text-[36px] block mb-2">📭</span>
-                  <p className="text-[13px] text-[#8B92A9]">No attendance records found.</p>
+                  <span className="text-[36px] block mb-2"></span>
+                  <p className="text-[14px] text-[#8B92A9]">No attendance records found.</p>
                 </td>
               </tr>
             ) : (
@@ -776,7 +776,7 @@ function UsersTab({ records, onUserClick }) {
   if (users.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <span className="text-[48px]">👥</span>
+        <span className="text-[48px]"></span>
         <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">No users found</p>
         <p className="text-[12px] text-[#8B92A9]">Users will appear here once attendance records are loaded.</p>
       </div>
@@ -841,10 +841,10 @@ function UsersTab({ records, onUserClick }) {
 
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 min-w-0">
-                <span className="text-[11px]">📱</span>
-                <span className="text-[10px] text-[#8B92A9] truncate">{deviceInfo || "No device info"}</span>
+                <span className="text-[11px]"></span>
+                <span className="text-[12px] text-[#8B92A9] truncate">{deviceInfo || "No device info"}</span>
               </div>
-              <span className="text-[10px] text-[#8B92A9] shrink-0">{daysSince(lastRec?.date || lastRec?.loginTime)}</span>
+              <span className="text-[12px] text-[#8B92A9] shrink-0">{daysSince(lastRec?.date || lastRec?.loginTime)}</span>
             </div>
           </button>
         );
