@@ -13,10 +13,9 @@ import AdminLogin from "./pages/AdminLogin";
 import SuperAdminLogin from "./pages/SuperAdminLogin";
 import AdminLeadsPage from "./components/AdminLeadsPage";
 import UserLeadsPage from "./pages/UserLeadsPage";
-import EmailHistory from "./components/EmailHistory";
 import AttendancePage from "./pages/AttendancePage";
-import WhatsAppChat from "./components/WhatsAppChat";
 import CallRecording from "./components/CallRecording";
+import Communications from "./components/Communications";
 
 
 // ── Helper to read stored user ─────────────────────────────────────────────────
@@ -33,14 +32,6 @@ function clearAuth() {
 }
 
 // ── Login Guard ────────────────────────────────────────────────────────────────
-// Two scenarios when a login page mounts:
-//   A) User clicked Sign Out → token already cleared by Sidebar → show login ✅
-//   B) User pressed ← back button while still logged in → send them back to dashboard ✅
-//
-// We detect (B): if a valid token still exists when the login page mounts,
-// it means the user pressed ← back (Sign Out always clears the token first).
-// In that case we redirect them back to their dashboard instead of logging them out.
-// In case (A) the token is already gone so we just show the login page normally.
 function LoginGuard({ children }) {
   const location = useLocation();
   const navigate  = useNavigate();
@@ -50,31 +41,20 @@ function LoginGuard({ children }) {
     const { token: t, user: u } = getStoredAuth();
 
     if (t && u) {
-      // Token still present → user reached login via ← back button, not sign out
-      // Redirect them back to their dashboard
       const home = u.role === "user" ? "/user/dashboard" : "/dashboard";
       navigate(home, { replace: true });
       return;
     }
 
-    // No token → normal sign-out flow. Kill the forward button so → cannot
-    // skip back into a protected route without re-authenticating.
     window.history.replaceState(null, "", location.pathname);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Don't flash the login form while redirecting back to dashboard
   if (token && user) return null;
 
   return children;
 }
 
 // ── Role-aware page switches ─────────────────────────────────────────────────
-// IMPORTANT: these MUST be components, not IIFEs inside <Route element={...}>.
-// IIFEs run once at App's first render and the result is baked into the Route
-// element forever (App has no state, so it never re-renders). That caused the
-// admin page to show even after a user logged in, until a hard refresh
-// remounted <App> and re-ran the IIFE. As components, they re-read localStorage
-// every time the route mounts.
 function LeadsRoleSwitch() {
   const { user } = getStoredAuth();
   return user?.role === "user" ? <UserLeadsPage /> : <AdminLeadsPage />;
@@ -92,7 +72,7 @@ function RootRedirect() {
     : <Navigate to="/dashboard" replace />;
 }
 
-// ── Protected Route — redirects to /login if no token ─────────────────────────
+// ── Protected Route ────────────────────────────────────────────────────────────
 function ProtectedRoute({ children }) {
   const { token, user } = getStoredAuth();
   const navigate = useNavigate();
@@ -155,13 +135,14 @@ function AppLayout({ children }) {
 }
 
 export default function App() {
+  // Pull current user once for passing as prop where needed
+  const { user } = getStoredAuth();
+
   return (
     <BrowserRouter>
       <Routes>
 
         {/* ── Public login routes 🔓 ── */}
-        {/* LoginGuard clears localStorage on mount so any stale token is wiped  */}
-        {/* and replaces the history entry so → (forward) cannot skip past login */}
         <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
         <Route path="/admin/login"      element={<LoginGuard><AdminLogin /></LoginGuard>} />
         <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
@@ -173,14 +154,14 @@ export default function App() {
           </ProtectedRoute>
         }/>
 
-        {/* ── Admin Dashboard (/dashboard) — admin & superadmin only ── */}
+        {/* ── Admin Dashboard ── */}
         <Route path="/dashboard" element={
           <AdminRoute>
             <AppLayout><Dashboard /></AppLayout>
           </AdminRoute>
         }/>
 
-        {/* ── User Dashboard (/user/dashboard) — users only ── */}
+        {/* ── User Dashboard ── */}
         <Route path="/user/dashboard" element={
           <UserRoute>
             <AppLayout><UserDashboard /></AppLayout>
@@ -208,13 +189,21 @@ export default function App() {
             <AppLayout><UpgradePlan /></AppLayout>
           </AdminRoute>
         }/>
-        <Route path="/email-history" element={
+
+        {/* ── Communications (WhatsApp + Email History + Email Blast) ── */}
+        <Route path="/communications" element={
           <AdminRoute>
-            <AppLayout><EmailHistory /></AppLayout>
+            <AppLayout>
+              <Communications currentUser={user} />
+            </AppLayout>
           </AdminRoute>
         }/>
 
-        {/* ── Leads — role-aware (/leads) ── */}
+        {/* ── Legacy redirects — keep old bookmarks working ── */}
+        <Route path="/whatsapp"     element={<Navigate to="/communications" replace />} />
+        <Route path="/email-history" element={<Navigate to="/communications" replace />} />
+
+        {/* ── Leads — role-aware ── */}
         <Route path="/leads" element={
           <ProtectedRoute>
             <AppLayout>
@@ -230,13 +219,6 @@ export default function App() {
               <DailyReportRoleSwitch />
             </AppLayout>
           </ProtectedRoute>
-        }/>
-
-        {/* ── WhatsApp Chat — admin only ── */}
-        <Route path="/whatsapp" element={
-          <AdminRoute>
-            <AppLayout><WhatsAppChat /></AppLayout>
-          </AdminRoute>
         }/>
 
         {/* ── Call Recordings — admin only ── */}
