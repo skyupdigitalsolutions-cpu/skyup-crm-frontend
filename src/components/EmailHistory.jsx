@@ -410,7 +410,7 @@ export default function EmailHistory() {
       {/* Error */}
       {error && (
         <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] mb-4">
-          ⚠️ {error}
+           {error}
         </div>
       )}
 
@@ -433,7 +433,7 @@ export default function EmailHistory() {
               ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-16 text-center">
-                    <div className="text-[36px] mb-3">📭</div>
+                    <div className="text-[36px] mb-3"></div>
                     <p className="text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No email logs found</p>
                     <p className="text-[12px] text-[#8B92A9] mt-1">
                       {search || campaignFilter || dateFrom || dateTo ? "Try clearing your filters." : "Send emails to start tracking history."}
