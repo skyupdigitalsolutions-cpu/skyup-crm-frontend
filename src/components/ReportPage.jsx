@@ -521,7 +521,7 @@ function RecordingModal({ lead, onClose }) {
         {/* ── All Remarks (CRM call history) ── */}
         <div className="mb-4">
           <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">
-            📋 All Remarks ({allCallHistory.length})
+             All Remarks ({allCallHistory.length})
           </p>
           {allCallHistory.length === 0 ? (
             <p className="text-[12px] text-[#8B92A9] italic px-1">No remarks recorded yet.</p>
@@ -740,7 +740,7 @@ export default function ReportPage() {
     try {
       const text = await file.text();
       const lines = text.trim().split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-      if (lines.length < 2) { alert("❌ CSV must have a header row and at least one data row."); return; }
+      if (lines.length < 2) { alert(" CSV must have a header row and at least one data row."); return; }
 
       const parseCSVLine = (line) => {
         const values = []; let current = "", inQuotes = false;
@@ -770,13 +770,13 @@ export default function ReportPage() {
           remark: row.remark || row.notes || "Imported via CSV",
         });
       }
-      if (!leadsToImport.length) { alert("❌ No valid rows found. Check that your CSV has 'name' and 'mobile' columns."); return; }
+      if (!leadsToImport.length) { alert(" No valid rows found. Check that your CSV has 'name' and 'mobile' columns."); return; }
 
       const { data } = await api.post("/lead/admin/import-csv", { leads: leadsToImport });
-      alert(`✅ ${data.message}\nImported: ${data.savedCount}  |  Failed: ${data.errorCount}`);
+      alert(` ${data.message}\nImported: ${data.savedCount}  |  Failed: ${data.errorCount}`);
       fetchAll().then(({ agents: a, leads: l }) => { setAgents(a); setLeads(l); }).catch(() => {});
     } catch (err) {
-      alert("❌ Import failed: " + (err.response?.data?.message || err.message));
+      alert("Import failed: " + (err.response?.data?.message || err.message));
     }
   };
 
