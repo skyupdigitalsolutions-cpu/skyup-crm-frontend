@@ -52,12 +52,12 @@ function parseCSVLine(line) {
   return values;
 }
 
-// ── Status / Quality configs ──────────────────────────────────────────────
+// ── Status / Quality configs ──────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  "New":            { bg:"bg-blue-50 dark:bg-blue-950/40",    text:"text-blue-600 dark:text-blue-400",    dot:"#2563EB" },
-  "In Progress":    { bg:"bg-amber-50 dark:bg-amber-950/40",  text:"text-amber-600 dark:text-amber-400",  dot:"#D97706" },
+  "New":            { bg:"bg-blue-50 dark:bg-blue-950/40",       text:"text-blue-600 dark:text-blue-400",    dot:"#2563EB" },
+  "In Progress":    { bg:"bg-amber-50 dark:bg-amber-950/40",     text:"text-amber-600 dark:text-amber-400",  dot:"#D97706" },
   "Converted":      { bg:"bg-emerald-50 dark:bg-emerald-950/40", text:"text-emerald-600 dark:text-emerald-400", dot:"#059669" },
-  "Not Interested": { bg:"bg-red-50 dark:bg-red-950/40",      text:"text-red-600 dark:text-red-400",      dot:"#DC2626" },
+  "Not Interested": { bg:"bg-red-50 dark:bg-red-950/40",         text:"text-red-600 dark:text-red-400",      dot:"#DC2626" },
 };
 const TEMP_CONFIG = {
   Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"🔥" },
@@ -85,7 +85,11 @@ function TempBadge({ temp }) {
   );
 }
 
-// ── Attendance Mini Widget (inline header chip) ───────────────────────────────
+// ── Shared socket ref — UserChatWidget writes it, AttendanceMiniWidget reads it
+// Both widgets share one WebSocket connection instead of opening two.
+const sharedSocket = { current: null };
+
+// ── Attendance Mini Widget ────────────────────────────────────────────────────
 const IDLE_MS = 5 * 60 * 1000;
 
 function fmtMins(mins) {
@@ -98,16 +102,24 @@ function fmtTime(d) {
 }
 
 function AttendanceMiniWidget() {
-  const [record, setRecord]       = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [elapsed, setElapsed]     = useState(0);
+  const [record,      setRecord]      = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [elapsed,     setElapsed]     = useState(0);
   const [idleWarning, setIdleWarning] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(false);
-  const panelRef = useRef(null);
+  const [panelOpen,   setPanelOpen]   = useState(false);
+  const panelRef     = useRef(null);
   const lastMoveRef  = useRef(Date.now());
   const idleTimerRef = useRef(null);
   const pingTimerRef = useRef(null);
   const tickTimerRef = useRef(null);
+
+  // userId needed to join the per-user attendance room
+  const userId = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "null");
+      return u?._id || u?.id || null;
+    } catch { return null; }
+  }, []);
 
   const fetchRecord = useCallback(async () => {
     try { const res = await api.get("/attendance/my-today"); setRecord(res.data); } catch {}
@@ -116,13 +128,48 @@ function AttendanceMiniWidget() {
 
   useEffect(() => { fetchRecord(); }, [fetchRecord]);
 
+  // ── Cross-device sync ─────────────────────────────────────────────────────
+  // Waits for UserChatWidget to put its socket in sharedSocket.current,
+  // then joins the private room and listens for attendance:updated events.
+  // When the mobile app (or another browser tab) performs a clock action the
+  // backend emits to this room and the widget updates without any polling.
+  useEffect(() => {
+    if (!userId) return;
+    let attempts = 0;
+    let offFn = () => {};
+
+    const tryJoin = () => {
+      const socket = sharedSocket.current;
+      if (!socket || !socket.connected) {
+        // Retry up to ~3 s — in practice the chat socket connects first
+        if (++attempts < 8) { setTimeout(tryJoin, 400); }
+        return;
+      }
+      socket.emit("att_join", { userId });
+      const onUpdate = (updated) => {
+        setRecord(updated);
+        setIdleWarning(false);
+        lastMoveRef.current = Date.now();
+      };
+      socket.on("attendance:updated", onUpdate);
+      offFn = () => socket.off("attendance:updated", onUpdate);
+    };
+
+    tryJoin();
+    return () => offFn();
+  }, [userId]);
+
+  // ── Close panel on outside click ──────────────────────────────────────────
   useEffect(() => {
     if (!panelOpen) return;
-    const handler = (e) => { if (panelRef.current && !panelRef.current.contains(e.target)) setPanelOpen(false); };
+    const handler = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) setPanelOpen(false);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [panelOpen]);
 
+  // ── Elapsed ticker ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime) { setElapsed(0); return; }
     const tick = () => {
@@ -138,6 +185,7 @@ function AttendanceMiniWidget() {
     return () => clearInterval(tickTimerRef.current);
   }, [record]);
 
+  // ── Activity ping ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime) return;
     pingTimerRef.current = setInterval(async () => {
@@ -146,6 +194,7 @@ function AttendanceMiniWidget() {
     return () => clearInterval(pingTimerRef.current);
   }, [record?.loginTime, record?.logoutTime]);
 
+  // ── Idle detection ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime || record?.status !== "active") return;
     const resetIdle = () => {
@@ -164,6 +213,7 @@ function AttendanceMiniWidget() {
     return () => { events.forEach(e => window.removeEventListener(e, resetIdle)); clearTimeout(idleTimerRef.current); };
   }, [record?.loginTime, record?.logoutTime, record?.status]);
 
+  // ── Actions ───────────────────────────────────────────────────────────────
   const clockIn    = async () => { try { const r = await api.post("/attendance/clock-in");  setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
   const clockOut   = async () => { if (!confirm("Clock out for today?")) return; try { const r = await api.post("/attendance/clock-out"); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
   const startBreak = async () => { try { const r = await api.post("/attendance/break/start", { reason: "Manual Break" }); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
@@ -408,7 +458,7 @@ function getTodayStr() {
   return new Date().toISOString().split("T")[0];
 }
 
-// ── OUTCOME OPTIONS ────────────────────────────────────────────────────────────
+// ── OUTCOME OPTIONS ───────────────────────────────────────────────────────────
 const OUTCOME_OPTIONS = [
   "Call Back",
   "Interested",
@@ -419,12 +469,9 @@ const OUTCOME_OPTIONS = [
   "Not Interested",
 ];
 
-// ── FIX: UpdateStatusModal — outcome declared, temperature synced ─────────────
 function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
-  // FIX 1: read temperature from both field names
   const [temp,         setTemp]         = useState(lead.temperature || lead.Quality || "");
-  // FIX 2: outcome is now a proper state variable — was missing entirely
   const [outcome,      setOutcome]      = useState("Call Back");
   const [remark,       setRemark]       = useState(lead.remark || "");
   const [followUpDate, setFollowUpDate] = useState(getTomorrowStr());
@@ -443,28 +490,13 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
     setLoading(true);
     setError("");
     try {
-      // FIX 3: build body correctly — outcome now properly declared
-      const body = {
-        status,
-        remark,
-        outcome,
-      };
-
-      // FIX 4: send temperature (and Quality as fallback) so backend stores it
-      if (temp) {
-        body.temperature = temp;
-        body.Quality     = temp;
-      }
-
-      if (status !== "Not Interested") {
-        body.followUpDate = followUpDate || getTomorrowStr();
-      }
+      const body = { status, remark, outcome };
+      if (temp) { body.temperature = temp; body.Quality = temp; }
+      if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
 
       const res = await api.patch(`/lead/${lead.id || lead._id}`, body);
       const savedLead = res.data;
 
-      // FIX 5: pass actual server response back so parent state is correct,
-      //         and keep both temperature + Quality in sync for all consumers
       onSaved({
         ...lead,
         ...(savedLead || {}),
@@ -498,7 +530,6 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
         className="w-full max-w-sm bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
             <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -512,7 +543,6 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
         </div>
 
         <div className="space-y-3 mb-4">
-          {/* Status */}
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Status</label>
             <select value={status} onChange={handleStatusChange} className={CLS}>
@@ -525,7 +555,6 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             </p>
           </div>
 
-          {/* Call Outcome — FIX: now renders and uses the outcome state */}
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Call Outcome</label>
             <select value={outcome} onChange={(e) => setOutcome(e.target.value)} className={CLS}>
@@ -535,7 +564,6 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             </select>
           </div>
 
-          {/* Lead Quality — visual button picker */}
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
               Lead Quality
@@ -569,7 +597,6 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             </div>
           </div>
 
-          {/* Remark */}
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Remark</label>
             <textarea
@@ -581,7 +608,6 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             />
           </div>
 
-          {/* Follow-up date */}
           {status !== "Not Interested" && (
             <div>
               <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
@@ -676,7 +702,6 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={lead.status} />
-            {/* FIX: read both Quality and temperature so badge always shows */}
             <TempBadge temp={lead.Quality || lead.temperature} />
             {lead.reassignCount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
@@ -866,11 +891,11 @@ function AddLeadModal({ onClose, onAdd }) {
 
 function UserChatWidget() {
   const socketRef = useRef(null);
-  const [open, setOpen]           = useState(false);
-  const [message, setMessage]     = useState("");
-  const [messages, setMessages]   = useState([]);
-  const [unread, setUnread]       = useState(0);
-  const [editingId, setEditingId] = useState(null);
+  const [open, setOpen]               = useState(false);
+  const [message, setMessage]         = useState("");
+  const [messages, setMessages]       = useState([]);
+  const [unread, setUnread]           = useState(0);
+  const [editingId, setEditingId]     = useState(null);
   const [editingText, setEditingText] = useState("");
   const bottomRef = useRef(null);
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -879,6 +904,14 @@ function UserChatWidget() {
   useEffect(function() {
     const socket = io(import.meta.env.VITE_SOCKET_URL || "https://skyup-crm-backend.onrender.com", { withCredentials: true });
     socketRef.current = socket;
+
+    // ── Expose to AttendanceMiniWidget as soon as it connects ────────────────
+    socket.on("connect", function() {
+      sharedSocket.current = socket;
+    });
+    // Handle case where socket was already connected before this effect ran
+    if (socket.connected) sharedSocket.current = socket;
+
     socket.emit("user_join", username);
 
     socket.on("chat_history", function(history) {
@@ -930,7 +963,10 @@ function UserChatWidget() {
       });
     });
 
-    return function() { socket.disconnect(); };
+    return function() {
+      sharedSocket.current = null;
+      socket.disconnect();
+    };
   }, []);
 
   useEffect(function() {
@@ -994,7 +1030,7 @@ function UserChatWidget() {
               </div>
             )}
             {messages.map(function(m, i) {
-              const isYou    = m.from === "You";
+              const isYou     = m.from === "You";
               const isEditing = editingId === m._id;
               return (
                 <div key={m._id || i} className={"flex group " + (isYou ? "justify-end" : "justify-start")}>
@@ -1095,7 +1131,6 @@ function mapLead(l) {
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
     status:         l.status         || "New",
-    // FIX: keep both Quality and temperature populated from whichever the backend returns
     Quality:        l.temperature    || l.Quality    || null,
     temperature:    l.temperature    || l.Quality    || null,
     remark:         l.remark         || "",
@@ -1166,7 +1201,7 @@ export default function UserDashboard() {
     let res = leads.filter(function(l) {
       const q = search.toLowerCase();
       const matchSearch = !q || l.name.toLowerCase().includes(q) || (l.phone||"").includes(q) || (l.campaign||"").toLowerCase().includes(q);
-      const matchSt   = filterSt   === "All" || l.status      === filterSt;
+      const matchSt   = filterSt   === "All" || l.status   === filterSt;
       const matchTemp = filterTemp === "All" || l.Quality === filterTemp;
       return matchSearch && matchSt && matchTemp;
     });
@@ -1187,7 +1222,6 @@ export default function UserDashboard() {
     return leads.slice().sort(function(a,b){ return new Date(b._raw_date||0) - new Date(a._raw_date||0); }).slice(0, 8);
   }, [leads]);
 
-  // ── FIX: handleUpdate — correctly syncs temperature → Quality ────────────────
   const handleUpdate = function(updated) {
     if (updated._reassigned) {
       setLeads(function(prev) {
@@ -1199,7 +1233,6 @@ export default function UserDashboard() {
       return;
     }
 
-    // Normalize: backend returns `temperature`, frontend uses `Quality`
     const normalized = {
       ...updated,
       id:          updated.id || String(updated._id),
@@ -1231,6 +1264,7 @@ export default function UserDashboard() {
 
   const downloadCSVTemplate = function() {
     const headers = ["name", "mobile", "email", "source", "campaign", "status", "remark"];
+    const example = ["Jane Doe", "9876543210", "jane@example.com", "Google Ads", "Summer 2025", "New", "Interested in product"];
     const csv = [headers.join(","), example.join(",")].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -1283,7 +1317,7 @@ export default function UserDashboard() {
   return (
     <div className="min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="px-6 py-5 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38]">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
@@ -1396,15 +1430,6 @@ export default function UserDashboard() {
             </p>
           </div>
 
-          {/* <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[14px]">📊</span>
-              <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">My Weekly Activity</p>
-            </div>
-            <p className="text-[12px] text-[#8B92A9] mb-4">{kpi.weekLeads} leads added this week</p>
-              <MiniBarChart data={kpi.weekData} labels={kpi.weekLabels} color="#2563EB" />
-          </div> */}
-
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-[14px]">🌡️</span>
@@ -1478,7 +1503,7 @@ export default function UserDashboard() {
                   <input value={search} onChange={function(e){ setSearch(e.target.value); setPage(1); }} placeholder="Search…"
                     className="pl-7 pr-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] w-36 transition" />
                 </div>
-                <select value={filterTemp} onChange={function(e){ setFilterTemp(e.target.value); setPage(1); }}
+                <select value={sortBy} onChange={function(e){ setSortBy(e.target.value); setPage(1); }}
                   className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none">
                   <option value="date_desc">Newest</option><option value="date_asc">Oldest</option><option value="name_asc">Name A–Z</option><option value="status">By Status</option>
                 </select>
