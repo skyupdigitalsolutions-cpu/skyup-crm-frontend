@@ -33,7 +33,7 @@ export default function VoiceBotPanel({ leads = [], campaignName = '' }) {
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="flex items-center gap-2">
-          <span className="text-[14px]">🤖</span>
+          <span className="text-[14px]"></span>
           <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Voice Bot</span>
           {results.length > 0 && (
             <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">
@@ -75,7 +75,7 @@ export default function VoiceBotPanel({ leads = [], campaignName = '' }) {
 
           {error && (
             <div className="px-3 py-2 bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl text-[12px] text-[#DC2626] dark:text-[#F87171]">
-              ⚠️ {error}
+               {error}
             </div>
           )}
 
@@ -87,14 +87,14 @@ export default function VoiceBotPanel({ leads = [], campaignName = '' }) {
                 disabled={leads.length === 0}
                 className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
               >
-                📞 Auto-call all {leads.length} leads
+                 Auto-call all {leads.length} leads
               </button>
             ) : (
               <button
                 onClick={stopQueue}
                 className="flex-1 py-2 rounded-xl bg-[#FEF2F2] dark:bg-[#2D0A0A] text-[#DC2626] dark:text-[#F87171] text-[12px] font-semibold border border-[#FECACA] dark:border-[#7F1D1D] hover:bg-[#fee2e2] transition"
               >
-                ⏹ Stop queue
+                 Stop queue
               </button>
             )}
           </div>
@@ -111,11 +111,11 @@ export default function VoiceBotPanel({ leads = [], campaignName = '' }) {
                     done:       'text-[#059669]',
                     failed:     'text-[#DC2626]',
                   };
-                  const icons = { pending: '⏳', calling: '📞', done: '✅', failed: '❌' };
+                  const icons = { pending: '', calling: '', done: '', failed: '' };
                   return (
                     <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#F8F9FC] dark:bg-[#13161E] text-[11px]">
                       <span className={`font-medium ${statusColors[item.queueStatus] || 'text-[#8B92A9]'}`}>
-                        {icons[item.queueStatus] || '⏳'} {item.name || 'Lead'}
+                        {icons[item.queueStatus] || ''} {item.name || 'Lead'}
                       </span>
                       <span className="text-[#8B92A9] dark:text-[#565C75]">{item.phone || item.mobile || ''}</span>
                     </div>
@@ -149,7 +149,7 @@ export default function VoiceBotPanel({ leads = [], campaignName = '' }) {
                         <span>Score: {r.score ?? '—'}</span>
                         {r.duration > 0 && <span>Duration: {r.duration}s</span>}
                         {r.status && <span className="capitalize">{r.status}</span>}
-                        {r.errorMsg && <span className="text-[#DC2626]">⚠️ {r.errorMsg}</span>}
+                        {r.errorMsg && <span className="text-[#DC2626]"> {r.errorMsg}</span>}
                       </div>
                       {r.recordingUrl && (
                         
@@ -158,7 +158,7 @@ export default function VoiceBotPanel({ leads = [], campaignName = '' }) {
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-[#2563EB] dark:text-[#4F8EF7] hover:underline"
                         >
-                          🎙 Listen to recording
+                           Listen to recording
                         </a>
                       )}
                     </div>
