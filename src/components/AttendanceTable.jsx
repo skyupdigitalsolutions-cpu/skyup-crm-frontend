@@ -526,7 +526,7 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
           {/* ── Device / App Info ── */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-[14px]">📱</span>
+              <span className="text-[14px]"></span>
               <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Login Device & App</p>
               <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
             </div>
@@ -551,7 +551,7 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
           {/* ── Device Call Logs ── */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-[14px]">📞</span>
+              <span className="text-[14px]"></span>
               <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Device Call Logs</p>
               <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
               <span className="text-[10px] font-bold text-[#8B92A9]">
@@ -585,7 +585,7 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
               </div>
             ) : logsError ? (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-red-50 dark:bg-red-950/20 rounded-xl border border-dashed border-red-200 dark:border-red-900/40">
-                <span className="text-[28px]">⚠️</span>
+                <span className="text-[28px]"></span>
                 <p className="text-[12px] text-red-500">{logsError}</p>
               </div>
             ) : pagedLogs.length > 0 ? (
@@ -618,7 +618,7 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
               </>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                <span className="text-[28px]">📵</span>
+                <span className="text-[28px]"></span>
                 <p className="text-[12px] text-[#8B92A9]">No call logs synced for this user</p>
               </div>
             )}
@@ -650,7 +650,7 @@ axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                <span className="text-[28px]">📋</span>
+                <span className="text-[28px]"></span>
                 <p className="text-[12px] text-[#8B92A9]">No attendance records found</p>
               </div>
             )}
@@ -701,7 +701,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
             ) : records.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-12 text-center">
-                  <span className="text-[36px] block mb-2">📋</span>
+                  <span className="text-[36px] block mb-2"></span>
                   <p className="text-[13px] text-[#8B92A9]">No attendance records found.</p>
                 </td>
               </tr>
@@ -780,7 +780,7 @@ function UsersTab({ records, onUserClick }) {
   if (users.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <span className="text-[48px]">👥</span>
+        <span className="text-[48px]"></span>
         <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">No users found</p>
         <p className="text-[12px] text-[#8B92A9]">Users will appear here once attendance records are loaded.</p>
       </div>
@@ -848,7 +848,7 @@ function UsersTab({ records, onUserClick }) {
 
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 min-w-0">
-                <span className="text-[11px]">📱</span>
+                <span className="text-[11px]"></span>
                 <span className="text-[10px] text-[#8B92A9] truncate">{deviceInfo || "No device info"}</span>
               </div>
               <span className="text-[10px] text-[#8B92A9] shrink-0">{daysSince(lastRec?.date || lastRec?.loginTime)}</span>
@@ -867,8 +867,8 @@ export default function AttendancePage({ records = [], loading = false, onRefres
   const [selectedUser, setSelectedUser] = useState(null);
 
   const tabs = [
-    { key: "attendance", label: "Attendance",   icon: "🗓️" },
-    { key: "users",      label: "User Details", icon: "👥" },
+    { key: "attendance", label: "Attendance",   icon: "" },
+    { key: "users",      label: "User Details", icon: "" },
   ];
 
   return (
