@@ -35,7 +35,7 @@ const STATUS_COLOR = {
 };
 
 // FIX 1: TEMP_ICON was empty — emojis restored
-const TEMP_ICON = { Hot: "🔥", Warm: "☀️", Cold: "❄️" };
+const TEMP_ICON = { Hot: "", Warm: "", Cold: "" };
 const TEMP_STYLE = {
   Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400" },
   Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400" },
@@ -157,7 +157,7 @@ function ScheduledCard({ sc: call }) {
     : isOverdue
     ? "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
     : "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400";
-  const icon = call.done ? "✅" : isOverdue ? "⏰" : "📅";
+  const icon = call.done ? "" : isOverdue ? "" : "";
 
   return (
     <div className={`rounded-xl border p-3 mb-2 ${
@@ -305,12 +305,12 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
             )}
             {lead.agent && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
-                👤 {lead.agent}
+                + {lead.agent}
               </span>
             )}
             {lead.reassignCount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 dark:bg-gray-900/40 text-gray-500 dark:text-gray-400">
-                🔄 Reassigned {lead.reassignCount}×
+                 Reassigned {lead.reassignCount}×
               </span>
             )}
           </div>
@@ -337,7 +337,7 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
 
           {/* Lead details */}
           <div>
-            <SectionLabel icon="📋" label="Lead Details" />
+            <SectionLabel icon="" label="Lead Details" />
             <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
               {[
                 { label: "Source",    value: lead.source || "—" },
@@ -367,7 +367,7 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
 
           {/* Call history */}
           <div>
-            <SectionLabel icon="📞" label={`Call History (${sortedCalls.length})`} />
+            <SectionLabel icon="" label={`Call History (${sortedCalls.length})`} />
             {sortedCalls.length > 0 ? (
               // FIX 3: displayIndex = 1-based from newest, so call #1 = most recent
               sortedCalls.map((call, i) => (
@@ -375,7 +375,7 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
               ))
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                <span className="text-[28px]">📵</span>
+                <span className="text-[28px]"></span>
                 <p className="text-[12px] text-[#8B92A9]">No calls recorded yet</p>
               </div>
             )}
@@ -384,7 +384,7 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
           {/* Scheduled / follow-up calls */}
           {sortedSched.length > 0 && (
             <div>
-              <SectionLabel icon="📅" label={`Follow-ups & Scheduled Calls (${sortedSched.length})`} />
+              <SectionLabel icon="" label={`Follow-ups & Scheduled Calls (${sortedSched.length})`} />
               {sortedSched.map((s, i) => (
                 <ScheduledCard key={i} sc={s} />
               ))}
@@ -394,7 +394,7 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
           {/* Agent history */}
           {allAgents.length > 0 && (
             <div>
-              <SectionLabel icon="👥" label={`Agent History (${allAgents.length})`} />
+              <SectionLabel icon="" label={`Agent History (${allAgents.length})`} />
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-4 py-2">
                 {allAgents.map((ag, i) => (
                   <AgentCard key={i} agent={ag} isCurrent={ag._isCurrent} />
@@ -405,16 +405,16 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
 
           {/* Current status summary */}
           <div>
-            <SectionLabel icon="🏁" label="Current Status Summary" />
+            <SectionLabel icon="" label="Current Status Summary" />
             <div className="rounded-xl border p-4"
               style={{ borderColor: sc.dot + "40", background: sc.dot + "08" }}>
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[20px]"
                   style={{ background: sc.dot + "15" }}>
-                  {lead.status === "Converted"      ? "🏆"
-                   : lead.status === "Not Interested" ? "❌"
-                   : lead.status === "In Progress"    ? "⏳"
-                   : "🔵"}
+                  {lead.status === "Converted"      ? ""
+                   : lead.status === "Not Interested" ? ""
+                   : lead.status === "In Progress"    ? ""
+                   : ""}
                 </div>
                 <div>
                   <p className="text-[13px] font-bold" style={{ color: sc.dot }}>{lead.status}</p>
@@ -444,7 +444,7 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
 
               {overdueCalls > 0 && (
                 <div className="mt-2.5 flex items-center gap-2 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
-                  <span className="text-[13px]">⚠️</span>
+                  <span className="text-[13px]"></span>
                   <p className="text-[11px] font-semibold text-red-600 dark:text-red-400">
                     {overdueCalls} overdue follow-up{overdueCalls > 1 ? "s" : ""} — action needed
                   </p>
