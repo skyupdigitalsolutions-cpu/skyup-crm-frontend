@@ -60,9 +60,9 @@ const STATUS_CONFIG = {
   "Not Interested": { bg:"bg-red-50 dark:bg-red-950/40",         text:"text-red-600 dark:text-red-400",      dot:"#DC2626" },
 };
 const TEMP_CONFIG = {
-  Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"🔥" },
-  Warm: { bg:"bg-amber-50 dark:bg-amber-950/40",text:"text-amber-600 dark:text-amber-400",icon:"☀️" },
-  Cold: { bg:"bg-blue-50 dark:bg-blue-950/40",  text:"text-blue-600 dark:text-blue-400",  icon:"❄️" },
+  Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"" },
+  Warm: { bg:"bg-amber-50 dark:bg-amber-950/40",text:"text-amber-600 dark:text-amber-400",icon:"" },
+  Cold: { bg:"bg-blue-50 dark:bg-blue-950/40",  text:"text-blue-600 dark:text-blue-400",  icon:"" },
 };
 
 function StatusBadge({ status }) {
@@ -274,7 +274,7 @@ function AttendanceMiniWidget() {
           {idleWarning && (
             <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 flex items-center justify-between gap-2">
               <div>
-                <p className="text-[11px] font-bold text-red-600 dark:text-red-400">⚠️ Idle for 5 mins</p>
+                <p className="text-[11px] font-bold text-red-600 dark:text-red-400"> Idle for 5 mins</p>
                 <p className="text-[10px] text-red-400">Break started automatically.</p>
               </div>
               <button onClick={endBreak} className="shrink-0 px-2.5 py-1 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold transition">Resume</button>
@@ -551,7 +551,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
               ))}
             </select>
             <p className="text-[10px] text-amber-500 mt-1">
-              ⚠ Selecting "Not Interested" opens the reassignment workflow.
+              Selecting "Not Interested" opens the reassignment workflow.
             </p>
           </div>
 
@@ -576,9 +576,9 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             <div className="grid grid-cols-4 gap-2">
               {[
                 { val: "",     label: "None",    color: "#8B92A9", bg: "bg-gray-50 dark:bg-gray-900/30" },
-                { val: "Hot",  label: "🔥 Hot",  color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30" },
-                { val: "Warm", label: "☀️ Warm", color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30" },
-                { val: "Cold", label: "❄️ Cold", color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30" },
+                { val: "Hot",  label: " Hot",  color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30" },
+                { val: "Warm", label: " Warm", color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30" },
+                { val: "Cold", label: "Cold", color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30" },
               ].map((q) => (
                 <button
                   key={q.val}
@@ -611,7 +611,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
           {status !== "Not Interested" && (
             <div>
               <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
-                📅 Follow-up Date
+                 Follow-up Date
               </label>
               <input
                 type="date"
@@ -705,7 +705,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
             <TempBadge temp={lead.Quality || lead.temperature} />
             {lead.reassignCount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
-                🔄 Reassigned {lead.reassignCount}×
+                 Reassigned {lead.reassignCount}×
               </span>
             )}
           </div>
@@ -713,10 +713,10 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
 
         <div className="px-6 py-4 grid grid-cols-2 gap-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[
-            { label:"Source",   value:lead.source   || "—", icon:"📡" },
-            { label:"Campaign", value:lead.campaign  || "—", icon:"🎯" },
-            { label:"Date",     value:lead.date      || "—", icon:"📅" },
-            { label:"Remark",   value:lead.remark    || "No remark", icon:"📝" },
+            { label:"Source",   value:lead.source   || "—", icon:"" },
+            { label:"Campaign", value:lead.campaign  || "—", icon:"" },
+            { label:"Date",     value:lead.date      || "—", icon:"" },
+            { label:"Remark",   value:lead.remark    || "No remark", icon:"" },
           ].map(function(item){ return (
             <div key={item.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3">
               <p className="text-[9px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-widest mb-1">{item.icon} {item.label}</p>
@@ -728,7 +728,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
         {callHistory.length > 0 && (
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3 flex items-center gap-1.5">
-              <span>📞</span> Previous Call History ({callHistory.length})
+              <span></span> Previous Call History ({callHistory.length})
             </p>
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
               {callHistory.map(function(h, i) {
@@ -752,7 +752,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
         {pendingCalls.length > 0 && (
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3 flex items-center gap-1.5">
-              <span>🗓️</span> Scheduled Follow-ups ({pendingCalls.length} pending)
+              <span></span> Scheduled Follow-ups ({pendingCalls.length} pending)
             </p>
             <div className="space-y-2">
               {pendingCalls.map(function(sc, i) {
@@ -1025,7 +1025,7 @@ function UserChatWidget() {
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-[#F8F9FC] dark:bg-[#13161E]">
             {messages.length === 0 && (
               <div className="text-center py-8">
-                <p className="text-[28px] mb-2">👋</p>
+                <p className="text-[28px] mb-2"></p>
                 <p className="text-[12px] text-[#8B92A9]">Hi {user && user.name ? user.name.split(" ")[0] : "there"}! How can we help?</p>
               </div>
             )}
@@ -1117,9 +1117,9 @@ function UserChatWidget() {
 
 function getGreeting() {
   const h = new Date().getHours();
-  if (h < 12) return { text: "Good morning", emoji: "☀️" };
-  if (h < 17) return { text: "Good afternoon", emoji: "🌤️" };
-  return { text: "Good evening", emoji: "🌙" };
+  if (h < 12) return { text: "Good morning", emoji: "" };
+  if (h < 17) return { text: "Good afternoon", emoji: "" };
+  return { text: "Good evening", emoji: "" };
 }
 
 function mapLead(l) {
@@ -1264,7 +1264,6 @@ export default function UserDashboard() {
 
   const downloadCSVTemplate = function() {
     const headers = ["name", "mobile", "email", "source", "campaign", "status", "remark"];
-    const example = ["Jane Doe", "9876543210", "jane@example.com", "Google Ads", "Summer 2025", "New", "Interested in product"];
     const csv = [headers.join(","), example.join(",")].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -1410,14 +1409,14 @@ export default function UserDashboard() {
           <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon="👤" />
           <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon="✅" trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
           <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon="⏳" />
-          <KpiCard label="Hot Leads 🔥"   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="🔥" />
+          <KpiCard label="Hot Leads "   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="🔥" />
         </div>
 
         {/* Middle row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-[14px]">🎯</span>
+              <span className="text-[14px]"></span>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">My Daily Targets</p>
             </div>
             <div className="flex items-center justify-around">
@@ -1432,15 +1431,15 @@ export default function UserDashboard() {
 
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-[14px]">🌡️</span>
+              <span className="text-[14px]"></span>
               <p className="text-[12px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">Lead Quality</p>
             </div>
             <div className="space-y-3">
               {[
-                { label:"Hot",          count:kpi.hot,          color:"#DC2626", icon:"🔥" },
-                { label:"Warm",         count:kpi.warm,         color:"#D97706", icon:"☀️" },
-                { label:"Cold",         count:kpi.cold,         color:"#2563EB", icon:"❄️" },
-                { label:"Unclassified", count:kpi.unclassified, color:"#8B92A9", icon:"—"  },
+                { label:"Hot",          count:kpi.hot,          color:"#DC2626", icon:"" },
+                { label:"Warm",         count:kpi.warm,         color:"#D97706", icon:"" },
+                { label:"Cold",         count:kpi.cold,         color:"#2563EB", icon:"" },
+                { label:"Unclassified", count:kpi.unclassified, color:"#8B92A9", icon:""  },
               ].map(function(item){ return (
                 <div key={item.label} className="flex items-center gap-2">
                   <span className="w-4 text-center text-[14px]">{item.icon}</span>
@@ -1485,8 +1484,8 @@ export default function UserDashboard() {
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
           <div className="flex items-center border-b border-[#E4E7EF] dark:border-[#262A38] px-5">
             {[
-              { id:"leads",    label:"My Leads",        icon:"📋", count:displayed.length },
-              { id:"activity", label:"Recent Activity", icon:"🕐", count:recentActivity.length },
+              { id:"leads",    label:"My Leads",        icon:"", count:displayed.length },
+              { id:"activity", label:"Recent Activity", icon:"", count:recentActivity.length },
             ].map(function(tab){ return (
               <button key={tab.id} onClick={function(){ setActiveTab(tab.id); }}
                 className={"flex items-center gap-2 px-4 py-4 text-[12px] font-semibold border-b-2 transition " + (activeTab === tab.id ? "border-[#2563EB] text-[#2563EB] dark:text-[#4F8EF7]" : "border-transparent text-[#8B92A9] dark:text-[#D1D5DB] hover:text-[#0F1117] dark:hover:text-white")}>
@@ -1526,9 +1525,9 @@ export default function UserDashboard() {
                 </div>
               ) : paged.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <span className="text-[48px]">{leads.length === 0 ? "📭" : "🔍"}</span>
-                  <p className="text-[14px] font-semibold text-[#0F1117] dark:text-white">{leads.length === 0 ? "No leads yet" : "No leads match your filters"}</p>
-                  <p className="text-[14px] text-[#8B92A9]">{leads.length === 0 ? "Add your first lead to get started." : "Try adjusting your search or filters."}</p>
+                  <span className="text-[48px]">{leads.length === 0 ? "" : ""}</span>
+                  <p className="text-[18px] font-semibold text-[#0F1117] dark:text-white">{leads.length === 0 ? "No leads yet" : "No leads match your filters"}</p>
+                  <p className="text-[18px] text-[#8B92A9]">{leads.length === 0 ? "Add your first lead to get started." : "Try adjusting your search or filters."}</p>
                   {leads.length === 0 && (
                     <button onClick={function(){ setShowAddModal(true); }} className="mt-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 transition">+ Add First Lead</button>
                   )}
@@ -1555,7 +1554,7 @@ export default function UserDashboard() {
                               <div>
                                 <span className="font-semibold text-[#0F1117] dark:text-white whitespace-nowrap">{l.name}</span>
                                 {l.reassignCount > 0 && (
-                                  <span className="ml-1.5 text-[14px] font-bold text-purple-500">🔄{l.reassignCount}</span>
+                                  <span className="ml-1.5 text-[14px] font-bold text-purple-500">{l.reassignCount}</span>
                                 )}
                               </div>
                             </div>
@@ -1617,7 +1616,7 @@ export default function UserDashboard() {
                 </div>
               ) : recentActivity.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-[32px] mb-2">📭</p>
+                  <p className="text-[32px] mb-2"></p>
                   <p className="text-[14px] text-[#8B92A9]">No recent activity yet.</p>
                 </div>
               ) : (
@@ -1635,7 +1634,7 @@ export default function UserDashboard() {
         {!loading && kpi.total > 0 && (
           <div className="rounded-2xl p-4 flex items-center gap-4 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38]">
             <span className="text-[28px]">
-              {kpi.convRate >= 50 ? "🏆" : kpi.convRate >= 30 ? "💪" : kpi.convRate >= 15 ? "📈" : "🚀"}
+              {kpi.convRate >= 50 ? "" : kpi.convRate >= 30 ? "" : kpi.convRate >= 15 ? "" : ""}
             </span>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-white">
