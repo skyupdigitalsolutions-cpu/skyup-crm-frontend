@@ -9,9 +9,9 @@ const STATUS_CONFIG = {
   "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",      text: "text-red-600 dark:text-red-400",      dot: "#DC2626" },
 };
 const TEMP_CONFIG = {
-  Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400",    icon: "🔥" },
-  Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400",icon: "☀️" },
-  Cold: { bg: "bg-blue-100 dark:bg-blue-950/40",  text: "text-blue-600 dark:text-blue-400",  icon: "❄️" },
+  Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400",    icon: "" },
+  Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400",icon: "" },
+  Cold: { bg: "bg-blue-100 dark:bg-blue-950/40",  text: "text-blue-600 dark:text-blue-400",  icon: "" },
 };
 
 function StatusBadge({ status }) {
@@ -354,8 +354,8 @@ export default function AdminLeadsPage() {
           </div>
         ) : paged.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <span className="text-[48px]">🔍</span>
-            <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">No leads match your filters</p>
+            <span className="text-[48px]"></span>
+            <p className="text-[18px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">No leads match your filters</p>
             <button
               onClick={clearFilters}
               className="mt-1 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-blue-700 transition"
@@ -421,7 +421,7 @@ export default function AdminLeadsPage() {
                           </div>
                           {l.reassignCount > 0 && (
                             <p className="text-[9px] text-purple-400 mt-0.5">
-                              🔄 {l.reassignCount} reassign{l.reassignCount > 1 ? "s" : ""}
+                               {l.reassignCount} reassign{l.reassignCount > 1 ? "s" : ""}
                             </p>
                           )}
                         </td>
@@ -460,7 +460,7 @@ export default function AdminLeadsPage() {
                                   ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
                                   : "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
                               }`}>
-                                📞 {l.lastOutcome}
+                                 {l.lastOutcome}
                               </span>
                               {l.lastCalledAt && (
                                 <p className="text-[9px] text-[#8B92A9] mt-0.5">{daysSince(l.lastCalledAt)}</p>
