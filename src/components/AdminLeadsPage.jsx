@@ -105,8 +105,10 @@ export default function AdminLeadsPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get("/lead/admin/all");
-      const raw = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      // FIX 1: Use /lead/admin/all with high limit — returns { leads[], total, page, pages }
+      const res = await api.get("/lead/admin/all?page=1&limit=500");
+      // FIX 2: Backend returns paginated shape { leads[], total } — not res.data.data
+      const raw = res.data?.leads || (Array.isArray(res.data) ? res.data : []);
       setAllLeads(raw.map(mapLead));
       const agentSet = new Set();
       raw.forEach(l => {
@@ -115,18 +117,7 @@ export default function AdminLeadsPage() {
       });
       setAgents([...agentSet]);
     } catch {
-      try {
-        const { fetchAll } = await import("../data/dataService");
-        const { leads } = await fetchAll();
-        setAllLeads((leads || []).map(l => ({
-          ...mapLead({ ...l, _id: l.id || l._id }),
-          agent: l.agent || "Unassigned",
-        })));
-        const agentSet = new Set((leads || []).map(l => l.agent).filter(Boolean));
-        setAgents([...agentSet]);
-      } catch {
-        setError("Failed to load leads. Please refresh.");
-      }
+      setError("Failed to load leads. Please refresh.");
     }
     setLoading(false);
   }, []);
