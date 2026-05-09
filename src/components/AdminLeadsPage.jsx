@@ -3,6 +3,7 @@ import api from "../data/axiosConfig";
 import LeadJourneyDrawer from "./LeadJourneyDrawer";
 import CRMEncryption from "../utils/CRMEncryption";
 import { getRole } from "../data/dataService";
+import { normalizePhone, isSamePhone } from "../utils/normalizePhone";
 
 const crm = new CRMEncryption();
 
@@ -20,18 +21,14 @@ const TEMP_CONFIG = {
 const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral", "CSV Import", "Manual"];
 const ALL_STATUSES = ["New", "In Progress", "Converted", "Not Interested"];
 
-// Normalize mobile to digits only — strips +91, spaces, dashes etc.
+// Use centralised normalizePhone util (same rules as backend)
 function normalizeMobile(val) {
-  return (val || "").replace(/\D/g, "");
+  return normalizePhone(val) || (val || "").replace(/\D/g, "");
 }
 
-// True if two normalized numbers refer to the same phone (handles +91 prefix)
+// True if two numbers refer to the same phone
 function isSameNumber(a, b) {
-  if (!a || !b) return false;
-  if (a === b) return true;
-  // strip leading country codes (91 for India, 1 for US, etc.)
-  const strip = n => n.replace(/^(91|1)/, "");
-  return strip(a) === strip(b) || strip(a) === b || a === strip(b);
+  return isSamePhone(a, b);
 }
 
 function StatusBadge({ status }) {
@@ -65,6 +62,32 @@ function AddLeadModal({ onClose, onAdd }) {
   const [errors,     setErrors]     = useState({});
   const [submitting, setSubmitting] = useState(false);
 
+  // ── Live duplicate detection ──────────────────────────────────────────────
+  const [dupCheck, setDupCheck] = useState({ state: "idle", lead: null });
+  // state: "idle" | "checking" | "ok" | "duplicate"
+  const dupTimerRef = useRef(null);
+
+  const checkDuplicate = useCallback((mobile) => {
+    const norm = normalizePhone(mobile);
+    if (!norm) { setDupCheck({ state: "idle", lead: null }); return; }
+    setDupCheck({ state: "checking", lead: null });
+    clearTimeout(dupTimerRef.current);
+    dupTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await api.get(`/lead/admin/check-duplicate?mobile=${norm}`);
+        if (res.data.duplicate) {
+          setDupCheck({ state: "duplicate", lead: res.data.existingLead });
+        } else {
+          setDupCheck({ state: "ok", lead: null });
+        }
+      } catch {
+        setDupCheck({ state: "idle", lead: null });
+      }
+    }, 600);
+  }, []);
+
+  useEffect(() => () => clearTimeout(dupTimerRef.current), []);
+
   // Load users for agent dropdown
   useEffect(() => {
     api.get("/admin/company/users")
@@ -77,7 +100,11 @@ function AddLeadModal({ onClose, onAdd }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "", submit: "" })); };
+  const set = (k, v) => {
+    setForm(f => ({ ...f, [k]: v }));
+    setErrors(e => ({ ...e, [k]: "", submit: "" }));
+    if (k === "mobile") checkDuplicate(v);
+  };
 
   const validate = () => {
     const e = {};
@@ -203,6 +230,35 @@ function AddLeadModal({ onClose, onAdd }) {
             </label>
             <input type="tel" placeholder="9876543210 or +919876543210" value={form.mobile} onChange={e => set("mobile", e.target.value)} className={inp("mobile")} />
             <ErrMsg k="mobile" />
+            {/* Live duplicate-check indicator */}
+            {dupCheck.state === "checking" && (
+              <p className="text-[11px] text-[#9DA3BB] mt-1 flex items-center gap-1">
+                <span className="inline-block w-3 h-3 border-2 border-[#9DA3BB] border-t-transparent rounded-full animate-spin" />
+                Checking for duplicates…
+              </p>
+            )}
+            {dupCheck.state === "ok" && (
+              <p className="text-[11px] text-emerald-500 mt-1">✓ Number is available</p>
+            )}
+            {dupCheck.state === "duplicate" && dupCheck.lead && (
+              <div className="mt-2 p-3 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600">
+                <p className="text-[12px] font-semibold text-amber-700 dark:text-amber-400 mb-1">
+                  ⚠ This number already exists as a lead
+                </p>
+                <div className="text-[11px] text-amber-700 dark:text-amber-300 space-y-0.5">
+                  <p><span className="font-medium">Name:</span> {dupCheck.lead.name}</p>
+                  <p><span className="font-medium">Mobile:</span> {dupCheck.lead.mobile}</p>
+                  <p><span className="font-medium">Status:</span> {dupCheck.lead.status}</p>
+                  <p><span className="font-medium">Source:</span> {dupCheck.lead.source}</p>
+                  {dupCheck.lead.createdAt && (
+                    <p><span className="font-medium">Added:</span> {new Date(dupCheck.lead.createdAt).toLocaleDateString()}</p>
+                  )}
+                </div>
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5 font-medium">
+                  Saving will be blocked. Search for the existing lead to update it.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Agent — required */}
@@ -273,7 +329,7 @@ function AddLeadModal({ onClose, onAdd }) {
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
             Cancel
           </button>
-          <button onClick={handleSubmit} disabled={submitting || loading || users.length === 0}
+          <button onClick={handleSubmit} disabled={submitting || loading || users.length === 0 || dupCheck.state === "duplicate"}
             className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
             {submitting
               ? <><svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Saving…</>
