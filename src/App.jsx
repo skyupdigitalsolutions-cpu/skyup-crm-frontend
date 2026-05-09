@@ -1,22 +1,43 @@
 import { BrowserRouter, Route, Routes, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Sidebar } from "./components/Sidebar";
-import Dashboard from "./components/Dashboard";
-import Campaigns from "./components/Campaigns";
-import Dailyreport from "./components/DailyReport";
-import UpgradePlan from "./components/UpgradePlan";
-import ReportPage from "./components/ReportPage";
-import UserLogin from "./pages/UserLogin";
-import UserDashboard from "./pages/UserDashboard";
-import UserDailyReport from "./pages/UserDailyReport";
-import AdminLogin from "./pages/AdminLogin";
-import SuperAdminLogin from "./pages/SuperAdminLogin";
-import AdminLeadsPage from "./components/AdminLeadsPage";
-import UserLeadsPage from "./pages/UserLeadsPage";
-import AttendancePage from "./pages/AttendancePage";
-import CallRecording from "./components/CallRecording";
-import Communications from "./components/Communications";
 
+// ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
+// Heavy admin pages
+const Dashboard      = lazy(() => import("./components/Dashboard"));
+const Campaigns      = lazy(() => import("./components/Campaigns"));
+const Dailyreport    = lazy(() => import("./components/DailyReport"));
+const ReportPage     = lazy(() => import("./components/ReportPage"));
+const AdminLeadsPage = lazy(() => import("./components/AdminLeadsPage"));
+const CallRecording  = lazy(() => import("./components/CallRecording"));
+const Communications = lazy(() => import("./components/Communications"));
+const AttendancePage = lazy(() => import("./pages/AttendancePage"));
+const UpgradePlan    = lazy(() => import("./components/UpgradePlan"));
+
+// User pages
+const UserLogin      = lazy(() => import("./pages/UserLogin"));
+const UserDashboard  = lazy(() => import("./pages/UserDashboard"));
+const UserDailyReport = lazy(() => import("./pages/UserDailyReport"));
+const UserLeadsPage  = lazy(() => import("./pages/UserLeadsPage"));
+
+// Auth pages
+const AdminLogin      = lazy(() => import("./pages/AdminLogin"));
+const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
+
+// ── Page loader — shown while a lazy chunk is downloading ─────────────────────
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-full min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
+      <div className="flex flex-col items-center gap-3">
+        <svg className="w-8 h-8 animate-spin text-[#2563EB]" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+        </svg>
+        <p className="text-[13px] text-[#8B92A9] font-medium">Loading…</p>
+      </div>
+    </div>
+  );
+}
 
 // ── Helper to read stored user ─────────────────────────────────────────────────
 function getStoredAuth() {
@@ -140,98 +161,101 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
+      {/* Suspense wraps all routes — shows PageLoader while any lazy chunk loads */}
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
 
-        {/* ── Public login routes 🔓 ── */}
-        <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
-        <Route path="/admin/login"      element={<LoginGuard><AdminLogin /></LoginGuard>} />
-        <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
+          {/* ── Public login routes 🔓 ── */}
+          <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
+          <Route path="/admin/login"      element={<LoginGuard><AdminLogin /></LoginGuard>} />
+          <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
 
-        {/* ── Root redirect: role-aware ── */}
-        <Route path="/" element={
-          <ProtectedRoute>
-            <RootRedirect />
-          </ProtectedRoute>
-        }/>
+          {/* ── Root redirect: role-aware ── */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              <RootRedirect />
+            </ProtectedRoute>
+          }/>
 
-        {/* ── Admin Dashboard ── */}
-        <Route path="/dashboard" element={
-          <AdminRoute>
-            <AppLayout><Dashboard /></AppLayout>
-          </AdminRoute>
-        }/>
+          {/* ── Admin Dashboard ── */}
+          <Route path="/dashboard" element={
+            <AdminRoute>
+              <AppLayout><Dashboard /></AppLayout>
+            </AdminRoute>
+          }/>
 
-        {/* ── User Dashboard ── */}
-        <Route path="/user/dashboard" element={
-          <UserRoute>
-            <AppLayout><UserDashboard /></AppLayout>
-          </UserRoute>
-        }/>
+          {/* ── User Dashboard ── */}
+          <Route path="/user/dashboard" element={
+            <UserRoute>
+              <AppLayout><UserDashboard /></AppLayout>
+            </UserRoute>
+          }/>
 
-        {/* ── Admin-only pages ── */}
-        <Route path="/reportpage" element={
-          <AdminRoute>
-            <AppLayout><ReportPage /></AppLayout>
-          </AdminRoute>
-        }/>
-        <Route path="/campaigns" element={
-          <AdminRoute>
-            <AppLayout><Campaigns /></AppLayout>
-          </AdminRoute>
-        }/>
-        <Route path="/attendance" element={
-          <AdminRoute>
-            <AppLayout><AttendancePage /></AppLayout>
-          </AdminRoute>
-        }/>
-        <Route path="/upgrade-plan" element={
-          <AdminRoute>
-            <AppLayout><UpgradePlan /></AppLayout>
-          </AdminRoute>
-        }/>
+          {/* ── Admin-only pages ── */}
+          <Route path="/reportpage" element={
+            <AdminRoute>
+              <AppLayout><ReportPage /></AppLayout>
+            </AdminRoute>
+          }/>
+          <Route path="/campaigns" element={
+            <AdminRoute>
+              <AppLayout><Campaigns /></AppLayout>
+            </AdminRoute>
+          }/>
+          <Route path="/attendance" element={
+            <AdminRoute>
+              <AppLayout><AttendancePage /></AppLayout>
+            </AdminRoute>
+          }/>
+          <Route path="/upgrade-plan" element={
+            <AdminRoute>
+              <AppLayout><UpgradePlan /></AppLayout>
+            </AdminRoute>
+          }/>
 
-        {/* ── Communications (WhatsApp + Email History + Email Blast) ── */}
-        <Route path="/communications" element={
-          <AdminRoute>
-            <AppLayout>
-              <Communications currentUser={user} />
-            </AppLayout>
-          </AdminRoute>
-        }/>
+          {/* ── Communications (WhatsApp + Email History + Email Blast) ── */}
+          <Route path="/communications" element={
+            <AdminRoute>
+              <AppLayout>
+                <Communications currentUser={user} />
+              </AppLayout>
+            </AdminRoute>
+          }/>
 
-        {/* ── Legacy redirects — keep old bookmarks working ── */}
-        <Route path="/whatsapp"     element={<Navigate to="/communications" replace />} />
-        <Route path="/email-history" element={<Navigate to="/communications" replace />} />
+          {/* ── Legacy redirects — keep old bookmarks working ── */}
+          <Route path="/whatsapp"      element={<Navigate to="/communications" replace />} />
+          <Route path="/email-history" element={<Navigate to="/communications" replace />} />
 
-        {/* ── Leads — role-aware ── */}
-        <Route path="/leads" element={
-          <ProtectedRoute>
-            <AppLayout>
-              <LeadsRoleSwitch />
-            </AppLayout>
-          </ProtectedRoute>
-        }/>
+          {/* ── Leads — role-aware ── */}
+          <Route path="/leads" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <LeadsRoleSwitch />
+              </AppLayout>
+            </ProtectedRoute>
+          }/>
 
-        {/* ── Daily report — role-aware ── */}
-        <Route path="/daily-report" element={
-          <ProtectedRoute>
-            <AppLayout>
-              <DailyReportRoleSwitch />
-            </AppLayout>
-          </ProtectedRoute>
-        }/>
+          {/* ── Daily report — role-aware ── */}
+          <Route path="/daily-report" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <DailyReportRoleSwitch />
+              </AppLayout>
+            </ProtectedRoute>
+          }/>
 
-        {/* ── Call Recordings — admin only ── */}
-        <Route path="/call-recordings" element={
-          <AdminRoute>
-            <AppLayout><CallRecording /></AppLayout>
-          </AdminRoute>
-        }/>
+          {/* ── Call Recordings — admin only ── */}
+          <Route path="/call-recordings" element={
+            <AdminRoute>
+              <AppLayout><CallRecording /></AppLayout>
+            </AdminRoute>
+          }/>
 
-        {/* ── Fallback ── */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+          {/* ── Fallback ── */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
 
-      </Routes>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }
