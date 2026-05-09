@@ -204,7 +204,7 @@ export default function UserDailyReport() {
     setError("");
     api.get("/lead/my-leads")
       .then(res => {
-        const raw = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        const raw = Array.isArray(res.data) ? res.data : (res.data?.leads || res.data?.data || []);
         setAllLeads(raw.map(mapLead));
       })
       .catch(() => setError("Failed to load your leads. Please refresh."))
@@ -323,7 +323,7 @@ export default function UserDailyReport() {
           </svg>
           <p className="text-[12px] font-semibold text-red-600 dark:text-red-400 flex-1">{error}</p>
           <button
-            onClick={() => { setError(""); setLoading(true); api.get("/lead/my-leads").then(res => { const raw = Array.isArray(res.data) ? res.data : (res.data?.data || []); setAllLeads(raw.map(mapLead)); }).catch(() => setError("Failed to load your leads. Please refresh.")).finally(() => setLoading(false)); }}
+            onClick={() => { setError(""); setLoading(true); api.get("/lead/my-leads").then(res => { const raw = Array.isArray(res.data) ? res.data : (res?.data?.leads || res?.data?.data || []); setAllLeads(raw.map(mapLead)); }).catch(() => setError("Failed to load your leads. Please refresh.")).finally(() => setLoading(false)); }}
             className="text-red-600 dark:text-red-400 underline underline-offset-2 text-[11px] font-semibold whitespace-nowrap">
             Retry
           </button>
