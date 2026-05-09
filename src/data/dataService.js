@@ -74,12 +74,13 @@ async function fetchUserData() {
 // ── Admin: fetch company leads + users (paginated) ─────────────────────────
 async function fetchAdminData() {
   const [leadsRes, usersRes] = await Promise.all([
-    // FIX: bump limit to 500 and parse correct paginated shape
+    // FIX: limit=50 was silently truncating — bumped to 500.
+    // Also fixed response parsing: backend returns { leads[], total } not a plain array.
     api.get("/admin/company/leads?page=1&limit=500"),
     api.get("/admin/company/users"),
   ]);
 
-  // FIX: Backend now returns { leads[], total, page, pages } — not a plain array
+  // FIX: parse paginated shape { leads[], total, page, pages }
   const rawLeads = leadsRes.data?.leads || (Array.isArray(leadsRes.data) ? leadsRes.data : []);
 
   const leads  = await Promise.all(rawLeads.map(formatLead));
