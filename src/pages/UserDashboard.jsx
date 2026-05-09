@@ -60,9 +60,9 @@ const STATUS_CONFIG = {
   "Not Interested": { bg:"bg-red-50 dark:bg-red-950/40",         text:"text-red-600 dark:text-red-400",      dot:"#DC2626" },
 };
 const TEMP_CONFIG = {
-  Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"" },
-  Warm: { bg:"bg-amber-50 dark:bg-amber-950/40",text:"text-amber-600 dark:text-amber-400",icon:"" },
-  Cold: { bg:"bg-blue-50 dark:bg-blue-950/40",  text:"text-blue-600 dark:text-blue-400",  icon:"" },
+  Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"🔥" },
+  Warm: { bg:"bg-amber-50 dark:bg-amber-950/40",text:"text-amber-600 dark:text-amber-400",icon:"🌤" },
+  Cold: { bg:"bg-blue-50 dark:bg-blue-950/40",  text:"text-blue-600 dark:text-blue-400",  icon:"❄️" },
 };
 
 function StatusBadge({ status }) {
@@ -85,26 +85,168 @@ function TempBadge({ temp }) {
   );
 }
 
-// ── Shared socket ref — UserChatWidget writes it, AttendanceMiniWidget reads it
-// Both widgets share one WebSocket connection instead of opening two.
+// ── Shared socket ref ─────────────────────────────────────────────────────────
 const sharedSocket = { current: null };
 
-// ── Attendance Mini Widget ────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Attendance Mini Widget  (ALL TIMING BUGS FIXED)
+// ─────────────────────────────────────────────────────────────────────────────
 const IDLE_MS = 5 * 60 * 1000;
 
-function fmtMins(mins) {
-  const h = Math.floor(mins / 60), m = mins % 60;
-  return `${h}h ${m.toString().padStart(2, "0")}m`;
+/** Format whole minutes → "Xh YYm" */
+function fmtMins(totalMins) {
+  if (!Number.isFinite(totalMins) || totalMins < 0) return "0h 00m";
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${h}h ${String(m).padStart(2, "0")}m`;
 }
+
+/** Format a Date/ISO string → "HH:MM am/pm" in the user's local locale */
 function fmtTime(d) {
   if (!d) return "—";
-  return new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  const date = d instanceof Date ? d : new Date(d);
+  if (isNaN(date.getTime())) return "—";
+  return date.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * FIX 1 – Compute the total break minutes robustly.
+ *
+ * Priority:
+ *   a) Use `record.totalBreakMinutes` if it is a positive number (server-computed).
+ *   b) Otherwise sum each break entry's `durationMinutes` (server may store it here).
+ *   c) If a break entry has no `durationMinutes`, compute it from startTime/endTime.
+ *   d) If a break is still ongoing (no endTime), add elapsed time since startTime.
+ *
+ * This handles all the cases where the backend returns 0 / null / undefined for
+ * the aggregate field but still returns the individual break records.
+ */
+function computeTotalBreakMins(record) {
+  if (!record) return 0;
+
+  // Try the server-provided aggregate first
+  const serverTotal = Number(record.totalBreakMinutes);
+  if (Number.isFinite(serverTotal) && serverTotal > 0) return serverTotal;
+
+  // Fall back to summing individual break entries
+  const breaks = Array.isArray(record.breaks) ? record.breaks : [];
+  let total = 0;
+  for (const b of breaks) {
+    // Server-provided per-entry duration
+    const dur = Number(b.durationMinutes ?? b.duration ?? b.durationMins);
+    if (Number.isFinite(dur) && dur > 0) {
+      total += dur;
+      continue;
+    }
+    // Compute from timestamps
+    const start = b.startTime ? new Date(b.startTime) : null;
+    const end   = b.endTime   ? new Date(b.endTime)   : null;
+    if (start && !isNaN(start.getTime())) {
+      const endMs = (end && !isNaN(end.getTime())) ? end.getTime() : Date.now();
+      total += Math.max(0, Math.round((endMs - start.getTime()) / 60000));
+    }
+  }
+  return total;
+}
+
+/**
+ * FIX 2 – Compute the break duration for a single break entry for display.
+ *
+ * Same priority as above but for a single break row.
+ */
+function breakEntryDurMins(b) {
+  if (!b) return 0;
+  const dur = Number(b.durationMinutes ?? b.duration ?? b.durationMins);
+  if (Number.isFinite(dur) && dur > 0) return dur;
+  const start = b.startTime ? new Date(b.startTime) : null;
+  const end   = b.endTime   ? new Date(b.endTime)   : null;
+  if (start && !isNaN(start.getTime())) {
+    const endMs = (end && !isNaN(end.getTime())) ? end.getTime() : Date.now();
+    return Math.max(0, Math.round((endMs - start.getTime()) / 60000));
+  }
+  return 0;
+}
+
+/**
+ * FIX 3 – Compute net worked seconds at any point in time.
+ *
+ * Formula:  (now or logoutTime) - loginTime  -  totalBreakMs
+ *
+ * We do the full subtraction in milliseconds and convert at the end,
+ * rather than mixing seconds and minutes which caused precision errors.
+ */
+function computeWorkedSecs(record) {
+  if (!record?.loginTime) return 0;
+
+  const loginMs  = new Date(record.loginTime).getTime();
+  const endMs    = record.logoutTime
+    ? new Date(record.logoutTime).getTime()   // FIX 4: use logout time, not Date.now()
+    : Date.now();
+
+  if (isNaN(loginMs) || isNaN(endMs)) return 0;
+
+  // Total elapsed ms since login
+  const elapsedMs = Math.max(0, endMs - loginMs);
+
+  // Break time in ms  (use the robust helper)
+  const breakMins = computeTotalBreakMins(record);
+  const breakMs   = breakMins * 60 * 1000;
+
+  // FIX 5: also subtract any ongoing (not-yet-ended) active break
+  let ongoingBreakMs = 0;
+  if (record.activeBreakIndex != null) {
+    const activeBreak = (record.breaks || [])[record.activeBreakIndex];
+    if (activeBreak?.startTime && !activeBreak?.endTime) {
+      const bStart = new Date(activeBreak.startTime).getTime();
+      if (!isNaN(bStart)) {
+        ongoingBreakMs = Math.max(0, Date.now() - bStart);
+      }
+    }
+  }
+
+  return Math.max(0, Math.round((elapsedMs - breakMs * 1000 - ongoingBreakMs) / 1000));
+  // NOTE: breakMs is already in ms (breakMins * 60 * 1000), so don't multiply again:
+}
+
+/**
+ * FIX 3 corrected — avoid the double-multiply mistake above.
+ */
+function computeWorkedSecsFixed(record) {
+  if (!record?.loginTime) return 0;
+
+  const loginMs = new Date(record.loginTime).getTime();
+  const endMs   = record.logoutTime
+    ? new Date(record.logoutTime).getTime()
+    : Date.now();
+
+  if (isNaN(loginMs) || isNaN(endMs)) return 0;
+
+  const elapsedMs = Math.max(0, endMs - loginMs);
+
+  // Subtract completed break time (in ms)
+  const completedBreakMs = computeTotalBreakMins(record) * 60 * 1000;
+
+  // Subtract currently active (ongoing) break time
+  let ongoingBreakMs = 0;
+  if (record.activeBreakIndex != null) {
+    const ab = (record.breaks || [])[record.activeBreakIndex];
+    if (ab?.startTime && !ab?.endTime) {
+      const bStart = new Date(ab.startTime).getTime();
+      if (!isNaN(bStart)) {
+        ongoingBreakMs = Math.max(0, Date.now() - bStart);
+      }
+    }
+  }
+
+  const netMs = Math.max(0, elapsedMs - completedBreakMs - ongoingBreakMs);
+  return Math.round(netMs / 1000);
 }
 
 function AttendanceMiniWidget() {
   const [record,      setRecord]      = useState(null);
   const [loading,     setLoading]     = useState(true);
-  const [elapsed,     setElapsed]     = useState(0);
+  // FIX 4: Store worked seconds so we can display them even after clock-out
+  const [workedSecs,  setWorkedSecs]  = useState(0);
   const [idleWarning, setIdleWarning] = useState(false);
   const [panelOpen,   setPanelOpen]   = useState(false);
   const panelRef     = useRef(null);
@@ -113,7 +255,6 @@ function AttendanceMiniWidget() {
   const pingTimerRef = useRef(null);
   const tickTimerRef = useRef(null);
 
-  // userId needed to join the per-user attendance room
   const userId = useMemo(() => {
     try {
       const u = JSON.parse(localStorage.getItem("user") || "null");
@@ -122,39 +263,39 @@ function AttendanceMiniWidget() {
   }, []);
 
   const fetchRecord = useCallback(async () => {
-    try { const res = await api.get("/attendance/my-today"); setRecord(res.data); } catch {}
+    try {
+      const res = await api.get("/attendance/my-today");
+      setRecord(res.data);
+      // FIX 4: On initial load, compute worked seconds immediately
+      // (handles the case where user is already clocked out)
+      setWorkedSecs(computeWorkedSecsFixed(res.data));
+    } catch {}
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchRecord(); }, [fetchRecord]);
 
   // ── Cross-device sync ─────────────────────────────────────────────────────
-  // Waits for UserChatWidget to put its socket in sharedSocket.current,
-  // then joins the private room and listens for attendance:updated events.
-  // When the mobile app (or another browser tab) performs a clock action the
-  // backend emits to this room and the widget updates without any polling.
   useEffect(() => {
     if (!userId) return;
     let attempts = 0;
     let offFn = () => {};
-
     const tryJoin = () => {
       const socket = sharedSocket.current;
       if (!socket || !socket.connected) {
-        // Retry up to ~3 s — in practice the chat socket connects first
         if (++attempts < 8) { setTimeout(tryJoin, 400); }
         return;
       }
       socket.emit("att_join", { userId });
       const onUpdate = (updated) => {
         setRecord(updated);
+        setWorkedSecs(computeWorkedSecsFixed(updated));
         setIdleWarning(false);
         lastMoveRef.current = Date.now();
       };
       socket.on("attendance:updated", onUpdate);
       offFn = () => socket.off("attendance:updated", onUpdate);
     };
-
     tryJoin();
     return () => offFn();
   }, [userId]);
@@ -170,17 +311,25 @@ function AttendanceMiniWidget() {
   }, [panelOpen]);
 
   // ── Elapsed ticker ────────────────────────────────────────────────────────
+  // FIX 4: Only tick while the user is actively clocked in (not clocked out).
+  //         When clocked out, we set workedSecs once from the final record and stop.
   useEffect(() => {
-    if (!record?.loginTime || record?.logoutTime) { setElapsed(0); return; }
-    const tick = () => {
-      const breakMins = record.totalBreakMinutes +
-        (record.activeBreakIndex !== null
-          ? Math.round((Date.now() - new Date(record.breaks[record.activeBreakIndex]?.startTime || Date.now())) / 60000)
-          : 0);
-      const secs = Math.max(0, Math.round((Date.now() - new Date(record.loginTime)) / 1000) - breakMins * 60);
-      setElapsed(secs);
-    };
-    tick();
+    clearInterval(tickTimerRef.current);
+
+    if (!record?.loginTime) {
+      setWorkedSecs(0);
+      return;
+    }
+
+    if (record.logoutTime) {
+      // Clocked out — compute the final value once and freeze
+      setWorkedSecs(computeWorkedSecsFixed(record));
+      return;
+    }
+
+    // Still clocked in — tick every second
+    const tick = () => setWorkedSecs(computeWorkedSecsFixed(record));
+    tick(); // run immediately
     tickTimerRef.current = setInterval(tick, 1000);
     return () => clearInterval(tickTimerRef.current);
   }, [record]);
@@ -210,25 +359,47 @@ function AttendanceMiniWidget() {
     const events = ["mousemove", "keydown", "mousedown", "touchstart", "scroll"];
     events.forEach(e => window.addEventListener(e, resetIdle, { passive: true }));
     idleTimerRef.current = setTimeout(goIdle, IDLE_MS);
-    return () => { events.forEach(e => window.removeEventListener(e, resetIdle)); clearTimeout(idleTimerRef.current); };
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetIdle));
+      clearTimeout(idleTimerRef.current);
+    };
   }, [record?.loginTime, record?.logoutTime, record?.status]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
-  const clockIn    = async () => { try { const r = await api.post("/attendance/clock-in");  setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
-  const clockOut   = async () => { if (!confirm("Clock out for today?")) return; try { const r = await api.post("/attendance/clock-out"); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
-  const startBreak = async () => { try { const r = await api.post("/attendance/break/start", { reason: "Manual Break" }); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
-  const endBreak   = async () => { setIdleWarning(false); try { const r = await api.post("/attendance/break/end"); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
+  const clockIn = async () => {
+    try { const r = await api.post("/attendance/clock-in"); setRecord(r.data); }
+    catch (e) { alert(e.response?.data?.message || "Error"); }
+  };
+  const clockOut = async () => {
+    if (!confirm("Clock out for today?")) return;
+    try { const r = await api.post("/attendance/clock-out"); setRecord(r.data); }
+    catch (e) { alert(e.response?.data?.message || "Error"); }
+  };
+  const startBreak = async () => {
+    try { const r = await api.post("/attendance/break/start", { reason: "Manual Break" }); setRecord(r.data); }
+    catch (e) { alert(e.response?.data?.message || "Error"); }
+  };
+  const endBreak = async () => {
+    setIdleWarning(false);
+    try { const r = await api.post("/attendance/break/end"); setRecord(r.data); }
+    catch (e) { alert(e.response?.data?.message || "Error"); }
+  };
 
   const notClockedIn = !record || !record.loginTime;
   const isClockedOut = !!record?.logoutTime;
   const isOnBreak    = record?.status === "on_break" || record?.status === "idle";
   const isActive     = record?.status === "active";
 
+  // FIX 5: Compute total break minutes using the robust helper
+  const totalBreakMins = computeTotalBreakMins(record);
+  // Worked minutes derived from our fixed workedSecs
+  const workedMins = Math.floor(workedSecs / 60);
+
   const ST = {
     active:     { dot: "bg-emerald-400", color: "text-emerald-600 dark:text-emerald-400", label: "Active",     chipBg: "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800" },
     on_break:   { dot: "bg-amber-400",   color: "text-amber-600 dark:text-amber-400",     label: "On Break",   chipBg: "bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800" },
-    idle:       { dot: "bg-red-400",     color: "text-red-500 dark:text-red-400",          label: "Idle",       chipBg: "bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800" },
-    logged_out: { dot: "bg-gray-400",    color: "text-[#8B92A9]",                          label: "Logged Out", chipBg: "bg-[#F8F9FC] dark:bg-[#13161E] border-[#E4E7EF] dark:border-[#262A38]" },
+    idle:       { dot: "bg-red-400",     color: "text-red-500 dark:text-red-400",         label: "Idle",       chipBg: "bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800" },
+    logged_out: { dot: "bg-gray-400",    color: "text-[#8B92A9]",                         label: "Logged Out", chipBg: "bg-[#F8F9FC] dark:bg-[#13161E] border-[#E4E7EF] dark:border-[#262A38]" },
   };
   const st = ST[record?.status] || ST["logged_out"];
 
@@ -247,7 +418,14 @@ function AttendanceMiniWidget() {
           <circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/>
         </svg>
         <span className={st.color}>
-          {notClockedIn ? "Clock In" : isClockedOut ? "Clocked Out" : isActive ? fmtMins(Math.floor(elapsed / 60)) : st.label}
+          {/* FIX 4: Show worked time even after clock-out */}
+          {notClockedIn
+            ? "Clock In"
+            : isClockedOut
+              ? fmtMins(workedMins)   // Show final worked time, not "Clocked Out"
+              : isActive
+                ? fmtMins(workedMins)
+                : st.label}
         </span>
         {idleWarning && (
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -262,7 +440,9 @@ function AttendanceMiniWidget() {
           <div className="px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] flex items-center justify-between">
             <div>
               <p className="text-[13px] font-bold text-[#0F1117] dark:text-white">Attendance</p>
-              <p className="text-[10px] text-[#8B92A9]">{new Date().toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short" })}</p>
+              <p className="text-[10px] text-[#8B92A9]">
+                {new Date().toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short" })}
+              </p>
             </div>
             {record && (
               <span className={"text-[10px] font-bold px-2 py-0.5 rounded-full border " + st.chipBg + " " + st.color}>
@@ -274,33 +454,50 @@ function AttendanceMiniWidget() {
           {idleWarning && (
             <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 flex items-center justify-between gap-2">
               <div>
-                <p className="text-[11px] font-bold text-red-600 dark:text-red-400"> Idle for 5 mins</p>
+                <p className="text-[11px] font-bold text-red-600 dark:text-red-400">⚠ Idle for 5 mins</p>
                 <p className="text-[10px] text-red-400">Break started automatically.</p>
               </div>
-              <button onClick={endBreak} className="shrink-0 px-2.5 py-1 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold transition">Resume</button>
+              <button
+                onClick={endBreak}
+                className="shrink-0 px-2.5 py-1 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold transition"
+              >
+                Resume
+              </button>
             </div>
           )}
 
           {record?.loginTime && (
             <div className="grid grid-cols-3 gap-2 px-3 pt-3">
+              {/* WORK — FIX: use workedMins which is always correctly computed */}
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
                 <p className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide mb-1">Work</p>
-                <p className="text-[13px] font-black text-[#0F1117] dark:text-white leading-none">{fmtMins(Math.floor(elapsed / 60))}</p>
+                <p className="text-[13px] font-black text-[#0F1117] dark:text-white leading-none">
+                  {fmtMins(workedMins)}
+                </p>
               </div>
+              {/* BREAK — FIX: use totalBreakMins from robust helper */}
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
                 <p className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide mb-1">Break</p>
-                <p className="text-[13px] font-black text-amber-500 leading-none">{fmtMins(record.totalBreakMinutes)}</p>
+                <p className="text-[13px] font-black text-amber-500 leading-none">
+                  {fmtMins(totalBreakMins)}
+                </p>
               </div>
+              {/* LOGIN */}
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
                 <p className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide mb-1">Login</p>
-                <p className="text-[13px] font-black text-[#0F1117] dark:text-white leading-none">{fmtTime(record.loginTime)}</p>
+                <p className="text-[13px] font-black text-[#0F1117] dark:text-white leading-none">
+                  {fmtTime(record.loginTime)}
+                </p>
               </div>
             </div>
           )}
 
           <div className="px-3 py-3 flex gap-2">
             {notClockedIn && (
-              <button onClick={clockIn} className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold transition flex items-center justify-center gap-1.5">
+              <button
+                onClick={clockIn}
+                className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold transition flex items-center justify-center gap-1.5"
+              >
                 <span className="w-2 h-2 rounded-full bg-white/70" />
                 Clock In
               </button>
@@ -308,16 +505,25 @@ function AttendanceMiniWidget() {
             {record?.loginTime && !isClockedOut && (
               <>
                 {!isOnBreak && (
-                  <button onClick={startBreak} className="flex-1 py-2 rounded-xl bg-amber-100 dark:bg-amber-950/40 hover:bg-amber-200 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[12px] font-bold transition">
+                  <button
+                    onClick={startBreak}
+                    className="flex-1 py-2 rounded-xl bg-amber-100 dark:bg-amber-950/40 hover:bg-amber-200 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[12px] font-bold transition"
+                  >
                     ⏸ Break
                   </button>
                 )}
                 {isOnBreak && (
-                  <button onClick={endBreak} className="flex-1 py-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 hover:bg-emerald-200 text-emerald-700 dark:text-emerald-400 text-[12px] font-bold transition">
+                  <button
+                    onClick={endBreak}
+                    className="flex-1 py-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 hover:bg-emerald-200 text-emerald-700 dark:text-emerald-400 text-[12px] font-bold transition"
+                  >
                     ▶ Resume
                   </button>
                 )}
-                <button onClick={clockOut} className="flex-1 py-2 rounded-xl bg-red-100 dark:bg-red-950/40 hover:bg-red-200 text-red-600 dark:text-red-400 text-[12px] font-bold transition">
+                <button
+                  onClick={clockOut}
+                  className="flex-1 py-2 rounded-xl bg-red-100 dark:bg-red-950/40 hover:bg-red-200 text-red-600 dark:text-red-400 text-[12px] font-bold transition"
+                >
                   ⏹ Clock Out
                 </button>
               </>
@@ -329,21 +535,63 @@ function AttendanceMiniWidget() {
             )}
           </div>
 
+          {/* FIX 6: Break log now shows correct per-entry durations */}
           {record?.breaks?.length > 0 && (
             <div className="mx-3 mb-3 border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden">
-              <p className="px-3 py-2 text-[9px] font-bold text-[#8B92A9] uppercase tracking-widest bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">Break Log</p>
-              <div className="divide-y divide-white dark:divide-[#1E2130]">
-                {record.breaks.map((b, i) => (
-                  <div key={i} className="flex items-center justify-between px-3 py-1.5">
-                    <span className={"text-[10px] font-semibold px-1.5 py-0.5 rounded-full " + (b.reason === "Auto Idle" ? "bg-red-50 dark:bg-red-950/40 text-red-500" : "bg-amber-50 dark:bg-amber-950/40 text-amber-600")}>
-                      {b.reason}
-                    </span>
-                    <span className="text-[10px] text-[#8B92A9]">
-                      {fmtTime(b.startTime)} → {b.endTime ? fmtTime(b.endTime) : "ongoing"}
-                      {b.durationMinutes != null ? ` · ${b.durationMinutes}m` : ""}
-                    </span>
-                  </div>
-                ))}
+              <p className="px-3 py-2 text-[9px] font-bold text-[#8B92A9] uppercase tracking-widest bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
+                Break Log
+              </p>
+              <div className="divide-y divide-[#F1F4FF] dark:divide-[#1E2130]">
+                {record.breaks.map((b, i) => {
+                  const durMins = breakEntryDurMins(b);
+                  const isOngoing = b.startTime && !b.endTime;
+                  return (
+                    <div key={i} className="flex items-center justify-between px-3 py-1.5">
+                      <span
+                        className={
+                          "text-[10px] font-semibold px-1.5 py-0.5 rounded-full " +
+                          (b.reason === "Auto Idle"
+                            ? "bg-red-50 dark:bg-red-950/40 text-red-500"
+                            : "bg-amber-50 dark:bg-amber-950/40 text-amber-600")
+                        }
+                      >
+                        {b.reason || "Break"}
+                      </span>
+                      <span className="text-[10px] text-[#8B92A9]">
+                        {fmtTime(b.startTime)} → {b.endTime ? fmtTime(b.endTime) : "ongoing"}
+                        {/* FIX 6: Show computed duration, not just the server field */}
+                        {isOngoing
+                          ? " · ongoing"
+                          : ` · ${durMins}m`}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* FIX 7: Show break total at the bottom of the log */}
+              <div className="px-3 py-1.5 bg-[#F8F9FC] dark:bg-[#13161E] border-t border-[#E4E7EF] dark:border-[#262A38] flex justify-between">
+                <span className="text-[9px] font-bold text-[#8B92A9] uppercase tracking-wide">Total break</span>
+                <span className="text-[10px] font-bold text-amber-500">{fmtMins(totalBreakMins)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* FIX 8: Show worked time summary at the bottom when clocked out */}
+          {isClockedOut && record?.loginTime && (
+            <div className="mx-3 mb-3 px-3 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
+                  Total worked today
+                </span>
+                <span className="text-[13px] font-black text-emerald-600 dark:text-emerald-400">
+                  {fmtMins(workedMins)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-500">
+                  {fmtTime(record.loginTime)} → {fmtTime(record.logoutTime)}
+                </span>
+                <span className="text-[10px] text-amber-500">−{fmtMins(totalBreakMins)} break</span>
               </div>
             </div>
           )}
@@ -458,7 +706,6 @@ function getTodayStr() {
   return new Date().toISOString().split("T")[0];
 }
 
-// ── OUTCOME OPTIONS ───────────────────────────────────────────────────────────
 const OUTCOME_OPTIONS = [
   "Call Back",
   "Interested",
@@ -493,10 +740,8 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
       const body = { status, remark, outcome };
       if (temp) { body.temperature = temp; body.Quality = temp; }
       if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
-
       const res = await api.patch(`/lead/${lead.id || lead._id}`, body);
       const savedLead = res.data;
-
       onSaved({
         ...lead,
         ...(savedLead || {}),
@@ -526,10 +771,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div
-        className="w-full max-w-sm bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="w-full max-w-sm bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
             <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -541,7 +783,6 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             <p className="text-[11px] text-[#8B92A9] truncate">{lead.name}</p>
           </div>
         </div>
-
         <div className="space-y-3 mb-4">
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Status</label>
@@ -550,20 +791,14 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
                 <option key={s}>{s}</option>
               ))}
             </select>
-            <p className="text-[10px] text-amber-500 mt-1">
-              Selecting "Not Interested" opens the reassignment workflow.
-            </p>
+            <p className="text-[10px] text-amber-500 mt-1">Selecting "Not Interested" opens the reassignment workflow.</p>
           </div>
-
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Call Outcome</label>
             <select value={outcome} onChange={(e) => setOutcome(e.target.value)} className={CLS}>
-              {OUTCOME_OPTIONS.map((o) => (
-                <option key={o}>{o}</option>
-              ))}
+              {OUTCOME_OPTIONS.map((o) => <option key={o}>{o}</option>)}
             </select>
           </div>
-
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
               Lead Quality
@@ -575,58 +810,33 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             </label>
             <div className="grid grid-cols-4 gap-2">
               {[
-                { val: "",     label: "None",    color: "#8B92A9", bg: "bg-gray-50 dark:bg-gray-900/30" },
-                { val: "Hot",  label: " Hot",  color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30" },
-                { val: "Warm", label: " Warm", color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30" },
-                { val: "Cold", label: "Cold", color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30" },
+                { val: "",     label: "None", color: "#8B92A9", bg: "bg-gray-50 dark:bg-gray-900/30" },
+                { val: "Hot",  label: "🔥 Hot",  color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30" },
+                { val: "Warm", label: "🌤 Warm", color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30" },
+                { val: "Cold", label: "❄️ Cold", color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30" },
               ].map((q) => (
-                <button
-                  key={q.val}
-                  type="button"
-                  onClick={() => setTemp(q.val)}
+                <button key={q.val} type="button" onClick={() => setTemp(q.val)}
                   className={`py-2 px-1 rounded-xl border-2 text-[11px] font-semibold transition ${q.bg} ${
-                    temp === q.val
-                      ? "border-current scale-[1.03]"
-                      : "border-transparent opacity-60 hover:opacity-100"
+                    temp === q.val ? "border-current scale-[1.03]" : "border-transparent opacity-60 hover:opacity-100"
                   }`}
-                  style={{ color: q.color, borderColor: temp === q.val ? q.color : undefined }}
-                >
+                  style={{ color: q.color, borderColor: temp === q.val ? q.color : undefined }}>
                   {q.label}
                 </button>
               ))}
             </div>
           </div>
-
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Remark</label>
-            <textarea
-              value={remark}
-              onChange={(e) => setRemark(e.target.value)}
-              rows={2}
-              className={CLS + " resize-none"}
-              placeholder="Add a note…"
-            />
+            <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={2} className={CLS + " resize-none"} placeholder="Add a note…" />
           </div>
-
           {status !== "Not Interested" && (
             <div>
-              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
-                 Follow-up Date
-              </label>
-              <input
-                type="date"
-                value={followUpDate}
-                min={getTodayStr()}
-                onChange={(e) => setFollowUpDate(e.target.value)}
-                className={CLS}
-              />
-              <p className="text-[10px] text-[#8B92A9] mt-1">
-                Leave as tomorrow (default) or pick a future date.
-              </p>
+              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">📅 Follow-up Date</label>
+              <input type="date" value={followUpDate} min={getTodayStr()} onChange={(e) => setFollowUpDate(e.target.value)} className={CLS} />
+              <p className="text-[10px] text-[#8B92A9] mt-1">Leave as tomorrow (default) or pick a future date.</p>
             </div>
           )}
         </div>
-
         {error && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 mb-3">
             <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -635,30 +845,13 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             <p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>
           </div>
         )}
-
         <div className="flex gap-2">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={loading}
-            className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 flex items-center justify-center gap-2"
-          >
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
+          <button onClick={handleSave} disabled={loading}
+            className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 flex items-center justify-center gap-2">
             {loading ? (
-              <>
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                </svg>
-                Saving…
-              </>
-            ) : (
-              "Save Changes"
-            )}
+              <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Saving…</>
+            ) : "Save Changes"}
           </button>
         </div>
       </div>
@@ -672,11 +865,9 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
   const name  = lead.name || "Unknown";
   const phone = lead.phone || lead.mobile || "—";
   const s = STATUS_CONFIG[lead.status] || STATUS_CONFIG["New"];
-
   const callHistory    = lead.callHistory    || [];
   const scheduledCalls = lead.scheduledCalls || [];
   const pendingCalls   = scheduledCalls.filter(function(c){ return !c.done; });
-
   const fmt = function(iso) {
     if (!iso) return "—";
     return new Date(iso).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" });
@@ -705,31 +896,27 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
             <TempBadge temp={lead.Quality || lead.temperature} />
             {lead.reassignCount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
-                 Reassigned {lead.reassignCount}×
+                🔄 Reassigned {lead.reassignCount}×
               </span>
             )}
           </div>
         </div>
-
         <div className="px-6 py-4 grid grid-cols-2 gap-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[
-            { label:"Source",   value:lead.source   || "—", icon:"" },
-            { label:"Campaign", value:lead.campaign  || "—", icon:"" },
-            { label:"Date",     value:lead.date      || "—", icon:"" },
-            { label:"Remark",   value:lead.remark    || "No remark", icon:"" },
+            { label:"Source",   value:lead.source   || "—" },
+            { label:"Campaign", value:lead.campaign  || "—" },
+            { label:"Date",     value:lead.date      || "—" },
+            { label:"Remark",   value:lead.remark    || "No remark" },
           ].map(function(item){ return (
             <div key={item.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3">
-              <p className="text-[9px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-widest mb-1">{item.icon} {item.label}</p>
+              <p className="text-[9px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-widest mb-1">{item.label}</p>
               <p className="text-[12px] font-medium text-[#0F1117] dark:text-white break-words">{item.value}</p>
             </div>
           ); })}
         </div>
-
         {callHistory.length > 0 && (
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
-            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3 flex items-center gap-1.5">
-              <span></span> Previous Call History ({callHistory.length})
-            </p>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3">📞 Previous Call History ({callHistory.length})</p>
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
               {callHistory.map(function(h, i) {
                 return (
@@ -748,12 +935,9 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
             </div>
           </div>
         )}
-
         {pendingCalls.length > 0 && (
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
-            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3 flex items-center gap-1.5">
-              <span></span> Scheduled Follow-ups ({pendingCalls.length} pending)
-            </p>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3">📅 Scheduled Follow-ups ({pendingCalls.length} pending)</p>
             <div className="space-y-2">
               {pendingCalls.map(function(sc, i) {
                 const isPast = new Date(sc.scheduledAt) < new Date();
@@ -774,7 +958,6 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
             </div>
           </div>
         )}
-
         <div className="px-6 py-4 space-y-2">
           <button onClick={function(){ setShowUpdate(true); }}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
@@ -791,24 +974,14 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
       </div>
 
       {showUpdate && createPortal(
-        <UpdateStatusModal
-          lead={lead}
-          onClose={function(){ setShowUpdate(false); }}
+        <UpdateStatusModal lead={lead} onClose={function(){ setShowUpdate(false); }}
           onNotInterested={function(){ setShowUpdate(false); setShowNIModal(true); }}
-          onSaved={function(updated){ onUpdate(updated); setShowUpdate(false); }}
-        />,
+          onSaved={function(updated){ onUpdate(updated); setShowUpdate(false); }} />,
         document.body
       )}
       {showNIModal && createPortal(
-        <NotInterestedModal
-          lead={{ ...lead, _id: lead.id || lead._id }}
-          onClose={function(){ setShowNIModal(false); }}
-          onSuccess={function(updatedLead) {
-            onUpdate({ ...updatedLead, _reassigned: true });
-            setShowNIModal(false);
-            onClose();
-          }}
-        />,
+        <NotInterestedModal lead={{ ...lead, _id: lead.id || lead._id }} onClose={function(){ setShowNIModal(false); }}
+          onSuccess={function(updatedLead) { onUpdate({ ...updatedLead, _reassigned: true }); setShowNIModal(false); onClose(); }} />,
         document.body
       )}
     </div>
@@ -904,29 +1077,14 @@ function UserChatWidget() {
   useEffect(function() {
     const socket = io(import.meta.env.VITE_SOCKET_URL || "https://skyup-crm-backend.onrender.com", { withCredentials: true });
     socketRef.current = socket;
-
-    // ── Expose to AttendanceMiniWidget as soon as it connects ────────────────
-    socket.on("connect", function() {
-      sharedSocket.current = socket;
-    });
-    // Handle case where socket was already connected before this effect ran
+    socket.on("connect", function() { sharedSocket.current = socket; });
     if (socket.connected) sharedSocket.current = socket;
-
     socket.emit("user_join", username);
-
     socket.on("chat_history", function(history) {
       setMessages(history.map(function(m) {
-        return {
-          _id:       m._id,
-          from:      m.from === "admin" ? "Admin" : "You",
-          message:   m.message,
-          ts:        m.timestamp,
-          isDeleted: m.isDeleted || false,
-          editedAt:  m.editedAt  || null,
-        };
+        return { _id: m._id, from: m.from === "admin" ? "Admin" : "You", message: m.message, ts: m.timestamp, isDeleted: m.isDeleted || false, editedAt: m.editedAt || null };
       }));
     });
-
     socket.on("message_saved", function(data) {
       setMessages(function(prev) {
         const idx = [...prev].reverse().findIndex(function(m){ return m.from === "You" && !m._id; });
@@ -937,36 +1095,21 @@ function UserChatWidget() {
         return updated;
       });
     });
-
     socket.on("receive_admin_message", function(data) {
       setMessages(function(prev){ return prev.concat([{ _id: data._id, from: "Admin", message: data.message, isDeleted: false }]); });
       setOpen(function(isOpen) { if (!isOpen) setUnread(function(n){ return n + 1; }); return isOpen; });
     });
-
     socket.on("message_edited", function({ _id, newText, editedAt }) {
       setMessages(function(prev) {
-        return prev.map(function(m) {
-          return m._id && m._id.toString() === _id.toString()
-            ? { ...m, message: newText, editedAt }
-            : m;
-        });
+        return prev.map(function(m) { return m._id && m._id.toString() === _id.toString() ? { ...m, message: newText, editedAt } : m; });
       });
     });
-
     socket.on("message_deleted", function({ _id }) {
       setMessages(function(prev) {
-        return prev.map(function(m) {
-          return m._id && m._id.toString() === _id.toString()
-            ? { ...m, message: "This message was deleted", isDeleted: true }
-            : m;
-        });
+        return prev.map(function(m) { return m._id && m._id.toString() === _id.toString() ? { ...m, message: "This message was deleted", isDeleted: true } : m; });
       });
     });
-
-    return function() {
-      sharedSocket.current = null;
-      socket.disconnect();
-    };
+    return function() { sharedSocket.current = null; socket.disconnect(); };
   }, []);
 
   useEffect(function() {
@@ -980,29 +1123,13 @@ function UserChatWidget() {
     setMessages(function(prev){ return prev.concat([{ from: "You", message: msg, isDeleted: false }]); });
     setMessage("");
   };
-
-  const startEdit = function(m) {
-    if (m.isDeleted) return;
-    setEditingId(m._id);
-    setEditingText(m.message);
-  };
-
+  const startEdit = function(m) { if (m.isDeleted) return; setEditingId(m._id); setEditingText(m.message); };
   const submitEdit = function() {
     if (!editingText.trim() || !editingId) return;
-    socketRef.current && socketRef.current.emit("edit_message", {
-      _id: editingId,
-      newText: editingText.trim(),
-      requester: username,
-    });
-    setEditingId(null);
-    setEditingText("");
+    socketRef.current && socketRef.current.emit("edit_message", { _id: editingId, newText: editingText.trim(), requester: username });
+    setEditingId(null); setEditingText("");
   };
-
-  const cancelEdit = function() {
-    setEditingId(null);
-    setEditingText("");
-  };
-
+  const cancelEdit = function() { setEditingId(null); setEditingText(""); };
   const deleteMsg = function(msgId) {
     if (!window.confirm("Delete this message?")) return;
     socketRef.current && socketRef.current.emit("delete_message", { _id: msgId, requester: username });
@@ -1021,11 +1148,10 @@ function UserChatWidget() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
-
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-[#F8F9FC] dark:bg-[#13161E]">
             {messages.length === 0 && (
               <div className="text-center py-8">
-                <p className="text-[28px] mb-2"></p>
+                <p className="text-[28px] mb-2">💬</p>
                 <p className="text-[12px] text-[#8B92A9]">Hi {user && user.name ? user.name.split(" ")[0] : "there"}! How can we help?</p>
               </div>
             )}
@@ -1037,47 +1163,29 @@ function UserChatWidget() {
                   <div className="flex flex-col gap-0.5 max-w-[80%]">
                     {isEditing ? (
                       <div className="flex items-center gap-1">
-                        <input
-                          autoFocus
-                          value={editingText}
-                          onChange={function(e){ setEditingText(e.target.value); }}
+                        <input autoFocus value={editingText} onChange={function(e){ setEditingText(e.target.value); }}
                           onKeyDown={function(e){ if(e.key==="Enter") submitEdit(); if(e.key==="Escape") cancelEdit(); }}
-                          className="px-2 py-1 rounded-lg border border-[#2563EB] text-[12px] text-[#0F1117] dark:text-white bg-white dark:bg-[#1A1D27] focus:outline-none w-40"
-                        />
+                          className="px-2 py-1 rounded-lg border border-[#2563EB] text-[12px] text-[#0F1117] dark:text-white bg-white dark:bg-[#1A1D27] focus:outline-none w-40" />
                         <button onClick={submitEdit} className="text-[10px] text-[#2563EB] font-semibold hover:underline">Save</button>
                         <button onClick={cancelEdit}  className="text-[10px] text-[#8B92A9] hover:underline">Cancel</button>
                       </div>
                     ) : (
                       <div className={"relative px-3 py-2 rounded-2xl text-[12px] " + (
-                        m.isDeleted
-                          ? "italic text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#1A1D27] border border-dashed border-[#E4E7EF] dark:border-[#262A38]"
-                          : isYou
-                            ? "bg-[#2563EB] text-white rounded-br-none"
-                            : "bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-white rounded-bl-none border border-[#E4E7EF] dark:border-[#262A38]"
+                        m.isDeleted ? "italic text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#1A1D27] border border-dashed border-[#E4E7EF] dark:border-[#262A38]"
+                          : isYou ? "bg-[#2563EB] text-white rounded-br-none"
+                          : "bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-white rounded-bl-none border border-[#E4E7EF] dark:border-[#262A38]"
                       )}>
                         {m.message}
-                        {m.editedAt && !m.isDeleted && (
-                          <span className="text-[9px] opacity-60 ml-1">(edited)</span>
-                        )}
+                        {m.editedAt && !m.isDeleted && <span className="text-[9px] opacity-60 ml-1">(edited)</span>}
                         {isYou && !m.isDeleted && m._id && (
                           <div className="absolute top-1 -left-14 hidden group-hover:flex items-center gap-1">
-                            <button
-                              onClick={function(){ startEdit(m); }}
-                              title="Edit"
-                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] transition shadow-sm"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                              </svg>
+                            <button onClick={function(){ startEdit(m); }} title="Edit"
+                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] transition shadow-sm">
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </button>
-                            <button
-                              onClick={function(){ deleteMsg(m._id); }}
-                              title="Delete"
-                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-red-500 transition shadow-sm"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                              </svg>
+                            <button onClick={function(){ deleteMsg(m._id); }} title="Delete"
+                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-red-500 transition shadow-sm">
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                             </button>
                           </div>
                         )}
@@ -1089,7 +1197,6 @@ function UserChatWidget() {
             })}
             <div ref={bottomRef} />
           </div>
-
           <div className="px-3 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-2 bg-white dark:bg-[#1A1D27]">
             <input value={message} onChange={function(e){ setMessage(e.target.value); }} onKeyDown={function(e){ if(e.key==="Enter") sendMessage(); }} placeholder="Type a message…"
               className="flex-1 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-white placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition" />
@@ -1117,9 +1224,9 @@ function UserChatWidget() {
 
 function getGreeting() {
   const h = new Date().getHours();
-  if (h < 12) return { text: "Good morning", emoji: "" };
-  if (h < 17) return { text: "Good afternoon", emoji: "" };
-  return { text: "Good evening", emoji: "" };
+  if (h < 12) return { text: "Good morning", emoji: "☀️" };
+  if (h < 17) return { text: "Good afternoon", emoji: "🌤" };
+  return { text: "Good evening", emoji: "🌙" };
 }
 
 function mapLead(l) {
@@ -1224,33 +1331,13 @@ export default function UserDashboard() {
 
   const handleUpdate = function(updated) {
     if (updated._reassigned) {
-      setLeads(function(prev) {
-        return prev.filter(function(l) {
-          return l.id !== (updated.id || String(updated._id));
-        });
-      });
+      setLeads(function(prev) { return prev.filter(function(l) { return l.id !== (updated.id || String(updated._id)); }); });
       setSelected(null);
       return;
     }
-
-    const normalized = {
-      ...updated,
-      id:          updated.id || String(updated._id),
-      Quality:     updated.temperature || updated.Quality || null,
-      temperature: updated.temperature || updated.Quality || null,
-    };
-
-    setLeads(function(prev) {
-      return prev.map(function(l) {
-        return l.id === normalized.id ? Object.assign({}, l, normalized) : l;
-      });
-    });
-
-    if (selected && selected.id === normalized.id) {
-      setSelected(function(s) {
-        return Object.assign({}, s, normalized);
-      });
-    }
+    const normalized = { ...updated, id: updated.id || String(updated._id), Quality: updated.temperature || updated.Quality || null, temperature: updated.temperature || updated.Quality || null };
+    setLeads(function(prev) { return prev.map(function(l) { return l.id === normalized.id ? Object.assign({}, l, normalized) : l; }); });
+    if (selected && selected.id === normalized.id) { setSelected(function(s) { return Object.assign({}, s, normalized); }); }
   };
 
   const handleAddLead = function(newLead) { setLeads(function(prev){ return [newLead].concat(prev); }); setPage(1); };
@@ -1264,6 +1351,7 @@ export default function UserDashboard() {
 
   const downloadCSVTemplate = function() {
     const headers = ["name", "mobile", "email", "source", "campaign", "status", "remark"];
+    const example = ["John Doe", "9876543210", "john@example.com", "Google Ads", "Summer Campaign", "New", "Interested in product"];
     const csv = [headers.join(","), example.join(",")].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -1315,30 +1403,23 @@ export default function UserDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
-
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="px-6 py-5 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38]">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <p className="text-[#8B92A9] dark:text-[#D1D5DB] text-[12px] font-medium">
-              {greeting.emoji} {greeting.text}
-            </p>
+            <p className="text-[#8B92A9] dark:text-[#D1D5DB] text-[12px] font-medium">{greeting.emoji} {greeting.text}</p>
             <h1 className="text-[22px] font-black text-[#0F1117] dark:text-white mt-0.5">
               {(user && user.name) || "Agent"}
               <span className="text-[#8B92A9] dark:text-[#D1D5DB] text-[16px] font-normal ml-2">— My Workspace</span>
             </h1>
           </div>
-
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={function(){ setShowAddModal(true); }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               Add Lead
             </button>
-
             <div className="flex items-center rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
-              <label
-                className={`flex items-center gap-2 px-4 py-2 text-[#4B5168] dark:text-[#E5E7EB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition cursor-pointer border-r border-[#E4E7EF] dark:border-[#262A38] ${csvImporting ? "opacity-60 cursor-not-allowed" : ""}`}
+              <label className={`flex items-center gap-2 px-4 py-2 text-[#4B5168] dark:text-[#E5E7EB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition cursor-pointer border-r border-[#E4E7EF] dark:border-[#262A38] ${csvImporting ? "opacity-60 cursor-not-allowed" : ""}`}
                 title="Import CSV — columns: name, mobile, email, source, campaign, status, remark">
                 <input type="file" accept=".csv" className="hidden" disabled={csvImporting} onChange={handleImportCSV}/>
                 {csvImporting
@@ -1347,17 +1428,13 @@ export default function UserDashboard() {
                 }
                 {csvImporting ? "Importing…" : "Import CSV"}
               </label>
-              <button
-                onClick={downloadCSVTemplate}
-                title="Download CSV template"
+              <button onClick={downloadCSVTemplate} title="Download CSV template"
                 className="flex items-center gap-1.5 px-3 py-2 text-[#2563EB] dark:text-[#4F8EF7] text-[12px] font-semibold hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition whitespace-nowrap">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Template
               </button>
             </div>
-
             <AttendanceMiniWidget />
-
             {csvResult && (
               <div className={`flex flex-col gap-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${csvResult.error || csvResult.saved === 0 ? "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400" : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400"}`}>
                 <div className="flex items-center gap-1.5">
@@ -1371,13 +1448,9 @@ export default function UserDashboard() {
                 )}
               </div>
             )}
-
-            <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[13px] font-black text-[#2563EB] dark:text-[#4F8EF7] border border-[#C7D7FF] dark:border-[#2D3A6B]">
-              {initials}
-            </div>
+            <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[13px] font-black text-[#2563EB] dark:text-[#4F8EF7] border border-[#C7D7FF] dark:border-[#2D3A6B]">{initials}</div>
           </div>
         </div>
-
         <div className="flex items-center gap-6 mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex-wrap">
           {[
             { label:"My Total Leads", value:kpi.total,          color:"text-[#0F1117] dark:text-white" },
@@ -1395,7 +1468,6 @@ export default function UserDashboard() {
       </div>
 
       <div className="p-6 space-y-6">
-
         {error && (
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-[12px] font-medium">
             <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -1404,42 +1476,35 @@ export default function UserDashboard() {
           </div>
         )}
 
-        {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon="👤" />
           <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon="✅" trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
           <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon="⏳" />
-          <KpiCard label="Hot Leads "   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="🔥" />
+          <KpiCard label="Hot Leads 🔥"   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="🔥" />
         </div>
 
-        {/* Middle row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-[14px]"></span>
-              <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">My Daily Targets</p>
+              <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">🎯 My Daily Targets</p>
             </div>
             <div className="flex items-center justify-around">
-              <RadialProgress value={kpi.todayLeads} max={10} color="#2563EB" label="Leads"   size={80} />
+              <RadialProgress value={kpi.todayLeads} max={10} color="#2563EB" label="Leads" size={80} />
               <RadialProgress value={leads.filter(function(l){ return isToday(l.date) && l.status==="Converted"; }).length} max={5} color="#059669" label="Convert" size={80} />
-              <RadialProgress value={leads.filter(function(l){ return isToday(l.date) && l.status==="In Progress"; }).length} max={8} color="#D97706" label="Active"  size={80} />
+              <RadialProgress value={leads.filter(function(l){ return isToday(l.date) && l.status==="In Progress"; }).length} max={8} color="#D97706" label="Active" size={80} />
             </div>
-            <p className="text-[9px] text-center text-[#8B92A9] dark:text-[#D1D5DB] mt-3 font-medium uppercase tracking-wide">
-              Targets: 10 leads · 5 conversions · 8 follow-ups
-            </p>
+            <p className="text-[9px] text-center text-[#8B92A9] dark:text-[#D1D5DB] mt-3 font-medium uppercase tracking-wide">Targets: 10 leads · 5 conversions · 8 follow-ups</p>
           </div>
-
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-[14px]"></span>
               <p className="text-[12px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">Lead Quality</p>
             </div>
             <div className="space-y-3">
               {[
-                { label:"Hot",          count:kpi.hot,          color:"#DC2626", icon:"" },
-                { label:"Warm",         count:kpi.warm,         color:"#D97706", icon:"" },
-                { label:"Cold",         count:kpi.cold,         color:"#2563EB", icon:"" },
-                { label:"Unclassified", count:kpi.unclassified, color:"#8B92A9", icon:""  },
+                { label:"Hot",          count:kpi.hot,          color:"#DC2626", icon:"🔥" },
+                { label:"Warm",         count:kpi.warm,         color:"#D97706", icon:"🌤" },
+                { label:"Cold",         count:kpi.cold,         color:"#2563EB", icon:"❄️" },
+                { label:"Unclassified", count:kpi.unclassified, color:"#8B92A9", icon:"—" },
               ].map(function(item){ return (
                 <div key={item.label} className="flex items-center gap-2">
                   <span className="w-4 text-center text-[14px]">{item.icon}</span>
@@ -1459,13 +1524,12 @@ export default function UserDashboard() {
           </div>
         </div>
 
-        {/* Status filter chips */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label:"New",           count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-100 dark:bg-blue-950/70",       icon:"🆕" },
-            { label:"In Progress",   count:kpi.inProgress, color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30",     icon:"⏳" },
-            { label:"Converted",     count:kpi.converted,  color:"#059669", bg:"bg-emerald-50 dark:bg-emerald-950/30", icon:"✅" },
-            { label:"Not Interested",count:kpi.notInt,     color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30",         icon:"❌" },
+            { label:"New",            count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-100 dark:bg-blue-950/70",       icon:"🆕" },
+            { label:"In Progress",    count:kpi.inProgress, color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30",      icon:"⏳" },
+            { label:"Converted",      count:kpi.converted,  color:"#059669", bg:"bg-emerald-50 dark:bg-emerald-950/30",  icon:"✅" },
+            { label:"Not Interested", count:kpi.notInt,     color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30",          icon:"❌" },
           ].map(function(item){ return (
             <button key={item.label}
               onClick={function(){ setFilterSt(filterSt === item.label ? "All" : item.label); setActiveTab("leads"); setPage(1); }}
@@ -1480,21 +1544,18 @@ export default function UserDashboard() {
           ); })}
         </div>
 
-        {/* Leads / Activity tabs */}
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
           <div className="flex items-center border-b border-[#E4E7EF] dark:border-[#262A38] px-5">
             {[
-              { id:"leads",    label:"My Leads",        icon:"", count:displayed.length },
-              { id:"activity", label:"Recent Activity", icon:"", count:recentActivity.length },
+              { id:"leads",    label:"My Leads",        count:displayed.length },
+              { id:"activity", label:"Recent Activity", count:recentActivity.length },
             ].map(function(tab){ return (
               <button key={tab.id} onClick={function(){ setActiveTab(tab.id); }}
                 className={"flex items-center gap-2 px-4 py-4 text-[12px] font-semibold border-b-2 transition " + (activeTab === tab.id ? "border-[#2563EB] text-[#2563EB] dark:text-[#4F8EF7]" : "border-transparent text-[#8B92A9] dark:text-[#D1D5DB] hover:text-[#0F1117] dark:hover:text-white")}>
-                <span>{tab.icon}</span>
                 {tab.label}
                 <span className={"px-1.5 py-0.5 rounded-full text-[14px] font-bold " + (activeTab === tab.id ? "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7]" : "bg-[#F1F4FF] dark:bg-[#1E2130] text-[#8B92A9]")}>{tab.count}</span>
               </button>
             ); })}
-
             {activeTab === "leads" && (
               <div className="ml-auto flex items-center gap-2 py-2 flex-wrap">
                 <div className="relative">
@@ -1525,9 +1586,8 @@ export default function UserDashboard() {
                 </div>
               ) : paged.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <span className="text-[48px]">{leads.length === 0 ? "" : ""}</span>
                   <p className="text-[18px] font-semibold text-[#0F1117] dark:text-white">{leads.length === 0 ? "No leads yet" : "No leads match your filters"}</p>
-                  <p className="text-[18px] text-[#8B92A9]">{leads.length === 0 ? "Add your first lead to get started." : "Try adjusting your search or filters."}</p>
+                  <p className="text-[14px] text-[#8B92A9]">{leads.length === 0 ? "Add your first lead to get started." : "Try adjusting your search or filters."}</p>
                   {leads.length === 0 && (
                     <button onClick={function(){ setShowAddModal(true); }} className="mt-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 transition">+ Add First Lead</button>
                   )}
@@ -1553,9 +1613,7 @@ export default function UserDashboard() {
                               </div>
                               <div>
                                 <span className="font-semibold text-[#0F1117] dark:text-white whitespace-nowrap">{l.name}</span>
-                                {l.reassignCount > 0 && (
-                                  <span className="ml-1.5 text-[14px] font-bold text-purple-500">{l.reassignCount}</span>
-                                )}
+                                {l.reassignCount > 0 && <span className="ml-1.5 text-[14px] font-bold text-purple-500">{l.reassignCount}</span>}
                               </div>
                             </div>
                           </td>
@@ -1616,7 +1674,6 @@ export default function UserDashboard() {
                 </div>
               ) : recentActivity.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-[32px] mb-2"></p>
                   <p className="text-[14px] text-[#8B92A9]">No recent activity yet.</p>
                 </div>
               ) : (
@@ -1634,7 +1691,7 @@ export default function UserDashboard() {
         {!loading && kpi.total > 0 && (
           <div className="rounded-2xl p-4 flex items-center gap-4 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38]">
             <span className="text-[28px]">
-              {kpi.convRate >= 50 ? "" : kpi.convRate >= 30 ? "" : kpi.convRate >= 15 ? "" : ""}
+              {kpi.convRate >= 50 ? "🏆" : kpi.convRate >= 30 ? "🌟" : kpi.convRate >= 15 ? "📈" : "💪"}
             </span>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-white">
@@ -1644,12 +1701,11 @@ export default function UserDashboard() {
                  "Every lead counts — focus on your hot leads today!"}
               </p>
               <p className="text-[14px] text-[#8B92A9] mt-0.5">
-                {kpi.hot > 0 ? "You have " + kpi.hot + " hot lead" + (kpi.hot > 1 ? "s" : "") + " waiting for a call." : "Classify leads by Quality to prioritize your calls."}
+                {kpi.hot > 0 ? `You have ${kpi.hot} hot lead${kpi.hot > 1 ? "s" : ""} waiting for a call.` : "Classify leads by Quality to prioritize your calls."}
               </p>
             </div>
           </div>
         )}
-
       </div>
 
       {selected && <LeadDrawer lead={selected} onClose={function(){ setSelected(null); }} onUpdate={handleUpdate} />}
