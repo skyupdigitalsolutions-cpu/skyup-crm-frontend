@@ -398,9 +398,19 @@ export default function Dashboard() {
 
   const leads = useMemo(() => filterByRange(allLeads, range), [allLeads, range]);
   const kpi   = useMemo(() => {
-    const total = leads.length, converted = leads.filter(l => l.status === "Converted").length;
-    return { total, converted, rate:`${total > 0 ? Math.round(converted/total*100) : 0}%`, response:"—" };
-  }, [leads]);
+    // FIX: Total Leads KPI must show ALL leads (allLeads), not the range-filtered subset.
+    // The range filter is for the chart and pipeline breakdown only.
+    const allTotal   = allLeads.length;
+    const converted  = allLeads.filter(l => l.status === "Converted").length;
+    const rangeTotal = leads.length;
+    return {
+      total:     allTotal,
+      converted,
+      rate:      `${allTotal > 0 ? Math.round(converted / allTotal * 100) : 0}%`,
+      rangeTotal,
+      response:  "—",
+    };
+  }, [leads, allLeads]);
   const chart   = useMemo(() => buildChartBuckets(leads, range), [leads, range]);
   const pipeline = useMemo(() => ({
     new:       leads.filter(l => l.status === "New").length,
@@ -499,7 +509,7 @@ export default function Dashboard() {
 
       {/* ── KPI row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Total Leads"    value={kpi.total.toLocaleString()}     sub={`${leads.length} in selected range`} up={true}                    icon={IconUsers}/>
+        <KpiCard label="Total Leads"    value={kpi.total.toLocaleString()}     sub={`${kpi.rangeTotal} in selected range`} up={true}                    icon={IconUsers}/>
         <KpiCard label="Conversions"    value={kpi.converted.toLocaleString()} sub={`${kpi.rate} conversion rate`}       up={kpi.converted > 0}       icon={IconCheck}/>
         <KpiCard label="Conv. rate"     value={kpi.rate}                       sub={`${pipeline.progress} in progress`}  up={parseInt(kpi.rate) >= 15} icon={IconPct}/>
         <KpiCard label="Not Interested" value={pipeline.lost.toLocaleString()} sub="Review needed"                       up={false}                    icon={IconClock}/>
