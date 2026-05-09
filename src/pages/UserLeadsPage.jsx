@@ -741,8 +741,10 @@ export default function UserLeadsPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get("/lead/my-leads");
-      const raw = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      // FIX 1: Use paginated endpoint with high limit so all assigned leads load
+      const res = await api.get("/lead/my-leads?page=1&limit=200");
+      // FIX 2: Backend returns { leads[], total, page, pages } — not res.data.data
+      const raw = res.data?.leads || (Array.isArray(res.data) ? res.data : []);
       setLeads(raw.map(mapLead));
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load leads. Please refresh.");
