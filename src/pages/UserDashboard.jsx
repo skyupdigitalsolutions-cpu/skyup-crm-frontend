@@ -1573,11 +1573,11 @@ export default function UserDashboard() {
                           <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
                           <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                              <button onClick={function(e){ e.stopPropagation(); setSelected(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] transition" title="View details">
+                            <div className="flex items-center gap-1">
+                              <button onClick={function(e){ e.stopPropagation(); setSelected(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition" title="View details">
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
                               </button>
-                              <button onClick={function(e){ e.stopPropagation(); setDeleteConfirm(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 transition" title="Delete lead">
+                              <button onClick={function(e){ e.stopPropagation(); setDeleteConfirm(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition" title="Delete lead">
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                               </button>
                             </div>
