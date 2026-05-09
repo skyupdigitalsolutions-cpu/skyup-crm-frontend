@@ -61,11 +61,11 @@ function StatCard({ label, value, sub, icon, color, trend }) {
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
       <div className="flex items-start justify-between mb-3">
-        <span className="text-[11px] font-semibold text-[#F3F4F6] dark:text-[#D1D5DB] uppercase tracking-wide">{label}</span>
+        <span className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide">{label}</span>
         <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[15px]" style={{ background: color + "20" }}>{icon}</div>
       </div>
       <div className="text-[28px] font-bold text-[#0F1117] dark:text-white leading-none mb-1">{value}</div>
-      {sub && <div className="text-[11px] text-[#F3F4F6] dark:text-[#D1D5DB]">{sub}</div>}
+      {sub && <div className="text-[11px] text-[#8B92A9] dark:text-[#D1D5DB]">{sub}</div>}
       {trend !== undefined && (
         <div className={`text-[11px] font-semibold mt-1 ${trend >= 0 ? "text-[#059669]" : "text-[#DC2626]"}`}>
           {trend >= 0 ? "▲" : "▼"} {Math.abs(trend)} vs yesterday
@@ -104,7 +104,7 @@ function FunnelBar({ label, value, total, color }) {
         <span className="text-[12px] text-[#4B5168] dark:text-[#E5E7EB]">{label}</span>
         <div className="flex items-center gap-2">
           <span className="text-[12px] font-bold text-[#0F1117] dark:text-white">{value}</span>
-          <span className="text-[10px] text-[#F3F4F6] w-8 text-right">{pct}%</span>
+          <span className="text-[10px] text-[#8B92A9] w-8 text-right">{pct}%</span>
         </div>
       </div>
       <div className="h-2 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
@@ -150,14 +150,14 @@ function WeekChart({ allLeads, viewDate }) {
             <div key={i} className="flex-1 flex flex-col items-center gap-1">
               <div className="w-full rounded-t-md transition-all duration-500"
                 style={{ height: `${h}px`, background: isSelected ? "#2563EB" : "#BFDBFE" }} />
-              <span className="text-[9px] text-[#F3F4F6] dark:text-[#D1D5DB]">
+              <span className="text-[9px] text-[#8B92A9] dark:text-[#D1D5DB]">
                 {d.toLocaleDateString("en-GB", { weekday: "short" }).slice(0, 2)}
               </span>
             </div>
           );
         })}
       </div>
-      <p className="text-[10px] text-[#F3F4F6] dark:text-[#D1D5DB] mt-2">Last 7 days · blue bar = selected date</p>
+      <p className="text-[10px] text-[#8B92A9] dark:text-[#D1D5DB] mt-2">Last 7 days · blue bar = selected date</p>
     </div>
   );
 }
@@ -282,13 +282,13 @@ export default function UserDailyReport() {
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className={`w-2 h-2 rounded-full ${isToday ? "bg-[#059669] animate-pulse" : "bg-[#F3F4F6]"}`} />
-            <span className={`text-[11px] font-semibold uppercase tracking-wide ${isToday ? "text-[#059669]" : "text-[#F3F4F6]"}`}>
+            <span className={`w-2 h-2 rounded-full ${isToday ? "bg-[#059669] animate-pulse" : "bg-[#8B92A9]"}`} />
+            <span className={`text-[11px] font-semibold uppercase tracking-wide ${isToday ? "text-[#059669]" : "text-[#8B92A9]"}`}>
               {isToday ? "Live — today" : "Historical report"}
             </span>
           </div>
           <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-white">My Daily Report</h1>
-          <p className="text-[13px] text-[#F3F4F6] dark:text-[#D1D5DB] mt-0.5">
+          <p className="text-[13px] text-[#8B92A9] dark:text-[#D1D5DB] mt-0.5">
             {fmtLong(viewDate)} · <span className="font-semibold text-[#2563EB]">{user?.name || "Agent"}</span>
           </p>
         </div>
@@ -383,7 +383,7 @@ export default function UserDailyReport() {
               </div>
               {stats.total > 0 && (
                 <div className="mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
-                  <span className="text-[12px] text-[#F3F4F6]">Conversion rate</span>
+                  <span className="text-[12px] text-[#8B92A9]">Conversion rate</span>
                   <span className="text-[22px] font-bold text-[#059669] dark:text-[#34D399]">{stats.convRate}%</span>
                 </div>
               )}
@@ -391,7 +391,7 @@ export default function UserDailyReport() {
 
             <Card title="Leads by source" badge={stats.total} bc="#2563EB">
               {sources.length === 0 ? (
-                <p className="text-[13px] text-[#F3F4F6] dark:text-[#D1D5DB] py-8 text-center">No leads for {fmtShort(viewDate)}.</p>
+                <p className="text-[13px] text-[#8B92A9] dark:text-[#D1D5DB] py-8 text-center">No leads for {fmtShort(viewDate)}.</p>
               ) : (
                 <div className="space-y-3.5">
                   {sources.map(s => (
@@ -403,7 +403,7 @@ export default function UserDailyReport() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-[12px] font-semibold text-[#0F1117] dark:text-white">{s.count}</span>
-                          <span className="text-[10px] text-[#F3F4F6] w-8 text-right">
+                          <span className="text-[10px] text-[#8B92A9] w-8 text-right">
                             {Math.round(s.count / (stats.total || 1) * 100)}%
                           </span>
                         </div>
@@ -468,7 +468,7 @@ export default function UserDailyReport() {
           {dayLeads.length === 0 ? (
             <div className="py-14 text-center">
               <div className="text-[40px] mb-3"></div>
-              <p className="text-[13px] text-[#F3F4F6] dark:text-[#D1D5DB]">No leads for {fmtShort(viewDate)}.</p>
+              <p className="text-[13px] text-[#8B92A9] dark:text-[#D1D5DB]">No leads for {fmtShort(viewDate)}.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -489,11 +489,11 @@ export default function UserDailyReport() {
                       </span>
                       <StatusBadge status={l.status} />
                       <TempBadge quality={l.quality} />
-                      {l.remark && <span className="text-[10px] text-[#F3F4F6] italic truncate max-w-[180px]">{l.remark}</span>}
+                      {l.remark && <span className="text-[10px] text-[#8B92A9] italic truncate max-w-[180px]">{l.remark}</span>}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-[10px] text-[#F3F4F6] dark:text-[#D1D5DB]">{l.date}</div>
+                    <div className="text-[10px] text-[#8B92A9] dark:text-[#D1D5DB]">{l.date}</div>
                   </div>
                 </div>
               ))}
@@ -513,7 +513,7 @@ export default function UserDailyReport() {
 
           <Card title="Pending follow-ups" badge={followUps.length} bc="#D97706">
             {followUps.length === 0 ? (
-              <p className="text-[13px] text-center text-[#F3F4F6] dark:text-[#D1D5DB] py-10">No pending follow-ups. Great work! 🎉</p>
+              <p className="text-[13px] text-center text-[#8B92A9] dark:text-[#D1D5DB] py-10">No pending follow-ups. Great work! 🎉</p>
             ) : (
               <div className="space-y-2">
                 {followUps.map((l, i) => {
@@ -537,7 +537,7 @@ export default function UserDailyReport() {
                         </div>
                         <div className="flex items-center justify-between">
                           <p className="text-[12px] text-[#4B5168] dark:text-[#E5E7EB] italic">{l.remark || "Follow-up required"}</p>
-                          <span className="text-[12px] text-[#F3F4F6] shrink-0 ml-2">{l.date}</span>
+                          <span className="text-[12px] text-[#8B92A9] shrink-0 ml-2">{l.date}</span>
                         </div>
                       </div>
                     </div>
@@ -565,7 +565,7 @@ export default function UserDailyReport() {
             {conversions.length === 0 ? (
               <div className="py-14 text-center">
                 <div className="text-[40px] mb-3"></div>
-                <p className="text-[14px] text-[#F3F4F6] dark:text-[#D1D5DB]">No conversions on {fmtShort(viewDate)}.</p>
+                <p className="text-[14px] text-[#8B92A9] dark:text-[#D1D5DB]">No conversions on {fmtShort(viewDate)}.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -629,7 +629,7 @@ export default function UserDailyReport() {
                 ))}
               </div>
               <div className="mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
-                <span className="text-[14px] text-[#F3F4F6]">Overall conversion rate</span>
+                <span className="text-[14px] text-[#8B92A9]">Overall conversion rate</span>
                 <span className="text-[22px] font-bold text-[#059669] dark:text-[#34D399]">
                   {allLeads.length > 0 ? Math.round(allLeads.filter(l => l.status === "Converted").length / allLeads.length * 100) : 0}%
                 </span>
@@ -639,7 +639,7 @@ export default function UserDailyReport() {
             {/* Hot leads pipeline */}
             <Card title="Hot leads — act now ">
               {allLeads.filter(l => l.quality === "Hot" && l.status !== "Converted").length === 0 ? (
-                <p className="text-[14px] text-center text-[#F3F4F6] dark:text-[#D1D5DB] py-10">No hot leads right now.</p>
+                <p className="text-[14px] text-center text-[#8B92A9] dark:text-[#D1D5DB] py-10">No hot leads right now.</p>
               ) : (
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {allLeads
@@ -650,7 +650,7 @@ export default function UserDailyReport() {
                         <span className="text-[18px]"></span>
                         <div className="flex-1 min-w-0">
                           <p className="text-[14px] font-semibold text-[#DC2626] dark:text-[#F87171] truncate">{l.name}</p>
-                          <p className="text-[14px] text-[#F3F4F6]">{l.source}</p>
+                          <p className="text-[14px] text-[#8B92A9]">{l.source}</p>
                         </div>
                         <StatusBadge status={l.status} />
                       </div>
