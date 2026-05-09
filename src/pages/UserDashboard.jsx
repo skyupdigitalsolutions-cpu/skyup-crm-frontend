@@ -1164,7 +1164,7 @@ export default function UserDashboard() {
     setLoading(true);
     api.get("/lead/my-leads")
       .then(function(res) {
-        const raw = Array.isArray(res.data) ? res.data : (res.data && res.data.data ? res.data.data : []);
+        const raw = Array.isArray(res.data) ? res.data : (res.data && (res.data.leads || res.data.data) ? (res.data.leads || res.data.data) : []);
         setLeads(raw.map(mapLead));
         setError("");
       })
