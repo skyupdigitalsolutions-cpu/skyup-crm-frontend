@@ -17,6 +17,22 @@ export function getRole() {
   return user?.role || "user";
 }
 
+// ── FIX 4B: Paginated lead fetcher ────────────────────────────────────────────
+// Use this wherever you need leads with pagination support.
+// Returns: { leads, total, page, pages }
+export const getLeads = async (page = 1, limit = 50, filters = {}) => {
+  const params = new URLSearchParams({ page, limit, ...filters });
+  const { data } = await api.get(`/lead?${params}`);
+  return data; // { leads, total, page, pages }
+};
+
+// Admin version — hits the admin leads endpoint
+export const getAdminLeads = async (page = 1, limit = 50, filters = {}) => {
+  const params = new URLSearchParams({ page, limit, ...filters });
+  const { data } = await api.get(`/admin/company/leads?${params}`);
+  return data; // { leads, total, page, pages }
+};
+
 // ── Fetch all data based on role ───────────────────────────────────────────
 export async function fetchAll() {
   const role = getRole();
@@ -28,28 +44,55 @@ export async function fetchAll() {
   return fetchUserData();
 }
 
-// ── User: fetch own leads ───────────────────────────────────────────────────
+// ── User: fetch own leads (paginated) ─────────────────────────────────────
 async function fetchUserData() {
   const user = getStoredUser();
-  const leadsRes = await api.get("/lead/my-leads");
-  const leads = await Promise.all(leadsRes.data.map(formatLead));
+
+  // FIX 4B: Use my-leads with pagination; fetch first page on load.
+  // Components that need more pages should call getLeads() directly.
+  const leadsRes = await api.get("/lead/my-leads?page=1&limit=50");
+
+  // Support both old array response and new paginated response
+  const rawLeads = Array.isArray(leadsRes.data)
+    ? leadsRes.data
+    : (leadsRes.data.leads || []);
+
+  const leads = await Promise.all(rawLeads.map(formatLead));
   const agents = user
     ? [formatAgent({ _id: user._id || user.id, name: user.name, email: user.email, company: user.company })]
     : [];
-  return { leads, agents };
+
+  return {
+    leads,
+    agents,
+    total:  leadsRes.data.total || leads.length,
+    page:   leadsRes.data.page  || 1,
+    pages:  leadsRes.data.pages || 1,
+  };
 }
 
-// ── Admin: fetch company leads + users ─────────────────────────────────────
+// ── Admin: fetch company leads + users (paginated) ─────────────────────────
 async function fetchAdminData() {
   const [leadsRes, usersRes] = await Promise.all([
-    api.get("/admin/company/leads"),
+    api.get("/admin/company/leads?page=1&limit=50"),
     api.get("/admin/company/users"),
   ]);
 
-  const leads  = await Promise.all(leadsRes.data.map(formatLead));
+  // Support both old array response and new paginated response
+  const rawLeads = Array.isArray(leadsRes.data)
+    ? leadsRes.data
+    : (leadsRes.data.leads || []);
+
+  const leads  = await Promise.all(rawLeads.map(formatLead));
   const agents = usersRes.data.map(formatAgent);
 
-  return { leads, agents };
+  return {
+    leads,
+    agents,
+    total:  leadsRes.data.total || leads.length,
+    page:   leadsRes.data.page  || 1,
+    pages:  leadsRes.data.pages || 1,
+  };
 }
 
 // ── SuperAdmin: fetch all companies + their leads ──────────────────────────
