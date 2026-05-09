@@ -70,7 +70,7 @@ function fmtDuration(seconds) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-// Auth helpers — same pattern as your other services
+// Auth helpers
 function authHeaders() {
   const token = localStorage.getItem("token");
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -109,6 +109,117 @@ function Avatar({ name, size = "md" }) {
 }
 
 const INP = "w-full text-[12px] border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0D0F14] rounded-xl px-3 py-2 text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-indigo-500 transition";
+
+// ─── IP Address Badge ─────────────────────────────────────────────────────────
+
+function IpBadge({ ip }) {
+  if (!ip) return <span className="text-[#8B92A9]">—</span>;
+  return (
+    <span className="inline-flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/60">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5 shrink-0">
+        <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      {ip}
+    </span>
+  );
+}
+
+// ─── Login History Modal ──────────────────────────────────────────────────────
+
+function LoginHistoryModal({ user, onClose }) {
+  const history = [...(user.loginHistory || [])].reverse();
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl w-full max-w-lg mx-4 shadow-2xl overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] flex items-center justify-between">
+          <div>
+            <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Login History</h3>
+            <p className="text-[11px] text-[#8B92A9] mt-0.5">{user.name} · {history.length} session{history.length !== 1 ? "s" : ""}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white transition"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* List */}
+        <div className="max-h-[420px] overflow-y-auto divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
+          {history.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <span className="text-[32px]">🔐</span>
+              <p className="text-[12px] text-[#8B92A9]">No login history available</p>
+            </div>
+          ) : (
+            history.map((entry, i) => {
+              const platform = entry.device?.platform || entry.platform || null;
+              const model    = entry.device?.model    || entry.deviceModel || null;
+              const os       = entry.device?.osVersion || entry.osVersion || null;
+              const ip       = entry.ip || entry.ipAddress || null;
+              const loginAt  = entry.loginAt || entry.timestamp || null;
+              const isFirst  = i === 0;
+
+              return (
+                <div key={i} className={`px-5 py-3 flex items-start gap-3 ${isFirst ? "bg-indigo-50/50 dark:bg-indigo-950/10" : "hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]"} transition`}>
+                  {/* Index dot */}
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[9px] font-bold ${
+                    isFirst
+                      ? "bg-indigo-600 text-white"
+                      : "bg-[#F1F4FF] dark:bg-[#262A38] text-[#8B92A9]"
+                  }`}>
+                    {isFirst ? "★" : history.length - i}
+                  </div>
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <IpBadge ip={ip} />
+                      {isFirst && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                          Latest
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {platform && (
+                        <span className="text-[10px] text-[#8B92A9]">
+                          <span className="font-semibold text-[#4B5168] dark:text-[#9DA3BB]">{platform}</span>
+                          {model ? ` · ${model}` : ""}
+                          {os ? ` (${os})` : ""}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-[#8B92A9] mt-0.5">{fmtDateTime(loginAt)}</p>
+                  </div>
+
+                  {/* Time ago */}
+                  <span className="text-[10px] text-[#8B92A9] shrink-0 mt-0.5">{daysSince(loginAt)}</span>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
+          <button
+            onClick={onClose}
+            className="w-full py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27] transition"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 
@@ -231,9 +342,7 @@ function CallLogCard({ log }) {
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
-      {/* Main row */}
       <div className="px-4 py-3 flex items-start justify-between gap-3">
-        {/* Left: call type icon + number + contact name */}
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[14px] font-bold
             ${log.callType === "incoming"  ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" :
@@ -258,7 +367,6 @@ function CallLogCard({ log }) {
           </div>
         </div>
 
-        {/* Right: badges + timestamp + duration + expand toggle */}
         <div className="flex flex-col items-end gap-1 shrink-0">
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             <CallTypeBadge callType={log.callType} />
@@ -288,7 +396,6 @@ function CallLogCard({ log }) {
         </div>
       </div>
 
-      {/* Expanded: recordings player + transcript + AI summary */}
       {expanded && (hasRecordings || hasSummary) && (
         <div className="border-t border-[#E4E7EF] dark:border-[#262A38] px-4 py-3 space-y-4">
           {log.recordings.map((rec, i) => (
@@ -298,15 +405,9 @@ function CallLogCard({ log }) {
                   <p className="text-[10px] font-semibold text-[#8B92A9] mb-1.5 uppercase tracking-wider">
                     Recording {log.recordings.length > 1 ? i + 1 : ""}
                   </p>
-                  <audio
-                    controls
-                    src={rec.url}
-                    className="w-full"
-                    style={{ height: "36px", accentColor: "#6366f1" }}
-                  />
+                  <audio controls src={rec.url} className="w-full" style={{ height: "36px", accentColor: "#6366f1" }} />
                 </div>
               )}
-
               {rec.transcribeStatus && rec.transcribeStatus !== "done" && !rec.transcript && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-100 dark:border-amber-900/40">
                   <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -318,7 +419,6 @@ function CallLogCard({ log }) {
                   </p>
                 </div>
               )}
-
               {rec.transcript && (
                 <div>
                   <p className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wider mb-1">Transcript</p>
@@ -327,28 +427,21 @@ function CallLogCard({ log }) {
                   </p>
                 </div>
               )}
-
               {rec.summary && (
                 <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-lg px-3 py-2.5 border border-indigo-100 dark:border-indigo-900/40 space-y-2">
                   <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">AI Summary</p>
-
                   {rec.summary.summary && (
-                    <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">
-                      {rec.summary.summary}
-                    </p>
+                    <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{rec.summary.summary}</p>
                   )}
-
                   {rec.summary.keyPoints?.length > 0 && (
                     <ul className="space-y-0.5">
                       {rec.summary.keyPoints.map((pt, j) => (
                         <li key={j} className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] flex gap-1.5">
-                          <span className="text-indigo-400 shrink-0 mt-0.5">•</span>
-                          {pt}
+                          <span className="text-indigo-400 shrink-0 mt-0.5">•</span>{pt}
                         </li>
                       ))}
                     </ul>
                   )}
-
                   <div className="flex items-center gap-3 pt-0.5 flex-wrap">
                     {rec.summary.sentiment && (
                       <span className="text-[10px] font-semibold text-[#8B92A9]">
@@ -381,10 +474,11 @@ function CallLogCard({ log }) {
 function UserDetailDrawer({ user, records, onClose }) {
   if (!user) return null;
 
-  const [callLogs,    setCallLogs]    = useState([]);
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [logsError,   setLogsError]   = useState("");
-  const [logsPage,    setLogsPage]    = useState(1);
+  const [callLogs,        setCallLogs]        = useState([]);
+  const [logsLoading,     setLogsLoading]     = useState(false);
+  const [logsError,       setLogsError]       = useState("");
+  const [logsPage,        setLogsPage]        = useState(1);
+  const [showLoginHistory, setShowLoginHistory] = useState(false);
   const LOGS_PER_PAGE = 20;
 
   useEffect(() => {
@@ -430,7 +524,7 @@ function UserDetailDrawer({ user, records, onClose }) {
   const totalPages = Math.ceil(totalCalls / LOGS_PER_PAGE);
   const pagedLogs  = callLogs.slice((logsPage - 1) * LOGS_PER_PAGE, logsPage * LOGS_PER_PAGE);
 
-  // ── Device / app info ─────────────────────────────────────────────────────
+  // ── Device / app info (prefer user-level, fall back to last record) ───────
   const appName     = user.appName     || lastRec?.appName     || null;
   const appVersion  = user.appVersion  || lastRec?.appVersion  || null;
   const platform    = user.platform    || lastRec?.platform    || null;
@@ -438,6 +532,12 @@ function UserDetailDrawer({ user, records, onClose }) {
   const osVersion   = user.osVersion   || lastRec?.osVersion   || null;
   const fcmToken    = user.fcmToken    || lastRec?.fcmToken    || null;
   const lastSynced  = lastRec?.updatedAt || lastRec?.loginTime  || null;
+
+  // ── IP / login info ───────────────────────────────────────────────────────
+  const lastIpAddress   = user.lastIpAddress   || null;
+  const lastLoginAt     = user.lastLoginAt     || null;
+  const loginHistory    = user.loginHistory    || [];
+  const historyCount    = loginHistory.length;
 
   const statItems = [
     { label: "Present",  value: present,  color: "#059669" },
@@ -448,213 +548,272 @@ function UserDetailDrawer({ user, records, onClose }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div
-        className="w-full max-w-[540px] bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-y-auto flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* ── Header ── */}
-        <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] sticky top-0 z-10">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Avatar name={user.name} size="lg" />
-              <div>
-                <h2 className="text-[17px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{user.name || "Unknown"}</h2>
-                <p className="text-[11px] text-[#8B92A9] mt-0.5">{user.email || "—"}</p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {user.role && (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
-                      {user.role}
+    <>
+      <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+        <div
+          className="w-full max-w-[540px] bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-y-auto flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* ── Header ── */}
+          <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] sticky top-0 z-10">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Avatar name={user.name} size="lg" />
+                <div>
+                  <h2 className="text-[17px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{user.name || "Unknown"}</h2>
+                  <p className="text-[11px] text-[#8B92A9] mt-0.5">{user.email || "—"}</p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {user.role && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                        {user.role}
+                      </span>
+                    )}
+                    {user.phone && (
+                      <span className="text-[10px] font-mono text-[#8B92A9]">{user.phone}</span>
+                    )}
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      user.isActive !== false
+                        ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                        : "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
+                    }`}>
+                      {user.isActive !== false ? "Active" : "Inactive"}
                     </span>
-                  )}
-                  {user.phone && (
-                    <span className="text-[10px] font-mono text-[#8B92A9]">{user.phone}</span>
-                  )}
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                    user.isActive !== false
-                      ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
-                      : "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
-                  }`}>
-                    {user.isActive !== false ? "Active" : "Inactive"}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <button onClick={onClose}
-              className="w-8 h-8 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white transition shrink-0">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* ── Attendance % bar ── */}
-        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-bold text-[#0F1117] dark:text-[#F0F2FA] uppercase tracking-widest">Attendance Rate</p>
-            <span className="text-[13px] font-black" style={{
-              color: attendancePct >= 80 ? "#059669" : attendancePct >= 60 ? "#D97706" : "#DC2626"
-            }}>{attendancePct}%</span>
-          </div>
-          <div className="h-2 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-500" style={{
-              width: `${attendancePct}%`,
-              background: attendancePct >= 80 ? "#059669" : attendancePct >= 60 ? "#D97706" : "#DC2626"
-            }} />
-          </div>
-          <p className="text-[10px] text-[#8B92A9] mt-1">
-            {total} records total · Last seen {daysSince(lastRec?.date || lastRec?.loginTime)}
-          </p>
-        </div>
-
-        {/* ── Attendance stats grid ── */}
-        <div className="px-6 py-4 grid grid-cols-5 gap-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
-          {statItems.map(s => (
-            <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-2 text-center">
-              <p className="text-[9px] font-bold text-[#8B92A9] uppercase tracking-wide mb-0.5">{s.label}</p>
-              <p className="text-[15px] font-black" style={{ color: s.color }}>{s.value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Body ── */}
-        <div className="px-6 py-5 flex-1 space-y-6">
-
-          {/* ── Device / App Info ── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Login Device & App</p>
-              <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
-            </div>
-            <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
-              {[
-                { label: "App Name",     value: appName     || "—" },
-                { label: "App Version",  value: appVersion  || "—" },
-                { label: "Platform",     value: platform    || "—" },
-                { label: "Device Model", value: deviceModel || "—" },
-                { label: "OS Version",   value: osVersion   || "—" },
-                { label: "Last Synced",  value: lastSynced ? fmtDateTime(lastSynced) : "—" },
-                { label: "FCM Token",    value: fcmToken ? fcmToken.slice(0, 24) + "…" : "—" },
-              ].map((row, i) => (
-                <div key={row.label} className={`flex items-center justify-between px-4 py-2.5 ${i > 0 ? "border-t border-[#F0F2FA] dark:border-[#1E2130]" : ""}`}>
-                  <span className="text-[11px] text-[#8B92A9]">{row.label}</span>
-                  <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] text-right max-w-[200px] truncate">{row.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Device Call Logs ── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Device Call Logs</p>
-              <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
-              <span className="text-[10px] font-bold text-[#8B92A9]">
-                {logsLoading ? "…" : `${totalCalls} calls`}
-              </span>
-            </div>
-
-            {!logsLoading && !logsError && totalCalls > 0 && (
-              <div className="grid grid-cols-4 gap-2 mb-3">
-                {[
-                  { label: "Total",     value: totalCalls,                    color: "#6366f1" },
-                  { label: "Missed",    value: missedCalls,                   color: "#DC2626" },
-                  { label: "Recorded",  value: withRecording,                 color: "#0891b2" },
-                  { label: "Talk time", value: fmtDuration(totalDuration) || "0s", color: "#059669", small: true },
-                ].map(s => (
-                  <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-2 text-center border border-[#E4E7EF] dark:border-[#262A38]">
-                    <p className="text-[9px] font-bold text-[#8B92A9] uppercase tracking-wide mb-0.5">{s.label}</p>
-                    <p className={`font-black ${s.small ? "text-[11px]" : "text-[15px]"}`} style={{ color: s.color }}>
-                      {s.value}
-                    </p>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {logsLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="h-16 rounded-xl bg-[#F1F4FF] dark:bg-[#262A38] animate-pulse" />
-                ))}
-              </div>
-            ) : logsError ? (
-              <div className="flex flex-col items-center justify-center py-6 gap-2 bg-red-50 dark:bg-red-950/20 rounded-xl border border-dashed border-red-200 dark:border-red-900/40">
-                <span className="text-[28px]"></span>
-                <p className="text-[12px] text-red-500">{logsError}</p>
-              </div>
-            ) : pagedLogs.length > 0 ? (
-              <>
-                <div className="space-y-2">
-                  {pagedLogs.map((log, i) => (
-                    <CallLogCard key={log._id || i} log={log} />
-                  ))}
                 </div>
+              </div>
+              <button onClick={onClose}
+                className="w-8 h-8 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white transition shrink-0">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
 
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between pt-3">
-                    <button
-                      disabled={logsPage <= 1}
-                      onClick={() => setLogsPage(p => p - 1)}
-                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white disabled:opacity-40 transition"
-                    >
-                      ← Prev
-                    </button>
-                    <p className="text-[11px] text-[#8B92A9]">Page {logsPage} of {totalPages}</p>
-                    <button
-                      disabled={logsPage >= totalPages}
-                      onClick={() => setLogsPage(p => p + 1)}
-                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white disabled:opacity-40 transition"
-                    >
-                      Next →
-                    </button>
+          {/* ── Attendance % bar ── */}
+          <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-bold text-[#0F1117] dark:text-[#F0F2FA] uppercase tracking-widest">Attendance Rate</p>
+              <span className="text-[13px] font-black" style={{
+                color: attendancePct >= 80 ? "#059669" : attendancePct >= 60 ? "#D97706" : "#DC2626"
+              }}>{attendancePct}%</span>
+            </div>
+            <div className="h-2 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500" style={{
+                width: `${attendancePct}%`,
+                background: attendancePct >= 80 ? "#059669" : attendancePct >= 60 ? "#D97706" : "#DC2626"
+              }} />
+            </div>
+            <p className="text-[10px] text-[#8B92A9] mt-1">
+              {total} records total · Last seen {daysSince(lastRec?.date || lastRec?.loginTime)}
+            </p>
+          </div>
+
+          {/* ── Attendance stats grid ── */}
+          <div className="px-6 py-4 grid grid-cols-5 gap-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
+            {statItems.map(s => (
+              <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-2 text-center">
+                <p className="text-[9px] font-bold text-[#8B92A9] uppercase tracking-wide mb-0.5">{s.label}</p>
+                <p className="text-[15px] font-black" style={{ color: s.color }}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Body ── */}
+          <div className="px-6 py-5 flex-1 space-y-6">
+
+            {/* ── Login & IP Info ── */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Login & Network</p>
+                <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
+                {historyCount > 0 && (
+                  <button
+                    onClick={() => setShowLoginHistory(true)}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition shrink-0"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
+                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    History ({historyCount})
+                  </button>
+                )}
+              </div>
+              <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+                {/* Last IP Address */}
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-[11px] text-[#8B92A9]">Last IP Address</span>
+                  <IpBadge ip={lastIpAddress} />
+                </div>
+                {/* Last Login */}
+                <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#F0F2FA] dark:border-[#1E2130]">
+                  <span className="text-[11px] text-[#8B92A9]">Last Login</span>
+                  <div className="text-right">
+                    <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+                      {lastLoginAt ? fmtDateTime(lastLoginAt) : "—"}
+                    </p>
+                    {lastLoginAt && (
+                      <p className="text-[10px] text-[#8B92A9]">{daysSince(lastLoginAt)}</p>
+                    )}
+                  </div>
+                </div>
+                {/* Login Sessions count */}
+                {historyCount > 0 && (
+                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#F0F2FA] dark:border-[#1E2130]">
+                    <span className="text-[11px] text-[#8B92A9]">Total Sessions</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{historyCount}</span>
+                      <button
+                        onClick={() => setShowLoginHistory(true)}
+                        className="text-[10px] font-semibold text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 underline underline-offset-2 transition"
+                      >
+                        View all
+                      </button>
+                    </div>
                   </div>
                 )}
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                <span className="text-[28px]"></span>
-                <p className="text-[12px] text-[#8B92A9]">No call logs synced for this user</p>
               </div>
-            )}
-          </div>
-
-          {/* ── Recent Attendance Records ── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <CalendarDays className="w-3.5 h-3.5 text-[#8B92A9]" />
-              <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Recent Attendance</p>
-              <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
             </div>
-            {sortedAtt.length > 0 ? (
+
+            {/* ── Device / App Info ── */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Login Device & App</p>
+                <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
+              </div>
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
-                {sortedAtt.slice(0, 7).map((rec, i) => (
-                  <div key={i} className={`flex items-center justify-between px-4 py-2.5 ${i > 0 ? "border-t border-[#F0F2FA] dark:border-[#1E2130]" : ""}`}>
-                    <div className="flex items-center gap-3">
-                      <StatusBadge status={rec.derivedCrmStatus || "absent"} />
-                      <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{rec.date}</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
-                        {fmtTime(rec.loginTime)} → {fmtTime(rec.logoutTime)}
-                      </p>
-                      <p className="text-[10px] text-[#8B92A9]">{rec.workingHours || "—"}</p>
-                    </div>
+                {[
+                  { label: "App Name",     value: appName     || "—" },
+                  { label: "App Version",  value: appVersion  || "—" },
+                  { label: "Platform",     value: platform    || "—" },
+                  { label: "Device Model", value: deviceModel || "—" },
+                  { label: "OS Version",   value: osVersion   || "—" },
+                  { label: "Last Synced",  value: lastSynced ? fmtDateTime(lastSynced) : "—" },
+                  { label: "FCM Token",    value: fcmToken ? fcmToken.slice(0, 24) + "…" : "—" },
+                ].map((row, i) => (
+                  <div key={row.label} className={`flex items-center justify-between px-4 py-2.5 ${i > 0 ? "border-t border-[#F0F2FA] dark:border-[#1E2130]" : ""}`}>
+                    <span className="text-[11px] text-[#8B92A9]">{row.label}</span>
+                    <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] text-right max-w-[200px] truncate">{row.value}</span>
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                <span className="text-[28px]"></span>
-                <p className="text-[14px] text-[#8B92A9]">No attendance records found</p>
-              </div>
-            )}
-          </div>
+            </div>
 
+            {/* ── Device Call Logs ── */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Device Call Logs</p>
+                <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
+                <span className="text-[10px] font-bold text-[#8B92A9]">
+                  {logsLoading ? "…" : `${totalCalls} calls`}
+                </span>
+              </div>
+
+              {!logsLoading && !logsError && totalCalls > 0 && (
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  {[
+                    { label: "Total",     value: totalCalls,                    color: "#6366f1" },
+                    { label: "Missed",    value: missedCalls,                   color: "#DC2626" },
+                    { label: "Recorded",  value: withRecording,                 color: "#0891b2" },
+                    { label: "Talk time", value: fmtDuration(totalDuration) || "0s", color: "#059669", small: true },
+                  ].map(s => (
+                    <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-2 text-center border border-[#E4E7EF] dark:border-[#262A38]">
+                      <p className="text-[9px] font-bold text-[#8B92A9] uppercase tracking-wide mb-0.5">{s.label}</p>
+                      <p className={`font-black ${s.small ? "text-[11px]" : "text-[15px]"}`} style={{ color: s.color }}>
+                        {s.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {logsLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-16 rounded-xl bg-[#F1F4FF] dark:bg-[#262A38] animate-pulse" />
+                  ))}
+                </div>
+              ) : logsError ? (
+                <div className="flex flex-col items-center justify-center py-6 gap-2 bg-red-50 dark:bg-red-950/20 rounded-xl border border-dashed border-red-200 dark:border-red-900/40">
+                  <span className="text-[28px]">⚠️</span>
+                  <p className="text-[12px] text-red-500">{logsError}</p>
+                </div>
+              ) : pagedLogs.length > 0 ? (
+                <>
+                  <div className="space-y-2">
+                    {pagedLogs.map((log, i) => (
+                      <CallLogCard key={log._id || i} log={log} />
+                    ))}
+                  </div>
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-3">
+                      <button
+                        disabled={logsPage <= 1}
+                        onClick={() => setLogsPage(p => p - 1)}
+                        className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white disabled:opacity-40 transition"
+                      >
+                        ← Prev
+                      </button>
+                      <p className="text-[11px] text-[#8B92A9]">Page {logsPage} of {totalPages}</p>
+                      <button
+                        disabled={logsPage >= totalPages}
+                        onClick={() => setLogsPage(p => p + 1)}
+                        className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white disabled:opacity-40 transition"
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
+                  <span className="text-[28px]">📵</span>
+                  <p className="text-[12px] text-[#8B92A9]">No call logs synced for this user</p>
+                </div>
+              )}
+            </div>
+
+            {/* ── Recent Attendance Records ── */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <CalendarDays className="w-3.5 h-3.5 text-[#8B92A9]" />
+                <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">Recent Attendance</p>
+                <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
+              </div>
+              {sortedAtt.length > 0 ? (
+                <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+                  {sortedAtt.slice(0, 7).map((rec, i) => (
+                    <div key={i} className={`flex items-center justify-between px-4 py-2.5 ${i > 0 ? "border-t border-[#F0F2FA] dark:border-[#1E2130]" : ""}`}>
+                      <div className="flex items-center gap-3">
+                        <StatusBadge status={rec.derivedCrmStatus || "absent"} />
+                        <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{rec.date}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
+                          {fmtTime(rec.loginTime)} → {fmtTime(rec.logoutTime)}
+                        </p>
+                        <p className="text-[10px] text-[#8B92A9]">{rec.workingHours || "—"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
+                  <span className="text-[28px]">📅</span>
+                  <p className="text-[14px] text-[#8B92A9]">No attendance records found</p>
+                </div>
+              )}
+            </div>
+
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* ── Login History Modal (rendered outside the drawer so z-index stacks correctly) ── */}
+      {showLoginHistory && (
+        <LoginHistoryModal user={user} onClose={() => setShowLoginHistory(false)} />
+      )}
+    </>
   );
 }
 
@@ -679,6 +838,8 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
               <th className={thCls}>Check-Out</th>
               <th className={thCls}>Working Hours</th>
               <th className={thCls}>Status</th>
+              <th className={thCls}>Last IP</th>
+              <th className={thCls}>Last Login</th>
               <th className={thCls}>Remarks</th>
               <th className={thCls}>Actions</th>
             </tr>
@@ -687,7 +848,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 8 }).map((_, j) => (
+                  {Array.from({ length: 10 }).map((_, j) => (
                     <td key={j} className="px-4 py-3">
                       <div className="h-4 rounded bg-[#F1F4FF] dark:bg-[#262A38] animate-pulse w-20" />
                     </td>
@@ -696,57 +857,78 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
               ))
             ) : records.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center">
-                  <span className="text-[36px] block mb-2"></span>
+                <td colSpan={10} className="px-4 py-12 text-center">
+                  <span className="text-[36px] block mb-2">📋</span>
                   <p className="text-[14px] text-[#8B92A9]">No attendance records found.</p>
                 </td>
               </tr>
             ) : (
-              records.map((rec, i) => (
-                <tr key={rec._id || i} className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition group">
-                  <td className={tdCls}>
-                    <button
-                      onClick={() => onUserClick(rec.user)}
-                      className="flex items-center gap-2 hover:opacity-80 transition text-left"
-                    >
-                      <Avatar name={rec.user?.name} size="sm" />
-                      <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:text-indigo-600 dark:hover:text-indigo-400 transition underline-offset-2 hover:underline">
-                        {rec.user?.name || "Unknown"}
-                      </span>
-                    </button>
-                  </td>
-                  <td className={tdCls}>{rec.date}</td>
-                  <td className={tdCls}>{fmtTime(rec.loginTime)}</td>
-                  <td className={tdCls}>{fmtTime(rec.logoutTime)}</td>
-                  <td className={tdCls}>
-                    <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{rec.workingHours || "0h 00m"}</span>
-                  </td>
-                  <td className={tdCls}>
-                    <StatusBadge status={rec.derivedCrmStatus} />
-                  </td>
-                  <td className={tdCls}>
-                    <span className="italic text-[#8B92A9]">{rec.remarks || "—"}</span>
-                  </td>
-                  <td className={tdCls}>
-                    {rec._id && (
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => setEditRec(rec)}
-                          className="p-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-[#8B92A9] hover:text-indigo-600 dark:hover:text-indigo-400 transition" title="Edit">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                          </svg>
-                        </button>
-                        <button onClick={() => setDelId(rec._id)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 text-[#8B92A9] hover:text-red-500 dark:hover:text-red-400 transition" title="Delete">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                          </svg>
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))
+              records.map((rec, i) => {
+                // IP / login pulled from the user object attached to each record
+                const recIp      = rec.user?.lastIpAddress || null;
+                const recLoginAt = rec.user?.lastLoginAt   || null;
+
+                return (
+                  <tr key={rec._id || i} className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition group">
+                    <td className={tdCls}>
+                      <button
+                        onClick={() => onUserClick(rec.user)}
+                        className="flex items-center gap-2 hover:opacity-80 transition text-left"
+                      >
+                        <Avatar name={rec.user?.name} size="sm" />
+                        <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:text-indigo-600 dark:hover:text-indigo-400 transition underline-offset-2 hover:underline">
+                          {rec.user?.name || "Unknown"}
+                        </span>
+                      </button>
+                    </td>
+                    <td className={tdCls}>{rec.date}</td>
+                    <td className={tdCls}>{fmtTime(rec.loginTime)}</td>
+                    <td className={tdCls}>{fmtTime(rec.logoutTime)}</td>
+                    <td className={tdCls}>
+                      <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{rec.workingHours || "0h 00m"}</span>
+                    </td>
+                    <td className={tdCls}>
+                      <StatusBadge status={rec.derivedCrmStatus} />
+                    </td>
+                    {/* ✅ Last IP Address */}
+                    <td className={tdCls}>
+                      <IpBadge ip={recIp} />
+                    </td>
+                    {/* ✅ Last Login */}
+                    <td className={tdCls}>
+                      {recLoginAt ? (
+                        <div>
+                          <p className="text-[11px] text-[#0F1117] dark:text-[#F0F2FA] font-semibold">{fmtDate(recLoginAt)}</p>
+                          <p className="text-[10px] text-[#8B92A9]">{daysSince(recLoginAt)}</p>
+                        </div>
+                      ) : (
+                        <span className="text-[#8B92A9]">—</span>
+                      )}
+                    </td>
+                    <td className={tdCls}>
+                      <span className="italic text-[#8B92A9]">{rec.remarks || "—"}</span>
+                    </td>
+                    <td className={tdCls}>
+                      {rec._id && (
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => setEditRec(rec)}
+                            className="p-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-[#8B92A9] hover:text-indigo-600 dark:hover:text-indigo-400 transition" title="Edit">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                          </button>
+                          <button onClick={() => setDelId(rec._id)}
+                            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 text-[#8B92A9] hover:text-red-500 dark:hover:text-red-400 transition" title="Delete">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -776,7 +958,7 @@ function UsersTab({ records, onUserClick }) {
   if (users.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <span className="text-[48px]"></span>
+        <span className="text-[48px]">👥</span>
         <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">No users found</p>
         <p className="text-[12px] text-[#8B92A9]">Users will appear here once attendance records are loaded.</p>
       </div>
@@ -796,6 +978,11 @@ function UsersTab({ records, onUserClick }) {
         const sorted  = [...recs].sort((a, b) => new Date(b.date) - new Date(a.date));
         const lastRec = sorted[0];
         const deviceInfo = lastRec?.appName || lastRec?.platform || lastRec?.deviceInfo;
+
+        // ✅ IP / login data on the user object
+        const lastIp      = user.lastIpAddress || null;
+        const lastLoginAt = user.lastLoginAt   || null;
+        const historyCount = (user.loginHistory || []).length;
 
         return (
           <button
@@ -839,9 +1026,33 @@ function UsersTab({ records, onUserClick }) {
               ))}
             </div>
 
+            {/* ✅ IP + Last Login row */}
+            {(lastIp || lastLoginAt) && (
+              <div className="mb-2.5 px-2.5 py-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] space-y-1">
+                {lastIp && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide">Last IP</span>
+                    <IpBadge ip={lastIp} />
+                  </div>
+                )}
+                {lastLoginAt && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide">Last Login</span>
+                    <span className="text-[10px] text-[#4B5168] dark:text-[#9DA3BB] font-semibold">{daysSince(lastLoginAt)}</span>
+                  </div>
+                )}
+                {historyCount > 0 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide">Sessions</span>
+                    <span className="text-[10px] font-semibold text-indigo-500">{historyCount}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 min-w-0">
-                <span className="text-[11px]"></span>
+                <span className="text-[11px]">📱</span>
                 <span className="text-[12px] text-[#8B92A9] truncate">{deviceInfo || "No device info"}</span>
               </div>
               <span className="text-[12px] text-[#8B92A9] shrink-0">{daysSince(lastRec?.date || lastRec?.loginTime)}</span>
