@@ -13,9 +13,9 @@ const STATUS_CONFIG = {
   "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",         text: "text-red-600 dark:text-red-400",         dot: "#DC2626" },
 };
 const TEMP_CONFIG = {
-  Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400",    icon: "🔥" },
-  Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400",icon: "🌤" },
-  Cold: { bg: "bg-blue-100 dark:bg-blue-950/40",  text: "text-blue-600 dark:text-blue-400",  icon: "❄️" },
+  Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400",    icon: "" },
+  Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400",icon: "" },
+  Cold: { bg: "bg-blue-100 dark:bg-blue-950/40",  text: "text-blue-600 dark:text-blue-400",  icon: "" },
 };
 const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral", "CSV Import", "Manual"];
 const ALL_STATUSES = ["New", "In Progress", "Converted", "Not Interested"];
@@ -265,7 +265,7 @@ function AddLeadModal({ onClose, onAdd }) {
 
         {errors.submit && (
           <div className="mt-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-[12px] text-red-600 dark:text-red-400">
-            ⚠️ {errors.submit}
+             {errors.submit}
           </div>
         )}
 
@@ -743,7 +743,7 @@ export default function AdminLeadsPage() {
           </div>
         ) : paged.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <span className="text-[48px]">📋</span>
+            <span className="text-[48px]"></span>
             <p className="text-[16px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
               {allLeads.length === 0 ? "No leads yet" : "No leads match your filters"}
             </p>
@@ -799,7 +799,7 @@ export default function AdminLeadsPage() {
                             <span className="text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[90px]">{l.agent || "Unassigned"}</span>
                           </div>
                           {l.reassignCount > 0 && (
-                            <p className="text-[9px] text-purple-400 mt-0.5">🔄 {l.reassignCount} reassign{l.reassignCount > 1 ? "s" : ""}</p>
+                            <p className="text-[9px] text-purple-400 mt-0.5"> {l.reassignCount} reassign{l.reassignCount > 1 ? "s" : ""}</p>
                           )}
                         </td>
                         {/* Source / Campaign */}
@@ -823,7 +823,7 @@ export default function AdminLeadsPage() {
                                   : l.lastOutcome === "Not Interested" || l.lastOutcome === "Not Reachable"
                                   ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
                                   : "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
-                              }`}>📞 {l.lastOutcome}</span>
+                              }`}> {l.lastOutcome}</span>
                               {l.lastCalledAt && <p className="text-[9px] text-[#8B92A9] mt-0.5">{daysSince(l.lastCalledAt)}</p>}
                               {l.lastRemark && <p className="text-[9px] text-[#8B92A9] truncate max-w-[140px] italic mt-0.5">"{l.lastRemark}"</p>}
                             </div>
