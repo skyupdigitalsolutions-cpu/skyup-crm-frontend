@@ -981,7 +981,7 @@ export default function UserLeadsPage() {
                           <button
                             title="View recordings & AI summary"
                             onClick={e => { e.stopPropagation(); setSelected(l); }}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[14px] font-semibold bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 border border-violet-100 dark:border-violet-900/50 transition opacity-0 group-hover:opacity-100">
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[14px] font-semibold bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 border border-violet-100 dark:border-violet-900/50 transition">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round"
                                 d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
