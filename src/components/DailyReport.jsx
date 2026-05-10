@@ -467,7 +467,7 @@ export default function Dailyreport() {
               )}
             </Card>
 
-            {/* FIX 3: Status breakdown — number + label in flex row, % of total below */}
+            {/* Status breakdown — big number left, label + % stacked on right, full-width cards */}
             <Card title="Status breakdown">
               <div className="grid grid-cols-2 gap-3">
                 {[
@@ -476,16 +476,14 @@ export default function Dailyreport() {
                   { label: "Converted",      value: summary.converted,     ...STATUS_STYLE["Converted"] },
                   { label: "Not Interested", value: summary.notInterested, ...STATUS_STYLE["Not Interested"] },
                 ].map(s => (
-                  <div key={s.label} className={`rounded-xl px-4 py-4 ${s.bg}`}>
-                    <div className="flex items-baseline gap-2.5">
-                      <span className={`text-[28px] font-bold leading-none ${s.text}`}>{s.value}</span>
-                      <span className={`text-[12px] font-semibold ${s.text} opacity-80`}>{s.label}</span>
-                    </div>
-                    {summary.newLeads > 0 && (
-                      <div className={`text-[11px] font-medium ${s.text} opacity-60 mt-2`}>
+                  <div key={s.label} className={`rounded-xl px-4 py-4 w-full flex items-center justify-between gap-3 ${s.bg}`}>
+                    <span className={`text-[36px] font-bold leading-none shrink-0 ${s.text}`}>{s.value}</span>
+                    <div className="flex flex-col items-end min-w-0">
+                      <span className={`text-[13px] font-semibold leading-tight text-right ${s.text}`}>{s.label}</span>
+                      <span className={`text-[11px] font-medium mt-1 text-right ${s.text} opacity-60`}>
                         {Math.round(s.value / (summary.newLeads || 1) * 100)}% of total
-                      </div>
-                    )}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
