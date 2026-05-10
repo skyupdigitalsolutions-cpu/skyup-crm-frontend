@@ -44,7 +44,7 @@ api.interceptors.response.use(
 
     // ── Subscription expired — send admin to upgrade screen ────────────────
     if (status === 403 && code === "SUBSCRIPTION_EXPIRED") {
-      window.location.href = "/upgrade";
+      window.location.href = "/upgrade-plan";
     }
 
     return Promise.reject(error);
