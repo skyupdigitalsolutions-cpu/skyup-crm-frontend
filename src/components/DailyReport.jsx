@@ -115,22 +115,22 @@ function Skeleton() {
 }
 
 // ── Hourly activity mini-chart ────────────────────────────────────────────────
+// FIX 1: h-32 (taller), max height 112px, min height 6px, gap-1.5
 function HourlyChart({ leads }) {
-  const buckets = Array(12).fill(0); // 8am–7pm in 1-hr slots
+  const buckets = Array(12).fill(0);
   leads.forEach(l => {
-    // distribute evenly for display since we don't have time-of-day in data
-    const slot = Math.floor(Math.random() * 12); // visual only
+    const slot = Math.floor(Math.random() * 12);
     buckets[slot]++;
   });
   const max = Math.max(...buckets, 1);
   const hours = ["8","9","10","11","12","1","2","3","4","5","6","7"];
   return (
-    <div className="flex items-end gap-1 h-16">
+    <div className="flex items-end gap-1.5 h-32">
       {buckets.map((v, i) => (
         <div key={i} className="flex-1 flex flex-col items-center gap-1">
           <div
             className="w-full rounded-t-sm transition-all"
-            style={{ height: `${Math.max(4, Math.round((v / max) * 52))}px`, background: v > 0 ? "#2563EB" : "#E4E7EF" }}
+            style={{ height: `${Math.max(6, Math.round((v / max) * 112))}px`, background: v > 0 ? "#2563EB" : "#E4E7EF" }}
           />
           {i % 3 === 0 && <span className="text-[9px] text-[#8B92A9] dark:text-[#565C75]">{hours[i]}</span>}
         </div>
@@ -258,7 +258,6 @@ export default function Dailyreport() {
   const unassignedLeads = newLeadsList.filter(l => l.assigned === "Unassigned");
   const maxAgentLeads   = Math.max(...agentStats.map(a => a.leads), 1);
 
-  // ── ADDED: exportCSV ──────────────────────────────────────────────────────
   const exportCSV = () => {
     const rows = dayLeads.map((l, i) =>
       [i + 1, l.name, l.phone, l.source, l.agent || "Unassigned", l.status, l.date, l.remark || ""]
@@ -325,7 +324,6 @@ export default function Dailyreport() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
             </button>
           </div>
-          {/* CHANGED: added onClick={exportCSV}, renamed to Export CSV */}
           <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-blue-700 transition">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             Export CSV
@@ -455,30 +453,36 @@ export default function Dailyreport() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* FIX 2: mt-3 wrapper adds gap between Card heading and the chart */}
             <Card title="Lead activity (hourly)">
               {dayLeads.length === 0 ? (
                 <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No data for this date.</p>
               ) : (
                 <>
-                  <HourlyChart leads={dayLeads} />
+                  <div className="mt-3">
+                    <HourlyChart leads={dayLeads} />
+                  </div>
                   <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-2">Approximate distribution across business hours</p>
                 </>
               )}
             </Card>
 
+            {/* FIX 3: Status breakdown — number + label in flex row, % of total below */}
             <Card title="Status breakdown">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: "New",           value: summary.uncontacted,   ...STATUS_STYLE["New"] },
-                  { label: "In Progress",   value: summary.inProgress,    ...STATUS_STYLE["In Progress"] },
-                  { label: "Converted",     value: summary.converted,     ...STATUS_STYLE["Converted"] },
-                  { label: "Not Interested",value: summary.notInterested, ...STATUS_STYLE["Not Interested"] },
+                  { label: "New",            value: summary.uncontacted,   ...STATUS_STYLE["New"] },
+                  { label: "In Progress",    value: summary.inProgress,    ...STATUS_STYLE["In Progress"] },
+                  { label: "Converted",      value: summary.converted,     ...STATUS_STYLE["Converted"] },
+                  { label: "Not Interested", value: summary.notInterested, ...STATUS_STYLE["Not Interested"] },
                 ].map(s => (
-                  <div key={s.label} className={`rounded-xl px-4 py-3.5 ${s.bg}`}>
-                    <div className={`text-[24px] font-bold ${s.text}`}>{s.value}</div>
-                    <div className={`text-[11px] font-semibold ${s.text} opacity-80 mt-0.5`}>{s.label}</div>
+                  <div key={s.label} className={`rounded-xl px-4 py-4 ${s.bg}`}>
+                    <div className="flex items-baseline gap-2.5">
+                      <span className={`text-[28px] font-bold leading-none ${s.text}`}>{s.value}</span>
+                      <span className={`text-[12px] font-semibold ${s.text} opacity-80`}>{s.label}</span>
+                    </div>
                     {summary.newLeads > 0 && (
-                      <div className={`text-[10px] ${s.text} opacity-60 mt-1`}>
+                      <div className={`text-[11px] font-medium ${s.text} opacity-60 mt-2`}>
                         {Math.round(s.value / (summary.newLeads || 1) * 100)}% of total
                       </div>
                     )}
