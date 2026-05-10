@@ -37,6 +37,22 @@ function timeAgo(iso) {
   return Math.floor(h / 24) + "d ago";
 }
 
+// ── Phone normalisation ───────────────────────────────────────────────────────
+/**
+ * Strips all non-digits, then removes leading country code (91 for India, 1 for US)
+ * when the result would be 12+ digits, leaving a 10-digit local number.
+ * Returns the cleaned string so two numbers can be compared with ===.
+ */
+function normalizeForDupCheck(raw) {
+  if (!raw) return "";
+  let digits = String(raw).replace(/\D/g, "");
+  // Strip leading 91 (India) if the total is 12 digits
+  if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
+  // Strip leading 1 (US/Canada) if the total is 11 digits
+  if (digits.length === 11 && digits.startsWith("1")) digits = digits.slice(1);
+  return digits;
+}
+
 // ── CSV parser ────────────────────────────────────────────────────────────────
 function parseCSVLine(line) {
   const values = [];
@@ -89,11 +105,10 @@ function TempBadge({ temp }) {
 const sharedSocket = { current: null };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ── Attendance Mini Widget  (ALL TIMING BUGS FIXED)
+// ── Attendance Mini Widget
 // ─────────────────────────────────────────────────────────────────────────────
 const IDLE_MS = 5 * 60 * 1000;
 
-/** Format whole minutes → "Xh YYm" */
 function fmtMins(totalMins) {
   if (!Number.isFinite(totalMins) || totalMins < 0) return "0h 00m";
   const h = Math.floor(totalMins / 60);
@@ -101,7 +116,6 @@ function fmtMins(totalMins) {
   return `${h}h ${String(m).padStart(2, "0")}m`;
 }
 
-/** Format a Date/ISO string → "HH:MM am/pm" in the user's local locale */
 function fmtTime(d) {
   if (!d) return "—";
   const date = d instanceof Date ? d : new Date(d);
@@ -109,36 +123,15 @@ function fmtTime(d) {
   return date.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 }
 
-/**
- * FIX 1 – Compute the total break minutes robustly.
- *
- * Priority:
- *   a) Use `record.totalBreakMinutes` if it is a positive number (server-computed).
- *   b) Otherwise sum each break entry's `durationMinutes` (server may store it here).
- *   c) If a break entry has no `durationMinutes`, compute it from startTime/endTime.
- *   d) If a break is still ongoing (no endTime), add elapsed time since startTime.
- *
- * This handles all the cases where the backend returns 0 / null / undefined for
- * the aggregate field but still returns the individual break records.
- */
 function computeTotalBreakMins(record) {
   if (!record) return 0;
-
-  // Try the server-provided aggregate first
   const serverTotal = Number(record.totalBreakMinutes);
   if (Number.isFinite(serverTotal) && serverTotal > 0) return serverTotal;
-
-  // Fall back to summing individual break entries
   const breaks = Array.isArray(record.breaks) ? record.breaks : [];
   let total = 0;
   for (const b of breaks) {
-    // Server-provided per-entry duration
     const dur = Number(b.durationMinutes ?? b.duration ?? b.durationMins);
-    if (Number.isFinite(dur) && dur > 0) {
-      total += dur;
-      continue;
-    }
-    // Compute from timestamps
+    if (Number.isFinite(dur) && dur > 0) { total += dur; continue; }
     const start = b.startTime ? new Date(b.startTime) : null;
     const end   = b.endTime   ? new Date(b.endTime)   : null;
     if (start && !isNaN(start.getTime())) {
@@ -149,11 +142,6 @@ function computeTotalBreakMins(record) {
   return total;
 }
 
-/**
- * FIX 2 – Compute the break duration for a single break entry for display.
- *
- * Same priority as above but for a single break row.
- */
 function breakEntryDurMins(b) {
   if (!b) return 0;
   const dur = Number(b.durationMinutes ?? b.duration ?? b.durationMins);
@@ -167,85 +155,27 @@ function breakEntryDurMins(b) {
   return 0;
 }
 
-/**
- * FIX 3 – Compute net worked seconds at any point in time.
- *
- * Formula:  (now or logoutTime) - loginTime  -  totalBreakMs
- *
- * We do the full subtraction in milliseconds and convert at the end,
- * rather than mixing seconds and minutes which caused precision errors.
- */
-function computeWorkedSecs(record) {
-  if (!record?.loginTime) return 0;
-
-  const loginMs  = new Date(record.loginTime).getTime();
-  const endMs    = record.logoutTime
-    ? new Date(record.logoutTime).getTime()   // FIX 4: use logout time, not Date.now()
-    : Date.now();
-
-  if (isNaN(loginMs) || isNaN(endMs)) return 0;
-
-  // Total elapsed ms since login
-  const elapsedMs = Math.max(0, endMs - loginMs);
-
-  // Break time in ms  (use the robust helper)
-  const breakMins = computeTotalBreakMins(record);
-  const breakMs   = breakMins * 60 * 1000;
-
-  // FIX 5: also subtract any ongoing (not-yet-ended) active break
-  let ongoingBreakMs = 0;
-  if (record.activeBreakIndex != null) {
-    const activeBreak = (record.breaks || [])[record.activeBreakIndex];
-    if (activeBreak?.startTime && !activeBreak?.endTime) {
-      const bStart = new Date(activeBreak.startTime).getTime();
-      if (!isNaN(bStart)) {
-        ongoingBreakMs = Math.max(0, Date.now() - bStart);
-      }
-    }
-  }
-
-  return Math.max(0, Math.round((elapsedMs - breakMs * 1000 - ongoingBreakMs) / 1000));
-  // NOTE: breakMs is already in ms (breakMins * 60 * 1000), so don't multiply again:
-}
-
-/**
- * FIX 3 corrected — avoid the double-multiply mistake above.
- */
 function computeWorkedSecsFixed(record) {
   if (!record?.loginTime) return 0;
-
   const loginMs = new Date(record.loginTime).getTime();
-  const endMs   = record.logoutTime
-    ? new Date(record.logoutTime).getTime()
-    : Date.now();
-
+  const endMs   = record.logoutTime ? new Date(record.logoutTime).getTime() : Date.now();
   if (isNaN(loginMs) || isNaN(endMs)) return 0;
-
   const elapsedMs = Math.max(0, endMs - loginMs);
-
-  // Subtract completed break time (in ms)
   const completedBreakMs = computeTotalBreakMins(record) * 60 * 1000;
-
-  // Subtract currently active (ongoing) break time
   let ongoingBreakMs = 0;
   if (record.activeBreakIndex != null) {
     const ab = (record.breaks || [])[record.activeBreakIndex];
     if (ab?.startTime && !ab?.endTime) {
       const bStart = new Date(ab.startTime).getTime();
-      if (!isNaN(bStart)) {
-        ongoingBreakMs = Math.max(0, Date.now() - bStart);
-      }
+      if (!isNaN(bStart)) ongoingBreakMs = Math.max(0, Date.now() - bStart);
     }
   }
-
-  const netMs = Math.max(0, elapsedMs - completedBreakMs - ongoingBreakMs);
-  return Math.round(netMs / 1000);
+  return Math.max(0, Math.round((elapsedMs - completedBreakMs - ongoingBreakMs) / 1000));
 }
 
 function AttendanceMiniWidget() {
   const [record,      setRecord]      = useState(null);
   const [loading,     setLoading]     = useState(true);
-  // FIX 4: Store worked seconds so we can display them even after clock-out
   const [workedSecs,  setWorkedSecs]  = useState(0);
   const [idleWarning, setIdleWarning] = useState(false);
   const [panelOpen,   setPanelOpen]   = useState(false);
@@ -266,8 +196,6 @@ function AttendanceMiniWidget() {
     try {
       const res = await api.get("/attendance/my-today");
       setRecord(res.data);
-      // FIX 4: On initial load, compute worked seconds immediately
-      // (handles the case where user is already clocked out)
       setWorkedSecs(computeWorkedSecsFixed(res.data));
     } catch {}
     setLoading(false);
@@ -275,7 +203,6 @@ function AttendanceMiniWidget() {
 
   useEffect(() => { fetchRecord(); }, [fetchRecord]);
 
-  // ── Cross-device sync ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!userId) return;
     let attempts = 0;
@@ -300,7 +227,6 @@ function AttendanceMiniWidget() {
     return () => offFn();
   }, [userId]);
 
-  // ── Close panel on outside click ──────────────────────────────────────────
   useEffect(() => {
     if (!panelOpen) return;
     const handler = (e) => {
@@ -310,31 +236,16 @@ function AttendanceMiniWidget() {
     return () => document.removeEventListener("mousedown", handler);
   }, [panelOpen]);
 
-  // ── Elapsed ticker ────────────────────────────────────────────────────────
-  // FIX 4: Only tick while the user is actively clocked in (not clocked out).
-  //         When clocked out, we set workedSecs once from the final record and stop.
   useEffect(() => {
     clearInterval(tickTimerRef.current);
-
-    if (!record?.loginTime) {
-      setWorkedSecs(0);
-      return;
-    }
-
-    if (record.logoutTime) {
-      // Clocked out — compute the final value once and freeze
-      setWorkedSecs(computeWorkedSecsFixed(record));
-      return;
-    }
-
-    // Still clocked in — tick every second
+    if (!record?.loginTime) { setWorkedSecs(0); return; }
+    if (record.logoutTime) { setWorkedSecs(computeWorkedSecsFixed(record)); return; }
     const tick = () => setWorkedSecs(computeWorkedSecsFixed(record));
-    tick(); // run immediately
+    tick();
     tickTimerRef.current = setInterval(tick, 1000);
     return () => clearInterval(tickTimerRef.current);
   }, [record]);
 
-  // ── Activity ping ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime) return;
     pingTimerRef.current = setInterval(async () => {
@@ -343,7 +254,6 @@ function AttendanceMiniWidget() {
     return () => clearInterval(pingTimerRef.current);
   }, [record?.loginTime, record?.logoutTime]);
 
-  // ── Idle detection ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime || record?.status !== "active") return;
     const resetIdle = () => {
@@ -365,34 +275,16 @@ function AttendanceMiniWidget() {
     };
   }, [record?.loginTime, record?.logoutTime, record?.status]);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
-  const clockIn = async () => {
-    try { const r = await api.post("/attendance/clock-in"); setRecord(r.data); }
-    catch (e) { alert(e.response?.data?.message || "Error"); }
-  };
-  const clockOut = async () => {
-    if (!confirm("Clock out for today?")) return;
-    try { const r = await api.post("/attendance/clock-out"); setRecord(r.data); }
-    catch (e) { alert(e.response?.data?.message || "Error"); }
-  };
-  const startBreak = async () => {
-    try { const r = await api.post("/attendance/break/start", { reason: "Manual Break" }); setRecord(r.data); }
-    catch (e) { alert(e.response?.data?.message || "Error"); }
-  };
-  const endBreak = async () => {
-    setIdleWarning(false);
-    try { const r = await api.post("/attendance/break/end"); setRecord(r.data); }
-    catch (e) { alert(e.response?.data?.message || "Error"); }
-  };
+  const clockIn    = async () => { try { const r = await api.post("/attendance/clock-in");              setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
+  const clockOut   = async () => { if (!confirm("Clock out for today?")) return; try { const r = await api.post("/attendance/clock-out"); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
+  const startBreak = async () => { try { const r = await api.post("/attendance/break/start", { reason: "Manual Break" }); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
+  const endBreak   = async () => { setIdleWarning(false); try { const r = await api.post("/attendance/break/end"); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
 
   const notClockedIn = !record || !record.loginTime;
   const isClockedOut = !!record?.logoutTime;
   const isOnBreak    = record?.status === "on_break" || record?.status === "idle";
   const isActive     = record?.status === "active";
-
-  // FIX 5: Compute total break minutes using the robust helper
   const totalBreakMins = computeTotalBreakMins(record);
-  // Worked minutes derived from our fixed workedSecs
   const workedMins = Math.floor(workedSecs / 60);
 
   const ST = {
@@ -403,9 +295,7 @@ function AttendanceMiniWidget() {
   };
   const st = ST[record?.status] || ST["logged_out"];
 
-  if (loading) return (
-    <div className="h-9 w-32 rounded-xl bg-[#F1F4FF] dark:bg-[#1E2130] animate-pulse" />
-  );
+  if (loading) return <div className="h-9 w-32 rounded-xl bg-[#F1F4FF] dark:bg-[#1E2130] animate-pulse" />;
 
   return (
     <div className="relative" ref={panelRef}>
@@ -418,18 +308,9 @@ function AttendanceMiniWidget() {
           <circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/>
         </svg>
         <span className={st.color}>
-          {/* FIX 4: Show worked time even after clock-out */}
-          {notClockedIn
-            ? "Clock In"
-            : isClockedOut
-              ? fmtMins(workedMins)   // Show final worked time, not "Clocked Out"
-              : isActive
-                ? fmtMins(workedMins)
-                : st.label}
+          {notClockedIn ? "Clock In" : isClockedOut ? fmtMins(workedMins) : isActive ? fmtMins(workedMins) : st.label}
         </span>
-        {idleWarning && (
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-        )}
+        {idleWarning && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
         <svg className={"w-3 h-3 transition-transform " + st.color + (panelOpen ? " rotate-180" : "")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
         </svg>
@@ -440,14 +321,10 @@ function AttendanceMiniWidget() {
           <div className="px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] flex items-center justify-between">
             <div>
               <p className="text-[13px] font-bold text-[#0F1117] dark:text-white">Attendance</p>
-              <p className="text-[10px] text-[#8B92A9]">
-                {new Date().toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short" })}
-              </p>
+              <p className="text-[10px] text-[#8B92A9]">{new Date().toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short" })}</p>
             </div>
             {record && (
-              <span className={"text-[10px] font-bold px-2 py-0.5 rounded-full border " + st.chipBg + " " + st.color}>
-                {st.label}
-              </span>
+              <span className={"text-[10px] font-bold px-2 py-0.5 rounded-full border " + st.chipBg + " " + st.color}>{st.label}</span>
             )}
           </div>
 
@@ -457,75 +334,38 @@ function AttendanceMiniWidget() {
                 <p className="text-[11px] font-bold text-red-600 dark:text-red-400">⚠ Idle for 5 mins</p>
                 <p className="text-[10px] text-red-400">Break started automatically.</p>
               </div>
-              <button
-                onClick={endBreak}
-                className="shrink-0 px-2.5 py-1 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold transition"
-              >
-                Resume
-              </button>
+              <button onClick={endBreak} className="shrink-0 px-2.5 py-1 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold transition">Resume</button>
             </div>
           )}
 
           {record?.loginTime && (
             <div className="grid grid-cols-3 gap-2 px-3 pt-3">
-              {/* WORK — FIX: use workedMins which is always correctly computed */}
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
                 <p className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide mb-1">Work</p>
-                <p className="text-[13px] font-black text-[#0F1117] dark:text-white leading-none">
-                  {fmtMins(workedMins)}
-                </p>
+                <p className="text-[13px] font-black text-[#0F1117] dark:text-white leading-none">{fmtMins(workedMins)}</p>
               </div>
-              {/* BREAK — FIX: use totalBreakMins from robust helper */}
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
                 <p className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide mb-1">Break</p>
-                <p className="text-[13px] font-black text-amber-500 leading-none">
-                  {fmtMins(totalBreakMins)}
-                </p>
+                <p className="text-[13px] font-black text-amber-500 leading-none">{fmtMins(totalBreakMins)}</p>
               </div>
-              {/* LOGIN */}
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
                 <p className="text-[9px] text-[#8B92A9] font-semibold uppercase tracking-wide mb-1">Login</p>
-                <p className="text-[13px] font-black text-[#0F1117] dark:text-white leading-none">
-                  {fmtTime(record.loginTime)}
-                </p>
+                <p className="text-[13px] font-black text-[#0F1117] dark:text-white leading-none">{fmtTime(record.loginTime)}</p>
               </div>
             </div>
           )}
 
           <div className="px-3 py-3 flex gap-2">
             {notClockedIn && (
-              <button
-                onClick={clockIn}
-                className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold transition flex items-center justify-center gap-1.5"
-              >
-                <span className="w-2 h-2 rounded-full bg-white/70" />
-                Clock In
+              <button onClick={clockIn} className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold transition flex items-center justify-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-white/70" /> Clock In
               </button>
             )}
             {record?.loginTime && !isClockedOut && (
               <>
-                {!isOnBreak && (
-                  <button
-                    onClick={startBreak}
-                    className="flex-1 py-2 rounded-xl bg-amber-100 dark:bg-amber-950/40 hover:bg-amber-200 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[12px] font-bold transition"
-                  >
-                    ⏸ Break
-                  </button>
-                )}
-                {isOnBreak && (
-                  <button
-                    onClick={endBreak}
-                    className="flex-1 py-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 hover:bg-emerald-200 text-emerald-700 dark:text-emerald-400 text-[12px] font-bold transition"
-                  >
-                    ▶ Resume
-                  </button>
-                )}
-                <button
-                  onClick={clockOut}
-                  className="flex-1 py-2 rounded-xl bg-red-100 dark:bg-red-950/40 hover:bg-red-200 text-red-600 dark:text-red-400 text-[12px] font-bold transition"
-                >
-                  ⏹ Clock Out
-                </button>
+                {!isOnBreak && <button onClick={startBreak} className="flex-1 py-2 rounded-xl bg-amber-100 dark:bg-amber-950/40 hover:bg-amber-200 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[12px] font-bold transition">⏸ Break</button>}
+                {isOnBreak  && <button onClick={endBreak}   className="flex-1 py-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 hover:bg-emerald-200 text-emerald-700 dark:text-emerald-400 text-[12px] font-bold transition">▶ Resume</button>}
+                <button onClick={clockOut} className="flex-1 py-2 rounded-xl bg-red-100 dark:bg-red-950/40 hover:bg-red-200 text-red-600 dark:text-red-400 text-[12px] font-bold transition">⏹ Clock Out</button>
               </>
             )}
             {isClockedOut && (
@@ -535,40 +375,26 @@ function AttendanceMiniWidget() {
             )}
           </div>
 
-          {/* FIX 6: Break log now shows correct per-entry durations */}
           {record?.breaks?.length > 0 && (
             <div className="mx-3 mb-3 border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden">
-              <p className="px-3 py-2 text-[9px] font-bold text-[#8B92A9] uppercase tracking-widest bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                Break Log
-              </p>
+              <p className="px-3 py-2 text-[9px] font-bold text-[#8B92A9] uppercase tracking-widest bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">Break Log</p>
               <div className="divide-y divide-[#F1F4FF] dark:divide-[#1E2130]">
                 {record.breaks.map((b, i) => {
                   const durMins = breakEntryDurMins(b);
                   const isOngoing = b.startTime && !b.endTime;
                   return (
                     <div key={i} className="flex items-center justify-between px-3 py-1.5">
-                      <span
-                        className={
-                          "text-[10px] font-semibold px-1.5 py-0.5 rounded-full " +
-                          (b.reason === "Auto Idle"
-                            ? "bg-red-50 dark:bg-red-950/40 text-red-500"
-                            : "bg-amber-50 dark:bg-amber-950/40 text-amber-600")
-                        }
-                      >
+                      <span className={"text-[10px] font-semibold px-1.5 py-0.5 rounded-full " + (b.reason === "Auto Idle" ? "bg-red-50 dark:bg-red-950/40 text-red-500" : "bg-amber-50 dark:bg-amber-950/40 text-amber-600")}>
                         {b.reason || "Break"}
                       </span>
                       <span className="text-[10px] text-[#8B92A9]">
                         {fmtTime(b.startTime)} → {b.endTime ? fmtTime(b.endTime) : "ongoing"}
-                        {/* FIX 6: Show computed duration, not just the server field */}
-                        {isOngoing
-                          ? " · ongoing"
-                          : ` · ${durMins}m`}
+                        {isOngoing ? " · ongoing" : ` · ${durMins}m`}
                       </span>
                     </div>
                   );
                 })}
               </div>
-              {/* FIX 7: Show break total at the bottom of the log */}
               <div className="px-3 py-1.5 bg-[#F8F9FC] dark:bg-[#13161E] border-t border-[#E4E7EF] dark:border-[#262A38] flex justify-between">
                 <span className="text-[9px] font-bold text-[#8B92A9] uppercase tracking-wide">Total break</span>
                 <span className="text-[10px] font-bold text-amber-500">{fmtMins(totalBreakMins)}</span>
@@ -576,21 +402,14 @@ function AttendanceMiniWidget() {
             </div>
           )}
 
-          {/* FIX 8: Show worked time summary at the bottom when clocked out */}
           {isClockedOut && record?.loginTime && (
             <div className="mx-3 mb-3 px-3 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
               <div className="flex justify-between items-center">
-                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
-                  Total worked today
-                </span>
-                <span className="text-[13px] font-black text-emerald-600 dark:text-emerald-400">
-                  {fmtMins(workedMins)}
-                </span>
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">Total worked today</span>
+                <span className="text-[13px] font-black text-emerald-600 dark:text-emerald-400">{fmtMins(workedMins)}</span>
               </div>
               <div className="flex justify-between items-center mt-1">
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-500">
-                  {fmtTime(record.loginTime)} → {fmtTime(record.logoutTime)}
-                </span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-500">{fmtTime(record.loginTime)} → {fmtTime(record.logoutTime)}</span>
                 <span className="text-[10px] text-amber-500">−{fmtMins(totalBreakMins)} break</span>
               </div>
             </div>
@@ -601,6 +420,7 @@ function AttendanceMiniWidget() {
   );
 }
 
+// ── KPI / Chart / Activity helpers (unchanged) ────────────────────────────────
 function KpiCard({ label, value, sub, color, icon, trend, trendUp }) {
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5 flex flex-col gap-3">
@@ -649,24 +469,6 @@ function RadialProgress({ value, max, color, label, size = 88 }) {
   );
 }
 
-function MiniBarChart({ data, labels, color }) {
-  color = color || "#2563EB";
-  const max = Math.max(...data, 1);
-  return (
-    <div className="flex items-end gap-2 h-18">
-      {data.map(function(v, i) {
-        return (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full rounded-t-sm transition-all duration-500"
-              style={{ height: ((v / max) * 52) + "px", background: i === data.length - 1 ? color : color + "60", minHeight: 3 }} />
-            <span className="text-[10px] text-[#8B92A9] dark:text-[#D1D5DB]">{labels[i]}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function ActivityItem({ lead, isLast }) {
   const s = STATUS_CONFIG[lead.status] || STATUS_CONFIG["New"];
   return (
@@ -674,7 +476,7 @@ function ActivityItem({ lead, isLast }) {
       <div className="flex flex-col items-center">
         <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
           style={{ background: s.dot + "20", color: s.dot }}>
-          {lead.name ? lead.name.split(" ").map(function(n){ return n[0]; }).join("").slice(0,2).toUpperCase() : "?"}
+          {lead.name ? lead.name.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase() : "?"}
         </div>
         {!isLast && <div className="w-px flex-1 bg-[#E4E7EF] dark:bg-[#262A38] mt-1 mb-1" />}
       </div>
@@ -689,32 +491,16 @@ function ActivityItem({ lead, isLast }) {
             <span className="text-[9px] text-[#8B92A9] dark:text-[#D1D5DB]">{timeAgo(lead._raw_date)}</span>
           </div>
         </div>
-        {lead.remark && (
-          <p className="text-[11px] text-[#4B5168] dark:text-[#E5E7EB] mt-1 italic">"{lead.remark}"</p>
-        )}
+        {lead.remark && <p className="text-[11px] text-[#4B5168] dark:text-[#E5E7EB] mt-1 italic">"{lead.remark}"</p>}
       </div>
     </div>
   );
 }
 
-function getTomorrowStr() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
-}
-function getTodayStr() {
-  return new Date().toISOString().split("T")[0];
-}
+function getTomorrowStr() { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0]; }
+function getTodayStr()    { return new Date().toISOString().split("T")[0]; }
 
-const OUTCOME_OPTIONS = [
-  "Call Back",
-  "Interested",
-  "Not Reachable",
-  "Meeting Scheduled",
-  "Demo Done",
-  "Converted",
-  "Not Interested",
-];
+const OUTCOME_OPTIONS = ["Call Back","Interested","Not Reachable","Meeting Scheduled","Demo Done","Converted","Not Interested"];
 
 function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
@@ -728,55 +514,30 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const CLS = "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition";
 
   const handleStatusChange = (e) => {
-    const val = e.target.value;
-    if (val === "Not Interested") { onNotInterested(); return; }
-    setStatus(val);
+    if (e.target.value === "Not Interested") { onNotInterested(); return; }
+    setStatus(e.target.value);
   };
 
   const handleSave = async () => {
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const body = { status, remark, outcome };
       if (temp) { body.temperature = temp; body.Quality = temp; }
       if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
       const res = await api.patch(`/lead/${lead.id || lead._id}`, body);
-      const savedLead = res.data;
-      onSaved({
-        ...lead,
-        ...(savedLead || {}),
-        id:          lead.id || String(lead._id),
-        status,
-        remark,
-        outcome,
-        temperature: temp || savedLead?.temperature || null,
-        Quality:     temp || savedLead?.temperature || null,
-        _newEntry: {
-          outcome:  outcome,
-          remark:   remark,
-          calledAt: new Date().toISOString(),
-          userName: "You",
-        },
-      });
+      onSaved({ ...lead, ...(res.data || {}), id: lead.id || String(lead._id), status, remark, outcome, temperature: temp || res.data?.temperature || null, Quality: temp || res.data?.temperature || null, _newEntry: { outcome, remark, calledAt: new Date().toISOString(), userName: "You" } });
       onClose();
     } catch (e) {
-      setError(
-        (e.response && e.response.data && e.response.data.message) ||
-        "Failed to update. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
+      setError((e.response?.data?.message) || "Failed to update. Please try again.");
+    } finally { setLoading(false); }
   };
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-sm bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
-            <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-            </svg>
+            <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
           </div>
           <div>
             <h3 className="text-[15px] font-bold text-[#0F1117] dark:text-white">Update Lead</h3>
@@ -787,71 +548,47 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Status</label>
             <select value={status} onChange={handleStatusChange} className={CLS}>
-              {["New", "In Progress", "Converted", "Not Interested"].map((s) => (
-                <option key={s}>{s}</option>
-              ))}
+              {["New","In Progress","Converted","Not Interested"].map(s => <option key={s}>{s}</option>)}
             </select>
             <p className="text-[10px] text-amber-500 mt-1">Selecting "Not Interested" opens the reassignment workflow.</p>
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Call Outcome</label>
-            <select value={outcome} onChange={(e) => setOutcome(e.target.value)} className={CLS}>
-              {OUTCOME_OPTIONS.map((o) => <option key={o}>{o}</option>)}
+            <select value={outcome} onChange={e => setOutcome(e.target.value)} className={CLS}>
+              {OUTCOME_OPTIONS.map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
-              Lead Quality
-              {temp && (
-                <span className="ml-2 text-[10px] font-normal normal-case text-[#8B92A9]">
-                  (currently: <span className="font-semibold text-[#0F1117] dark:text-white">{temp}</span>)
-                </span>
-              )}
-            </label>
+            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Lead Quality</label>
             <div className="grid grid-cols-4 gap-2">
-              {[
-                { val: "",     label: "None", color: "#8B92A9", bg: "bg-gray-50 dark:bg-gray-900/30" },
-                { val: "Hot",  label: "🔥 Hot",  color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30" },
-                { val: "Warm", label: "🌤 Warm", color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30" },
-                { val: "Cold", label: "❄️ Cold", color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30" },
-              ].map((q) => (
+              {[{val:"",label:"None",color:"#8B92A9",bg:"bg-gray-50 dark:bg-gray-900/30"},{val:"Hot",label:"🔥 Hot",color:"#DC2626",bg:"bg-red-50 dark:bg-red-950/30"},{val:"Warm",label:"🌤 Warm",color:"#D97706",bg:"bg-amber-50 dark:bg-amber-950/30"},{val:"Cold",label:"❄️ Cold",color:"#2563EB",bg:"bg-blue-50 dark:bg-blue-950/30"}].map(q => (
                 <button key={q.val} type="button" onClick={() => setTemp(q.val)}
-                  className={`py-2 px-1 rounded-xl border-2 text-[11px] font-semibold transition ${q.bg} ${
-                    temp === q.val ? "border-current scale-[1.03]" : "border-transparent opacity-60 hover:opacity-100"
-                  }`}
-                  style={{ color: q.color, borderColor: temp === q.val ? q.color : undefined }}>
-                  {q.label}
-                </button>
+                  className={`py-2 px-1 rounded-xl border-2 text-[11px] font-semibold transition ${q.bg} ${temp === q.val ? "border-current scale-[1.03]" : "border-transparent opacity-60 hover:opacity-100"}`}
+                  style={{ color: q.color, borderColor: temp === q.val ? q.color : undefined }}>{q.label}</button>
               ))}
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Remark</label>
-            <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={2} className={CLS + " resize-none"} placeholder="Add a note…" />
+            <textarea value={remark} onChange={e => setRemark(e.target.value)} rows={2} className={CLS + " resize-none"} placeholder="Add a note…" />
           </div>
           {status !== "Not Interested" && (
             <div>
               <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">📅 Follow-up Date</label>
-              <input type="date" value={followUpDate} min={getTodayStr()} onChange={(e) => setFollowUpDate(e.target.value)} className={CLS} />
-              <p className="text-[10px] text-[#8B92A9] mt-1">Leave as tomorrow (default) or pick a future date.</p>
+              <input type="date" value={followUpDate} min={getTodayStr()} onChange={e => setFollowUpDate(e.target.value)} className={CLS} />
             </div>
           )}
         </div>
         {error && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 mb-3">
-            <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
+            <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>
           </div>
         )}
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
-          <button onClick={handleSave} disabled={loading}
-            className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 flex items-center justify-center gap-2">
-            {loading ? (
-              <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Saving…</>
-            ) : "Save Changes"}
+          <button onClick={handleSave} disabled={loading} className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 flex items-center justify-center gap-2">
+            {loading ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Saving…</> : "Save Changes"}
           </button>
         </div>
       </div>
@@ -867,20 +604,17 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
   const s = STATUS_CONFIG[lead.status] || STATUS_CONFIG["New"];
   const callHistory    = lead.callHistory    || [];
   const scheduledCalls = lead.scheduledCalls || [];
-  const pendingCalls   = scheduledCalls.filter(function(c){ return !c.done; });
-  const fmt = function(iso) {
-    if (!iso) return "—";
-    return new Date(iso).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" });
-  };
+  const pendingCalls   = scheduledCalls.filter(c => !c.done);
+  const fmt = iso => iso ? new Date(iso).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" }) : "—";
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div className="w-full max-w-[440px] bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-y-auto flex flex-col" onClick={function(e){ e.stopPropagation(); }}>
+      <div className="w-full max-w-[440px] bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-y-auto flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-[15px] font-black" style={{ background: s.dot + "20", color: s.dot }}>
-                {name.split(" ").map(function(n){ return n[0]; }).join("").slice(0,2).toUpperCase()}
+                {name.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase()}
               </div>
               <div>
                 <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-white">{name}</h2>
@@ -902,36 +636,27 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           </div>
         </div>
         <div className="px-6 py-4 grid grid-cols-2 gap-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
-          {[
-            { label:"Source",   value:lead.source   || "—" },
-            { label:"Campaign", value:lead.campaign  || "—" },
-            { label:"Date",     value:lead.date      || "—" },
-            { label:"Remark",   value:lead.remark    || "No remark" },
-          ].map(function(item){ return (
+          {[{label:"Source",value:lead.source||"—"},{label:"Campaign",value:lead.campaign||"—"},{label:"Date",value:lead.date||"—"},{label:"Remark",value:lead.remark||"No remark"}].map(item => (
             <div key={item.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3">
               <p className="text-[9px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-widest mb-1">{item.label}</p>
               <p className="text-[12px] font-medium text-[#0F1117] dark:text-white break-words">{item.value}</p>
             </div>
-          ); })}
+          ))}
         </div>
         {callHistory.length > 0 && (
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
-            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3">📞 Previous Call History ({callHistory.length})</p>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3">📞 Call History ({callHistory.length})</p>
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-              {callHistory.map(function(h, i) {
-                return (
-                  <div key={i} className="px-3 py-2.5 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38]">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[12px] font-semibold text-[#0F1117] dark:text-white">{h.userName || "Unknown Agent"}</span>
-                      <span className="text-[10px] text-[#8B92A9]">{fmt(h.calledAt)}</span>
-                    </div>
-                    <p className="text-[11px] text-[#4B5168] dark:text-[#E5E7EB]">{h.remark}</p>
-                    {h.outcome && (
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">{h.outcome}</span>
-                    )}
+              {callHistory.map((h, i) => (
+                <div key={i} className="px-3 py-2.5 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[12px] font-semibold text-[#0F1117] dark:text-white">{h.userName || "Unknown Agent"}</span>
+                    <span className="text-[10px] text-[#8B92A9]">{fmt(h.calledAt)}</span>
                   </div>
-                );
-              })}
+                  <p className="text-[11px] text-[#4B5168] dark:text-[#E5E7EB]">{h.remark}</p>
+                  {h.outcome && <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">{h.outcome}</span>}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -939,7 +664,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3">📅 Scheduled Follow-ups ({pendingCalls.length} pending)</p>
             <div className="space-y-2">
-              {pendingCalls.map(function(sc, i) {
+              {pendingCalls.map((sc, i) => {
                 const isPast = new Date(sc.scheduledAt) < new Date();
                 return (
                   <div key={i} className={"flex items-center gap-3 px-3 py-2.5 rounded-xl border " + (isPast ? "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800" : "bg-[#F8F9FC] dark:bg-[#13161E] border-[#E4E7EF] dark:border-[#262A38]")}>
@@ -959,13 +684,11 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           </div>
         )}
         <div className="px-6 py-4 space-y-2">
-          <button onClick={function(){ setShowUpdate(true); }}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
+          <button onClick={() => setShowUpdate(true)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             Update Status / Lead Quality
           </button>
-          <button onClick={function(){ setShowNIModal(true); }}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 text-[13px] font-semibold hover:bg-orange-50 dark:hover:bg-orange-950/30 transition">
+          <button onClick={() => setShowNIModal(true)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 text-[13px] font-semibold hover:bg-orange-50 dark:hover:bg-orange-950/30 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
             Mark Not Interested & Reassign
           </button>
@@ -974,14 +697,14 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
       </div>
 
       {showUpdate && createPortal(
-        <UpdateStatusModal lead={lead} onClose={function(){ setShowUpdate(false); }}
-          onNotInterested={function(){ setShowUpdate(false); setShowNIModal(true); }}
-          onSaved={function(updated){ onUpdate(updated); setShowUpdate(false); }} />,
+        <UpdateStatusModal lead={lead} onClose={() => setShowUpdate(false)}
+          onNotInterested={() => { setShowUpdate(false); setShowNIModal(true); }}
+          onSaved={updated => { onUpdate(updated); setShowUpdate(false); }} />,
         document.body
       )}
       {showNIModal && createPortal(
-        <NotInterestedModal lead={{ ...lead, _id: lead.id || lead._id }} onClose={function(){ setShowNIModal(false); }}
-          onSuccess={function(updatedLead) { onUpdate({ ...updatedLead, _reassigned: true }); setShowNIModal(false); onClose(); }} />,
+        <NotInterestedModal lead={{ ...lead, _id: lead.id || lead._id }} onClose={() => setShowNIModal(false)}
+          onSuccess={updatedLead => { onUpdate({ ...updatedLead, _reassigned: true }); setShowNIModal(false); onClose(); }} />,
         document.body
       )}
     </div>
@@ -992,15 +715,15 @@ function AddLeadModal({ onClose, onAdd }) {
   const [form, setForm] = useState({ name:"", phone:"", source:"Google Ads", campaign:"", status:"New", remark:"" });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const set = function(k, v) { setForm(function(f){ return Object.assign({}, f, { [k]: v }); }); setErrors(function(e){ return Object.assign({}, e, { [k]: "" }); }); };
-  const validate = function() {
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
+  const validate = () => {
     const e = {};
     if (!form.name.trim() || form.name.trim().length < 2) e.name = "Name must be at least 2 characters.";
     if (!form.phone.trim()) e.phone = "Phone is required.";
     else if (!/^\d{10}$/.test(form.phone.trim())) e.phone = "Phone must be exactly 10 digits.";
     return e;
   };
-  const handleSubmit = async function() {
+  const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSubmitting(true);
@@ -1010,10 +733,10 @@ function AddLeadModal({ onClose, onAdd }) {
       onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, temperature:saved.temperature||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
       onClose();
     } catch (err) {
-      setErrors({ submit:(err.response&&err.response.data&&err.response.data.message)||"Failed to save lead." });
+      setErrors({ submit:(err.response?.data?.message)||"Failed to save lead." });
     } finally { setSubmitting(false); }
   };
-  const CLS = function(key) { return "w-full px-3 py-2.5 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-white placeholder:text-[#8B92A9] focus:outline-none transition " + (errors[key] ? "border-red-400" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"); };
+  const CLS = key => "w-full px-3 py-2.5 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-white placeholder:text-[#8B92A9] focus:outline-none transition " + (errors[key] ? "border-red-400" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]");
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md shadow-2xl">
@@ -1030,23 +753,23 @@ function AddLeadModal({ onClose, onAdd }) {
           </button>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {[{label:"Lead Name *",key:"name",placeholder:"Full name"},{label:"Phone *",key:"phone",placeholder:"10-digit number"},{label:"Campaign",key:"campaign",placeholder:"Campaign name"},{label:"Remark",key:"remark",placeholder:"Notes"}].map(function(f){ return (
+          {[{label:"Lead Name *",key:"name",placeholder:"Full name"},{label:"Phone *",key:"phone",placeholder:"10-digit number"},{label:"Campaign",key:"campaign",placeholder:"Campaign name"},{label:"Remark",key:"remark",placeholder:"Notes"}].map(f => (
             <div key={f.key} className="flex flex-col gap-1">
               <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">{f.label}</label>
-              <input type="text" placeholder={f.placeholder} value={form[f.key]} onChange={function(e){ set(f.key, e.target.value); }} className={CLS(f.key)} />
+              <input type="text" placeholder={f.placeholder} value={form[f.key]} onChange={e => set(f.key, e.target.value)} className={CLS(f.key)} />
               {errors[f.key] && <span className="text-[11px] text-red-500">{errors[f.key]}</span>}
             </div>
-          ); })}
+          ))}
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Source</label>
-            <select value={form.source} onChange={function(e){ set("source", e.target.value); }} className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none">
-              {["Google Ads","Facebook Ads","Web Form","Referral","Campaign","Other"].map(function(s){ return <option key={s}>{s}</option>; })}
+            <select value={form.source} onChange={e => set("source", e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none">
+              {["Google Ads","Facebook Ads","Web Form","Referral","Campaign","Other"].map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Status</label>
-            <select value={form.status} onChange={function(e){ set("status", e.target.value); }} className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none">
-              {["New","In Progress","Converted"].map(function(s){ return <option key={s}>{s}</option>; })}
+            <select value={form.status} onChange={e => set("status", e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none">
+              {["New","In Progress","Converted"].map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
         </div>
@@ -1071,25 +794,22 @@ function UserChatWidget() {
   const [editingId, setEditingId]     = useState(null);
   const [editingText, setEditingText] = useState("");
   const bottomRef = useRef(null);
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const user     = JSON.parse(localStorage.getItem("user") || "null");
   const username = (user && user.name) || "user";
 
-  useEffect(function() {
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
-      || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, "") : "https://skyup-crm-backend.onrender.com");
+  useEffect(() => {
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, "") : "https://skyup-crm-backend.onrender.com");
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
-    socket.on("connect", function() { sharedSocket.current = socket; });
+    socket.on("connect", () => { sharedSocket.current = socket; });
     if (socket.connected) sharedSocket.current = socket;
     socket.emit("user_join", username);
-    socket.on("chat_history", function(history) {
-      setMessages(history.map(function(m) {
-        return { _id: m._id, from: m.from === "admin" ? "Admin" : "You", message: m.message, ts: m.timestamp, isDeleted: m.isDeleted || false, editedAt: m.editedAt || null };
-      }));
+    socket.on("chat_history", history => {
+      setMessages(history.map(m => ({ _id: m._id, from: m.from === "admin" ? "Admin" : "You", message: m.message, ts: m.timestamp, isDeleted: m.isDeleted || false, editedAt: m.editedAt || null })));
     });
-    socket.on("message_saved", function(data) {
-      setMessages(function(prev) {
-        const idx = [...prev].reverse().findIndex(function(m){ return m.from === "You" && !m._id; });
+    socket.on("message_saved", data => {
+      setMessages(prev => {
+        const idx = [...prev].reverse().findIndex(m => m.from === "You" && !m._id);
         if (idx === -1) return prev;
         const realIdx = prev.length - 1 - idx;
         const updated = [...prev];
@@ -1097,45 +817,34 @@ function UserChatWidget() {
         return updated;
       });
     });
-    socket.on("receive_admin_message", function(data) {
-      setMessages(function(prev){ return prev.concat([{ _id: data._id, from: "Admin", message: data.message, isDeleted: false }]); });
-      setOpen(function(isOpen) { if (!isOpen) setUnread(function(n){ return n + 1; }); return isOpen; });
+    socket.on("receive_admin_message", data => {
+      setMessages(prev => [...prev, { _id: data._id, from: "Admin", message: data.message, isDeleted: false }]);
+      setOpen(isOpen => { if (!isOpen) setUnread(n => n + 1); return isOpen; });
     });
-    socket.on("message_edited", function({ _id, newText, editedAt }) {
-      setMessages(function(prev) {
-        return prev.map(function(m) { return m._id && m._id.toString() === _id.toString() ? { ...m, message: newText, editedAt } : m; });
-      });
+    socket.on("message_edited", ({ _id, newText, editedAt }) => {
+      setMessages(prev => prev.map(m => m._id?.toString() === _id?.toString() ? { ...m, message: newText, editedAt } : m));
     });
-    socket.on("message_deleted", function({ _id }) {
-      setMessages(function(prev) {
-        return prev.map(function(m) { return m._id && m._id.toString() === _id.toString() ? { ...m, message: "This message was deleted", isDeleted: true } : m; });
-      });
+    socket.on("message_deleted", ({ _id }) => {
+      setMessages(prev => prev.map(m => m._id?.toString() === _id?.toString() ? { ...m, message: "This message was deleted", isDeleted: true } : m));
     });
-    return function() { sharedSocket.current = null; socket.disconnect(); };
+    return () => { sharedSocket.current = null; socket.disconnect(); };
   }, []);
 
-  useEffect(function() {
-    if (open) { setUnread(0); bottomRef.current && bottomRef.current.scrollIntoView({ behavior: "smooth" }); }
+  useEffect(() => {
+    if (open) { setUnread(0); bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }
   }, [open, messages]);
 
-  const sendMessage = function() {
+  const sendMessage = () => {
     const msg = message.trim();
     if (!msg || !socketRef.current) return;
     socketRef.current.emit("user_message", { message: msg, username });
-    setMessages(function(prev){ return prev.concat([{ from: "You", message: msg, isDeleted: false }]); });
+    setMessages(prev => [...prev, { from: "You", message: msg, isDeleted: false }]);
     setMessage("");
   };
-  const startEdit = function(m) { if (m.isDeleted) return; setEditingId(m._id); setEditingText(m.message); };
-  const submitEdit = function() {
-    if (!editingText.trim() || !editingId) return;
-    socketRef.current && socketRef.current.emit("edit_message", { _id: editingId, newText: editingText.trim(), requester: username });
-    setEditingId(null); setEditingText("");
-  };
-  const cancelEdit = function() { setEditingId(null); setEditingText(""); };
-  const deleteMsg = function(msgId) {
-    if (!window.confirm("Delete this message?")) return;
-    socketRef.current && socketRef.current.emit("delete_message", { _id: msgId, requester: username });
-  };
+  const startEdit  = m  => { if (m.isDeleted) return; setEditingId(m._id); setEditingText(m.message); };
+  const submitEdit = () => { if (!editingText.trim() || !editingId) return; socketRef.current?.emit("edit_message", { _id: editingId, newText: editingText.trim(), requester: username }); setEditingId(null); setEditingText(""); };
+  const cancelEdit = () => { setEditingId(null); setEditingText(""); };
+  const deleteMsg  = id => { if (!window.confirm("Delete this message?")) return; socketRef.current?.emit("delete_message", { _id: id, requester: username }); };
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
@@ -1146,7 +855,7 @@ function UserChatWidget() {
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
               <span className="text-[13px] font-semibold text-white">Support Chat</span>
             </div>
-            <button onClick={function(){ setOpen(false); }} className="text-white/70 hover:text-white transition">
+            <button onClick={() => setOpen(false)} className="text-white/70 hover:text-white transition">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
@@ -1154,39 +863,32 @@ function UserChatWidget() {
             {messages.length === 0 && (
               <div className="text-center py-8">
                 <p className="text-[28px] mb-2">💬</p>
-                <p className="text-[12px] text-[#8B92A9]">Hi {user && user.name ? user.name.split(" ")[0] : "there"}! How can we help?</p>
+                <p className="text-[12px] text-[#8B92A9]">Hi {user?.name?.split(" ")[0] || "there"}! How can we help?</p>
               </div>
             )}
-            {messages.map(function(m, i) {
-              const isYou     = m.from === "You";
+            {messages.map((m, i) => {
+              const isYou = m.from === "You";
               const isEditing = editingId === m._id;
               return (
                 <div key={m._id || i} className={"flex group " + (isYou ? "justify-end" : "justify-start")}>
                   <div className="flex flex-col gap-0.5 max-w-[80%]">
                     {isEditing ? (
                       <div className="flex items-center gap-1">
-                        <input autoFocus value={editingText} onChange={function(e){ setEditingText(e.target.value); }}
-                          onKeyDown={function(e){ if(e.key==="Enter") submitEdit(); if(e.key==="Escape") cancelEdit(); }}
+                        <input autoFocus value={editingText} onChange={e => setEditingText(e.target.value)} onKeyDown={e => { if(e.key==="Enter") submitEdit(); if(e.key==="Escape") cancelEdit(); }}
                           className="px-2 py-1 rounded-lg border border-[#2563EB] text-[12px] text-[#0F1117] dark:text-white bg-white dark:bg-[#1A1D27] focus:outline-none w-40" />
                         <button onClick={submitEdit} className="text-[10px] text-[#2563EB] font-semibold hover:underline">Save</button>
                         <button onClick={cancelEdit}  className="text-[10px] text-[#8B92A9] hover:underline">Cancel</button>
                       </div>
                     ) : (
-                      <div className={"relative px-3 py-2 rounded-2xl text-[12px] " + (
-                        m.isDeleted ? "italic text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#1A1D27] border border-dashed border-[#E4E7EF] dark:border-[#262A38]"
-                          : isYou ? "bg-[#2563EB] text-white rounded-br-none"
-                          : "bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-white rounded-bl-none border border-[#E4E7EF] dark:border-[#262A38]"
-                      )}>
+                      <div className={"relative px-3 py-2 rounded-2xl text-[12px] " + (m.isDeleted ? "italic text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#1A1D27] border border-dashed border-[#E4E7EF] dark:border-[#262A38]" : isYou ? "bg-[#2563EB] text-white rounded-br-none" : "bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-white rounded-bl-none border border-[#E4E7EF] dark:border-[#262A38]")}>
                         {m.message}
                         {m.editedAt && !m.isDeleted && <span className="text-[9px] opacity-60 ml-1">(edited)</span>}
                         {isYou && !m.isDeleted && m._id && (
                           <div className="absolute top-1 -left-14 hidden group-hover:flex items-center gap-1">
-                            <button onClick={function(){ startEdit(m); }} title="Edit"
-                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] transition shadow-sm">
+                            <button onClick={() => startEdit(m)} className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] transition shadow-sm">
                               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </button>
-                            <button onClick={function(){ deleteMsg(m._id); }} title="Delete"
-                              className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-red-500 transition shadow-sm">
+                            <button onClick={() => deleteMsg(m._id)} className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-red-500 transition shadow-sm">
                               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                             </button>
                           </div>
@@ -1200,7 +902,7 @@ function UserChatWidget() {
             <div ref={bottomRef} />
           </div>
           <div className="px-3 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-2 bg-white dark:bg-[#1A1D27]">
-            <input value={message} onChange={function(e){ setMessage(e.target.value); }} onKeyDown={function(e){ if(e.key==="Enter") sendMessage(); }} placeholder="Type a message…"
+            <input value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => { if(e.key==="Enter") sendMessage(); }} placeholder="Type a message…"
               className="flex-1 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-white placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition" />
             <button onClick={sendMessage} className="w-9 h-9 rounded-xl bg-[#2563EB] flex items-center justify-center text-white hover:bg-blue-700 transition shrink-0">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
@@ -1208,16 +910,13 @@ function UserChatWidget() {
           </div>
         </div>
       )}
-      <button onClick={function(){ setOpen(function(o){ return !o; }); }}
-        className="relative w-14 h-14 rounded-full bg-[#2563EB] text-white shadow-lg flex items-center justify-center transition hover:bg-blue-700 hover:scale-105 active:scale-95">
+      <button onClick={() => setOpen(o => !o)} className="relative w-14 h-14 rounded-full bg-[#2563EB] text-white shadow-lg flex items-center justify-center transition hover:bg-blue-700 hover:scale-105 active:scale-95">
         {open
           ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
           : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 11.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
         }
         {!open && unread > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
-            {unread > 9 ? "9+" : unread}
-          </span>
+          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">{unread > 9 ? "9+" : unread}</span>
         )}
       </button>
     </div>
@@ -1252,8 +951,9 @@ function mapLead(l) {
   };
 }
 
+// ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function UserDashboard() {
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const user     = JSON.parse(localStorage.getItem("user") || "null");
   const greeting = getGreeting();
   const [leads,         setLeads]         = useState([]);
   const [loading,       setLoading]       = useState(true);
@@ -1267,162 +967,226 @@ export default function UserDashboard() {
   const [showAddModal,  setShowAddModal]  = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [activeTab,     setActiveTab]     = useState("leads");
+  const [csvImporting,  setCsvImporting]  = useState(false);
+  const [csvResult,     setCsvResult]     = useState(null);
   const PER_PAGE = 10;
 
-  const fetchLeads = useCallback(function() {
+  const fetchLeads = useCallback(() => {
     setLoading(true);
     api.get("/lead/my-leads")
-      .then(function(res) {
-        const raw = Array.isArray(res.data) ? res.data : (res.data && (res.data.leads || res.data.data) ? (res.data.leads || res.data.data) : []);
+      .then(res => {
+        const raw = Array.isArray(res.data) ? res.data : (res.data?.leads || res.data?.data || []);
         setLeads(raw.map(mapLead));
         setError("");
       })
-      .catch(function() { setError("Failed to load your leads. Please refresh."); })
-      .finally(function() { setLoading(false); });
+      .catch(() => setError("Failed to load your leads. Please refresh."))
+      .finally(() => setLoading(false));
   }, []);
 
-  useEffect(function() { fetchLeads(); }, [fetchLeads]);
+  useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
-  const kpi = useMemo(function() {
-    const total      = leads.length;
-    const todayLeads = leads.filter(function(l){ return isToday(l.date); }).length;
-    const weekLeads  = leads.filter(function(l){ return isThisWeek(l.date); }).length;
-    const converted  = leads.filter(function(l){ return l.status === "Converted"; }).length;
-    const inProgress = leads.filter(function(l){ return l.status === "In Progress"; }).length;
-    const notInt     = leads.filter(function(l){ return l.status === "Not Interested"; }).length;
-    const newLeads   = leads.filter(function(l){ return l.status === "New"; }).length;
-    const hot        = leads.filter(function(l){ return l.Quality === "Hot"; }).length;
-    const warm       = leads.filter(function(l){ return l.Quality === "Warm"; }).length;
-    const cold       = leads.filter(function(l){ return l.Quality === "Cold"; }).length;
-    const unclassified = leads.filter(function(l){ return !l.Quality; }).length;
-    const convRate   = total > 0 ? Math.round((converted / total) * 100) : 0;
-    const weekLabels = [];
-    const weekData   = [];
+  const kpi = useMemo(() => {
+    const total        = leads.length;
+    const todayLeads   = leads.filter(l => isToday(l.date)).length;
+    const weekLeads    = leads.filter(l => isThisWeek(l.date)).length;
+    const converted    = leads.filter(l => l.status === "Converted").length;
+    const inProgress   = leads.filter(l => l.status === "In Progress").length;
+    const notInt       = leads.filter(l => l.status === "Not Interested").length;
+    const newLeads     = leads.filter(l => l.status === "New").length;
+    const hot          = leads.filter(l => l.Quality === "Hot").length;
+    const warm         = leads.filter(l => l.Quality === "Warm").length;
+    const cold         = leads.filter(l => l.Quality === "Cold").length;
+    const unclassified = leads.filter(l => !l.Quality).length;
+    const convRate     = total > 0 ? Math.round((converted / total) * 100) : 0;
+    const weekLabels   = [];
+    const weekData     = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i);
       weekLabels.push(["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()]);
-      weekData.push(leads.filter(function(l){ return parseDate(l.date).toDateString() === d.toDateString(); }).length);
+      weekData.push(leads.filter(l => parseDate(l.date).toDateString() === d.toDateString()).length);
     }
     return { total, todayLeads, weekLeads, converted, inProgress, notInt, newLeads, hot, warm, cold, unclassified, convRate, weekLabels, weekData };
   }, [leads]);
 
-  const displayed = useMemo(function() {
-    let res = leads.filter(function(l) {
-      const q = search.toLowerCase();
+  const displayed = useMemo(() => {
+    let res = leads.filter(l => {
+      const q           = search.toLowerCase();
       const matchSearch = !q || l.name.toLowerCase().includes(q) || (l.phone||"").includes(q) || (l.campaign||"").toLowerCase().includes(q);
-      const matchSt   = filterSt   === "All" || l.status   === filterSt;
-      const matchTemp = filterTemp === "All" || l.Quality === filterTemp;
+      const matchSt     = filterSt   === "All" || l.status  === filterSt;
+      const matchTemp   = filterTemp === "All" || l.Quality === filterTemp;
       return matchSearch && matchSt && matchTemp;
     });
-    res = res.slice().sort(function(a, b) {
+    return res.slice().sort((a, b) => {
       if (sortBy === "date_desc") return new Date(b._raw_date||0) - new Date(a._raw_date||0);
       if (sortBy === "date_asc")  return new Date(a._raw_date||0) - new Date(b._raw_date||0);
       if (sortBy === "name_asc")  return a.name.localeCompare(b.name);
       if (sortBy === "status")    return a.status.localeCompare(b.status);
       return 0;
     });
-    return res;
   }, [leads, search, filterSt, filterTemp, sortBy]);
 
-  const totalPages = Math.ceil(displayed.length / PER_PAGE);
-  const paged = displayed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const totalPages     = Math.ceil(displayed.length / PER_PAGE);
+  const paged          = displayed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const recentActivity = useMemo(() => leads.slice().sort((a,b) => new Date(b._raw_date||0) - new Date(a._raw_date||0)).slice(0, 8), [leads]);
 
-  const recentActivity = useMemo(function() {
-    return leads.slice().sort(function(a,b){ return new Date(b._raw_date||0) - new Date(a._raw_date||0); }).slice(0, 8);
-  }, [leads]);
-
-  const handleUpdate = function(updated) {
-    if (updated._reassigned) {
-      setLeads(function(prev) { return prev.filter(function(l) { return l.id !== (updated.id || String(updated._id)); }); });
-      setSelected(null);
-      return;
-    }
-    const normalized = { ...updated, id: updated.id || String(updated._id), Quality: updated.temperature || updated.Quality || null, temperature: updated.temperature || updated.Quality || null };
-    setLeads(function(prev) { return prev.map(function(l) { return l.id === normalized.id ? Object.assign({}, l, normalized) : l; }); });
-    if (selected && selected.id === normalized.id) { setSelected(function(s) { return Object.assign({}, s, normalized); }); }
+  const handleUpdate = updated => {
+    if (updated._reassigned) { setLeads(prev => prev.filter(l => l.id !== (updated.id || String(updated._id)))); setSelected(null); return; }
+    const norm = { ...updated, id: updated.id || String(updated._id), Quality: updated.temperature || updated.Quality || null, temperature: updated.temperature || updated.Quality || null };
+    setLeads(prev => prev.map(l => l.id === norm.id ? { ...l, ...norm } : l));
+    if (selected?.id === norm.id) setSelected(s => ({ ...s, ...norm }));
   };
 
-  const handleAddLead = function(newLead) { setLeads(function(prev){ return [newLead].concat(prev); }); setPage(1); };
-  const handleDeleteLead = async function(id) {
-    try { await api.delete("/lead/" + id); setLeads(function(prev){ return prev.filter(function(l){ return l.id !== id; }); }); if (selected && selected.id === id) setSelected(null); }
-    catch(e) { /* silently ignore */ } finally { setDeleteConfirm(null); }
+  const handleAddLead  = newLead => { setLeads(prev => [newLead, ...prev]); setPage(1); };
+  const handleDeleteLead = async id => {
+    try { await api.delete("/lead/" + id); setLeads(prev => prev.filter(l => l.id !== id)); if (selected?.id === id) setSelected(null); }
+    catch { /* ignore */ } finally { setDeleteConfirm(null); }
   };
 
-  const [csvImporting, setCsvImporting] = useState(false);
-  const [csvResult,    setCsvResult]    = useState(null);
-
-  const downloadCSVTemplate = function() {
-    const headers = ["name", "mobile", "email", "source", "campaign", "status", "remark"];
-    const example = ["John Doe", "9876543210", "john@example.com", "Google Ads", "Summer Campaign", "New", "Interested in product"];
-    const csv = [headers.join(","), example.join(",")].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "leads_import_template.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+  // ── CSV template download ─────────────────────────────────────────────────
+  const downloadCSVTemplate = () => {
+    const headers = ["name","mobile","email","source","campaign","status","remark"];
+    const example = ["John Doe","9876543210","john@example.com","Google Ads","Summer Campaign","New","Interested in product"];
+    const blob = new Blob([[headers,example].map(r=>r.join(",")).join("\n")], { type:"text/csv" });
+    const a = Object.assign(document.createElement("a"), { href:URL.createObjectURL(blob), download:"leads_import_template.csv" });
+    a.click(); URL.revokeObjectURL(a.href);
   };
 
-  const handleImportCSV = async function(e) {
-    const file = e.target.files && e.target.files[0];
+  // ── CSV import with FULL duplicate checking ───────────────────────────────
+  const handleImportCSV = async e => {
+    const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
     setCsvImporting(true);
     setCsvResult(null);
+
     try {
-      const text = await file.text();
-      const lines = text.trim().split("\n").map(function(l){ return l.replace(/\r$/, ""); }).filter(Boolean);
-      if (lines.length < 2) { setCsvResult({ error: "CSV must have a header row and at least one data row." }); setCsvImporting(false); return; }
-      const headers = parseCSVLine(lines[0]).map(function(h){ return h.replace(/\r/g, "").toLowerCase(); });
+      const text  = await file.text();
+      const lines = text.trim().split("\n").map(l => l.replace(/\r$/, "")).filter(Boolean);
+      if (lines.length < 2) {
+        setCsvResult({ error: "CSV must have a header row and at least one data row." });
+        setCsvImporting(false);
+        return;
+      }
+
+      const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().trim());
+
+      // ── Step 1: Build a normalised set of ALL phone numbers the user already has
+      //    so we can check duplicates without hitting the server per-row.
+      const existingNormalized = new Set(
+        leads.map(l => normalizeForDupCheck(l.phone || l.mobile)).filter(Boolean)
+      );
+
+      // ── Step 2: Parse CSV rows and apply three layers of dedup ───────────
+      const seenInFile    = new Set();   // dedup within the CSV itself
       const leadsToImport = [];
+      const clientErrors  = [];
+
       for (let i = 1; i < lines.length; i++) {
         const values = parseCSVLine(lines[i]);
-        const row = {};
-        headers.forEach(function(h, idx) { row[h] = (values[idx] || "").replace(/\r/g, "").trim(); });
-        const nameVal   = row.name || row["full name"] || row["fullname"] || row["full_name"] || row["contact name"] || row["contact"] || "";
-        const mobileVal = row.mobile || row.phone || row["phone number"] || row["phonenumber"] || row["mobile number"] || row["mobile_number"] || row["phone_number"] || row["contact number"] || row["contact_number"] || row["number"] || "";
-        if (!nameVal && !mobileVal) continue;
-        const cleanMobile = mobileVal.replace(/\D/g, "");
-        if (!cleanMobile) { leadsToImport.push({ _skipError: true, name: nameVal || ("Row " + i), reason: "mobile number missing or unrecognised column" }); continue; }
-        leadsToImport.push({ name:nameVal, mobile:cleanMobile, email:row.email||"", source:row.source||"CSV Import", campaign:row.campaign||"", status:row.status||"New", date:row.date||null, remark:row.remark||row.notes||"Imported via CSV" });
+        const row    = {};
+        headers.forEach((h, idx) => { row[h] = (values[idx] || "").trim(); });
+
+        const rawName   = row.name || row["full name"] || row["fullname"] || row["full_name"] || row["contact name"] || row["contact"] || "";
+        const rawMobile = row.mobile || row.phone || row["phone number"] || row["phonenumber"] || row["mobile number"] || row["mobile_number"] || row["phone_number"] || row["contact number"] || row["contact_number"] || row["number"] || "";
+
+        if (!rawName && !rawMobile) continue;
+
+        const cleanMobile = rawMobile.replace(/\D/g, "");
+        if (!cleanMobile) {
+          clientErrors.push({ index: i, row: rawName || `Row ${i}`, message: "Mobile number missing or unrecognised column." });
+          continue;
+        }
+
+        const normMobile = normalizeForDupCheck(cleanMobile);
+
+        // Layer A — duplicate within the CSV itself
+        if (seenInFile.has(normMobile)) {
+          clientErrors.push({ index: i, row: rawName || `Row ${i}`, message: `Duplicate in CSV: ${rawMobile} appears more than once.` });
+          continue;
+        }
+        seenInFile.add(normMobile);
+
+        // Layer B — already exists in the user's current lead list
+        if (existingNormalized.has(normMobile)) {
+          clientErrors.push({ index: i, row: rawName || `Row ${i}`, message: `${rawMobile} already exists in your leads — skipped.` });
+          continue;
+        }
+
+        leadsToImport.push({
+          name:     rawName || "Unknown",
+          mobile:   cleanMobile,
+          email:    row.email    || "",
+          source:   row.source   || "CSV Import",
+          campaign: row.campaign || "",
+          status:   row.status   || "New",
+          date:     row.date     || null,
+          remark:   row.remark   || row.notes || "Imported via CSV",
+        });
       }
-      const clientErrors = leadsToImport.filter(function(r){ return r._skipError; }).map(function(r, idx){ return { index:idx, row:r.name, message:r.reason }; });
-      const validLeads   = leadsToImport.filter(function(r){ return !r._skipError; });
-      if (!validLeads.length) { setCsvResult({ error: "No valid rows found. Check that your CSV has 'name' and 'mobile' (or 'phone') columns.", errorDetails: clientErrors }); setCsvImporting(false); return; }
-      const res = await api.post("/lead/import-csv", { leads: validLeads });
+
+      // Nothing to send
+      if (!leadsToImport.length) {
+        setCsvResult({
+          error:        "No new leads to import — all rows were either invalid or already exist in your CRM.",
+          errorDetails: clientErrors,
+        });
+        setCsvImporting(false);
+        return;
+      }
+
+      // ── Step 3: Send to server (server applies its own dedup as a safety net)
+      const res = await api.post("/lead/import-csv", { leads: leadsToImport });
       const imported = res.data.saved || [];
-      setLeads(function(prev) { return imported.map(mapLead).concat(prev); });
+
+      // Prepend freshly imported leads to state
+      setLeads(prev => [...imported.map(mapLead), ...prev]);
       setPage(1);
-      const allErrors = (res.data.errors || []).concat(clientErrors);
-      setCsvResult({ saved: res.data.savedCount, errors: allErrors.length, total: res.data.total + clientErrors.length, errorDetails: allErrors });
+
+      // ── Step 4: Merge client + server errors for the result panel
+      const serverErrors = (res.data.errors || []).map(e => ({
+        index:   e.index,
+        row:     e.row    || e.name || "Unknown",
+        message: e.message || "Rejected by server.",
+      }));
+      const allErrors = [...clientErrors, ...serverErrors];
+
+      setCsvResult({
+        saved:        res.data.savedCount || imported.length,
+        errors:       allErrors.length,
+        total:        leadsToImport.length + clientErrors.length,
+        errorDetails: allErrors,
+      });
+
     } catch (err) {
-      setCsvResult({ error: (err.response && err.response.data && err.response.data.message) || "Import failed." });
-    } finally { setCsvImporting(false); }
+      setCsvResult({ error: err.response?.data?.message || "Import failed. Please try again." });
+    } finally {
+      setCsvImporting(false);
+    }
   };
 
-  const initials = user && user.name ? user.name.split(" ").map(function(n){ return n[0]; }).join("").slice(0,2).toUpperCase() : "U";
+  const initials = user?.name ? user.name.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase() : "U";
 
   return (
     <div className="min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
+      {/* ── Header ── */}
       <div className="px-6 py-5 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38]">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="text-[#8B92A9] dark:text-[#D1D5DB] text-[12px] font-medium">{greeting.emoji} {greeting.text}</p>
             <h1 className="text-[22px] font-black text-[#0F1117] dark:text-white mt-0.5">
-              {(user && user.name) || "Agent"}
+              {user?.name || "Agent"}
               <span className="text-[#8B92A9] dark:text-[#D1D5DB] text-[16px] font-normal ml-2">— My Workspace</span>
             </h1>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={function(){ setShowAddModal(true); }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
+            <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               Add Lead
             </button>
+
+            {/* CSV import / template */}
             <div className="flex items-center rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
-              <label className={`flex items-center gap-2 px-4 py-2 text-[#4B5168] dark:text-[#E5E7EB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition cursor-pointer border-r border-[#E4E7EF] dark:border-[#262A38] ${csvImporting ? "opacity-60 cursor-not-allowed" : ""}`}
-                title="Import CSV — columns: name, mobile, email, source, campaign, status, remark">
+              <label className={`flex items-center gap-2 px-4 py-2 text-[#4B5168] dark:text-[#E5E7EB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition cursor-pointer border-r border-[#E4E7EF] dark:border-[#262A38] ${csvImporting ? "opacity-60 cursor-not-allowed" : ""}`}>
                 <input type="file" accept=".csv" className="hidden" disabled={csvImporting} onChange={handleImportCSV}/>
                 {csvImporting
                   ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
@@ -1430,29 +1194,45 @@ export default function UserDashboard() {
                 }
                 {csvImporting ? "Importing…" : "Import CSV"}
               </label>
-              <button onClick={downloadCSVTemplate} title="Download CSV template"
-                className="flex items-center gap-1.5 px-3 py-2 text-[#2563EB] dark:text-[#4F8EF7] text-[12px] font-semibold hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition whitespace-nowrap">
+              <button onClick={downloadCSVTemplate} className="flex items-center gap-1.5 px-3 py-2 text-[#2563EB] dark:text-[#4F8EF7] text-[12px] font-semibold hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition whitespace-nowrap">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Template
               </button>
             </div>
+
             <AttendanceMiniWidget />
+
+            {/* CSV result toast */}
             {csvResult && (
-              <div className={`flex flex-col gap-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${csvResult.error || csvResult.saved === 0 ? "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400" : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400"}`}>
+              <div className={`flex flex-col gap-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold border max-w-xs
+                ${csvResult.error || csvResult.saved === 0
+                  ? "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
+                  : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400"}`}>
                 <div className="flex items-center gap-1.5">
-                  {csvResult.error ? csvResult.error : `${csvResult.saved > 0 ? "✓ " : ""}${csvResult.saved}/${csvResult.total} imported${csvResult.errors > 0 ? ` (${csvResult.errors} failed)` : ""}`}
-                  <button onClick={function(){ setCsvResult(null); }} className="ml-1 opacity-70 hover:opacity-100">✕</button>
+                  {csvResult.error
+                    ? csvResult.error
+                    : `${csvResult.saved > 0 ? "✓ " : ""}${csvResult.saved}/${csvResult.total} imported${csvResult.errors > 0 ? ` · ${csvResult.errors} skipped` : ""}`}
+                  <button onClick={() => setCsvResult(null)} className="ml-1 opacity-70 hover:opacity-100 shrink-0">✕</button>
                 </div>
-                {!csvResult.error && csvResult.errorDetails && csvResult.errorDetails.length > 0 && (
+                {/* Show the first 5 skip reasons inline */}
+                {csvResult.errorDetails?.length > 0 && (
                   <ul className="mt-0.5 space-y-0.5 text-[10px] font-normal opacity-90">
-                    {csvResult.errorDetails.map(function(e, i){ return <li key={i}>Row {e.index + 1} ({e.row}): {e.message}</li>; })}
+                    {csvResult.errorDetails.slice(0, 5).map((e, i) => (
+                      <li key={i}>Row {e.index} ({e.row}): {e.message}</li>
+                    ))}
+                    {csvResult.errorDetails.length > 5 && (
+                      <li>…and {csvResult.errorDetails.length - 5} more skipped.</li>
+                    )}
                   </ul>
                 )}
               </div>
             )}
+
             <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[13px] font-black text-[#2563EB] dark:text-[#4F8EF7] border border-[#C7D7FF] dark:border-[#2D3A6B]">{initials}</div>
           </div>
         </div>
+
+        {/* Quick stats strip */}
         <div className="flex items-center gap-6 mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex-wrap">
           {[
             { label:"My Total Leads", value:kpi.total,          color:"text-[#0F1117] dark:text-white" },
@@ -1460,15 +1240,16 @@ export default function UserDashboard() {
             { label:"This Week",      value:kpi.weekLeads,      color:"text-[#2563EB] dark:text-[#4F8EF7]" },
             { label:"Converted",      value:kpi.converted,      color:"text-[#059669] dark:text-[#34D399]" },
             { label:"Conv. Rate",     value:kpi.convRate + "%", color:"text-[#059669] dark:text-[#34D399]" },
-          ].map(function(stat){ return (
+          ].map(stat => (
             <div key={stat.label} className="flex items-center gap-2">
               <span className={"text-[18px] font-black " + stat.color}>{stat.value}</span>
               <span className="text-[14px] text-[#8B92A9] dark:text-[#D1D5DB] font-medium">{stat.label}</span>
             </div>
-          ); })}
+          ))}
         </div>
       </div>
 
+      {/* ── Body ── */}
       <div className="p-6 space-y-6">
         {error && (
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-[12px] font-medium">
@@ -1478,6 +1259,7 @@ export default function UserDashboard() {
           </div>
         )}
 
+        {/* KPI cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon="👤" />
           <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon="✅" trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
@@ -1485,29 +1267,21 @@ export default function UserDashboard() {
           <KpiCard label="Hot Leads 🔥"   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="🔥" />
         </div>
 
+        {/* Targets + Quality */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">🎯 My Daily Targets</p>
-            </div>
+            <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide mb-4">🎯 My Daily Targets</p>
             <div className="flex items-center justify-around">
               <RadialProgress value={kpi.todayLeads} max={10} color="#2563EB" label="Leads" size={80} />
-              <RadialProgress value={leads.filter(function(l){ return isToday(l.date) && l.status==="Converted"; }).length} max={5} color="#059669" label="Convert" size={80} />
-              <RadialProgress value={leads.filter(function(l){ return isToday(l.date) && l.status==="In Progress"; }).length} max={8} color="#D97706" label="Active" size={80} />
+              <RadialProgress value={leads.filter(l => isToday(l.date) && l.status==="Converted").length} max={5} color="#059669" label="Convert" size={80} />
+              <RadialProgress value={leads.filter(l => isToday(l.date) && l.status==="In Progress").length} max={8} color="#D97706" label="Active" size={80} />
             </div>
             <p className="text-[9px] text-center text-[#8B92A9] dark:text-[#D1D5DB] mt-3 font-medium uppercase tracking-wide">Targets: 10 leads · 5 conversions · 8 follow-ups</p>
           </div>
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <p className="text-[12px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">Lead Quality</p>
-            </div>
+            <p className="text-[12px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide mb-4">Lead Quality</p>
             <div className="space-y-3">
-              {[
-                { label:"Hot",          count:kpi.hot,          color:"#DC2626", icon:"🔥" },
-                { label:"Warm",         count:kpi.warm,         color:"#D97706", icon:"🌤" },
-                { label:"Cold",         count:kpi.cold,         color:"#2563EB", icon:"❄️" },
-                { label:"Unclassified", count:kpi.unclassified, color:"#8B92A9", icon:"—" },
-              ].map(function(item){ return (
+              {[{label:"Hot",color:"#DC2626",icon:"🔥",count:kpi.hot},{label:"Warm",color:"#D97706",icon:"🌤",count:kpi.warm},{label:"Cold",color:"#2563EB",icon:"❄️",count:kpi.cold},{label:"Unclassified",color:"#8B92A9",icon:"—",count:kpi.unclassified}].map(item => (
                 <div key={item.label} className="flex items-center gap-2">
                   <span className="w-4 text-center text-[14px]">{item.icon}</span>
                   <div className="flex-1">
@@ -1516,25 +1290,25 @@ export default function UserDashboard() {
                       <span className="font-bold" style={{ color: item.color }}>{item.count}</span>
                     </div>
                     <div className="h-1.5 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-700"
-                        style={{ width: (kpi.total > 0 ? (item.count/kpi.total)*100 : 0) + "%", background: item.color }} />
+                      <div className="h-full rounded-full transition-all duration-700" style={{ width: (kpi.total > 0 ? (item.count/kpi.total)*100 : 0) + "%", background: item.color }} />
                     </div>
                   </div>
                 </div>
-              ); })}
+              ))}
             </div>
           </div>
         </div>
 
+        {/* Status filter pills */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label:"New",            count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-100 dark:bg-blue-950/70",       icon:"🆕" },
-            { label:"In Progress",    count:kpi.inProgress, color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30",      icon:"⏳" },
-            { label:"Converted",      count:kpi.converted,  color:"#059669", bg:"bg-emerald-50 dark:bg-emerald-950/30",  icon:"✅" },
-            { label:"Not Interested", count:kpi.notInt,     color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30",          icon:"❌" },
-          ].map(function(item){ return (
+            { label:"New",            count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-100 dark:bg-blue-950/70",      icon:"🆕" },
+            { label:"In Progress",    count:kpi.inProgress, color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30",     icon:"⏳" },
+            { label:"Converted",      count:kpi.converted,  color:"#059669", bg:"bg-emerald-50 dark:bg-emerald-950/30", icon:"✅" },
+            { label:"Not Interested", count:kpi.notInt,     color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30",         icon:"❌" },
+          ].map(item => (
             <button key={item.label}
-              onClick={function(){ setFilterSt(filterSt === item.label ? "All" : item.label); setActiveTab("leads"); setPage(1); }}
+              onClick={() => { setFilterSt(filterSt === item.label ? "All" : item.label); setActiveTab("leads"); setPage(1); }}
               className={item.bg + " rounded-xl p-3 flex items-center gap-3 border-2 transition hover:scale-[1.01] " + (filterSt === item.label ? "" : "border-transparent")}
               style={{ borderColor: filterSt === item.label ? item.color : undefined }}>
               <span className="text-[18px]">{item.icon}</span>
@@ -1543,37 +1317,31 @@ export default function UserDashboard() {
                 <p className="text-[14px] font-semibold text-[#8B92A9] leading-tight">{item.label}</p>
               </div>
             </button>
-          ); })}
+          ))}
         </div>
 
+        {/* Leads / Activity table */}
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
           <div className="flex items-center border-b border-[#E4E7EF] dark:border-[#262A38] px-5">
-            {[
-              { id:"leads",    label:"My Leads",        count:displayed.length },
-              { id:"activity", label:"Recent Activity", count:recentActivity.length },
-            ].map(function(tab){ return (
-              <button key={tab.id} onClick={function(){ setActiveTab(tab.id); }}
+            {[{id:"leads",label:"My Leads",count:displayed.length},{id:"activity",label:"Recent Activity",count:recentActivity.length}].map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={"flex items-center gap-2 px-4 py-4 text-[12px] font-semibold border-b-2 transition " + (activeTab === tab.id ? "border-[#2563EB] text-[#2563EB] dark:text-[#4F8EF7]" : "border-transparent text-[#8B92A9] dark:text-[#D1D5DB] hover:text-[#0F1117] dark:hover:text-white")}>
                 {tab.label}
                 <span className={"px-1.5 py-0.5 rounded-full text-[14px] font-bold " + (activeTab === tab.id ? "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7]" : "bg-[#F1F4FF] dark:bg-[#1E2130] text-[#8B92A9]")}>{tab.count}</span>
               </button>
-            ); })}
+            ))}
             {activeTab === "leads" && (
               <div className="ml-auto flex items-center gap-2 py-2 flex-wrap">
                 <div className="relative">
                   <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                  <input value={search} onChange={function(e){ setSearch(e.target.value); setPage(1); }} placeholder="Search…"
+                  <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search…"
                     className="pl-7 pr-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] w-36 transition" />
                 </div>
-                <select value={sortBy} onChange={function(e){ setSortBy(e.target.value); setPage(1); }}
-                  className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none">
+                <select value={sortBy} onChange={e => { setSortBy(e.target.value); setPage(1); }} className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none">
                   <option value="date_desc">Newest</option><option value="date_asc">Oldest</option><option value="name_asc">Name A–Z</option><option value="status">By Status</option>
                 </select>
                 {(search || filterSt !== "All" || filterTemp !== "All") && (
-                  <button onClick={function(){ setSearch(""); setFilterSt("All"); setFilterTemp("All"); setPage(1); }}
-                    className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[14px] text-[#8B92A9] hover:text-red-500 hover:border-red-300 transition font-semibold">
-                    ✕ Clear
-                  </button>
+                  <button onClick={() => { setSearch(""); setFilterSt("All"); setFilterTemp("All"); setPage(1); }} className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[14px] text-[#8B92A9] hover:text-red-500 hover:border-red-300 transition font-semibold">✕ Clear</button>
                 )}
               </div>
             )}
@@ -1590,60 +1358,58 @@ export default function UserDashboard() {
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
                   <p className="text-[18px] font-semibold text-[#0F1117] dark:text-white">{leads.length === 0 ? "No leads yet" : "No leads match your filters"}</p>
                   <p className="text-[14px] text-[#8B92A9]">{leads.length === 0 ? "Add your first lead to get started." : "Try adjusting your search or filters."}</p>
-                  {leads.length === 0 && (
-                    <button onClick={function(){ setShowAddModal(true); }} className="mt-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 transition">+ Add First Lead</button>
-                  )}
+                  {leads.length === 0 && <button onClick={() => setShowAddModal(true)} className="mt-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 transition">+ Add First Lead</button>}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-[14px]">
                     <thead>
                       <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                        {["Lead","Phone","Campaign / Source","Date","Status","Lead Quality",""].map(function(h){ return (
+                        {["Lead","Phone","Campaign / Source","Date","Status","Lead Quality",""].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-[14px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-widest whitespace-nowrap">{h}</th>
-                        ); })}
+                        ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white dark:divide-[#1E2130]">
-                      {paged.map(function(l){ return (
-                        <tr key={l.id} className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition cursor-pointer group" onClick={function(){ setSelected(l); }}>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
-                                style={{ background: ((STATUS_CONFIG[l.status] && STATUS_CONFIG[l.status].dot) || "#2563EB") + "20", color: (STATUS_CONFIG[l.status] && STATUS_CONFIG[l.status].dot) || "#2563EB" }}>
-                                {l.name.split(" ").map(function(n){ return n[0]; }).join("").slice(0,2).toUpperCase()}
+                      {paged.map(l => {
+                        const sc = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
+                        return (
+                          <tr key={l.id} className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition cursor-pointer group" onClick={() => setSelected(l)}>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0" style={{ background: sc.dot + "20", color: sc.dot }}>
+                                  {l.name.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <span className="font-semibold text-[#0F1117] dark:text-white whitespace-nowrap">{l.name}</span>
+                                  {l.reassignCount > 0 && <span className="ml-1.5 text-[14px] font-bold text-purple-500">{l.reassignCount}</span>}
+                                </div>
                               </div>
-                              <div>
-                                <span className="font-semibold text-[#0F1117] dark:text-white whitespace-nowrap">{l.name}</span>
-                                {l.reassignCount > 0 && <span className="ml-1.5 text-[14px] font-bold text-purple-500">{l.reassignCount}</span>}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 font-mono text-[#4B5168] dark:text-[#E5E7EB]">{l.phone ? maskPhone(l.phone) : "—"}</td>
-                          <td className="px-4 py-3">
-                            <p className="text-[#0F1117] dark:text-white font-medium truncate max-w-[120px]">{l.campaign !== "—" ? l.campaign : l.source}</p>
-                            {l.campaign !== "—" && <p className="text-[14px] text-[#8B92A9]">{l.source}</p>}
-                          </td>
-                          <td className="px-4 py-3 text-[#8B92A9] dark:text-white whitespace-nowrap">
-                            <div>
+                            </td>
+                            <td className="px-4 py-3 font-mono text-[#4B5168] dark:text-[#E5E7EB]">{l.phone ? maskPhone(l.phone) : "—"}</td>
+                            <td className="px-4 py-3">
+                              <p className="text-[#0F1117] dark:text-white font-medium truncate max-w-[120px]">{l.campaign !== "—" ? l.campaign : l.source}</p>
+                              {l.campaign !== "—" && <p className="text-[14px] text-[#8B92A9]">{l.source}</p>}
+                            </td>
+                            <td className="px-4 py-3 text-[#8B92A9] dark:text-white whitespace-nowrap">
                               <p>{l.date}</p>
                               {isToday(l.date) && <span className="text-[14px] font-bold text-emerald-500">TODAY</span>}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
-                          <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-1">
-                              <button onClick={function(e){ e.stopPropagation(); setSelected(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition" title="View details">
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
-                              </button>
-                              <button onClick={function(e){ e.stopPropagation(); setDeleteConfirm(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition" title="Delete lead">
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ); })}
+                            </td>
+                            <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
+                            <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                <button onClick={e => { e.stopPropagation(); setSelected(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition" title="View details">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); setDeleteConfirm(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition" title="Delete lead">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1652,13 +1418,14 @@ export default function UserDashboard() {
                 <div className="px-5 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between bg-[#F8F9FC] dark:bg-[#13161E]">
                   <span className="text-[14px] text-[#8B92A9]">Showing {((page-1)*PER_PAGE)+1}–{Math.min(page*PER_PAGE, displayed.length)} of {displayed.length} leads</span>
                   <div className="flex items-center gap-1">
-                    <button onClick={function(){ setPage(function(p){ return Math.max(1, p-1); }); }} disabled={page === 1} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27] disabled:opacity-40 transition">
+                    <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27] disabled:opacity-40 transition">
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
                     </button>
-                    {Array.from({ length: Math.min(totalPages, 5) }, function(_, i){ const n = Math.max(1, Math.min(totalPages - 4, page - 2)) + i; return (
-                      <button key={n} onClick={function(){ setPage(n); }} className={"w-7 h-7 rounded-lg text-[14px] font-semibold transition " + (page === n ? "bg-[#2563EB] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27]")}>{n}</button>
-                    ); })}
-                    <button onClick={function(){ setPage(function(p){ return Math.min(totalPages, p+1); }); }} disabled={page === totalPages} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27] disabled:opacity-40 transition">
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      const n = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+                      return <button key={n} onClick={() => setPage(n)} className={"w-7 h-7 rounded-lg text-[14px] font-semibold transition " + (page===n ? "bg-[#2563EB] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27]")}>{n}</button>;
+                    })}
+                    <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page===totalPages} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27] disabled:opacity-40 transition">
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
                     </button>
                   </div>
@@ -1675,26 +1442,21 @@ export default function UserDashboard() {
                   Loading activity…
                 </div>
               ) : recentActivity.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-[14px] text-[#8B92A9]">No recent activity yet.</p>
-                </div>
+                <div className="text-center py-12"><p className="text-[14px] text-[#8B92A9]">No recent activity yet.</p></div>
               ) : (
                 <div>
                   <p className="text-[14px] font-bold text-[#8B92A9] uppercase tracking-wide mb-4">Latest 8 lead interactions</p>
-                  {recentActivity.map(function(lead, i){ return (
-                    <ActivityItem key={lead.id} lead={lead} isLast={i === recentActivity.length - 1} />
-                  ); })}
+                  {recentActivity.map((lead, i) => <ActivityItem key={lead.id} lead={lead} isLast={i === recentActivity.length - 1} />)}
                 </div>
               )}
             </div>
           )}
         </div>
 
+        {/* Motivational banner */}
         {!loading && kpi.total > 0 && (
           <div className="rounded-2xl p-4 flex items-center gap-4 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38]">
-            <span className="text-[28px]">
-              {kpi.convRate >= 50 ? "🏆" : kpi.convRate >= 30 ? "🌟" : kpi.convRate >= 15 ? "📈" : "💪"}
-            </span>
+            <span className="text-[28px]">{kpi.convRate >= 50 ? "🏆" : kpi.convRate >= 30 ? "🌟" : kpi.convRate >= 15 ? "📈" : "💪"}</span>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-white">
                 {kpi.convRate >= 50 ? "Outstanding performance! You're a top converter!" :
@@ -1710,8 +1472,9 @@ export default function UserDashboard() {
         )}
       </div>
 
-      {selected && <LeadDrawer lead={selected} onClose={function(){ setSelected(null); }} onUpdate={handleUpdate} />}
-      {showAddModal && <AddLeadModal onClose={function(){ setShowAddModal(false); }} onAdd={handleAddLead} />}
+      {/* ── Modals / Drawers ── */}
+      {selected      && <LeadDrawer lead={selected} onClose={() => setSelected(null)} onUpdate={handleUpdate} />}
+      {showAddModal  && <AddLeadModal onClose={() => setShowAddModal(false)} onAdd={handleAddLead} />}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
@@ -1721,8 +1484,8 @@ export default function UserDashboard() {
             <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-white text-center mb-2">Delete Lead?</h2>
             <p className="text-[12px] text-[#8B92A9] text-center mb-5">This will permanently remove <strong className="text-[#0F1117] dark:text-white">{deleteConfirm.name}</strong> from your list.</p>
             <div className="flex gap-2">
-              <button onClick={function(){ setDeleteConfirm(null); }} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#E5E7EB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-              <button onClick={function(){ handleDeleteLead(deleteConfirm.id); }} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition">Delete</button>
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#E5E7EB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+              <button onClick={() => handleDeleteLead(deleteConfirm.id)} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition">Delete</button>
             </div>
           </div>
         </div>
