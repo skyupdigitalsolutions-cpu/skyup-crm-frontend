@@ -1075,7 +1075,9 @@ function UserChatWidget() {
   const username = (user && user.name) || "user";
 
   useEffect(function() {
-    const socket = io(import.meta.env.VITE_SOCKET_URL || "https://skyup-crm-backend.onrender.com", { withCredentials: true });
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
+      || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, "") : "https://skyup-crm-backend.onrender.com");
+    const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
     socket.on("connect", function() { sharedSocket.current = socket; });
     if (socket.connected) sharedSocket.current = socket;
