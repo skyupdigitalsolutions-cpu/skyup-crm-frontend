@@ -35,12 +35,6 @@ const OUTCOME_STYLE = {
 const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral"];
 const ALL_STATUSES = ["Converted", "In Progress", "Not Interested", "New"];
 
-let nextId = 100;
-
-function todayAsCustomDate() {
-  return new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-}
-
 function fmtDateTime(iso) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("en-IN", {
@@ -99,157 +93,6 @@ function Skeleton() {
   );
 }
 
-// ── Add Lead Modal ────────────────────────────────────────────────────────────
-function AddLeadModal({ agents, onClose, onAdd }) {
-  const today = todayAsCustomDate();
-  const [form, setForm] = useState({
-    name: "", phone: "", source: "Google Ads", campaign: "",
-    agent: agents[0]?.name || "", status: "New", date: today, remark: "",
-  });
-  const [errors, setErrors] = useState({});
-  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
-
-  const validate = () => {
-    const e = {};
-    if (!form.name.trim() || form.name.trim().length < 2) e.name = "Name must be at least 2 characters.";
-    if (!form.phone.trim()) e.phone = "Phone is required.";
-    else if (!/^\d{10}$/.test(form.phone.trim())) e.phone = "Phone must be exactly 10 digits.";
-    if (!form.date.trim()) e.date = "Date is required.";
-    else if (!/^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(form.date.trim())) e.date = "Use format: 25 Mar 2026";
-    return e;
-  };
-
-  const handleSubmit = async () => {
-    const newErrors = validate();
-    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
-
-    const agentObj = agents.find(a => a.name === form.agent) ?? null;
-    const basePayload = {
-      name: form.name.trim(), mobile: form.phone.trim(), source: form.source,
-      campaign: form.campaign.trim() || null, status: form.status,
-      date: new Date(form.date), remark: form.remark.trim() || "Manually added",
-      ...(agentObj?.id ? { user: agentObj.id } : {}),
-      ...(getRole() === "superadmin" && agentObj?.company ? { companyId: agentObj.company } : {}),
-    };
-
-    let payload = basePayload;
-    const keyString = crm.getLocalKey();
-    if (keyString) {
-      try {
-        const encryptedData = await crm.encrypt(
-          { name: basePayload.name, mobile: basePayload.mobile, email: "", remark: basePayload.remark },
-          keyString
-        );
-        payload = { ...basePayload, encryptedData };
-      } catch { /* send plain */ }
-    }
-
-    const role = getRole();
-    const endpoint =
-      role === "superadmin" ? "/lead/superadmin/create" :
-      role === "admin"      ? "/lead/admin/create" :
-                              "/lead";
-    try {
-      const res = await api.post(endpoint, payload);
-      const saved = res.data;
-      // BUG FIX: spread saved so callHistory/scheduledCalls etc. survive
-      onAdd({
-        ...saved,
-        id:             String(saved._id),
-        name:           saved.name,
-        mobile:         saved.mobile,
-        phone:          saved.mobile,
-        source:         saved.source   || "Web Form",
-        campaign:       saved.campaign || "—",
-        status:         saved.status,
-        date:           new Date(saved.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-        remark:         saved.remark,
-        agent:          form.agent,
-        company:        saved.company,
-        callHistory:    saved.callHistory    || [],
-        scheduledCalls: saved.scheduledCalls || [],
-        previousAgents: saved.previousAgents || [],
-        reassignCount:  saved.reassignCount  || 0,
-        _raw_date:      saved.date,
-        Quality:        saved.temperature ?? null,
-        temperature:    saved.temperature ?? null,
-        createdAt:      saved.createdAt,
-        updatedAt:      saved.updatedAt,
-      });
-      onClose();
-    } catch (err) {
-      const msg = err.response?.data?.message || "Failed to save lead. Please try again.";
-      setErrors({ submit: msg });
-    }
-  };
-
-  const textFields = [
-    { label: "Lead Name *", key: "name",     placeholder: "Full name" },
-    { label: "Phone *",     key: "phone",    placeholder: "10-digit number" },
-    { label: "Campaign",    key: "campaign", placeholder: "Campaign name" },
-    { label: "Remark",      key: "remark",   placeholder: "Notes" },
-  ];
-  const selectFields = [
-    { label: "Source", key: "source", options: ALL_SOURCES },
-    { label: "Agent",  key: "agent",  options: agents.map(a => a.name) },
-    { label: "Status", key: "status", options: ALL_STATUSES },
-  ];
-  const inputCls = (key) =>
-    `px-3 py-2 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
-    ${errors[key] ? "border-red-400 dark:border-red-500 focus:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Add New Lead</h2>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {textFields.map(f => (
-            <div key={f.key} className="flex flex-col gap-1">
-              <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
-              <input type="text" placeholder={f.placeholder} value={form[f.key]} onChange={e => set(f.key, e.target.value)} className={inputCls(f.key)} />
-              {errors[f.key] && (
-                <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
-                  <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
-                  {errors[f.key]}
-                </span>
-              )}
-            </div>
-          ))}
-          {selectFields.map(f => (
-            <div key={f.key} className="flex flex-col gap-1">
-              <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
-              <select value={form[f.key]} onChange={e => set(f.key, e.target.value)}
-                className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none">
-                {f.options.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-          ))}
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Date *</label>
-            <input type="text" value={form.date} onChange={e => set("date", e.target.value)} placeholder="25 Mar 2026" className={inputCls("date")} />
-            {errors.date && (
-              <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
-                <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
-                {errors.date}
-              </span>
-            )}
-          </div>
-        </div>
-        {errors.submit && <p className="text-[12px] text-red-500 mt-3 text-center">{errors.submit}</p>}
-        <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-          <button onClick={handleSubmit} className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">Add Lead</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Edit Lead Modal ───────────────────────────────────────────────────────────
 function EditLeadModal({ lead, agents, onClose, onSave }) {
   const [form, setForm] = useState({ ...lead });
@@ -296,7 +139,7 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
           <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
           <button onClick={async () => {
             const role = getRole();
-            const leadId = form._id || form.id;  // FIX: prefer raw _id in case id is stale
+            const leadId = form._id || form.id;
             const endpoint =
               role === "superadmin" ? `/lead/superadmin/${leadId}` :
               role === "admin"      ? `/lead/admin/${leadId}` :
@@ -322,7 +165,6 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
                 } catch { /* send plain */ }
               }
               await api.put(endpoint, payload);
-              // BUG FIX: preserve all rich fields when saving edits
               onSave({ ...lead, ...form });
               onClose();
             } catch (err) {
@@ -336,13 +178,9 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
 }
 
 // ── Remarks History Panel ─────────────────────────────────────────────────────
-// BUG FIX: Original ReportPage only ever showed the single `lead.remark` string.
-// The backend stores every agent interaction in lead.callHistory[].remark.
-// This component shows the full chronological history of all remarks + outcomes.
 function RemarksHistoryModal({ lead, onClose }) {
   const callHistory = Array.isArray(lead.callHistory) ? lead.callHistory : [];
 
-  // Sort newest first
   const sorted = [...callHistory].sort(
     (a, b) => new Date(b.calledAt) - new Date(a.calledAt)
   );
@@ -451,14 +289,12 @@ function RemarksHistoryModal({ lead, onClose }) {
 }
 
 // ── Recording & Remarks Modal ─────────────────────────────────────────────────
-// Uses mobile call logs API — shows ALL remarks and recordings for a lead.
 function RecordingModal({ lead, onClose }) {
   const [mobileLogs, setMobileLogs] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
 
   useEffect(() => {
-    // Fetch mobile call logs for this lead
     api.get(`${CALL_LOGS_API}/lead/${lead.id || lead._id}`)
       .then(res => {
         const logs = Array.isArray(res.data?.logs) ? res.data.logs : [];
@@ -470,12 +306,8 @@ function RecordingModal({ lead, onClose }) {
 
   const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
 
-  // All remarks: from lead.callHistory (CRM) + from mobile call logs
   const allCallHistory = Array.isArray(lead.callHistory) ? [...lead.callHistory] : [];
-
-  // Recordings from both callHistory and mobile logs
-  const recordingsFromHistory = allCallHistory.filter(h => h.recordingUrl);
-  const recordingsFromMobile  = mobileLogs.filter(l => l.recordings?.length > 0);
+  const recordingsFromMobile = mobileLogs.filter(l => l.recordings?.length > 0);
 
   const fmtDur = (sec) => {
     if (!sec) return null;
@@ -545,7 +377,6 @@ function RecordingModal({ lead, onClose }) {
                   ) : (
                     <p className="text-[11px] text-[#C4C9D9] italic">No remark added</p>
                   )}
-                  {/* Recording attached to this callHistory entry */}
                   {h.recordingUrl && (
                     <div className="mt-2">
                       <audio controls src={`https://skyup-crm-backend.onrender.com${h.recordingUrl}`} className="w-full h-7 rounded-lg accent-[#2563EB]" />
@@ -633,24 +464,21 @@ export default function ReportPage() {
       .then(({ agents, leads }) => {
         setAgents(agents);
         setLeads(leads);
-        nextId = leads.reduce((m, l) => Math.max(m, Number(l.id) || 0), 0) + 1;
       })
       .catch(err => setFetchError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const [search, setSearch]                 = useState("");
-  const [statusFilter, setStatus]           = useState("All");
-  const [agentFilter, setAgent]             = useState("All");
-  const [sortBy, setSortBy]                 = useState("date");
-  const [page, setPage]                     = useState(1);
-  const [showAddModal, setAddModal]         = useState(false);
-  const [editLead, setEditLead]             = useState(null);
-  const [deleteConfirm, setDeleteConfirm]   = useState(null);
-  const [recordingLead, setRecordingLead]   = useState(null);
-  // BUG FIX: New state for the Remarks History modal
-  const [remarksLead, setRemarksLead]       = useState(null);
-  const [timeFilter, setTimeFilter]         = useState("All");
+  const [search, setSearch]               = useState("");
+  const [statusFilter, setStatus]         = useState("All");
+  const [agentFilter, setAgent]           = useState("All");
+  const [sortBy, setSortBy]               = useState("date");
+  const [page, setPage]                   = useState(1);
+  const [editLead, setEditLead]           = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [recordingLead, setRecordingLead] = useState(null);
+  const [remarksLead, setRemarksLead]     = useState(null);
+  const [timeFilter, setTimeFilter]       = useState("All");
   const PER_PAGE = 8;
 
   const isWithinRange = useDateFilter(timeFilter);
@@ -686,8 +514,6 @@ export default function ReportPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const paged      = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  const addLead  = lead    => { setLeads(ls => [lead, ...ls]); setPage(1); };
-  // BUG FIX: saveLead must merge — not replace — so callHistory etc. survive edits
   const saveLead = updated => setLeads(ls => ls.map(l => l.id === updated.id ? { ...l, ...updated } : l));
 
   const deleteLead = async (id) => {
@@ -723,63 +549,6 @@ export default function ReportPage() {
     a.click();
   };
 
-  const importInputRef = useRef(null);
-
-  const downloadCSVTemplate = () => {
-    const headers = ["name", "mobile", "email", "source", "campaign", "status", "remark"];
-    const blob = new Blob([[headers.join(","), example.join(",")].join("\n")], { type: "text/csv" });
-    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "leads_import_template.csv" });
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
-  const handleImportCSV = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
-    try {
-      const text = await file.text();
-      const lines = text.trim().split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-      if (lines.length < 2) { alert(" CSV must have a header row and at least one data row."); return; }
-
-      const parseCSVLine = (line) => {
-        const values = []; let current = "", inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-          const ch = line[i];
-          if (ch === '"') { inQuotes = !inQuotes; }
-          else if (ch === "," && !inQuotes) { values.push(current.trim()); current = ""; }
-          else { current += ch; }
-        }
-        values.push(current.trim()); return values;
-      };
-
-      const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase());
-      const leadsToImport = [];
-      for (let i = 1; i < lines.length; i++) {
-        const values = parseCSVLine(lines[i]);
-        const row = {};
-        headers.forEach((h, idx) => { row[h] = (values[idx] || "").trim(); });
-        const nameVal   = row.name || row["full name"] || row["fullname"] || row["full_name"] || "";
-        const mobileVal = row.mobile || row.phone || row["phone number"] || row["phone_number"] || row["mobile_number"] || row["number"] || "";
-        const cleanMobile = mobileVal.replace(/\D/g, "");
-        if (!cleanMobile) continue;
-        leadsToImport.push({
-          name: nameVal || "Unknown", mobile: cleanMobile, email: row.email || "",
-          source: row.source || "CSV Import", campaign: row.campaign || "",
-          status: row.status || "New", date: row.date || null,
-          remark: row.remark || row.notes || "Imported via CSV",
-        });
-      }
-      if (!leadsToImport.length) { alert(" No valid rows found. Check that your CSV has 'name' and 'mobile' columns."); return; }
-
-      const { data } = await api.post("/lead/admin/import-csv", { leads: leadsToImport });
-      alert(` ${data.message}\nImported: ${data.savedCount}  |  Failed: ${data.errorCount}`);
-      fetchAll().then(({ agents: a, leads: l }) => { setAgents(a); setLeads(l); }).catch(() => {});
-    } catch (err) {
-      alert("Import failed: " + (err.response?.data?.message || err.message));
-    }
-  };
-
   const filterBtn = (current, setter, arr) =>
     arr.map(v => (
       <button key={v} onClick={() => { setter(v); setPage(1); }}
@@ -804,10 +573,8 @@ export default function ReportPage() {
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-8">
 
-      {showAddModal  && <AddLeadModal agents={agents} onClose={() => setAddModal(false)} onAdd={addLead} />}
       {editLead      && <EditLeadModal lead={editLead} agents={agents} onClose={() => setEditLead(null)} onSave={saveLead} />}
       {recordingLead && <RecordingModal lead={recordingLead} onClose={() => setRecordingLead(null)} />}
-      {/* BUG FIX: New remarks history modal */}
       {remarksLead   && <RemarksHistoryModal lead={remarksLead} onClose={() => setRemarksLead(null)} />}
 
       {deleteConfirm && (
@@ -832,32 +599,10 @@ export default function ReportPage() {
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{leads.length} total leads · {agents.length} agents</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#059669] text-white text-[13px] font-semibold hover:bg-emerald-700 transition">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
-            Add Lead
-          </button>
           <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             Export CSV
           </button>
-          {(role === "admin" || role === "superadmin") && (
-            <>
-              <input ref={importInputRef} type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
-              <div className="flex items-center rounded-xl overflow-hidden">
-                <button onClick={() => importInputRef.current?.click()}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#7C3AED] text-white text-[13px] font-semibold hover:bg-violet-700 transition">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                  Import CSV
-                </button>
-                <div className="w-px h-5 bg-violet-400/40" />
-                <button onClick={downloadCSVTemplate} title="Download CSV template"
-                  className="flex items-center gap-1.5 px-3 py-2 bg-[#7C3AED] text-violet-200 text-[12px] font-semibold hover:bg-violet-700 transition whitespace-nowrap">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                  Template
-                </button>
-              </div>
-            </>
-          )}
         </div>
       </div>
 
@@ -967,7 +712,6 @@ export default function ReportPage() {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                {/* BUG FIX: Added "Calls" column to show call count at a glance */}
                 {["#", "Lead Name", "Phone", "Source", "Campaign", "Agent", "Status", "Date", "Calls", "Remark", "Actions"].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
@@ -998,7 +742,6 @@ export default function ReportPage() {
                       <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${st.bg} ${st.text}`}>{lead.status}</span>
                     </td>
                     <td className="px-4 py-3 text-[#8B92A9] dark:text-[#565C75] whitespace-nowrap">{displayDate(lead.date)}</td>
-                    {/* BUG FIX: Show call count — clicking opens full remarks history */}
                     <td className="px-4 py-3">
                       <button
                         onClick={() => setRemarksLead(lead)}
