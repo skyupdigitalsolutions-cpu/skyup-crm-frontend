@@ -534,7 +534,7 @@ function UserDetailDrawer({ user, records, onClose }) {
   const lastSynced  = lastRec?.updatedAt || lastRec?.loginTime  || null;
 
   // ── IP / login info ───────────────────────────────────────────────────────
-  const lastIpAddress   = user.lastIpAddress   || null;
+  const lastIpAddress   = user.ipAddress       || null;  // ✅ FIX: field is ipAddress, not lastIpAddress
   const lastLoginAt     = user.lastLoginAt     || null;
   const loginHistory    = user.loginHistory    || [];
   const historyCount    = loginHistory.length;
@@ -865,7 +865,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
             ) : (
               records.map((rec, i) => {
                 // IP / login pulled from the user object attached to each record
-                const recIp      = rec.user?.lastIpAddress || null;
+                const recIp      = rec.user?.ipAddress    || null;  // ✅ FIX: was lastIpAddress
                 const recLoginAt = rec.user?.lastLoginAt   || null;
 
                 return (
@@ -980,7 +980,7 @@ function UsersTab({ records, onUserClick }) {
         const deviceInfo = lastRec?.appName || lastRec?.platform || lastRec?.deviceInfo;
 
         // ✅ IP / login data on the user object
-        const lastIp      = user.lastIpAddress || null;
+        const lastIp      = user.ipAddress    || null;  // ✅ FIX: was lastIpAddress
         const lastLoginAt = user.lastLoginAt   || null;
         const historyCount = (user.loginHistory || []).length;
 
