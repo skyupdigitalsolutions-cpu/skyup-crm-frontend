@@ -23,7 +23,10 @@ export default function AdminAttendanceView() {
   const [date, setDate]       = useState(new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(true);
 
+  // FIX 1: setLoading(true) at the START of every fetch so the button
+  // shows a spinner and the skeleton re-appears on manual refresh.
   const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get(`/attendance/company?date=${date}`);
       setRecords(res.data || []);
@@ -59,7 +62,22 @@ export default function AdminAttendanceView() {
           <input type="date" value={date} max={new Date().toISOString().slice(0,10)}
             onChange={e => setDate(e.target.value)}
             className="text-[12px] border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0D0F14] rounded-lg px-3 py-1.5 text-gray-700 dark:text-gray-300" />
-          <button onClick={fetchData} className="px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 text-[12px] font-bold hover:bg-blue-100 transition">↻ Refresh</button>
+          {/* FIX 2: show spinner inside button while loading so user gets feedback */}
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 text-[12px] font-bold hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed transition"
+          >
+            {loading ? (
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+            ) : (
+              <span>↻</span>
+            )}
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
         </div>
       </div>
 
@@ -75,6 +93,13 @@ export default function AdminAttendanceView() {
       {loading ? (
         <div className="space-y-2">
           {[1,2,3].map(i => <div key={i} className="h-14 rounded-xl bg-gray-100 dark:bg-white/5 animate-pulse" />)}
+        </div>
+      ) : records.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">
+          <svg className="w-8 h-8 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+          </svg>
+          <p className="text-[13px]">No attendance records for this date.</p>
         </div>
       ) : (
         <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
