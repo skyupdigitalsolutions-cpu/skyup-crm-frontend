@@ -18,13 +18,36 @@ const STATUS_STYLE = {
   not_logged_in:{ dot: "bg-gray-300",    text: "text-gray-400",                            badge: "bg-gray-50 dark:bg-gray-900/40",         label: "Not In" },
 };
 
+/**
+ * Compute live break minutes on the client side as a fallback.
+ * If the backend provides `liveBreakMinutes`, that takes priority.
+ * Otherwise, sum all completed breaks + add the ongoing break duration
+ * if the employee is currently on_break and the last break has no endTime.
+ */
+function getLiveBreakMinutes(rec) {
+  // Prefer backend-provided live value
+  if (rec.liveBreakMinutes != null) return rec.liveBreakMinutes;
+
+  const breaks = rec.breaks || [];
+  const now = Date.now();
+
+  const total = breaks.reduce((sum, b) => {
+    const start = b.startTime ? new Date(b.startTime).getTime() : null;
+    if (!start) return sum;
+    // If break has no end time and status is on_break, treat it as ongoing
+    const end = b.endTime ? new Date(b.endTime).getTime() : (rec.status === "on_break" ? now : null);
+    if (!end) return sum;
+    return sum + Math.max(0, (end - start) / 60000);
+  }, 0);
+
+  return Math.round(total);
+}
+
 export default function AdminAttendanceView() {
   const [records, setRecords] = useState([]);
   const [date, setDate]       = useState(new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(true);
 
-  // FIX 1: setLoading(true) at the START of every fetch so the button
-  // shows a spinner and the skeleton re-appears on manual refresh.
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -62,7 +85,6 @@ export default function AdminAttendanceView() {
           <input type="date" value={date} max={new Date().toISOString().slice(0,10)}
             onChange={e => setDate(e.target.value)}
             className="text-[12px] border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0D0F14] rounded-lg px-3 py-1.5 text-gray-700 dark:text-gray-300" />
-          {/* FIX 2: show spinner inside button while loading so user gets feedback */}
           <button
             onClick={fetchData}
             disabled={loading}
@@ -105,6 +127,9 @@ export default function AdminAttendanceView() {
         <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
           {records.map((rec, i) => {
             const st = STATUS_STYLE[rec.status] || STATUS_STYLE["not_logged_in"];
+            // FIX: use live work minutes with fallback, and live break minutes with fallback
+            const workMins  = rec.liveWorkMinutes  ?? rec.totalWorkMinutes;
+            const breakMins = getLiveBreakMinutes(rec);
             return (
               <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/5">
                 {/* Avatar */}
@@ -126,8 +151,9 @@ export default function AdminAttendanceView() {
                   <div className="flex gap-3 mt-0.5 text-[10px] text-gray-400 flex-wrap">
                     <span>In: {fmtTime(rec.loginTime)}</span>
                     {rec.logoutTime && <span>Out: {fmtTime(rec.logoutTime)}</span>}
-                    <span>Work: {fmt(rec.liveWorkMinutes ?? rec.totalWorkMinutes)}</span>
-                    <span>Breaks: {fmt(rec.totalBreakMinutes)}</span>
+                    <span>Work: {fmt(workMins)}</span>
+                    {/* FIX: now uses getLiveBreakMinutes which accounts for ongoing breaks */}
+                    <span>Breaks: {fmt(breakMins)}</span>
                     {rec.breaks?.length > 0 && <span>{rec.breaks.length} break{rec.breaks.length > 1 ? "s" : ""}</span>}
                   </div>
                 </div>
