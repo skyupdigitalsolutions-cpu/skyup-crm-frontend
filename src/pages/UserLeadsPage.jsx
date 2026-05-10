@@ -492,14 +492,27 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
     setSaving(true);
     setError("");
     try {
+      let updatedLead;
       if (isNI) {
-        await api.patch(`/lead/${lead.id}/not-interested`, { remark: remark.trim() });
+        const res = await api.patch(`/lead/${lead.id}/not-interested`, { remark: remark.trim() });
+        updatedLead = res.data?.lead || res.data;
       } else {
         const body = { status, remark: remark.trim(), outcome };
         if (temperature) body.temperature = temperature;
-        await api.patch(`/lead/${lead.id}`, body);
+        const res = await api.patch(`/lead/${lead.id}`, body);
+        updatedLead = res.data?.lead || res.data;
       }
-      onSaved({ ...lead, status, remark: remark.trim(), temperature: temperature || lead.temperature });
+      // Build the new call history entry to reflect optimistically
+      const newCall = { outcome: isNI ? "Not Interested" : outcome, remark: remark.trim(), calledAt: new Date().toISOString() };
+      const mergedCallHistory = [...(lead.callHistory || []), newCall];
+      onSaved({
+        ...lead,
+        ...(updatedLead || {}),
+        status: isNI ? "Not Interested" : status,
+        remark: remark.trim(),
+        temperature: temperature || lead.temperature,
+        callHistory: mergedCallHistory,
+      });
       onClose();
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Update failed");
@@ -916,11 +929,11 @@ export default function UserLeadsPage() {
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
                     {["Lead", "Phone", "Source / Campaign", "Date", "Status", "Quality", "Calls", ""].map((h, i) => (
-                      <th key={i} className="px-4 py-3 text-left text-[14px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                      <th key={i} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white dark:divide-[#1E2130]">
+                <tbody className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
                   {paged.map(l => {
                     const sc = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
                     return (
