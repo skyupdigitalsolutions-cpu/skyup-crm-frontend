@@ -87,7 +87,7 @@ export default function NotInterestedModal({ lead, onClose, onSuccess }) {
             })}
           </div>
           <button
-            onClick={function() { onSuccess(result.lead); onClose(); }}
+            onClick={function() { onSuccess(result.lead || lead); onClose(); }}
             className="w-full py-3 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-[#1D4ED8] transition"
           >
             Done
