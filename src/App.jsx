@@ -101,7 +101,7 @@ function ProtectedRoute({ children }) {
   useEffect(() => {
     const { token: t, user: u } = getStoredAuth();
     if (!t || !u) navigate("/login", { replace: true });
-  });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!token || !user) return <Navigate to="/login" replace />;
   return children;
@@ -119,7 +119,7 @@ function AdminRoute({ children }) {
     } else if (u.role === "user") {
       navigate("/user/dashboard", { replace: true });
     }
-  });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!token || !user) return <Navigate to="/login" replace />;
   if (user.role === "user") return <Navigate to="/user/dashboard" replace />;
@@ -138,7 +138,7 @@ function UserRoute({ children }) {
     } else if (u.role !== "user") {
       navigate("/dashboard", { replace: true });
     }
-  });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!token || !user) return <Navigate to="/login" replace />;
   if (user.role !== "user") return <Navigate to="/dashboard" replace />;
