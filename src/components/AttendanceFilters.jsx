@@ -21,10 +21,13 @@ function getQuickRange(type) {
   if (type === "today") return { startDate: localToday, endDate: localToday };
 
   if (type === "week") {
-    const start = new Date(now);
-    start.setDate(now.getDate() - 6);
-    return { startDate: localDate(start), endDate: localToday };
-  }
+  const start = new Date(now);
+  start.setDate(now.getDate() - 7); // 7 days ago + today = 8 days total
+  return {
+    startDate: start.toISOString().slice(0, 10),
+    endDate:   now.toISOString().slice(0, 10),
+  };
+}
 
   if (type === "month") {
     const y = now.getFullYear(), m = now.getMonth();
