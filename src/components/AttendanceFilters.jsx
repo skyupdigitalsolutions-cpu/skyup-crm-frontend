@@ -22,7 +22,7 @@ function getQuickRange(type) {
 
   if (type === "week") {
   const start = new Date(now);
-  start.setDate(now.getDate() - 7); // 7 days ago + today = 8 days total
+  start.setDate(now.getDate() 7); 
   return {
     startDate: start.toISOString().slice(0, 10),
     endDate:   now.toISOString().slice(0, 10),
