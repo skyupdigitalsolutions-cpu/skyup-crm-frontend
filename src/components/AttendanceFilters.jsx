@@ -16,17 +16,14 @@ function getQuickRange(type) {
 
   if (type === "today") return { startDate: today, endDate: today };
 
-  if (type === "week") {
-    const day  = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    const mon  = new Date(now.getFullYear(), now.getMonth(), diff);
-    const sun  = new Date(mon);
-    sun.setDate(mon.getDate() + 6);
-    return {
-      startDate: mon.toISOString().slice(0, 10),
-      endDate:   sun.toISOString().slice(0, 10),
-    };
-  }
+ if (type === "week") {
+  const start = new Date(now);
+  start.setDate(now.getDate() - 6); // 6 days ago
+  return {
+    startDate: start.toISOString().slice(0, 10),
+    endDate:   now.toISOString().slice(0, 10), // today
+  };
+}
 
   if (type === "month") {
     const y = now.getFullYear(), m = now.getMonth();
