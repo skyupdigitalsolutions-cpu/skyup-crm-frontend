@@ -462,7 +462,6 @@ function ImportCSVModal({ onClose, onImported }) {
 
   const downloadTemplate = () => {
     const headers = "name,mobile,email,source,campaign,status,remark";
-    const example = "John Doe,9876543210,john@email.com,Google Ads,Summer2025,New,Interested in product";
     const blob = new Blob([[headers, example].join("\n")], { type: "text/csv" });
     const a = Object.assign(document.createElement("a"), {
       href: URL.createObjectURL(blob), download: "leads_import_template.csv",
