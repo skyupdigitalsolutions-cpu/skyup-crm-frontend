@@ -76,9 +76,9 @@ const STATUS_CONFIG = {
   "Not Interested": { bg:"bg-red-50 dark:bg-red-950/40",         text:"text-red-600 dark:text-red-400",      dot:"#DC2626" },
 };
 const TEMP_CONFIG = {
-  Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"🔥" },
-  Warm: { bg:"bg-amber-50 dark:bg-amber-950/40",text:"text-amber-600 dark:text-amber-400",icon:"🌤" },
-  Cold: { bg:"bg-blue-50 dark:bg-blue-950/40",  text:"text-blue-600 dark:text-blue-400",  icon:"❄️" },
+  Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"" },
+  Warm: { bg:"bg-amber-50 dark:bg-amber-950/40",text:"text-amber-600 dark:text-amber-400",icon:"" },
+  Cold: { bg:"bg-blue-50 dark:bg-blue-950/40",  text:"text-blue-600 dark:text-blue-400",  icon:"" },
 };
 
 function StatusBadge({ status }) {
@@ -561,7 +561,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Lead Quality</label>
             <div className="grid grid-cols-4 gap-2">
-              {[{val:"",label:"None",color:"#8B92A9",bg:"bg-gray-50 dark:bg-gray-900/30"},{val:"Hot",label:"🔥 Hot",color:"#DC2626",bg:"bg-red-50 dark:bg-red-950/30"},{val:"Warm",label:"🌤 Warm",color:"#D97706",bg:"bg-amber-50 dark:bg-amber-950/30"},{val:"Cold",label:"❄️ Cold",color:"#2563EB",bg:"bg-blue-50 dark:bg-blue-950/30"}].map(q => (
+              {[{val:"",label:"None",color:"#8B92A9",bg:"bg-gray-50 dark:bg-gray-900/30"},{val:"Hot",label:" Hot",color:"#DC2626",bg:"bg-red-50 dark:bg-red-950/30"},{val:"Warm",label:"🌤 Warm",color:"#D97706",bg:"bg-amber-50 dark:bg-amber-950/30"},{val:"Cold",label:"❄️ Cold",color:"#2563EB",bg:"bg-blue-50 dark:bg-blue-950/30"}].map(q => (
                 <button key={q.val} type="button" onClick={() => setTemp(q.val)}
                   className={`py-2 px-1 rounded-xl border-2 text-[11px] font-semibold transition ${q.bg} ${temp === q.val ? "border-current scale-[1.03]" : "border-transparent opacity-60 hover:opacity-100"}`}
                   style={{ color: q.color, borderColor: temp === q.val ? q.color : undefined }}>{q.label}</button>
@@ -574,7 +574,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
           </div>
           {status !== "Not Interested" && (
             <div>
-              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">📅 Follow-up Date</label>
+              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide"> Follow-up Date</label>
               <input type="date" value={followUpDate} min={getTodayStr()} onChange={e => setFollowUpDate(e.target.value)} className={CLS} />
             </div>
           )}
@@ -630,7 +630,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
             <TempBadge temp={lead.Quality || lead.temperature} />
             {lead.reassignCount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
-                🔄 Reassigned {lead.reassignCount}×
+                 Reassigned {lead.reassignCount}
               </span>
             )}
           </div>
@@ -645,7 +645,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
         </div>
         {callHistory.length > 0 && (
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
-            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3">📞 Call History ({callHistory.length})</p>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3"> Call History ({callHistory.length})</p>
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
               {callHistory.map((h, i) => (
                 <div key={i} className="px-3 py-2.5 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38]">
@@ -662,7 +662,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
         )}
         {pendingCalls.length > 0 && (
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
-            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3">📅 Scheduled Follow-ups ({pendingCalls.length} pending)</p>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3"> Scheduled Follow-ups ({pendingCalls.length} pending)</p>
             <div className="space-y-2">
               {pendingCalls.map((sc, i) => {
                 const isPast = new Date(sc.scheduledAt) < new Date();
@@ -925,9 +925,9 @@ function UserChatWidget() {
 
 function getGreeting() {
   const h = new Date().getHours();
-  if (h < 12) return { text: "Good morning", emoji: "☀️" };
-  if (h < 17) return { text: "Good afternoon", emoji: "🌤" };
-  return { text: "Good evening", emoji: "🌙" };
+  if (h < 12) return { text: "Good morning", emoji: "" };
+  if (h < 17) return { text: "Good afternoon", emoji: "" };
+  return { text: "Good evening", emoji: "" };
 }
 
 function mapLead(l) {
@@ -1045,7 +1045,6 @@ export default function UserDashboard() {
   // ── CSV template download ─────────────────────────────────────────────────
   const downloadCSVTemplate = () => {
     const headers = ["name","mobile","email","source","campaign","status","remark"];
-    const example = ["John Doe","9876543210","john@example.com","Google Ads","Summer Campaign","New","Interested in product"];
     const blob = new Blob([[headers,example].map(r=>r.join(",")).join("\n")], { type:"text/csv" });
     const a = Object.assign(document.createElement("a"), { href:URL.createObjectURL(blob), download:"leads_import_template.csv" });
     a.click(); URL.revokeObjectURL(a.href);
@@ -1261,16 +1260,16 @@ export default function UserDashboard() {
 
         {/* KPI cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon="👤" />
-          <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon="✅" trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
-          <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon="⏳" />
-          <KpiCard label="Hot Leads 🔥"   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="🔥" />
+          <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon="" />
+          <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon="" trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
+          <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon="" />
+          <KpiCard label="Hot Leads "   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="" />
         </div>
 
         {/* Targets + Quality */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
-            <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide mb-4">🎯 My Daily Targets</p>
+            <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide mb-4"> My Daily Targets</p>
             <div className="flex items-center justify-around">
               <RadialProgress value={kpi.todayLeads} max={10} color="#2563EB" label="Leads" size={80} />
               <RadialProgress value={leads.filter(l => isToday(l.date) && l.status==="Converted").length} max={5} color="#059669" label="Convert" size={80} />
@@ -1281,7 +1280,7 @@ export default function UserDashboard() {
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <p className="text-[12px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide mb-4">Lead Quality</p>
             <div className="space-y-3">
-              {[{label:"Hot",color:"#DC2626",icon:"🔥",count:kpi.hot},{label:"Warm",color:"#D97706",icon:"🌤",count:kpi.warm},{label:"Cold",color:"#2563EB",icon:"❄️",count:kpi.cold},{label:"Unclassified",color:"#8B92A9",icon:"—",count:kpi.unclassified}].map(item => (
+              {[{label:"Hot",color:"#DC2626",icon:"",count:kpi.hot},{label:"Warm",color:"#D97706",icon:"",count:kpi.warm},{label:"Cold",color:"#2563EB",icon:"",count:kpi.cold},{label:"Unclassified",color:"#8B92A9",icon:"—",count:kpi.unclassified}].map(item => (
                 <div key={item.label} className="flex items-center gap-2">
                   <span className="w-4 text-center text-[14px]">{item.icon}</span>
                   <div className="flex-1">
@@ -1302,10 +1301,10 @@ export default function UserDashboard() {
         {/* Status filter pills */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label:"New",            count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-100 dark:bg-blue-950/70",      icon:"🆕" },
-            { label:"In Progress",    count:kpi.inProgress, color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30",     icon:"⏳" },
-            { label:"Converted",      count:kpi.converted,  color:"#059669", bg:"bg-emerald-50 dark:bg-emerald-950/30", icon:"✅" },
-            { label:"Not Interested", count:kpi.notInt,     color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30",         icon:"❌" },
+            { label:"New",            count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-100 dark:bg-blue-950/70",      icon:"" },
+            { label:"In Progress",    count:kpi.inProgress, color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30",     icon:"" },
+            { label:"Converted",      count:kpi.converted,  color:"#059669", bg:"bg-emerald-50 dark:bg-emerald-950/30", icon:"" },
+            { label:"Not Interested", count:kpi.notInt,     color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30",         icon:"" },
           ].map(item => (
             <button key={item.label}
               onClick={() => { setFilterSt(filterSt === item.label ? "All" : item.label); setActiveTab("leads"); setPage(1); }}
@@ -1456,7 +1455,7 @@ export default function UserDashboard() {
         {/* Motivational banner */}
         {!loading && kpi.total > 0 && (
           <div className="rounded-2xl p-4 flex items-center gap-4 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38]">
-            <span className="text-[28px]">{kpi.convRate >= 50 ? "🏆" : kpi.convRate >= 30 ? "🌟" : kpi.convRate >= 15 ? "📈" : "💪"}</span>
+            <span className="text-[28px]">{kpi.convRate >= 50 ? "" : kpi.convRate >= 30 ? "" : kpi.convRate >= 15 ? "" : ""}</span>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-white">
                 {kpi.convRate >= 50 ? "Outstanding performance! You're a top converter!" :
