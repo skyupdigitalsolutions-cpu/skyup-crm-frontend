@@ -20,12 +20,12 @@ function getQuickRange(type) {
 
   if (type === "today") return { startDate: localToday, endDate: localToday };
 
-  if (type === "week") {
+if (type === "week") {
   const start = new Date(now);
-  start.setDate(now.getDate() 7); 
+  start.setDate(now.getDate() - 7); // today minus 7 days
   return {
-    startDate: start.toISOString().slice(0, 10),
-    endDate:   now.toISOString().slice(0, 10),
+    startDate: localDate(start),   // ← use localDate, not toISOString
+    endDate:   localToday,
   };
 }
 
