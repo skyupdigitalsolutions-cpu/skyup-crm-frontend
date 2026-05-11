@@ -17,9 +17,9 @@ function getQuickRange(type) {
   if (type === "today") return { startDate: today, endDate: today };
 
   if (type === "week") {
-    const day  = now.getDay(); // 0=Sun
+    const day  = now.getDay();
     const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    const mon  = new Date(now.setDate(diff));
+    const mon  = new Date(now.getFullYear(), now.getMonth(), diff);
     const sun  = new Date(mon);
     sun.setDate(mon.getDate() + 6);
     return {
@@ -30,9 +30,10 @@ function getQuickRange(type) {
 
   if (type === "month") {
     const y = now.getFullYear(), m = now.getMonth();
-    const first = new Date(y, m, 1).toISOString().slice(0, 10);
-    const last  = new Date(y, m + 1, 0).toISOString().slice(0, 10);
-    return { startDate: first, endDate: last };
+    return {
+      startDate: new Date(y, m, 1).toISOString().slice(0, 10),
+      endDate:   new Date(y, m + 1, 0).toISOString().slice(0, 10),
+    };
   }
 
   if (type === "year") {
@@ -52,18 +53,24 @@ export default function AttendanceFilters({ filters, onChange }) {
       .catch(() => {});
   }, []);
 
-  const set = (key, val) => onChange({ ...filters, [key]: val });
+  const set = (key, val) =>
+    onChange({ ...filters, [key]: val, quick: "" });
 
   const applyQuick = (type) => {
     const { startDate, endDate } = getQuickRange(type);
     onChange({ ...filters, startDate, endDate, quick: type });
   };
 
+  const reset = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    onChange({ startDate: today, endDate: today, userId: "", crmStatus: "", quick: "today" });
+  };
+
   const QUICK_BTNS = [
-    { label: "Today",   key: "today" },
-    { label: "Week",    key: "week"  },
-    { label: "Month",   key: "month" },
-    { label: "Year",    key: "year"  },
+    { label: "Today", key: "today" },
+    { label: "Week",  key: "week"  },
+    { label: "Month", key: "month" },
+    { label: "Year",  key: "year"  },
   ];
 
   const inputCls =
@@ -90,7 +97,6 @@ export default function AttendanceFilters({ filters, onChange }) {
 
       {/* Filter row */}
       <div className="flex flex-wrap gap-3 items-end">
-        {/* Date range */}
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">From</label>
           <input
@@ -101,6 +107,7 @@ export default function AttendanceFilters({ filters, onChange }) {
             className={inputCls}
           />
         </div>
+
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">To</label>
           <input
@@ -113,7 +120,6 @@ export default function AttendanceFilters({ filters, onChange }) {
           />
         </div>
 
-        {/* Employee filter */}
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Employee</label>
           <select
@@ -128,7 +134,6 @@ export default function AttendanceFilters({ filters, onChange }) {
           </select>
         </div>
 
-        {/* Status filter */}
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Status</label>
           <select
@@ -142,14 +147,20 @@ export default function AttendanceFilters({ filters, onChange }) {
           </select>
         </div>
 
-        {/* Reset */}
         <button
-          onClick={() => onChange({ startDate: new Date().toISOString().slice(0,10), endDate: new Date().toISOString().slice(0,10), userId: "", crmStatus: "", quick: "today" })}
+          onClick={reset}
           className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition"
         >
           Reset
         </button>
       </div>
+
+      {/* Active range display */}
+      {(filters.startDate || filters.endDate) && (
+        <p className="mt-2 text-[11px] text-indigo-500 font-medium">
+          Showing: {filters.startDate} → {filters.endDate}
+        </p>
+      )}
     </div>
   );
 }
