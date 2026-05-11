@@ -11,34 +11,37 @@ const STATUS_OPTIONS = [
 ];
 
 function getQuickRange(type) {
-  const now   = new Date();
-  const today = now.toISOString().slice(0, 10);
+  // Use local date to avoid UTC timezone shift (critical for IST +5:30)
+  const now = new Date();
+  const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-  if (type === "today") return { startDate: today, endDate: today };
+  const localDate = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
- if (type === "week") {
-  const start = new Date(now);
-  start.setDate(now.getDate() - 6); // 6 days ago
-  return {
-    startDate: start.toISOString().slice(0, 10),
-    endDate:   now.toISOString().slice(0, 10), // today
-  };
-}
+  if (type === "today") return { startDate: localToday, endDate: localToday };
+
+  if (type === "week") {
+    const start = new Date(now);
+    start.setDate(now.getDate() - 6);
+    return { startDate: localDate(start), endDate: localToday };
+  }
 
   if (type === "month") {
     const y = now.getFullYear(), m = now.getMonth();
     return {
-      startDate: new Date(y, m, 1).toISOString().slice(0, 10),
-      endDate:   new Date(y, m + 1, 0).toISOString().slice(0, 10),
+      startDate: localDate(new Date(y, m, 1)),
+      endDate:   localToday, // ← today, not end of month
     };
   }
 
   if (type === "year") {
-    const y = now.getFullYear();
-    return { startDate: `${y}-01-01`, endDate: `${y}-12-31` };
+    return {
+      startDate: `${now.getFullYear()}-01-01`,
+      endDate:   localToday, // ← today, not Dec 31
+    };
   }
 
-  return { startDate: today, endDate: today };
+  return { startDate: localToday, endDate: localToday };
 }
 
 export default function AttendanceFilters({ filters, onChange }) {
