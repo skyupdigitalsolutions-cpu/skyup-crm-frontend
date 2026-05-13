@@ -501,8 +501,6 @@ const downloadTemplate = () => {
 
       const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().trim());
 
-      // Build a Set of canonical forms of every phone already in the CRM.
-      // Any +91 / 0 / bare variant of the same number collapses to one key.
       const existingPhoneSet = new Set(
         (existingLeads || [])
           .map(l => canonicalPhone(l.phone || l.mobile))
