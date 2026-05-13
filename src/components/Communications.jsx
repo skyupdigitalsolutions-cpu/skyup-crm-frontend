@@ -119,7 +119,7 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
   const [phone,        setPhone]        = useState("");
   const [contactName,  setContactName]  = useState("");
   const [templateName, setTemplateName] = useState("");
-  const [languageCode, setLanguageCode] = useState("en");
+  const [languageCode, setLanguageCode] = useState("en_US"); // FIX: "en" rejected by MSG91; use "en_US"
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
 
@@ -134,7 +134,7 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
           phone:        phone.trim().replace(/\D/g, ""),
           contactName:  contactName.trim(),
           templateName: templateName.trim(),
-          languageCode: languageCode.trim() || "en",
+          languageCode: languageCode.trim() || "en_US",
         },
         authHeaders
       );
@@ -234,8 +234,9 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
           <div>
             <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Language</label>
             <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} className={FIELD_CLS}>
-              <option value="en">English (en)</option>
-              <option value="en_US">English US (en_US)</option>
+              <option value="en_US">English (en_US) — recommended</option>
+              <option value="en_GB">English GB (en_GB)</option>
+              <option value="en">English (en) — legacy</option>
               <option value="hi">Hindi (hi)</option>
               <option value="mr">Marathi (mr)</option>
               <option value="gu">Gujarati (gu)</option>
