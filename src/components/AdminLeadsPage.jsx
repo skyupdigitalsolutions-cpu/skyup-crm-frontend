@@ -18,8 +18,9 @@ const TEMP_CONFIG = {
   Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400",icon: "" },
   Cold: { bg: "bg-blue-100 dark:bg-blue-950/40",  text: "text-blue-600 dark:text-blue-400",  icon: "" },
 };
-const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral", "CSV Import", "Manual"];
+const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral", "CSV Import", "Channel Partner", "Other"];
 const ALL_STATUSES = ["New", "In Progress", "Converted", "Not Interested"];
+
 
 function normalizeMobile(val) {
   return normalizePhone(val) || (val || "").replace(/\D/g, "");
@@ -162,6 +163,7 @@ function AgentSelect({ value, onChange, agents, className }) {
 function AddLeadModal({ onClose, onAdd }) {
   const [users,   setUsers]   = useState([]);
   const [loading, setLoading] = useState(true);
+  const [customSource, setCustomSource] = useState("");
   const [form, setForm] = useState({
     name: "", mobile: "", source: "Google Ads", campaign: "",
     userId: "", status: "New", remark: "",
@@ -245,6 +247,8 @@ function AddLeadModal({ onClose, onAdd }) {
 
     if (!form.userId)
       e.userId = "Please select an agent to assign this lead.";
+    if (form.source === "Other" && !customSource.trim())
+  e.source = "Please enter custom source.";
 
     return e;
   };
@@ -282,7 +286,9 @@ function AddLeadModal({ onClose, onAdd }) {
     const basePayload = {
       name:     form.name.trim(),
       mobile:   mob,
-      source:   form.source,
+      source: form.source === "Other"
+  ? customSource
+  : form.source,
       campaign: form.campaign.trim() || null,
       status:   form.status,
       remark:   form.remark.trim() || "Manually added",
@@ -493,7 +499,28 @@ function AddLeadModal({ onClose, onAdd }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Source</label>
-              <select value={form.source} onChange={e => set("source", e.target.value)}
+              <select
+  value={form.source}
+  onChange={e => set("source", e.target.value)}
+  className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]"
+>
+  {ALL_SOURCES.map(o => (
+    <option key={o} value={o}>
+      {o}
+    </option>
+  ))}
+</select>
+
+{form.source === "Other" && (
+  <input
+    type="text"
+    placeholder="Enter custom source"
+    value={customSource}
+    onChange={e => setCustomSource(e.target.value)}
+    className="mt-2 w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB]"
+  />
+)}
+               <ErrMsg k="source" />
                 className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]">
                 {ALL_SOURCES.map(o => <option key={o}>{o}</option>)}
               </select>
@@ -1209,7 +1236,7 @@ export default function AdminLeadsPage() {
                             <span className="text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[90px]">{l.agent || "Unassigned"}</span>
                           </div>
                           {l.reassignCount > 0 && (
-                            <p className="text-[9px] text-purple-400 mt-0.5">🔄 {l.reassignCount} reassign{l.reassignCount > 1 ? "s" : ""}</p>
+                            <p className="text-[9px] text-purple-400 mt-0.5"> {l.reassignCount} reassign{l.reassignCount > 1 ? "s" : ""}</p>
                           )}
                         </td>
 
