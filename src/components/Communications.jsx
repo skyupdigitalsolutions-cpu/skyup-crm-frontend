@@ -110,6 +110,173 @@ function TabNav({ active, onChange }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ── WHATSAPP PANEL ────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── NEW CONVERSATION MODAL ───────────────────────────────────────────────────
+// Admin enters a client number + template name to initiate a fresh conversation
+// ─────────────────────────────────────────────────────────────────────────────
+function NewConversationModal({ onClose, onSuccess, authHeaders }) {
+  const [phone,        setPhone]        = useState("");
+  const [contactName,  setContactName]  = useState("");
+  const [templateName, setTemplateName] = useState("");
+  const [languageCode, setLanguageCode] = useState("en");
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
+
+  const handleStart = async () => {
+    if (!phone.trim())        return setError("Phone number is required");
+    if (!templateName.trim()) return setError("Template name is required — WhatsApp requires a template to start a new conversation");
+    setLoading(true); setError("");
+    try {
+      const { data } = await axios.post(
+        `${API_URL}/whatsapp/start-conversation`,
+        {
+          phone:        phone.trim().replace(/\D/g, ""),
+          contactName:  contactName.trim(),
+          templateName: templateName.trim(),
+          languageCode: languageCode.trim() || "en",
+        },
+        authHeaders
+      );
+      onSuccess(data.conversation);
+      onClose();
+    } catch (err) {
+      const msg = err.response?.data?.error || "Failed to start conversation";
+      setError(msg);
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#f0fdf4] dark:bg-[#052e1c] flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.121 1.531 5.845L.057 23.286a.5.5 0 0 0 .64.64l5.431-1.47A11.952 11.952 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.849 0-3.576-.498-5.066-1.367l-.363-.214-3.765 1.018 1.022-3.734-.234-.376A9.967 9.967 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">New WhatsApp Chat</h2>
+              <p className="text-[11px] text-[#8B92A9] mt-0.5">Start a conversation with any client number</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] transition">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-4">
+
+          {/* Info banner */}
+          <div className="flex gap-2.5 bg-[#FFFBEB] dark:bg-[#1c1600] border border-[#FDE68A] dark:border-[#78350f] rounded-xl px-4 py-3">
+            <span className="text-[14px] shrink-0 mt-0.5">💡</span>
+            <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] leading-relaxed">
+              WhatsApp requires a <strong>pre-approved template</strong> to initiate a new conversation.
+              Once the client replies, you can send free-form messages for 24 hours.
+            </p>
+          </div>
+
+          {/* Phone */}
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+              Client WhatsApp Number <span className="text-[#DC2626]">*</span>
+            </label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="919876543210 (with country code, no +)"
+              className={FIELD_CLS}
+              autoFocus
+            />
+            <p className="text-[10px] text-[#8B92A9] mt-1">Include country code — e.g. 91 for India, 1 for USA</p>
+          </div>
+
+          {/* Contact name */}
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+              Client Name <span className="text-[#8B92A9] font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              placeholder="Rahul Sharma"
+              className={FIELD_CLS}
+            />
+          </div>
+
+          {/* Template name */}
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+              Template Name <span className="text-[#DC2626]">*</span>
+            </label>
+            <input
+              type="text"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="e.g. welcome_message, follow_up_v2"
+              className={FIELD_CLS}
+            />
+            <p className="text-[10px] text-[#8B92A9] mt-1">
+              Must match exactly the approved template name in your MSG91 / Meta dashboard
+            </p>
+          </div>
+
+          {/* Language */}
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Language</label>
+            <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} className={FIELD_CLS}>
+              <option value="en">English (en)</option>
+              <option value="en_US">English US (en_US)</option>
+              <option value="hi">Hindi (hi)</option>
+              <option value="mr">Marathi (mr)</option>
+              <option value="gu">Gujarati (gu)</option>
+              <option value="ta">Tamil (ta)</option>
+              <option value="te">Telugu (te)</option>
+              <option value="kn">Kannada (kn)</option>
+              <option value="ml">Malayalam (ml)</option>
+              <option value="bn">Bengali (bn)</option>
+              <option value="pa">Punjabi (pa)</option>
+            </select>
+          </div>
+
+          {error && (
+            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">
+              ⚠ {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5 pt-2 flex gap-3">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
+            Cancel
+          </button>
+          <button
+            onClick={handleStart}
+            disabled={!phone.trim() || !templateName.trim() || loading}
+            className="flex-1 py-2.5 rounded-xl bg-[#25D366] text-white text-[13px] font-semibold hover:bg-[#1da851] disabled:opacity-40 transition flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Starting…</>
+            ) : (
+              <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>Send Template & Start Chat</>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WhatsAppPanel({ currentUser }) {
   const socketRef  = useRef(null);
   const bottomRef  = useRef(null);
@@ -124,10 +291,21 @@ function WhatsAppPanel({ currentUser }) {
   const [search,        setSearch]        = useState("");
   const [filter,        setFilter]        = useState("all");
   const [error,         setError]         = useState("");
+  const [showNewChat,   setShowNewChat]   = useState(false);
 
   const isAdmin     = currentUser?.role === "admin";
   const token       = localStorage.getItem("token");
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+
+
+  const handleNewConversation = (conv) => {
+    setConversations((prev) => {
+      const exists = prev.find((c) => c._id === conv._id);
+      if (exists) return prev;
+      return [conv, ...prev];
+    });
+    selectConversation(conv);
+  };
 
   const loadConversations = useCallback(async () => {
     try {
@@ -180,6 +358,13 @@ function WhatsAppPanel({ currentUser }) {
       });
     });
 
+    socket.on("wa_new_conversation", ({ conversation }) => {
+      setConversations((prev) => {
+        const exists = prev.find((c) => c._id === conversation._id);
+        if (exists) return prev;
+        return [conversation, ...prev];
+      });
+    });
     socket.on("wa_status_update", ({ waMessageId, status }) => {
       setMessages((prev) => prev.map((m) => m.waMessageId === waMessageId ? { ...m, status } : m));
     });
@@ -242,6 +427,15 @@ function WhatsAppPanel({ currentUser }) {
               <button key={f} onClick={() => setFilter(f)} className={`flex-1 text-[10px] py-1 rounded-lg font-semibold capitalize transition ${filter === f ? "bg-[#25D366] text-white" : "bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:text-[#4B5168]"}`}>{f}</button>
             ))}
           </div>
+          {isAdmin && (
+            <button
+              onClick={() => setShowNewChat(true)}
+              className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-xl bg-[#25D366] hover:bg-[#1da851] text-white text-[12px] font-semibold transition"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
+              New Chat
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -381,6 +575,13 @@ function WhatsAppPanel({ currentUser }) {
             </button>
           </div>
         </div>
+      )}
+      {showNewChat && (
+        <NewConversationModal
+          onClose={() => setShowNewChat(false)}
+          onSuccess={handleNewConversation}
+          authHeaders={authHeaders}
+        />
       )}
     </div>
   );
