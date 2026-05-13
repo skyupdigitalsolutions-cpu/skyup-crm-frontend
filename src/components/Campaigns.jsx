@@ -1656,7 +1656,7 @@ export default function Campaigns() {
       {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={fetchCampaigns} />}
       {showCreateGoogle && <CreateGoogleModal onClose={() => setShowCreateGoogle(false)} onCreated={fetchCampaigns} />}
       {showCreateWebsite && <CreateWebsiteModal onClose={() => setShowCreateWebsite(false)} onCreated={fetchCampaigns} />}
-      /* {showEmailCampaign && <EmailCampaignModal campaigns={campaigns} onClose={() => setShowEmailCampaign(false)} />} */
+       {showEmailCampaign && <EmailCampaignModal campaigns={campaigns} onClose={() => setShowEmailCampaign(false)} />} 
       {editCampaign && editCampaign._isMeta && <EditMetaModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
       {editCampaign && editCampaign._isGoogle && <EditGoogleModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
       {editCampaign && editCampaign._isWebsite && <EditWebsiteModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
