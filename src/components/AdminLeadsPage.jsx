@@ -521,9 +521,7 @@ function AddLeadModal({ onClose, onAdd }) {
   />
 )}
                <ErrMsg k="source" />
-                <select className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]">
-                {ALL_SOURCES.map(o => <option key={o}>{o}</option>)}
-              </select>
+               
             </div>
             <div>
               <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Status</label>
