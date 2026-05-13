@@ -52,6 +52,112 @@ function TempBadge({ temp }) {
   );
 }
 
+// ── Searchable Agent Select ───────────────────────────────────────────────────
+function AgentSelect({ value, onChange, agents, className }) {
+  const [open, setOpen]   = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef      = useRef(null);
+  const inputRef          = useRef(null);
+
+  const options  = ["All", ...agents];
+  const filtered = query.trim()
+    ? options.filter(a => a.toLowerCase().includes(query.toLowerCase()))
+    : options;
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 0);
+  }, [open]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!containerRef.current?.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const select = (agent) => {
+    onChange(agent);
+    setOpen(false);
+    setQuery("");
+  };
+
+  const label = value === "All" ? "All agents" : value;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`${className} flex items-center justify-between gap-2 min-w-[140px]`}
+      >
+        <span className="truncate">{label}</span>
+        <svg
+          className={`w-3 h-3 shrink-0 text-[#8B92A9] transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-full mt-1.5 left-0 w-56 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl shadow-lg overflow-hidden">
+          {/* Search */}
+          <div className="p-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
+            <div className="relative">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9] pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search agent…"
+                className="w-full pl-7 pr-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition"
+              />
+            </div>
+          </div>
+
+          {/* List */}
+          <div className="max-h-52 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2.5 text-[12px] text-[#8B92A9] italic">No agents found</p>
+            ) : filtered.map(agent => {
+              const isSelected = agent === value;
+              const displayName = agent === "All" ? "All agents" : agent;
+              return (
+                <button
+                  key={agent}
+                  type="button"
+                  onClick={() => select(agent)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition
+                    ${isSelected
+                      ? "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] font-semibold"
+                      : "text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A]"
+                    }`}
+                >
+                  <span className="w-4 shrink-0">
+                    {isSelected && (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    )}
+                  </span>
+                  <span className="truncate">{displayName}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Add Lead Modal ────────────────────────────────────────────────────────────
 function AddLeadModal({ onClose, onAdd }) {
   const [users,   setUsers]   = useState([]);
@@ -921,10 +1027,12 @@ export default function AdminLeadsPage() {
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search name, phone, agent…" className={INP + " pl-9 w-full"} />
           </div>
-          <select value={filterAgent} onChange={e => { setFilterAgent(e.target.value); setPage(1); }} className={INP}>
-            <option value="All">All agents</option>
-            {agents.map(a => <option key={a}>{a}</option>)}
-          </select>
+          <AgentSelect
+  value={filterAgent}
+  onChange={(val) => { setFilterAgent(val); setPage(1); }}
+  agents={agents}
+  className={INP}
+/>
           <select value={filterSrc} onChange={e => { setFilterSrc(e.target.value); setPage(1); }} className={INP}>
             <option value="All">All sources</option>
             {uniqueSources.map(s => <option key={s}>{s}</option>)}
