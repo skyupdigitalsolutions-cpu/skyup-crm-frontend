@@ -504,6 +504,7 @@ function AddLeadModal({ onClose, onAdd }) {
   onChange={e => set("source", e.target.value)}
   className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]"
 >
+  <option value="">Select Source</option>
   {ALL_SOURCES.map(o => (
     <option key={o} value={o}>
       {o}
