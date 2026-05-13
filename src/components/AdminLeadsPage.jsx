@@ -169,11 +169,9 @@ function AddLeadModal({ onClose, onAdd }) {
   const [errors,     setErrors]     = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  // dupCheck.state: "idle" | "checking" | "ok" | "duplicate"
   const [dupCheck, setDupCheck] = useState({ state: "idle", lead: null });
   const dupTimerRef = useRef(null);
 
-  // ── Debounced duplicate check (fires on each keystroke after 600ms) ─────────
   const checkDuplicate = useCallback((mobile) => {
     const norm = normalizePhone(mobile);
     if (!norm) { setDupCheck({ state: "idle", lead: null }); return; }
@@ -195,7 +193,6 @@ function AddLeadModal({ onClose, onAdd }) {
 
   useEffect(() => () => clearTimeout(dupTimerRef.current), []);
 
-  // Load users for agent dropdown
   useEffect(() => {
     api.get("/admin/company/users")
       .then(r => {
@@ -213,27 +210,24 @@ function AddLeadModal({ onClose, onAdd }) {
     if (k === "mobile") checkDuplicate(v);
   };
 
-  // ── Synchronous duplicate check — used when user clicks submit before
-  //    the debounce fires (paste + immediate click scenario) ─────────────────
   const runSyncDupCheck = async (mob) => {
     const norm = normalizePhone(mob);
-    if (!norm) return false; // no number → let validate() handle it
+    if (!norm) return false;
     setDupCheck({ state: "checking", lead: null });
     try {
       const res = await api.get(`/lead/admin/check-duplicate?mobile=${norm}`);
       if (res.data.duplicate) {
         setDupCheck({ state: "duplicate", lead: res.data.existingLead });
-        return true; // IS a duplicate
+        return true;
       }
       setDupCheck({ state: "ok", lead: null });
       return false;
     } catch {
       setDupCheck({ state: "idle", lead: null });
-      return false; // network error → let server reject if needed
+      return false;
     }
   };
 
-  // ── Validation (runs after duplicate state is confirmed) ─────────────────
   const validate = (currentDupState) => {
     const e = {};
     const name = form.name.trim();
@@ -258,17 +252,14 @@ function AddLeadModal({ onClose, onAdd }) {
   const handleSubmit = async () => {
     const mob = normalizeMobile(form.mobile);
 
-    // ── Step 1: if debounce hasn't resolved yet, run a synchronous check ────
     let resolvedDupState = dupCheck.state;
 
     if (mob && dupCheck.state === "checking") {
-      // Check is mid-flight — block and show message
       setErrors({ submit: "Please wait — checking for duplicate number…" });
       return;
     }
 
     if (mob && dupCheck.state === "idle") {
-      // User pasted + clicked before debounce fired; run synchronous check now
       clearTimeout(dupTimerRef.current);
       const isDup = await runSyncDupCheck(mob);
       resolvedDupState = isDup ? "duplicate" : "ok";
@@ -278,11 +269,9 @@ function AddLeadModal({ onClose, onAdd }) {
       }
     }
 
-    // ── Step 2: validate fields (including confirmed dup state) ─────────────
     const newErrors = validate(resolvedDupState);
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
 
-    // ── Step 3: hard block — confirmed duplicate must never reach the API ───
     if (resolvedDupState === "duplicate") {
       setErrors({ mobile: "This number already exists. Search for the existing lead to update it." });
       return;
@@ -345,7 +334,6 @@ function AddLeadModal({ onClose, onAdd }) {
     } catch (err) {
       const msg   = err.response?.data?.message || "Failed to save lead.";
       const isDup = err.response?.status === 409 || err.response?.data?.duplicate;
-      // If server still returns a duplicate (race condition), surface it properly
       if (isDup) {
         setDupCheck({ state: "duplicate", lead: err.response?.data?.existingLead || null });
         setErrors({ mobile: msg, submit: msg });
@@ -377,7 +365,6 @@ function AddLeadModal({ onClose, onAdd }) {
       </span>
     : null;
 
-  // Button label logic
   const btnLabel = () => {
     if (submitting)                     return <><Spinner /> Saving…</>;
     if (dupCheck.state === "checking")  return <><Spinner /> Checking…</>;
@@ -427,7 +414,6 @@ function AddLeadModal({ onClose, onAdd }) {
             />
             <ErrMsg k="mobile" />
 
-            {/* Live duplicate indicator */}
             {dupCheck.state === "checking" && (
               <p className="text-[11px] text-[#9DA3BB] mt-1 flex items-center gap-1.5">
                 <span className="inline-block w-3 h-3 border-2 border-[#9DA3BB] border-t-transparent rounded-full animate-spin" />
@@ -464,7 +450,6 @@ function AddLeadModal({ onClose, onAdd }) {
                 </p>
               </div>
             )}
-            {/* Edge case: duplicate confirmed but lead details not returned */}
             {dupCheck.state === "duplicate" && !dupCheck.lead && (
               <div className="mt-2 p-3 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600">
                 <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400">
@@ -539,7 +524,6 @@ function AddLeadModal({ onClose, onAdd }) {
           </div>
         </div>
 
-        {/* Submit error */}
         {errors.submit && (
           <div className="mt-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-[12px] text-red-600 dark:text-red-400 flex items-center gap-2">
             <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -573,7 +557,7 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
   const [importing, setImporting] = useState(false);
   const [result,    setResult]    = useState(null);
 
-const downloadTemplate = () => {
+  const downloadTemplate = () => {
     const headers = "name,mobile,email,source,campaign,status,remark";
     const example = "Rahul Sharma,9876543210,rahul@example.com,Manual,Summer 2026,New,Interested in demo";
     const blob = new Blob([[headers, example].join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -633,7 +617,6 @@ const downloadTemplate = () => {
 
         const dupKey = canonicalPhone(normalized);
 
-        // 1) Already exists in the CRM database — never import.
         if (existingPhoneSet.has(dupKey)) {
           clientErrors.push({
             index: i,
@@ -643,7 +626,6 @@ const downloadTemplate = () => {
           continue;
         }
 
-        // 2) Already appeared earlier in this CSV file.
         if (seenInFile.has(dupKey)) {
           clientErrors.push({
             index: i,
@@ -859,6 +841,26 @@ export default function AdminLeadsPage() {
   const [sortBy,      setSortBy]      = useState("date_desc");
   const [page,        setPage]        = useState(1);
 
+  // ── Phone masking state ───────────────────────────────────────────────────
+  const [revealedPhone, setRevealedPhone] = useState(null); // lead id currently revealed
+  const [viewCounts,    setViewCounts]    = useState({});   // { [leadId]: number }
+  const revealTimerRef                    = useRef(null);
+
+  const handleRevealPhone = (e, leadId) => {
+    e.stopPropagation();
+    clearTimeout(revealTimerRef.current);
+
+    // If same lead clicked again — just reset the timer, bump count
+    setViewCounts(prev => ({ ...prev, [leadId]: (prev[leadId] || 0) + 1 }));
+    setRevealedPhone(leadId);
+
+    revealTimerRef.current = setTimeout(() => {
+      setRevealedPhone(null);
+    }, 4000);
+  };
+
+  useEffect(() => () => clearTimeout(revealTimerRef.current), []);
+
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -901,7 +903,7 @@ export default function AdminLeadsPage() {
   const displayed = useMemo(() => {
     let res = allLeads.filter(l => {
       const q           = search.toLowerCase();
-     const matchSearch = !q || l.name.toLowerCase().includes(q) || l.phone.includes(q);
+      const matchSearch = !q || l.name.toLowerCase().includes(q) || l.phone.includes(q);
       const matchSt     = filterSt    === "All" || l.status  === filterSt;
       const matchAgent  = filterAgent === "All" || l.agent   === filterAgent;
       const matchSrc    = filterSrc   === "All" || l.source  === filterSrc;
@@ -1028,11 +1030,11 @@ export default function AdminLeadsPage() {
               placeholder="Search name, phone…" className={INP + " pl-9 w-full"} />
           </div>
           <AgentSelect
-  value={filterAgent}
-  onChange={(val) => { setFilterAgent(val); setPage(1); }}
-  agents={agents}
-  className={INP}
-/>
+            value={filterAgent}
+            onChange={(val) => { setFilterAgent(val); setPage(1); }}
+            agents={agents}
+            className={INP}
+          />
           <select value={filterSrc} onChange={e => { setFilterSrc(e.target.value); setPage(1); }} className={INP}>
             <option value="All">All sources</option>
             {uniqueSources.map(s => <option key={s}>{s}</option>)}
@@ -1084,7 +1086,7 @@ export default function AdminLeadsPage() {
           </div>
         ) : paged.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <span className="text-[48px]"></span>
+            <span className="text-[48px]">🔍</span>
             <p className="text-[16px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
               {allLeads.length === 0 ? "No leads yet" : "No leads match your filters"}
             </p>
@@ -1116,10 +1118,17 @@ export default function AdminLeadsPage() {
                 </thead>
                 <tbody className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
                   {paged.map(l => {
-                    const sc = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
+                    const sc          = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
+                    const isRevealed  = revealedPhone === l.id;
+                    const viewCount   = viewCounts[l.id] || 0;
+                    const maskedPhone = l.phone
+                      ? "•".repeat(Math.max(0, l.phone.length - 2)) + l.phone.slice(-2)
+                      : "—";
+
                     return (
                       <tr key={l.id} className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition cursor-pointer group" onClick={() => setSelected(l)}>
-                        {/* Name */}
+
+                        {/* Lead name */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
@@ -1132,11 +1141,65 @@ export default function AdminLeadsPage() {
                             </div>
                           </div>
                         </td>
-                        {/* Contact */}
+
+                        {/* Contact — masked phone with reveal */}
                         <td className="px-4 py-3">
-                          <p className="font-mono text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{l.phone || "—"}</p>
-                          {l.email && <p className="text-[10px] text-[#8B92A9] truncate max-w-[130px]">{l.email}</p>}
+                          <div className="flex items-center gap-1.5">
+                            {isRevealed ? (
+                              /* Revealed: show full number with pulse + auto-close hint */
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap text-[12px] animate-pulse">
+                                  {l.phone || "—"}
+                                </span>
+                                {/* Tiny countdown bar */}
+                                <span className="inline-block w-8 h-1 rounded-full bg-[#E4E7EF] dark:bg-[#262A38] overflow-hidden">
+                                  <span
+                                    className="block h-full bg-[#2563EB] rounded-full"
+                                    style={{ animation: "shrink 4s linear forwards" }}
+                                  />
+                                </span>
+                              </div>
+                            ) : (
+                              /* Masked: dots + last 2 digits + eye icon */
+                              <button
+                                onClick={(e) => handleRevealPhone(e, l.id)}
+                                className="flex items-center gap-1 group/phone"
+                                title="Click to reveal number"
+                              >
+                                <span className="font-mono text-[#8B92A9] dark:text-[#565C75] tracking-widest text-[12px] select-none">
+                                  {maskedPhone}
+                                </span>
+                                <svg
+                                  className="w-3 h-3 text-[#C4C9D9] dark:text-[#3E4257] group-hover/phone:text-[#2563EB] transition shrink-0"
+                                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                              </button>
+                            )}
+
+                            {/* View count badge — shown once revealed at least once */}
+                            {viewCount > 0 && (
+                              <span
+                                title={`Viewed ${viewCount} time${viewCount > 1 ? "s" : ""} this session`}
+                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 leading-none
+                                  ${viewCount >= 5
+                                    ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
+                                    : viewCount >= 3
+                                    ? "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
+                                    : "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7]"
+                                  }`}
+                              >
+                                👁 {viewCount}
+                              </span>
+                            )}
+                          </div>
+                          {l.email && (
+                            <p className="text-[10px] text-[#8B92A9] truncate max-w-[130px] mt-0.5">{l.email}</p>
+                          )}
                         </td>
+
                         {/* Agent */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
@@ -1146,20 +1209,25 @@ export default function AdminLeadsPage() {
                             <span className="text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[90px]">{l.agent || "Unassigned"}</span>
                           </div>
                           {l.reassignCount > 0 && (
-                            <p className="text-[9px] text-purple-400 mt-0.5"> {l.reassignCount} reassign{l.reassignCount > 1 ? "s" : ""}</p>
+                            <p className="text-[9px] text-purple-400 mt-0.5">🔄 {l.reassignCount} reassign{l.reassignCount > 1 ? "s" : ""}</p>
                           )}
                         </td>
+
                         {/* Source / Campaign */}
                         <td className="px-4 py-3">
                           <p className="text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[110px]">{l.source}</p>
                           {l.campaign !== "—" && <p className="text-[10px] text-[#8B92A9] truncate max-w-[110px]">{l.campaign}</p>}
                         </td>
+
                         {/* Date */}
                         <td className="px-4 py-3 whitespace-nowrap text-[#0F1117] dark:text-[#F0F2FA]">{l.date}</td>
+
                         {/* Status */}
                         <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
+
                         {/* Quality */}
                         <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
+
                         {/* Last Outcome */}
                         <td className="px-4 py-3">
                           {l.lastOutcome ? (
@@ -1178,6 +1246,7 @@ export default function AdminLeadsPage() {
                             <span className="text-[11px] text-[#8B92A9]">No calls yet</span>
                           )}
                         </td>
+
                         {/* Open */}
                         <td className="px-4 py-3">
                           <button onClick={e => { e.stopPropagation(); setSelected(l); }}
@@ -1193,6 +1262,14 @@ export default function AdminLeadsPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Countdown bar keyframe — injected once */}
+            <style>{`
+              @keyframes shrink {
+                from { width: 100%; }
+                to   { width: 0%; }
+              }
+            `}</style>
 
             {/* Pagination */}
             {totalPages > 1 && (
