@@ -351,9 +351,9 @@ function LeadDrawer({ campaign, onClose }) {
         </div>
       </div>
 
-      /* {showBulkImport && (
+      {/* {showBulkImport && (
         <BulkEmailImportModal campaign={campaign.name} onClose={() => { setShowBulkImport(false); fetchLeads(); }} />
-      )} */
+      )} */}
     </div>
   );
 }
