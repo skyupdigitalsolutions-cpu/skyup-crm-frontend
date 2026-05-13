@@ -462,7 +462,7 @@ function AddLeadModal({ onClose, onAdd }) {
 }
 
 // ── Import CSV Modal ──────────────────────────────────────────────────────────
-function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
+function ({ onClose, onImported, existingLeads = [] }) {
   const importRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [result,    setResult]    = useState(null);
@@ -845,7 +845,7 @@ export default function AdminLeadsPage() {
 
       {/* Modals */}
       {showAdd    && <AddLeadModal   onClose={() => setShowAdd(false)}    onAdd={handleAdd} />}
-      {showImport && <ImportCSVModal onClose={() => setShowImport(false)} onImported={fetchLeads} />}
+      {showImport && <ImportCSVModal onClose={() => setShowImport(false)} onImported={fetchLeads} existingLeads={allLeads}/>}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
