@@ -82,112 +82,10 @@ function SummaryCard({ label, value, sub, color }) {
   );
 }
 
-// ── Bulk Email Import Modal (no live validation preview) ──────────────────────
-// function BulkEmailImportModal({ campaign, onClose }) {
-//   const [csvText, setCsvText] = useState("mobile,email\n9876543210,rahul@gmail.com\n8765432109,priya@gmail.com");
-//   const [loading, setLoading] = useState(false);
-//   const [result, setResult] = useState(null);
-//   const [error, setError] = useState("");
-
-//   const handleImport = async () => {
-//     setLoading(true);
-//     setError("");
-//     try {
-//       const lines = csvText.trim().split("\n").filter(Boolean);
-//       const header = lines[0].toLowerCase().split(",").map((s) => s.trim());
-//       const mobileIdx = header.indexOf("mobile");
-//       const emailIdx = header.indexOf("email");
-//       if (mobileIdx === -1 || emailIdx === -1)
-//         return setError("CSV must have 'mobile' and 'email' columns in the first row");
-//       const updates = lines.slice(1).map((line) => {
-//         const cols = line.split(",").map((s) => s.trim());
-//         return { mobile: cols[mobileIdx], email: cols[emailIdx] };
-//       }).filter((r) => r.mobile && r.email);
-//       if (updates.length === 0) return setError("No valid rows found in CSV");
-//       const res = await api.patch("/lead/admin/bulk-update-emails", { updates });
-//       setResult(res.data);
-//     } catch (err) {
-//       setError(err.response?.data?.message || err.message || "Import failed");
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   if (result)
-//     return (
-//       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={onClose}>
-//         <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
-//           <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4">
-//             <svg className="w-7 h-7 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-//           </div>
-//           <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-4">Emails Imported!</h2>
-//           <div className="grid grid-cols-2 gap-3 mb-5">
-//             <div className="bg-[#ECFDF5] dark:bg-[#052E1C] rounded-xl p-3">
-//               <div className="text-[22px] font-bold text-[#059669]">{result.matched}</div>
-//               <div className="text-[10px] text-[#8B92A9] uppercase">Updated</div>
-//             </div>
-//             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] rounded-xl p-3">
-//               <div className="text-[22px] font-bold text-[#DC2626]">{result.notFound}</div>
-//               <div className="text-[10px] text-[#8B92A9] uppercase">Not found</div>
-//             </div>
-//           </div>
-//           {result.notFoundList?.length > 0 && (
-//             <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3 text-left text-[11px] text-[#8B92A9] mb-4 max-h-24 overflow-y-auto">
-//               <p className="font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Mobiles not found:</p>
-//               {result.notFoundList.map((m) => <div key={m}>{m}</div>)}
-//             </div>
-//           )}
-//           <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">Done</button>
-//         </div>
-//       </div>
-//     );
-
-//   return (
-//     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-//       <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-//         <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
-//           <div className="flex items-center gap-3">
-//             <div className="w-8 h-8 rounded-xl bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center">
-//               <svg className="w-4 h-4 text-[#2563EB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-//             </div>
-//             <div>
-//               <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Import Emails via CSV</h2>
-//               <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Match leads by mobile number and set their email</p>
-//             </div>
-//           </div>
-//           <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
-//             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-//           </button>
-//         </div>
-//         <div className="overflow-y-auto px-6 py-5 space-y-4">
-//           <div className="bg-[#EEF3FF] dark:bg-[#1A2540] rounded-xl px-4 py-3 text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
-//             <p className="font-semibold text-[#2563EB] mb-1"> CSV Format</p>
-//             <p>First row must be: <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono">mobile,email</code></p>
-//             <p className="mt-0.5">Each following row: <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono">9876543210,rahul@gmail.com</code></p>
-//             <p className="mt-0.5 text-[10px] text-[#8B92A9]">Leads are matched by mobile number. All leads with the same mobile will be updated.</p>
-//           </div>
-//           <div>
-//             <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Paste CSV data</label>
-//             <textarea value={csvText} onChange={(e) => setCsvText(e.target.value)} rows={8} className={FIELD_CLS + " font-mono text-[12px] resize-y"} placeholder={"mobile,email\n9876543210,rahul@gmail.com"} />
-//           </div>
-//           {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]"> {error}</div>}
-//         </div>
-//         <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
-//           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
-//           <button onClick={handleImport} disabled={loading} className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 disabled:opacity-40 transition flex items-center justify-center gap-2">
-//             {loading ? (<><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Importing…</>) : "Import Emails"}
-//           </button>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
 // ── Lead drill-down drawer ────────────────────────────────────────────────────
 function LeadDrawer({ campaign, onClose }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showBulkImport, setShowBulkImport] = useState(false);
   const [editEmailId, setEditEmailId] = useState(null);
   const [editEmailVal, setEditEmailVal] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
@@ -229,8 +127,6 @@ function LeadDrawer({ campaign, onClose }) {
   const ch = CHANNEL_STYLE[channel] || CHANNEL_STYLE.Meta;
   const st = STATUS_STYLE[campaign.status] || STATUS_STYLE.Active;
   const convRate = campaign.leads > 0 ? Math.round((campaign.converted / campaign.leads) * 100) : 0;
-  const leadsWithEmail = leads.filter((l) => l.email && l.email.trim() !== "").length;
-  const leadsWithoutEmail = leads.length - leadsWithEmail;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -350,10 +246,6 @@ function LeadDrawer({ campaign, onClose }) {
           <VoiceBotPanel leads={normalizedLeads} campaignName={campaign.name} />
         </div>
       </div>
-
-      {/* {showBulkImport && (
-        <BulkEmailImportModal campaign={campaign.name} onClose={() => { setShowBulkImport(false); fetchLeads(); }} />
-      )} */}
     </div>
   );
 }
@@ -362,7 +254,7 @@ function LeadDrawer({ campaign, onClose }) {
 function CreateModal({ onClose, onCreated }) {
   const empty = {
     campaignName: "", pageId: "", pageAccessToken: "", appSecret: "", verifyToken: "",
-    graphApiVersion: "v25.0", formIds: "", defaultStatus: "New", 
+    graphApiVersion: "v25.0", formIds: "", defaultStatus: "New",
   };
   const [form, setForm] = useState(empty);
   const [loading, setLoading] = useState(false);
@@ -384,7 +276,6 @@ function CreateModal({ onClose, onCreated }) {
         pageAccessToken: form.pageAccessToken.trim(),
         formIds: form.formIds ? form.formIds.split(",").map((s) => s.trim()).filter(Boolean) : [],
         defaultStatus: form.defaultStatus || "New",
-        
         graphApiVersion: form.graphApiVersion.trim() || "v25.0",
         _meta: {
           META_APP_SECRET: form.appSecret.trim(),
@@ -452,10 +343,6 @@ function CreateModal({ onClose, onCreated }) {
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label>
                   <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option></select>
                 </div>
-                {/* <div>
-                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label>
-                  <input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Meta Campaign" className={FIELD_CLS} />
-                </div> */}
               </div>
             </div>
           </div>
@@ -526,9 +413,14 @@ function CreateModal({ onClose, onCreated }) {
 // ── Edit Meta Campaign modal ──────────────────────────────────────────────────
 function EditMetaModal({ campaign, onClose, onUpdated }) {
   const [form, setForm] = useState({
-    campaignName: campaign.name || "", pageId: campaign.pageId || "", pageAccessToken: "", appSecret: "", verifyToken: "",
-    graphApiVersion: campaign.graphApiVersion || "v25.0", formIds: (campaign.formIds || []).join(", "),
-    
+    campaignName: campaign.name || "",
+    pageId: campaign.pageId || "",
+    pageAccessToken: "",
+    appSecret: "",
+    verifyToken: "",
+    graphApiVersion: campaign.graphApiVersion || "v25.0",
+    formIds: (campaign.formIds || []).join(", "),
+    defaultStatus: campaign.defaultStatus || "New",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -542,9 +434,10 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
     setLoading(true); setError("");
     try {
       const payload = {
-        campaignName: form.campaignName.trim(), pageId: form.pageId.trim(),
+        campaignName: form.campaignName.trim(),
+        pageId: form.pageId.trim(),
         formIds: form.formIds ? form.formIds.split(",").map((s) => s.trim()).filter(Boolean) : [],
-        defaultStatus: form.defaultStatus || "New", 
+        defaultStatus: form.defaultStatus || "New",
         graphApiVersion: form.graphApiVersion.trim() || "v25.0",
       };
       if (form.pageAccessToken.trim()) payload.pageAccessToken = form.pageAccessToken.trim();
@@ -584,8 +477,7 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label><input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Summer Sale 2025" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option></select></div>
-                {/* <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Meta Campaign" className={FIELD_CLS} /></div>
-              </div> */}
+              </div>
             </div>
           </div>
           <div>
@@ -621,9 +513,11 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
 // ── Edit Google Campaign modal ─────────────────────────────────────────────────
 function EditGoogleModal({ campaign, onClose, onUpdated }) {
   const [form, setForm] = useState({
-    campaignName: campaign.name || "", googleKey: "", campaignId: campaign.campaignId || "",
-    formId: campaign.formId || "", defaultStatus: campaign.defaultStatus || "New",
- 
+    campaignName: campaign.name || "",
+    googleKey: "",
+    campaignId: campaign.campaignId || "",
+    formId: campaign.formId || "",
+    defaultStatus: campaign.defaultStatus || "New",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -636,9 +530,10 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
     setLoading(true); setError("");
     try {
       const payload = {
-        campaignName: form.campaignName.trim(), campaignId: form.campaignId.trim(),
-        formId: form.formId.trim(), defaultStatus: form.defaultStatus || "New",
-        
+        campaignName: form.campaignName.trim(),
+        campaignId: form.campaignId.trim(),
+        formId: form.formId.trim(),
+        defaultStatus: form.defaultStatus || "New",
       };
       if (form.googleKey.trim()) payload.googleKey = form.googleKey.trim();
       await api.put(`/google-ads-config/${campaign._id}`, payload);
@@ -675,8 +570,7 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label><input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Google Search — Branding Q2" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
-                {/* <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Google Ads" className={FIELD_CLS} /></div>
-              </div> */}
+              </div>
             </div>
           </div>
           <div>
@@ -708,7 +602,7 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
 
 // ── Connect Google Ads Campaign modal ─────────────────────────────────────────
 function CreateGoogleModal({ onClose, onCreated }) {
-  const empty = { campaignName: "", googleKey: "", campaignId: "", formId: "", defaultStatus: "New",};
+  const empty = { campaignName: "", googleKey: "", campaignId: "", formId: "", defaultStatus: "New" };
   const [form, setForm] = useState(empty);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -768,8 +662,7 @@ function CreateGoogleModal({ onClose, onCreated }) {
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label><input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Google Search — Branding Q2" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
-                {/* <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Google Ads" className={FIELD_CLS} /></div>
-              </div> */}
+              </div>
             </div>
           </div>
           <div>
@@ -813,7 +706,7 @@ function CreateGoogleModal({ onClose, onCreated }) {
 
 // ── Connect Website modal ─────────────────────────────────────────────────────
 function CreateWebsiteModal({ onClose, onCreated }) {
-  const [form, setForm] = useState({ sourceName: "", webhookSecret: "", pageUrl: "", defaultStatus: "New", });
+  const [form, setForm] = useState({ sourceName: "", webhookSecret: "", pageUrl: "", defaultStatus: "New" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -828,7 +721,6 @@ function CreateWebsiteModal({ onClose, onCreated }) {
       const res = await api.post("/website-config", {
         sourceName: form.sourceName.trim(), webhookSecret: form.webhookSecret.trim(),
         pageUrl: form.pageUrl.trim(), defaultStatus: form.defaultStatus || "New",
-        
       });
       setSuccess(true); onCreated && onCreated(res.data.data);
     } catch (err) { setError(err.response?.data?.message || err.message || "Failed to connect website"); }
@@ -968,8 +860,7 @@ window.dataLayer.push({
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Contact Page URL <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label><input type="text" value={form.pageUrl} onChange={set("pageUrl")} placeholder="e.g. https://yourwebsite.com/contact" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
-                {/* <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Website" className={FIELD_CLS} /></div>
-              </div> */}
+              </div>
             </div>
           </div>
           <div>
@@ -1008,7 +899,12 @@ window.dataLayer.push({
 
 // ── Edit Website modal ────────────────────────────────────────────────────────
 function EditWebsiteModal({ campaign, onClose, onUpdated }) {
-  const [form, setForm] = useState({ sourceName: campaign.name || "", webhookSecret: "", pageUrl: campaign.pageUrl || "", defaultStatus: campaign.defaultStatus || "New", defaultRemark: campaign.defaultRemark || "Lead from Website" });
+  const [form, setForm] = useState({
+    sourceName: campaign.name || "",
+    webhookSecret: "",
+    pageUrl: campaign.pageUrl || "",
+    defaultStatus: campaign.defaultStatus || "New",
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -1019,7 +915,7 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
     if (!form.sourceName.trim()) return;
     setLoading(true); setError("");
     try {
-      const payload = { sourceName: form.sourceName.trim(), pageUrl: form.pageUrl.trim(), defaultStatus: form.defaultStatus || "New",  };
+      const payload = { sourceName: form.sourceName.trim(), pageUrl: form.pageUrl.trim(), defaultStatus: form.defaultStatus || "New" };
       if (form.webhookSecret.trim()) payload.webhookSecret = form.webhookSecret.trim();
       await api.put(`/website-config/${campaign._id}`, payload);
       setSuccess(true); onUpdated && onUpdated();
@@ -1056,8 +952,7 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Contact Page URL <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label><input type="text" value={form.pageUrl} onChange={set("pageUrl")} placeholder="e.g. https://yourwebsite.com/contact" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
-                {/* <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Website" className={FIELD_CLS} /></div>
-              </div> */}
+              </div>
             </div>
           </div>
           <div>
@@ -1086,7 +981,7 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
 
 // ── Email Campaign Modal ──────────────────────────────────────────────────────
 function EmailCampaignModal({ campaigns, onClose }) {
-  const [mode, setMode] = useState("campaign"); // "campaign" | "single" | "csv"
+  const [mode, setMode] = useState("campaign");
   const [form, setForm] = useState({ campaign: "" });
   const [leadCount, setLeadCount] = useState(null);
   const [previewing, setPreviewing] = useState(false);
@@ -1278,7 +1173,6 @@ function EmailCampaignModal({ campaigns, onClose }) {
                 <p>First row: <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono">name,email</code></p>
                 <p className="mt-0.5">Each row: <code className="bg-white dark:bg-[#0D0F14] px-1 rounded font-mono">Rahul Sharma,rahul@gmail.com</code></p>
               </div>
-              {/* File upload */}
               <label className="flex items-center justify-center gap-2 w-full px-4 py-3 mb-3 rounded-xl border-2 border-dashed border-[#7C3AED]/40 bg-[#F5F3FF] dark:bg-[#1E1040] text-[#7C3AED] text-[12px] font-semibold cursor-pointer hover:border-[#7C3AED] hover:bg-[#ede9fe] dark:hover:bg-[#2a1a5e] transition">
                 <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                 Upload CSV file
@@ -1411,15 +1305,27 @@ export default function Campaigns() {
       const websiteList = websiteRes.status === "fulfilled" ? (websiteRes.value?.data?.data || []) : [];
 
       const shapedMeta = metaList.map((cfg, idx) => ({
-        _id: cfg._id, _isMeta: true, id: cfg._id, name: cfg.campaignName, channel: "Meta",
-        status: cfg.isActive ? "Active" : "Paused", sent: cfg.sent ?? 0, leads: cfg.leads ?? 0,
-        converted: cfg.converted ?? 0, cost: cfg.cost ?? 0, date: fmtDate(cfg.createdAt), createdAt: cfg.createdAt,
-        color: META_COLORS[idx % META_COLORS.length], pageId: cfg.pageId, company: cfg.company, isActive: cfg.isActive,
-        formIds: cfg.formIds || [], defaultStatus: cfg.defaultStatus || "New",
-        , graphApiVersion: cfg.graphApiVersion || "v25.0",
+        _id: cfg._id,
+        _isMeta: true,
+        id: cfg._id,
+        name: cfg.campaignName,
+        channel: "Meta",
+        status: cfg.isActive ? "Active" : "Paused",
+        sent: cfg.sent ?? 0,
+        leads: cfg.leads ?? 0,
+        converted: cfg.converted ?? 0,
+        cost: cfg.cost ?? 0,
+        date: fmtDate(cfg.createdAt),
+        createdAt: cfg.createdAt,
+        color: META_COLORS[idx % META_COLORS.length],
+        pageId: cfg.pageId,
+        company: cfg.company,
+        isActive: cfg.isActive,
+        formIds: cfg.formIds || [],
+        defaultStatus: cfg.defaultStatus || "New",
+        graphApiVersion: cfg.graphApiVersion || "v25.0",
       }));
 
-      // Fetch real lead counts for Google campaigns
       const googleLeadCounts = await Promise.allSettled(
         googleList.map((cfg) =>
           api.get(`/lead/by-campaign?campaign=${encodeURIComponent(cfg.campaignName)}`)
@@ -1429,13 +1335,25 @@ export default function Campaigns() {
       );
 
       const shapedGoogleFixed = googleList.map((cfg, idx) => ({
-        _id: cfg._id, _isGoogle: true, id: cfg._id, name: cfg.campaignName, channel: "Google",
-        status: cfg.isActive ? "Active" : "Paused", sent: cfg.sent ?? 0,
+        _id: cfg._id,
+        _isGoogle: true,
+        id: cfg._id,
+        name: cfg.campaignName,
+        channel: "Google",
+        status: cfg.isActive ? "Active" : "Paused",
+        sent: cfg.sent ?? 0,
         leads: googleLeadCounts[idx]?.status === "fulfilled" ? googleLeadCounts[idx].value : cfg.leads ?? 0,
-        converted: cfg.converted ?? 0, cost: cfg.cost ?? 0, date: fmtDate(cfg.createdAt), createdAt: cfg.createdAt,
-        color: GOOGLE_COLORS[idx % GOOGLE_COLORS.length], googleKey: cfg.googleKey, campaignId: cfg.campaignId || "",
-        formId: cfg.formId || "", company: cfg.company, isActive: cfg.isActive,
-        defaultStatus: cfg.defaultStatus || "New", 
+        converted: cfg.converted ?? 0,
+        cost: cfg.cost ?? 0,
+        date: fmtDate(cfg.createdAt),
+        createdAt: cfg.createdAt,
+        color: GOOGLE_COLORS[idx % GOOGLE_COLORS.length],
+        googleKey: cfg.googleKey,
+        campaignId: cfg.campaignId || "",
+        formId: cfg.formId || "",
+        company: cfg.company,
+        isActive: cfg.isActive,
+        defaultStatus: cfg.defaultStatus || "New",
       }));
 
       const websiteLeadCounts = await Promise.allSettled(
@@ -1447,12 +1365,23 @@ export default function Campaigns() {
       );
 
       const shapedWebsite = websiteList.map((cfg, idx) => ({
-        _id: cfg._id, _isWebsite: true, id: cfg._id, name: cfg.sourceName, channel: "Website",
-        status: cfg.isActive ? "Active" : "Paused", sent: 0,
+        _id: cfg._id,
+        _isWebsite: true,
+        id: cfg._id,
+        name: cfg.sourceName,
+        channel: "Website",
+        status: cfg.isActive ? "Active" : "Paused",
+        sent: 0,
         leads: websiteLeadCounts[idx]?.status === "fulfilled" ? websiteLeadCounts[idx].value : 0,
-        converted: 0, cost: 0, date: fmtDate(cfg.createdAt), createdAt: cfg.createdAt,
-        color: WEBSITE_COLORS[idx % WEBSITE_COLORS.length], webhookSecret: cfg.webhookSecret,
-        pageUrl: cfg.pageUrl || "", company: cfg.company, isActive: cfg.isActive,
+        converted: 0,
+        cost: 0,
+        date: fmtDate(cfg.createdAt),
+        createdAt: cfg.createdAt,
+        color: WEBSITE_COLORS[idx % WEBSITE_COLORS.length],
+        webhookSecret: cfg.webhookSecret,
+        pageUrl: cfg.pageUrl || "",
+        company: cfg.company,
+        isActive: cfg.isActive,
         defaultStatus: cfg.defaultStatus || "New",
       }));
 
@@ -1517,10 +1446,6 @@ export default function Campaigns() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* <button onClick={() => setShowEmailCampaign(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#7C3AED] text-white text-[13px] font-semibold hover:bg-purple-700 transition">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-            Email
-          </button> */}
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" /></svg>
             Connect Meta
@@ -1656,7 +1581,7 @@ export default function Campaigns() {
       {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={fetchCampaigns} />}
       {showCreateGoogle && <CreateGoogleModal onClose={() => setShowCreateGoogle(false)} onCreated={fetchCampaigns} />}
       {showCreateWebsite && <CreateWebsiteModal onClose={() => setShowCreateWebsite(false)} onCreated={fetchCampaigns} />}
-       {showEmailCampaign && <EmailCampaignModal campaigns={campaigns} onClose={() => setShowEmailCampaign(false)} />} 
+      {showEmailCampaign && <EmailCampaignModal campaigns={campaigns} onClose={() => setShowEmailCampaign(false)} />}
       {editCampaign && editCampaign._isMeta && <EditMetaModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
       {editCampaign && editCampaign._isGoogle && <EditGoogleModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
       {editCampaign && editCampaign._isWebsite && <EditWebsiteModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
