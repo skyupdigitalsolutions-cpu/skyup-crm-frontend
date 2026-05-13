@@ -110,7 +110,7 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
         <div className="grid grid-cols-2 gap-3">
           {[
             { label: "Lead Name", key: "name" },
-            { label: "Phone",     key: "phone" },
+            // { label: "Phone",     key: "phone" },
             { label: "Campaign",  key: "campaign" },
             { label: "Remark",    key: "remark" },
             { label: "Date",      key: "date" },
