@@ -362,7 +362,7 @@ function LeadDrawer({ campaign, onClose }) {
 function CreateModal({ onClose, onCreated }) {
   const empty = {
     campaignName: "", pageId: "", pageAccessToken: "", appSecret: "", verifyToken: "",
-    graphApiVersion: "v25.0", formIds: "", defaultStatus: "New", defaultRemark: "Lead from Meta Campaign",
+    graphApiVersion: "v25.0", formIds: "", defaultStatus: "New", 
   };
   const [form, setForm] = useState(empty);
   const [loading, setLoading] = useState(false);
@@ -384,7 +384,7 @@ function CreateModal({ onClose, onCreated }) {
         pageAccessToken: form.pageAccessToken.trim(),
         formIds: form.formIds ? form.formIds.split(",").map((s) => s.trim()).filter(Boolean) : [],
         defaultStatus: form.defaultStatus || "New",
-        defaultRemark: form.defaultRemark || "Lead from Meta Campaign",
+        
         graphApiVersion: form.graphApiVersion.trim() || "v25.0",
         _meta: {
           META_APP_SECRET: form.appSecret.trim(),
@@ -452,10 +452,10 @@ function CreateModal({ onClose, onCreated }) {
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label>
                   <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option></select>
                 </div>
-                <div>
+                {/* <div>
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label>
                   <input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Meta Campaign" className={FIELD_CLS} />
-                </div>
+                </div> */}
               </div>
             </div>
           </div>
@@ -528,7 +528,7 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
   const [form, setForm] = useState({
     campaignName: campaign.name || "", pageId: campaign.pageId || "", pageAccessToken: "", appSecret: "", verifyToken: "",
     graphApiVersion: campaign.graphApiVersion || "v25.0", formIds: (campaign.formIds || []).join(", "),
-    defaultStatus: campaign.defaultStatus || "New", defaultRemark: campaign.defaultRemark || "Lead from Meta Campaign",
+    
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -544,7 +544,7 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
       const payload = {
         campaignName: form.campaignName.trim(), pageId: form.pageId.trim(),
         formIds: form.formIds ? form.formIds.split(",").map((s) => s.trim()).filter(Boolean) : [],
-        defaultStatus: form.defaultStatus || "New", defaultRemark: form.defaultRemark || "Lead from Meta Campaign",
+        defaultStatus: form.defaultStatus || "New", 
         graphApiVersion: form.graphApiVersion.trim() || "v25.0",
       };
       if (form.pageAccessToken.trim()) payload.pageAccessToken = form.pageAccessToken.trim();
@@ -583,9 +583,9 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
             <div className="space-y-3">
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label><input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Summer Sale 2025" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
-                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Meta Campaign" className={FIELD_CLS} /></div>
-              </div>
+                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option></select></div>
+                {/* <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Meta Campaign" className={FIELD_CLS} /></div>
+              </div> */}
             </div>
           </div>
           <div>
@@ -623,7 +623,7 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
   const [form, setForm] = useState({
     campaignName: campaign.name || "", googleKey: "", campaignId: campaign.campaignId || "",
     formId: campaign.formId || "", defaultStatus: campaign.defaultStatus || "New",
-    defaultRemark: campaign.defaultRemark || "Lead from Google Ads",
+ 
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -638,7 +638,7 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
       const payload = {
         campaignName: form.campaignName.trim(), campaignId: form.campaignId.trim(),
         formId: form.formId.trim(), defaultStatus: form.defaultStatus || "New",
-        defaultRemark: form.defaultRemark || "Lead from Google Ads",
+        
       };
       if (form.googleKey.trim()) payload.googleKey = form.googleKey.trim();
       await api.put(`/google-ads-config/${campaign._id}`, payload);
@@ -675,8 +675,8 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label><input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Google Search — Branding Q2" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
-                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Google Ads" className={FIELD_CLS} /></div>
-              </div>
+                {/* <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Google Ads" className={FIELD_CLS} /></div>
+              </div> */}
             </div>
           </div>
           <div>
@@ -708,7 +708,7 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
 
 // ── Connect Google Ads Campaign modal ─────────────────────────────────────────
 function CreateGoogleModal({ onClose, onCreated }) {
-  const empty = { campaignName: "", googleKey: "", campaignId: "", formId: "", defaultStatus: "New", defaultRemark: "Lead from Google Ads" };
+  const empty = { campaignName: "", googleKey: "", campaignId: "", formId: "", defaultStatus: "New",};
   const [form, setForm] = useState(empty);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -725,7 +725,7 @@ function CreateGoogleModal({ onClose, onCreated }) {
       const res = await api.post("/google-ads-config", {
         campaignName: form.campaignName.trim(), googleKey: form.googleKey.trim(),
         campaignId: form.campaignId.trim(), formId: form.formId.trim(),
-        defaultStatus: form.defaultStatus || "New", defaultRemark: form.defaultRemark || "Lead from Google Ads",
+        defaultStatus: form.defaultStatus || "New",
       });
       setSuccess(true); onCreated && onCreated(res.data.data);
     } catch (err) { setError(err.response?.data?.message || err.message || "Failed to connect campaign"); }
@@ -768,8 +768,8 @@ function CreateGoogleModal({ onClose, onCreated }) {
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label><input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Google Search — Branding Q2" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
-                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Google Ads" className={FIELD_CLS} /></div>
-              </div>
+                {/* <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Google Ads" className={FIELD_CLS} /></div>
+              </div> */}
             </div>
           </div>
           <div>
@@ -813,7 +813,7 @@ function CreateGoogleModal({ onClose, onCreated }) {
 
 // ── Connect Website modal ─────────────────────────────────────────────────────
 function CreateWebsiteModal({ onClose, onCreated }) {
-  const [form, setForm] = useState({ sourceName: "", webhookSecret: "", pageUrl: "", defaultStatus: "New", defaultRemark: "Lead from Website" });
+  const [form, setForm] = useState({ sourceName: "", webhookSecret: "", pageUrl: "", defaultStatus: "New", });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -828,7 +828,7 @@ function CreateWebsiteModal({ onClose, onCreated }) {
       const res = await api.post("/website-config", {
         sourceName: form.sourceName.trim(), webhookSecret: form.webhookSecret.trim(),
         pageUrl: form.pageUrl.trim(), defaultStatus: form.defaultStatus || "New",
-        defaultRemark: form.defaultRemark || "Lead from Website",
+        
       });
       setSuccess(true); onCreated && onCreated(res.data.data);
     } catch (err) { setError(err.response?.data?.message || err.message || "Failed to connect website"); }
@@ -968,8 +968,8 @@ window.dataLayer.push({
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Contact Page URL <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label><input type="text" value={form.pageUrl} onChange={set("pageUrl")} placeholder="e.g. https://yourwebsite.com/contact" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
-                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Website" className={FIELD_CLS} /></div>
-              </div>
+                {/* <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Website" className={FIELD_CLS} /></div>
+              </div> */}
             </div>
           </div>
           <div>
@@ -1019,7 +1019,7 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
     if (!form.sourceName.trim()) return;
     setLoading(true); setError("");
     try {
-      const payload = { sourceName: form.sourceName.trim(), pageUrl: form.pageUrl.trim(), defaultStatus: form.defaultStatus || "New", defaultRemark: form.defaultRemark || "Lead from Website" };
+      const payload = { sourceName: form.sourceName.trim(), pageUrl: form.pageUrl.trim(), defaultStatus: form.defaultStatus || "New",  };
       if (form.webhookSecret.trim()) payload.webhookSecret = form.webhookSecret.trim();
       await api.put(`/website-config/${campaign._id}`, payload);
       setSuccess(true); onUpdated && onUpdated();
@@ -1056,8 +1056,8 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Contact Page URL <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label><input type="text" value={form.pageUrl} onChange={set("pageUrl")} placeholder="e.g. https://yourwebsite.com/contact" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
-                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Website" className={FIELD_CLS} /></div>
-              </div>
+                {/* <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Remark</label><input type="text" value={form.defaultRemark} onChange={set("defaultRemark")} placeholder="Lead from Website" className={FIELD_CLS} /></div>
+              </div> */}
             </div>
           </div>
           <div>
@@ -1416,7 +1416,7 @@ export default function Campaigns() {
         converted: cfg.converted ?? 0, cost: cfg.cost ?? 0, date: fmtDate(cfg.createdAt), createdAt: cfg.createdAt,
         color: META_COLORS[idx % META_COLORS.length], pageId: cfg.pageId, company: cfg.company, isActive: cfg.isActive,
         formIds: cfg.formIds || [], defaultStatus: cfg.defaultStatus || "New",
-        defaultRemark: cfg.defaultRemark || "Lead from Meta Campaign", graphApiVersion: cfg.graphApiVersion || "v25.0",
+        , graphApiVersion: cfg.graphApiVersion || "v25.0",
       }));
 
       // Fetch real lead counts for Google campaigns
@@ -1435,7 +1435,7 @@ export default function Campaigns() {
         converted: cfg.converted ?? 0, cost: cfg.cost ?? 0, date: fmtDate(cfg.createdAt), createdAt: cfg.createdAt,
         color: GOOGLE_COLORS[idx % GOOGLE_COLORS.length], googleKey: cfg.googleKey, campaignId: cfg.campaignId || "",
         formId: cfg.formId || "", company: cfg.company, isActive: cfg.isActive,
-        defaultStatus: cfg.defaultStatus || "New", defaultRemark: cfg.defaultRemark || "Lead from Google Ads",
+        defaultStatus: cfg.defaultStatus || "New", 
       }));
 
       const websiteLeadCounts = await Promise.allSettled(
@@ -1453,7 +1453,7 @@ export default function Campaigns() {
         converted: 0, cost: 0, date: fmtDate(cfg.createdAt), createdAt: cfg.createdAt,
         color: WEBSITE_COLORS[idx % WEBSITE_COLORS.length], webhookSecret: cfg.webhookSecret,
         pageUrl: cfg.pageUrl || "", company: cfg.company, isActive: cfg.isActive,
-        defaultStatus: cfg.defaultStatus || "New", defaultRemark: cfg.defaultRemark || "Lead from Website",
+        defaultStatus: cfg.defaultStatus || "New",
       }));
 
       setCampaigns([...shapedMeta, ...shapedGoogleFixed, ...shapedWebsite]);
