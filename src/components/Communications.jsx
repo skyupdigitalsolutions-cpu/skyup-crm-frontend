@@ -138,7 +138,7 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
         },
         authHeaders
       );
-      onSuccess(data.conversation);
+      onSuccess(data.conversation, data.message);
       onClose();
     } catch (err) {
       const msg = err.response?.data?.error || "Failed to start conversation";
@@ -278,6 +278,70 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ── RE-ENGAGE MODAL (inline) — sends a template to re-open expired session ───
+// ─────────────────────────────────────────────────────────────────────────────
+function ReEngageModal({ conversationId, authHeaders, onSent }) {
+  const [templateName, setTemplateName] = useState("");
+  const [languageCode, setLanguageCode] = useState("en_US");
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState("");
+
+  const handleSend = async () => {
+    if (!templateName.trim()) return setError("Template name is required");
+    setLoading(true); setError("");
+    try {
+      const { data } = await axios.post(
+        `${API_URL}/whatsapp/send-template`,
+        { conversationId, templateName: templateName.trim(), languageCode },
+        authHeaders
+      );
+      onSent(data.message);
+      setTemplateName("");
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to send template");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={templateName}
+          onChange={(e) => setTemplateName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+          placeholder="Template name (e.g. hello, follow_up)"
+          className={FIELD_CLS + " flex-1 text-[12px]"}
+          autoFocus
+        />
+        <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} className={FIELD_CLS + " w-[130px] text-[12px]"}>
+          <option value="en_US">en_US</option>
+          <option value="en_GB">en_GB</option>
+          <option value="hi">hi</option>
+          <option value="mr">mr</option>
+          <option value="gu">gu</option>
+          <option value="ta">ta</option>
+          <option value="te">te</option>
+          <option value="kn">kn</option>
+        </select>
+        <button
+          onClick={handleSend}
+          disabled={!templateName.trim() || loading}
+          className="px-4 py-2 rounded-xl bg-[#25D366] hover:bg-[#1da851] text-white text-[12px] font-semibold disabled:opacity-40 transition shrink-0 flex items-center gap-1.5"
+        >
+          {loading
+            ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+            : <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          }
+          Re-engage
+        </button>
+      </div>
+      {error && <p className="text-[11px] text-[#DC2626]">⚠ {error}</p>}
+    </div>
+  );
+}
+
 function WhatsAppPanel({ currentUser }) {
   const socketRef  = useRef(null);
   const bottomRef  = useRef(null);
@@ -299,13 +363,31 @@ function WhatsAppPanel({ currentUser }) {
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
 
-  const handleNewConversation = (conv) => {
+  const handleNewConversation = (conv, firstMsg) => {
+    // FIX: after admin starts a new conversation, re-fetch it so sessionExpiresAt is populated.
+    // The returned conv object is pre-update (sessionExpiresAt still null), causing
+    // the "24-hour session expired" banner to appear immediately on new chats.
     setConversations((prev) => {
       const exists = prev.find((c) => c._id === conv._id);
       if (exists) return prev;
       return [conv, ...prev];
     });
-    selectConversation(conv);
+    // Pre-populate the template message so the chat window is not empty
+    if (firstMsg) setMessages([firstMsg]);
+    // Select and then re-load from server to get updated sessionExpiresAt
+    setSelected(conv);
+    setError("");
+    axios.get(`${API_URL}/whatsapp/conversations/${conv._id}/messages`, authHeaders)
+      .then(({ data }) => {
+        setMessages(data.messages || (firstMsg ? [firstMsg] : []));
+        // Update the conversation in the list with fresh sessionExpiresAt
+        setConversations((prev) =>
+          prev.map((c) => c._id === conv._id ? { ...c, ...data.conversation } : c)
+        );
+        setSelected((sel) => sel?._id === conv._id ? { ...sel, ...data.conversation } : sel);
+      })
+      .catch(() => { if (firstMsg) setMessages([firstMsg]); });
+    setTimeout(() => inputRef.current?.focus(), 100);
   };
 
   const loadConversations = useCallback(async () => {
@@ -406,6 +488,18 @@ function WhatsAppPanel({ currentUser }) {
     } catch {}
   };
 
+  // FIX: Delete zombie conversations (created when template send failed — "No messages yet")
+  const deleteConversation = async (convId) => {
+    if (!window.confirm("Delete this conversation and all its messages? This cannot be undone.")) return;
+    try {
+      await axios.delete(`${API_URL}/whatsapp/conversations/${convId}`, authHeaders);
+      setConversations((prev) => prev.filter((c) => c._id !== convId));
+      if (selected?._id === convId) { setSelected(null); setMessages([]); }
+    } catch (err) {
+      alert(err.response?.data?.error || "Failed to delete conversation");
+    }
+  };
+
   const filtered = conversations.filter((c) => {
     const matchSearch = !search || c.contactName?.toLowerCase().includes(search.toLowerCase()) || c.waPhone?.includes(search) || c.lead?.name?.toLowerCase().includes(search.toLowerCase());
     const matchFilter = filter === "all" || c.status === filter;
@@ -446,8 +540,10 @@ function WhatsAppPanel({ currentUser }) {
           {filtered.map((conv) => {
             const isActive  = selected?._id === conv._id;
             const hasUnread = conv.unreadCount > 0;
+            // A zombie conversation: no messages and no session — created by a failed template send
+            const isZombie  = isAdmin && !conv.lastMessage && !conv.sessionExpiresAt;
             return (
-              <div key={conv._id} onClick={() => selectConversation(conv)} className={`flex items-center gap-2.5 px-3 py-3 cursor-pointer border-b border-[#E4E7EF] dark:border-[#262A38] transition-colors ${isActive ? "bg-[#f0fdf4] dark:bg-[#052e1c]" : "hover:bg-[#F8F9FC] dark:hover:bg-[#1A1D27]"}`}>
+              <div key={conv._id} onClick={() => selectConversation(conv)} className={`relative flex items-center gap-2.5 px-3 py-3 cursor-pointer border-b border-[#E4E7EF] dark:border-[#262A38] transition-colors group ${isActive ? "bg-[#f0fdf4] dark:bg-[#052e1c]" : "hover:bg-[#F8F9FC] dark:hover:bg-[#1A1D27]"}`}>
                 <div className="w-9 h-9 rounded-full bg-[#dcfce7] flex items-center justify-center font-semibold text-[13px] text-[#166534] shrink-0">
                   {getInitials(conv.contactName || conv.lead?.name || conv.waPhone)}
                 </div>
@@ -459,7 +555,9 @@ function WhatsAppPanel({ currentUser }) {
                     <span className="text-[10px] text-[#8B92A9] shrink-0">{timeAgo(conv.lastMessageAt)}</span>
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
-                    <span className="text-[11px] text-[#8B92A9] truncate max-w-[130px]">{conv.lastMessage || "No messages yet"}</span>
+                    <span className={`text-[11px] truncate max-w-[130px] ${isZombie ? "text-[#DC2626]" : "text-[#8B92A9]"}`}>
+                      {isZombie ? "⚠ Template failed — tap to delete" : conv.lastMessage || "No messages yet"}
+                    </span>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: conv.status === "waiting" ? "#f59e0b" : conv.status === "open" ? "#22c55e" : "#9ca3af" }} />
                       {hasUnread && <span className="bg-[#25D366] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center">{conv.unreadCount}</span>}
@@ -467,6 +565,16 @@ function WhatsAppPanel({ currentUser }) {
                   </div>
                   {isAdmin && conv.assignedAgent && <div className="text-[10px] text-[#8B92A9] mt-0.5">{conv.assignedAgent.name}</div>}
                 </div>
+                {/* Delete button — only visible on hover for zombie conversations */}
+                {isZombie && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteConversation(conv._id); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[#FEF2F2] dark:bg-[#2D0A0A] flex items-center justify-center text-[#DC2626] hover:bg-[#fee2e2] transition"
+                    title="Delete this failed conversation"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                )}
               </div>
             );
           })}
@@ -557,24 +665,37 @@ function WhatsAppPanel({ currentUser }) {
             </div>
           )}
 
-          {/* Input */}
-          <div className="px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-2 items-end bg-white dark:bg-[#1A1D27]">
-            <textarea
-              ref={inputRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              placeholder={selected.status === "closed" ? "Conversation is closed" : session?.expired ? "Session expired — use template message" : "Type a message… (Enter to send)"}
-              disabled={selected.status === "closed" || sending}
-              rows={1}
-              className="flex-1 resize-none text-[13px] px-3 py-2.5 rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366] transition leading-[1.5] max-h-[120px] overflow-y-auto"
-            />
-            <button onClick={sendMessage} disabled={!text.trim() || sending || selected.status === "closed"} className={`w-9 h-9 rounded-full flex items-center justify-center transition shrink-0 ${text.trim() && !sending ? "bg-[#25D366] hover:bg-[#1da851]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill={text.trim() && !sending ? "white" : "#9ca3af"}>
-                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-              </svg>
-            </button>
-          </div>
+          {/* Input — show Re-engage button when session expired, normal input otherwise */}
+          {session?.expired && selected.status !== "closed" ? (
+            <div className="px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]">
+              <p className="text-[11px] text-[#8B92A9] mb-2 text-center">24-hour session expired. Send a pre-approved template to re-open the conversation.</p>
+              <ReEngageModal conversationId={selected._id} authHeaders={authHeaders} onSent={(msg) => {
+                setMessages((prev) => [...prev, msg]);
+                const newExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                setSelected((s) => ({ ...s, sessionExpiresAt: newExpiry }));
+                setConversations((prev) => prev.map((c) => c._id === selected._id ? { ...c, sessionExpiresAt: newExpiry, lastMessage: msg.body, lastMessageAt: new Date() } : c));
+                setError("");
+              }} />
+            </div>
+          ) : (
+            <div className="px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-2 items-end bg-white dark:bg-[#1A1D27]">
+              <textarea
+                ref={inputRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                placeholder={selected.status === "closed" ? "Conversation is closed" : "Type a message… (Enter to send)"}
+                disabled={selected.status === "closed" || sending}
+                rows={1}
+                className="flex-1 resize-none text-[13px] px-3 py-2.5 rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366] transition leading-[1.5] max-h-[120px] overflow-y-auto"
+              />
+              <button onClick={sendMessage} disabled={!text.trim() || sending || selected.status === "closed"} className={`w-9 h-9 rounded-full flex items-center justify-center transition shrink-0 ${text.trim() && !sending ? "bg-[#25D366] hover:bg-[#1da851]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill={text.trim() && !sending ? "white" : "#9ca3af"}>
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       )}
       {showNewChat && (
