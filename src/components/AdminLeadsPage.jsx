@@ -25,6 +25,13 @@ function normalizeMobile(val) {
   return normalizePhone(val) || (val || "").replace(/\D/g, "");
 }
 
+function canonicalPhone(val) {
+  let n = String(val || "").replace(/\D/g, "");
+  if (n.startsWith("0")) n = n.slice(1);
+  if (n.startsWith("91") && n.length > 10) n = n.slice(2);
+  return n;
+}
+
 function StatusBadge({ status }) {
   const s = STATUS_CONFIG[status] || STATUS_CONFIG["New"];
   return (
@@ -455,7 +462,7 @@ function AddLeadModal({ onClose, onAdd }) {
 }
 
 // ── Import CSV Modal ──────────────────────────────────────────────────────────
-function ImportCSVModal({ onClose, onImported }) {
+function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
   const importRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [result,    setResult]    = useState(null);
@@ -494,6 +501,14 @@ const downloadTemplate = () => {
 
       const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().trim());
 
+      // Build a Set of canonical forms of every phone already in the CRM.
+      // Any +91 / 0 / bare variant of the same number collapses to one key.
+      const existingPhoneSet = new Set(
+        (existingLeads || [])
+          .map(l => canonicalPhone(l.phone || l.mobile))
+          .filter(Boolean)
+      );
+
       const seenInFile    = new Set();
       const leadsToImport = [];
       const clientErrors  = [];
@@ -512,9 +527,25 @@ const downloadTemplate = () => {
           continue;
         }
 
-        const dupKey = normalized.replace(/^(91|1)/, "");
+        const dupKey = canonicalPhone(normalized);
+
+        // 1) Already exists in the CRM database — never import.
+        if (existingPhoneSet.has(dupKey)) {
+          clientErrors.push({
+            index: i,
+            row: rawName || i,
+            message: `Already exists in CRM: ${rawMobile} is already a lead. Skipped.`,
+          });
+          continue;
+        }
+
+        // 2) Already appeared earlier in this CSV file.
         if (seenInFile.has(dupKey)) {
-          clientErrors.push({ index: i, row: rawName || i, message: `Duplicate in CSV: ${rawMobile} appears more than once.` });
+          clientErrors.push({
+            index: i,
+            row: rawName || i,
+            message: `Duplicate in CSV: ${rawMobile} appears more than once.`,
+          });
           continue;
         }
         seenInFile.add(dupKey);
