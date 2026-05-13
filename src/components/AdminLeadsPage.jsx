@@ -901,7 +901,7 @@ export default function AdminLeadsPage() {
   const displayed = useMemo(() => {
     let res = allLeads.filter(l => {
       const q           = search.toLowerCase();
-      const matchSearch = !q || l.name.toLowerCase().includes(q) || l.phone.includes(q) || (l.agent || "").toLowerCase().includes(q);
+     const matchSearch = !q || l.name.toLowerCase().includes(q) || l.phone.includes(q);
       const matchSt     = filterSt    === "All" || l.status  === filterSt;
       const matchAgent  = filterAgent === "All" || l.agent   === filterAgent;
       const matchSrc    = filterSrc   === "All" || l.source  === filterSrc;
@@ -1025,7 +1025,7 @@ export default function AdminLeadsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search name, phone, agent…" className={INP + " pl-9 w-full"} />
+              placeholder="Search name, phone…" className={INP + " pl-9 w-full"} />
           </div>
           <AgentSelect
   value={filterAgent}
