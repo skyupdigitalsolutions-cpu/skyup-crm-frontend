@@ -462,7 +462,7 @@ function AddLeadModal({ onClose, onAdd }) {
 }
 
 // ── Import CSV Modal ──────────────────────────────────────────────────────────
-function ({ onClose, onImported, existingLeads = [] }) {
+function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
   const importRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [result,    setResult]    = useState(null);
