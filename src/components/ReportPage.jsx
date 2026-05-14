@@ -5,6 +5,14 @@ import api from "../data/axiosConfig";
 import { useDateFilter } from "../components/dataFilter";
 import CRMEncryption from "../utils/CRMEncryption";
 
+// ── Phone masking helper ──────────────────────────────────────────────────────
+function maskPhone(phone) {
+  if (!phone) return "—";
+  const str = String(phone).replace(/\s/g, "");
+  if (str.length <= 4) return "••••";
+  return str.slice(0, 2) + "•".repeat(Math.max(str.length - 4, 3)) + str.slice(-2);
+}
+
 const crm = new CRMEncryption();
 
 const CALL_LOGS_API = "/call-logs";
@@ -302,7 +310,7 @@ function RemarksHistoryModal({ lead, onClose }) {
             </div>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
-              <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{lead.phone} · {lead.source}</p>
+              <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{maskPhone(lead.phone)} · {lead.source}</p>
             </div>
           </div>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
@@ -430,7 +438,7 @@ function RecordingModal({ lead, onClose }) {
             </div>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
-              <p className="text-[12px] text-[#8B92A9] mt-0.5">{lead.phone}</p>
+              <p className="text-[12px] text-[#8B92A9] mt-0.5 font-mono">{maskPhone(lead.phone)}</p>
             </div>
           </div>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
@@ -841,7 +849,7 @@ export default function ReportPage() {
                         <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{lead.name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.phone}</td>
+                    <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap font-mono">{maskPhone(lead.phone)}</td>
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.source}</td>
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB]">{lead.campaign}</td>
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.agent}</td>
