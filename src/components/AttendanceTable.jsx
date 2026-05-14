@@ -24,61 +24,6 @@ const CALL_TYPE_STYLE = {
   unknown  : { bg: "bg-gray-100 dark:bg-gray-800",          text: "text-gray-600 dark:text-gray-400",       icon: "?", label: "Unknown"   },
 };
 
-// ─── KPI Status Cards config ──────────────────────────────────────────────────
-
-const KPI_CARDS = [
-  {
-    key        : "present",
-    label      : "Present",
-    color      : "#059669",
-    border     : "border-emerald-500/40 dark:border-emerald-500/30",
-    bg         : "bg-emerald-950/60 dark:bg-emerald-950/60",
-    lightBg    : "bg-white dark:bg-emerald-950/60",
-    numColor   : "text-emerald-500 dark:text-emerald-400",
-    labelColor : "text-emerald-600 dark:text-emerald-500",
-  },
-  {
-    key        : "absent",
-    label      : "Absent",
-    color      : "#DC2626",
-    border     : "border-red-500/40 dark:border-red-500/30",
-    bg         : "bg-red-950/60 dark:bg-red-950/60",
-    lightBg    : "bg-white dark:bg-red-950/60",
-    numColor   : "text-red-500 dark:text-red-400",
-    labelColor : "text-red-600 dark:text-red-500",
-  },
-  {
-    key        : "late",
-    label      : "Late",
-    color      : "#D97706",
-    border     : "border-amber-500/40 dark:border-amber-500/30",
-    bg         : "bg-amber-950/60 dark:bg-amber-950/60",
-    lightBg    : "bg-white dark:bg-amber-950/60",
-    numColor   : "text-amber-500 dark:text-amber-400",
-    labelColor : "text-amber-600 dark:text-amber-500",
-  },
-  {
-    key        : "half_day",
-    label      : "Half-Day",
-    color      : "#2563EB",
-    border     : "border-blue-500/40 dark:border-blue-500/30",
-    bg         : "bg-blue-950/60 dark:bg-blue-950/60",
-    lightBg    : "bg-white dark:bg-blue-950/60",
-    numColor   : "text-blue-500 dark:text-blue-400",
-    labelColor : "text-blue-600 dark:text-blue-500",
-  },
-  {
-    key        : "leave",
-    label      : "Leave",
-    color      : "#7C3AED",
-    border     : "border-purple-500/40 dark:border-purple-500/30",
-    bg         : "bg-purple-950/60 dark:bg-purple-950/60",
-    lightBg    : "bg-white dark:bg-purple-950/60",
-    numColor   : "text-purple-500 dark:text-purple-400",
-    labelColor : "text-purple-600 dark:text-purple-500",
-  },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtTime(d) {
@@ -172,40 +117,6 @@ function IpBadge({ ip }) {
 
 const INP = "w-full text-[12px] border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0D0F14] rounded-xl px-3 py-2 text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-indigo-500 transition";
 
-// ─── Display-only KPI Status Cards ───────────────────────────────────────────
-
-function KpiStatusCards({ records }) {
-  const counts = useMemo(() => {
-    const c = { present: 0, absent: 0, late: 0, half_day: 0, leave: 0 };
-    records.forEach(r => {
-      const s = r.derivedCrmStatus || r.crmStatus;
-      if (s && s in c) c[s]++;
-    });
-    return c;
-  }, [records]);
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-      {KPI_CARDS.map(card => (
-        <div
-          key={card.key}
-          className={`
-            rounded-2xl border-2 px-5 py-4 select-none
-            ${card.lightBg} ${card.border}
-          `}
-        >
-          <p className={`text-[28px] font-black leading-none mb-1 ${card.numColor}`}>
-            {counts[card.key]}
-          </p>
-          <p className={`text-[12px] font-semibold ${card.labelColor}`}>
-            {card.label}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ─── Login History Modal ──────────────────────────────────────────────────────
 
 function LoginHistoryModal({ user, onClose }) {
@@ -234,6 +145,7 @@ function LoginHistoryModal({ user, onClose }) {
         <div className="max-h-[420px] overflow-y-auto divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
           {history.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <span className="text-[32px]">🔐</span>
               <p className="text-[12px] text-[#8B92A9]">No login history available</p>
             </div>
           ) : history.map((entry, i) => {
@@ -328,6 +240,12 @@ function EditModal({ rec, onClose, onRefresh }) {
           </div>
           <div>
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wider block mb-1">Status Override</label>
+            {/* <select value={form.crmStatus} onChange={e => setForm(f => ({ ...f, crmStatus: e.target.value }))} className={INP}>
+              <option value="">Auto-detect</option>
+              {STATUS_ENUM.map(s => (
+                <option key={s} value={s}>{CRM_STATUS_STYLE[s]?.label ?? s}</option>
+              ))}
+            </select> */}
           </div>
           <div>
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wider block mb-1">Remarks</label>
@@ -425,7 +343,7 @@ function CallLogCard({ log }) {
             )}
             {hasRecordings && (
               <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400">
-                {log.recordings.length} rec
+                🎙 {log.recordings.length}
               </span>
             )}
           </div>
@@ -479,8 +397,8 @@ function CallLogCard({ log }) {
                     </ul>
                   )}
                   <div className="flex items-center gap-3 pt-0.5 flex-wrap">
-                    {rec.summary.sentiment    && <span className="text-[10px] font-semibold text-[#8B92A9]">Sentiment: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{rec.summary.sentiment}</span></span>}
-                    {rec.summary.nextAction   && <span className="text-[10px] font-semibold text-[#8B92A9]">Next action: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{rec.summary.nextAction}</span></span>}
+                    {rec.summary.sentiment   && <span className="text-[10px] font-semibold text-[#8B92A9]">Sentiment: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{rec.summary.sentiment}</span></span>}
+                    {rec.summary.nextAction  && <span className="text-[10px] font-semibold text-[#8B92A9]">Next action: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{rec.summary.nextAction}</span></span>}
                     {rec.summary.suggestedTemp && <span className="text-[10px] font-semibold text-[#8B92A9]">Lead temp: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{rec.summary.suggestedTemp}</span></span>}
                   </div>
                 </div>
@@ -526,6 +444,7 @@ function UserDetailDrawer({ user, records, onClose }) {
       .finally(() => setLogsLoading(false));
   }, [user._id]);
 
+  // Attendance stats scoped to the records passed in (already filtered by parent)
   const userRecs      = records.filter(r => (r.user?._id || r.user?.id) === (user._id || user.id));
   const total         = userRecs.length;
   const present       = userRecs.filter(r => r.derivedCrmStatus === "present").length;
@@ -537,6 +456,7 @@ function UserDetailDrawer({ user, records, onClose }) {
   const sortedAtt     = [...userRecs].sort((a, b) => new Date(b.date) - new Date(a.date));
   const lastRec       = sortedAtt[0];
 
+  // Call log summary
   const totalCalls    = callLogs.length;
   const totalDuration = callLogs.reduce((s, l) => s + (l.duration || 0), 0);
   const withRecording = callLogs.filter(l => l.recordings?.length > 0).length;
@@ -708,9 +628,9 @@ function UserDetailDrawer({ user, records, onClose }) {
               {!logsLoading && !logsError && totalCalls > 0 && (
                 <div className="grid grid-cols-4 gap-2 mb-3">
                   {[
-                    { label: "Total",     value: totalCalls,                        color: "#6366f1" },
-                    { label: "Missed",    value: missedCalls,                       color: "#DC2626" },
-                    { label: "Recorded",  value: withRecording,                     color: "#0891b2" },
+                    { label: "Total",     value: totalCalls,                    color: "#6366f1" },
+                    { label: "Missed",    value: missedCalls,                   color: "#DC2626" },
+                    { label: "Recorded",  value: withRecording,                 color: "#0891b2" },
                     { label: "Talk time", value: fmtDuration(totalDuration) || "0s", color: "#059669", small: true },
                   ].map(s => (
                     <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-2 text-center border border-[#E4E7EF] dark:border-[#262A38]">
@@ -726,6 +646,7 @@ function UserDetailDrawer({ user, records, onClose }) {
                 </div>
               ) : logsError ? (
                 <div className="flex flex-col items-center justify-center py-6 gap-2 bg-red-50 dark:bg-red-950/20 rounded-xl border border-dashed border-red-200 dark:border-red-900/40">
+                  <span className="text-[28px]">⚠️</span>
                   <p className="text-[12px] text-red-500">{logsError}</p>
                 </div>
               ) : pagedLogs.length > 0 ? (
@@ -743,6 +664,7 @@ function UserDetailDrawer({ user, records, onClose }) {
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
+                  <span className="text-[28px]">📵</span>
                   <p className="text-[12px] text-[#8B92A9]">No call logs synced for this user</p>
                 </div>
               )}
@@ -774,6 +696,7 @@ function UserDetailDrawer({ user, records, onClose }) {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
+                  <span className="text-[28px]">📅</span>
                   <p className="text-[12px] text-[#8B92A9]">No attendance records found for this filter</p>
                 </div>
               )}
@@ -831,6 +754,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
             ) : records.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-4 py-12 text-center">
+                  <span className="text-[36px] block mb-2">📋</span>
                   <p className="text-[14px] text-[#8B92A9]">No attendance records found.</p>
                 </td>
               </tr>
@@ -916,6 +840,7 @@ function UsersTab({ records, onUserClick }) {
   if (users.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <span className="text-[48px]">👥</span>
         <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">No users found</p>
         <p className="text-[12px] text-[#8B92A9]">Users will appear here once attendance records are loaded.</p>
       </div>
@@ -1006,7 +931,10 @@ function UsersTab({ records, onUserClick }) {
             )}
 
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] text-[#8B92A9] truncate">{deviceInfo || "No device info"}</span>
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-[11px]">📱</span>
+                <span className="text-[11px] text-[#8B92A9] truncate">{deviceInfo || "No device info"}</span>
+              </div>
               <span className="text-[11px] text-[#8B92A9] shrink-0">{daysSince(lastRec?.date || lastRec?.loginTime)}</span>
             </div>
           </button>
@@ -1034,10 +962,6 @@ export default function AttendancePage({ records = [], loading = false, onRefres
         <p className="text-[13px] text-[#8B92A9] mt-0.5">Track employee attendance, device info, and call log sync</p>
       </div>
 
-      {/* ── Display-only KPI status cards ── */}
-      <KpiStatusCards records={records} />
-
-      {/* ── Tab switcher ── */}
       <div className="flex items-center gap-1 mb-6 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-1 w-fit">
         {tabs.map(tab => (
           <button
