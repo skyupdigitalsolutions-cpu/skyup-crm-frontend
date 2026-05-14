@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import api from "../data/axiosConfig";
 import { fetchAll, getRole, getStoredUser } from "../data/dataService";
 import UserManagement from "./UserMangement";
 import AdminChat from "./Adminchat";
@@ -448,6 +449,7 @@ export default function Dashboard() {
   const [error,       setError]       = useState(null);
   const [range,       setRange]       = useState("week");
   const [superStats,  setSuperStats]  = useState(null);
+  const [dashStats,   setDashStats]   = useState(null);
 
   const chartReady = useChartJS();
   const role        = getRole();
@@ -496,6 +498,13 @@ export default function Dashboard() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  // ── Fetch admin dashboard stats (quality + phone reveal) ─────────────────────
+  useEffect(() => {
+    api.get("/admin/dashboard-stats")
+      .then(r => setDashStats(r.data))
+      .catch(() => {});
+  }, []);
 
   // ── Derived data ─────────────────────────────────────────────────────────────
   const leads = useMemo(() => filterByRange(allLeads, range), [allLeads, range]);
@@ -670,6 +679,65 @@ export default function Dashboard() {
           variant="red"
         />
       </div>
+
+      {/* ── Quality KPI row + Phone Reveal Stats ── */}
+      {dashStats && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <KpiCard
+              label="🔥 Hot Leads"
+              value={dashStats.quality.hot.toLocaleString()}
+              sub="All fields filled"
+              up={dashStats.quality.hot > 0}
+              icon={IconCheck}
+              variant="red"
+            />
+            <KpiCard
+              label="🌡 Warm Leads"
+              value={dashStats.quality.warm.toLocaleString()}
+              sub="Partially filled"
+              up={dashStats.quality.warm > 0}
+              icon={IconUsers}
+              variant="amber"
+            />
+            <KpiCard
+              label="👁 Phone Reveals"
+              value={dashStats.phoneReveal.totalReveals.toLocaleString()}
+              sub={`${dashStats.phoneReveal.leadsRevealed} leads viewed`}
+              up={false}
+              icon={IconClock}
+              variant="purple"
+            />
+          </div>
+
+          {dashStats.phoneReveal.topRevealed.length > 0 && (
+            <div className="bg-white dark:bg-[#13161E] rounded-2xl p-5 shadow-sm border border-[#F0F2FA] dark:border-[#1E2130] mb-6">
+              <h3 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-4">
+                👁 Most Viewed Phone Numbers
+              </h3>
+              <div className="space-y-2">
+                {dashStats.phoneReveal.topRevealed.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between py-1.5 border-b border-[#F0F2FA] dark:border-[#1E2130] last:border-0">
+                    <div>
+                      <p className="text-sm font-medium text-[#0F1117] dark:text-[#F0F2FA]">{item.name}</p>
+                      <p className="text-[11px] text-[#8B92A9] font-mono">
+                        {"•".repeat(Math.max(0, (item.mobile || "").length - 4)) + (item.mobile || "").slice(-4)}
+                      </p>
+                    </div>
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                      item.count >= 10 ? "bg-red-100 dark:bg-red-950/40 text-red-600"
+                      : item.count >= 5 ? "bg-amber-100 dark:bg-amber-950/40 text-amber-600"
+                      : "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB]"
+                    }`}>
+                      👁 {item.count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── Chart row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">

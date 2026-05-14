@@ -872,7 +872,7 @@ export default function AdminLeadsPage() {
   const [viewCounts,    setViewCounts]    = useState({});   // { [leadId]: number }
   const revealTimerRef                    = useRef(null);
 
-  const handleRevealPhone = (e, leadId) => {
+  const handleRevealPhone = async (e, leadId) => {
     e.stopPropagation();
     clearTimeout(revealTimerRef.current);
 
@@ -883,6 +883,13 @@ export default function AdminLeadsPage() {
     revealTimerRef.current = setTimeout(() => {
       setRevealedPhone(null);
     }, 4000);
+
+    // Persist reveal count to backend (fire and forget)
+    try {
+      await api.post(`/lead/admin/${leadId}/reveal-phone`);
+    } catch {
+      // Non-critical — local count already updated
+    }
   };
 
   useEffect(() => () => clearTimeout(revealTimerRef.current), []);
