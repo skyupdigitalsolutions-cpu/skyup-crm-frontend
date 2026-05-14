@@ -702,10 +702,15 @@ export default function ReportPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-1.5">{filterBtn(statusFilter, setStatus, statuses)}</div>
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] self-center mr-1">Agent:</span>
-            {filterBtn(agentFilter, setAgent, agentNames)}
-          </div>
+        <div className="flex items-center gap-2 mt-2">
+  <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] self-center">Agent:</span>
+  <AgentSelect
+    value={agentFilter}
+    onChange={(val) => { setAgent(val); setPage(1); }}
+    agents={agents.map(a => a.name)}
+    className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] transition"
+  />
+</div>
         </div>
 
         <div className="overflow-x-auto">
