@@ -206,19 +206,52 @@ export default function Dailyreport() {
     };
   }, [dayLeads, prevDayLeads]);
 
-  const agentStats = useMemo(() =>
-    agents.map(a => {
+  const agentStats = useMemo(() => {
+    const viewStart = new Date(viewDate); viewStart.setHours(0, 0, 0, 0);
+    const viewEnd   = new Date(viewDate); viewEnd.setHours(23, 59, 59, 999);
+
+    return agents.map(a => {
+      // Leads assigned to this agent (created on viewed day)
       const al = dayLeads.filter(l => l.agent === a.name);
+
+      // Calls made by this agent on the viewed day (across ALL their leads, not just today's)
+      const callsMadeToday = allLeads
+        .filter(l => l.agent === a.name)
+        .flatMap(l => (l.callHistory || []))
+        .filter(c => {
+          const d = new Date(c.calledAt);
+          return d >= viewStart && d <= viewEnd;
+        });
+
+      // "Updated" = distinct leads where a call was logged on the viewed day
+      const updatedLeadIds = new Set(
+        allLeads
+          .filter(l => l.agent === a.name)
+          .filter(l => (l.callHistory || []).some(c => {
+            const d = new Date(c.calledAt);
+            return d >= viewStart && d <= viewEnd;
+          }))
+          .map(l => l.id)
+      );
+
+      const converted  = al.filter(l => l.status === "Converted").length;
+      const inProgress = al.filter(l => l.status === "In Progress").length;
+      // Active = made at least one call on the viewed day
+      const active = callsMadeToday.length > 0 || al.length > 0;
+
       return {
         ...a,
-        leads:      al.length,
-        updated:    al.filter(l => l.status !== "New").length,
-        converted:  al.filter(l => l.status === "Converted").length,
-        inProgress: al.filter(l => l.status === "In Progress").length,
-        active:     al.length > 0,
+        leads:        al.length,
+        updated:      updatedLeadIds.size,
+        callsToday:   callsMadeToday.length,
+        converted,
+        inProgress,
+        active,
+        // For top-performer ranking: weight by calls made + conversions
+        score: callsMadeToday.length * 2 + converted * 5 + al.length,
       };
-    }).sort((a, b) => b.leads - a.leads),
-  [dayLeads, agents]);
+    }).sort((a, b) => b.score - a.score);
+  }, [dayLeads, allLeads, agents, viewDate]);
 
   const sources = useMemo(() =>
     Object.entries(SOURCE_COLORS).map(([label, color]) => ({
@@ -242,18 +275,66 @@ export default function Dailyreport() {
     })),
   [dayLeads]);
 
-  const followUps = useMemo(() =>
-    allLeads
-      .filter(l => l.status === "In Progress")
-      .slice(0, 10)
-      .map(l => ({
-        name: l.name, agent: l.agent, phone: l.phone,
-        source: l.source,
-        time: isSameDay(l.date, new Date()) ? "Today" : l.date,
-        note: l.remark || "Follow-up required",
-        isUrgent: isSameDay(l.date, new Date()),
-      })),
-  [allLeads]);
+  const followUps = useMemo(() => {
+    const now       = new Date();
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const todayEnd   = new Date(now); todayEnd.setHours(23, 59, 59, 999);
+
+    const results = [];
+
+    for (const l of allLeads) {
+      // Find all pending (not done) scheduled calls for this lead
+      const pending = (l.scheduledCalls || []).filter(sc => !sc.done);
+      if (pending.length === 0) continue;
+
+      // Use the earliest pending call as the "due date"
+      const earliest = pending.reduce((a, b) =>
+        new Date(a.scheduledAt) < new Date(b.scheduledAt) ? a : b
+      );
+      const dueDate = new Date(earliest.scheduledAt);
+
+      let urgency, daysLabel, dotColor;
+
+      if (dueDate < todayStart) {
+        // Overdue
+        const daysOver = Math.floor((todayStart - dueDate) / 86400000);
+        urgency   = "overdue";
+        daysLabel = daysOver === 1 ? "1 day overdue" : `${daysOver} days overdue`;
+        dotColor  = "#DC2626";
+      } else if (dueDate <= todayEnd) {
+        urgency   = "today";
+        daysLabel = "Due today";
+        dotColor  = "#D97706";
+      } else {
+        const daysAhead = Math.floor((dueDate - todayEnd) / 86400000) + 1;
+        urgency   = "upcoming";
+        daysLabel = daysAhead === 1 ? "Due tomorrow" : `Due in ${daysAhead} days`;
+        dotColor  = "#2563EB";
+      }
+
+      results.push({
+        id:        l.id,
+        name:      l.name,
+        agent:     l.agent,
+        phone:     l.phone,
+        source:    l.source,
+        status:    l.status,
+        note:      earliest.note || l.remark || "Follow-up required",
+        dueDate,
+        daysLabel,
+        urgency,
+        dotColor,
+        pendingCount: pending.length,
+      });
+    }
+
+    // Sort: overdue first, then today, then upcoming — within each group by earliest dueDate
+    return results.sort((a, b) => {
+      const order = { overdue: 0, today: 1, upcoming: 2 };
+      if (order[a.urgency] !== order[b.urgency]) return order[a.urgency] - order[b.urgency];
+      return a.dueDate - b.dueDate;
+    });
+  }, [allLeads]);
 
   const unassignedLeads = newLeadsList.filter(l => l.assigned === "Unassigned");
   const maxAgentLeads   = Math.max(...agentStats.map(a => a.leads), 1);
@@ -286,7 +367,7 @@ export default function Dailyreport() {
     { k: "overview",    l: "Overview",       count: null },
     { k: "agents",      l: "Agent Activity", count: agentStats.filter(a => a.active).length },
     { k: "leads",       l: "New Leads",      count: newLeadsList.length },
-    { k: "followups",   l: "Follow-ups",     count: followUps.length },
+    { k: "followups",   l: "Follow-ups",     count: followUps.filter(f => f.urgency !== "upcoming").length },
     { k: "conversions", l: "Conversions",    count: conversions.length },
   ];
 
@@ -498,7 +579,7 @@ export default function Dailyreport() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <StatCard label="Total Agents"  value={agents.length}                                                          sub="Configured"        color="#2563EB" icon="👤" />
             <StatCard label="Active Today"  value={agentStats.filter(a => a.active).length}                                sub="Handled leads"     color="#059669" icon="✓" />
-            <StatCard label="Top Performer" value={agentStats[0]?.leads > 0 ? agentStats[0]?.name?.split(" ")[0] : "—"}   sub={`${agentStats[0]?.leads || 0} leads`} color="#7C3AED" icon="★" />
+            <StatCard label="Top Performer" value={agentStats[0]?.score > 0 ? agentStats[0]?.name?.split(" ")[0] : "—"}   sub={agentStats[0]?.score > 0 ? `${agentStats[0]?.callsToday || 0} calls · ${agentStats[0]?.converted || 0} converted` : "No activity"} color="#7C3AED" icon="★" />
             <StatCard label="Total Handled" value={summary.newLeads}                                                       sub="Across all agents" color="#D97706" icon="↑" />
           </div>
 
@@ -507,7 +588,7 @@ export default function Dailyreport() {
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Agent", "Status", "Leads Assigned", "Leads Updated", "In Progress", "Converted", "Conv. Rate"].map(h => (
+                    {["Agent", "Status", "Leads Assigned", "Calls Made", "Leads Updated", "In Progress", "Converted", "Conv. Rate"].map(h => (
                       <th key={h} className="text-left pb-3 pr-6 text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -532,6 +613,7 @@ export default function Dailyreport() {
                           </span>
                         </td>
                         <td className="py-3.5 pr-6 font-bold text-[#0F1117] dark:text-[#F0F2FA]">{a.leads}</td>
+                        <td className="py-3.5 pr-6"><span className="font-bold text-[#2563EB] dark:text-[#4F8EF7]">{a.callsToday}</span></td>
                         <td className="py-3.5 pr-6 text-[#4B5168] dark:text-[#9DA3BB]">{a.updated}</td>
                         <td className="py-3.5 pr-6"><span className="font-semibold text-[#D97706] dark:text-[#FCD34D]">{a.inProgress}</span></td>
                         <td className="py-3.5 pr-6"><span className="font-bold text-[#059669] dark:text-[#34D399]">{a.converted}</span></td>
@@ -603,10 +685,11 @@ export default function Dailyreport() {
       {/* ════════════════════ FOLLOW-UPS ════════════════════ */}
       {tab === "followups" && (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <StatCard label="Total Follow-ups" value={followUps.length}                                              sub="In Progress leads" color="#D97706" icon="⟳" />
-            <StatCard label="Due Today"         value={followUps.filter(f => f.isUrgent).length}                     sub="From today"        color="#DC2626" icon="!" />
-            <StatCard label="Total In Progress" value={allLeads.filter(l => l.status === "In Progress").length}      sub="All time"          color="#2563EB" icon="↑" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <StatCard label="Total Follow-ups" value={followUps.length}                                                    sub="With scheduled calls"  color="#D97706" icon="⟳" />
+            <StatCard label="Overdue"           value={followUps.filter(f => f.urgency === "overdue").length}               sub="Past due date"          color="#DC2626" icon="!" />
+            <StatCard label="Due Today"         value={followUps.filter(f => f.urgency === "today").length}                 sub="Need call today"        color="#D97706" icon="☎" />
+            <StatCard label="Upcoming"          value={followUps.filter(f => f.urgency === "upcoming").length}              sub="Scheduled ahead"        color="#2563EB" icon="↑" />
           </div>
 
           <Card title="Pending follow-ups" badge={followUps.length} bc="#D97706">
@@ -614,31 +697,57 @@ export default function Dailyreport() {
               <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No pending follow-ups.</p>
             ) : (
               <div className="space-y-3">
-                {followUps.map((c, i) => (
-                  <div key={i} className={`flex items-start gap-3 p-4 rounded-xl border ${c.isUrgent ? "border-[#FDE68A] dark:border-[#78350F] bg-[#FFFBEB] dark:bg-[#2D1F00]" : "border-[#E4E7EF] dark:border-[#262A38]"}`}>
-                    <div className="w-2 h-2 rounded-full mt-2 shrink-0" style={{ background: c.isUrgent ? "#DC2626" : "#D97706" }} />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                        <div>
-                          <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{c.name}</span>
-                          <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] ml-2">{c.phone}</span>
+                {followUps.map((c, i) => {
+                  const isOverdue  = c.urgency === "overdue";
+                  const isToday    = c.urgency === "today";
+                  const isUpcoming = c.urgency === "upcoming";
+                  const cardBorder = isOverdue
+                    ? "border-red-200 dark:border-red-900/60 bg-red-50/40 dark:bg-red-950/20"
+                    : isToday
+                    ? "border-amber-200 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/20"
+                    : "border-[#E4E7EF] dark:border-[#262A38]";
+                  const badgeCls = isOverdue
+                    ? "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+                    : isToday
+                    ? "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"
+                    : "bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400";
+                  return (
+                    <div key={i} className={`flex items-start gap-3 p-4 rounded-xl border ${cardBorder}`}>
+                      <div className="w-2 h-2 rounded-full mt-2 shrink-0" style={{ background: c.dotColor }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between flex-wrap gap-2 mb-1.5">
+                          <div>
+                            <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{c.name}</span>
+                            <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] ml-2 font-mono">{c.phone}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {/* Urgency badge — the key new element */}
+                            <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 ${badgeCls}`}>
+                              {isOverdue && <span>⚠</span>}
+                              {isToday   && <span>☎</span>}
+                              {isUpcoming && <span>📅</span>}
+                              {c.daysLabel}
+                            </span>
+                            {c.source && SOURCE_COLORS[c.source] && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: SOURCE_COLORS[c.source] + "20", color: SOURCE_COLORS[c.source] }}>
+                                {c.source}
+                              </span>
+                            )}
+                            {c.pendingCount > 1 && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-semibold">
+                                {c.pendingCount} pending
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold ${c.isUrgent ? "bg-[#FEF2F2] dark:bg-[#2D0A0A] text-[#DC2626] dark:text-[#F87171]" : "bg-[#FFFBEB] dark:bg-[#2D1F00] text-[#D97706] dark:text-[#FCD34D]"}`}>
-                            {c.time}
-                          </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: SOURCE_COLORS[c.source] + "20", color: SOURCE_COLORS[c.source] }}>
-                            {c.source}
-                          </span>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic truncate">{c.note}</p>
+                          <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] shrink-0">{c.agent || "Unassigned"}</span>
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic">{c.note}</p>
-                        <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] shrink-0 ml-2">{c.agent}</span>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
