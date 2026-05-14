@@ -310,7 +310,7 @@ function useRazorpay() {
 // ─────────────────────────────────────────────
 //  MAIN COMPONENT
 // ─────────────────────────────────────────────
-export default function UpgradePlan({ onPlanChange  currentAdmins = [], 
+export default function UpgradePlan({ onPlanChange,  currentAdmins = [], 
   currentUsers  = [], 
   onDowngrade   = null, }) {
   const [billing, setBilling] = useState("monthly");
