@@ -240,12 +240,12 @@ function EditModal({ rec, onClose, onRefresh }) {
           </div>
           <div>
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wider block mb-1">Status Override</label>
-            <select value={form.crmStatus} onChange={e => setForm(f => ({ ...f, crmStatus: e.target.value }))} className={INP}>
+            {/* <select value={form.crmStatus} onChange={e => setForm(f => ({ ...f, crmStatus: e.target.value }))} className={INP}>
               <option value="">Auto-detect</option>
               {STATUS_ENUM.map(s => (
                 <option key={s} value={s}>{CRM_STATUS_STYLE[s]?.label ?? s}</option>
               ))}
-            </select>
+            </select> */}
           </div>
           <div>
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wider block mb-1">Remarks</label>
