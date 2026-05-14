@@ -4,25 +4,21 @@
 //     to match what UpgradePlan.jsx and the backend planEnumMap return
 //  2. Slot limits synced with UpgradePlan.jsx (starter=1/10, growth=3/30, enterprise=5/50)
 //  3. tryAdd() — removed early "basic plan always blocks" check; let count-vs-limit handle it
+//  4. Delete X button now shows a confirmation modal before removing
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../data/axiosConfig";
 import { getStoredUser } from "../data/dataService";
 
-// FIX 1 & 2: Keys now match what backend returns (starter/growth/enterprise)
-//            Slot limits match UpgradePlan.jsx exactly
 const PLANS = {
   starter:    { label: "Starter",    maxAdmins: 1,  maxUsers: 10,  price: "₹999/mo",   badgeColor: "bg-cyan-600",   borderColor: "border-cyan-500",   bgColor: "bg-cyan-50   dark:bg-cyan-900/30",   textColor: "text-cyan-800   dark:text-cyan-200",   statColor: "text-cyan-600   dark:text-cyan-400",   dividerColor: "bg-cyan-300   dark:bg-cyan-700"   },
   growth:     { label: "Growth",     maxAdmins: 3,  maxUsers: 30,  price: "₹2,499/mo", badgeColor: "bg-violet-600", borderColor: "border-violet-500", bgColor: "bg-violet-50 dark:bg-violet-950/40", textColor: "text-violet-800 dark:text-violet-200", statColor: "text-violet-600 dark:text-violet-400", dividerColor: "bg-violet-300 dark:bg-violet-700" },
   enterprise: { label: "Enterprise", maxAdmins: 5,  maxUsers: 50,  price: "₹5,999/mo", badgeColor: "bg-amber-500",  borderColor: "border-amber-500",  bgColor: "bg-amber-50  dark:bg-amber-900/30",  textColor: "text-amber-800  dark:text-amber-200",  statColor: "text-amber-600  dark:text-amber-400",  dividerColor: "bg-amber-300  dark:bg-amber-700"  },
-  // Legacy fallbacks — backend maps basic→starter, pro→growth via planDisplayMap
   basic:      { label: "Starter",    maxAdmins: 1,  maxUsers: 10,  price: "₹999/mo",   badgeColor: "bg-slate-500",  borderColor: "border-slate-500",  bgColor: "bg-slate-50  dark:bg-slate-900/30",  textColor: "text-slate-700 dark:text-slate-300",  statColor: "text-slate-600 dark:text-slate-400",  dividerColor: "bg-slate-300 dark:bg-slate-700"  },
   pro:        { label: "Growth",     maxAdmins: 3,  maxUsers: 30,  price: "₹2,499/mo", badgeColor: "bg-blue-600",   borderColor: "border-blue-500",   bgColor: "bg-blue-50   dark:bg-blue-950/40",   textColor: "text-blue-800  dark:text-blue-200",   statColor: "text-blue-600  dark:text-blue-400",   dividerColor: "bg-blue-300  dark:bg-blue-700"   },
 };
 
-// Helper: normalize plan name from backend subscription response → PLANS key
-// Backend getSubscription returns planName: "Starter" | "Growth" | "Enterprise"
 export function normalizePlanId(planNameOrId) {
   if (!planNameOrId) return "starter";
   const map = {
@@ -76,6 +72,138 @@ function generatePassword(length = 14) {
   return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
+// ── Delete Confirmation Modal ──────────────────────────────────────────────────
+function DeleteConfirmModal({ member, onConfirm, onCancel }) {
+  const [deleting, setDeleting] = useState(false);
+  const isAdmin = member.role === "admin";
+  const initials = member.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+  const uid = member._id || member.id || member.email;
+
+  const handleConfirm = async () => {
+    setDeleting(true);
+    try {
+      await onConfirm();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      style={{ animation: "fadeIn 0.15s ease both" }}
+    >
+      <div
+        className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38]
+          rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
+        style={{ animation: "slideUp 0.2s cubic-bezier(0.4,0,0.2,1) both" }}
+      >
+        {/* Red accent bar */}
+        <div className="h-1 w-full bg-red-500" />
+
+        <div className="p-6">
+          {/* Icon */}
+          <div className="flex justify-center mb-4">
+            <div className="w-14 h-14 rounded-2xl bg-red-50 dark:bg-red-950/40 border-2 border-red-100 dark:border-red-900/50 flex items-center justify-center">
+              <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              </svg>
+            </div>
+          </div>
+
+          {/* Title */}
+          <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] text-center mb-1">
+            Remove {isAdmin ? "Admin" : "User"}?
+          </h2>
+          <p className="text-[12px] text-[#6B7280] dark:text-[#565C75] text-center mb-5 leading-relaxed">
+            This action cannot be undone. The account will be permanently deleted.
+          </p>
+
+          {/* Member card */}
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] mb-5">
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
+              style={{ background: avatarHex(uid) }}
+            >
+              {initials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{member.name}</p>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] truncate">{member.email}</p>
+            </div>
+            <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold
+              ${isAdmin
+                ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                : "bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400"
+              }`}
+            >
+              {isAdmin ? "Admin" : "User"}
+            </span>
+          </div>
+
+          {/* Warning note */}
+          <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 mb-5">
+            <svg className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
+              {isAdmin
+                ? "Removing this admin will revoke their access to the dashboard immediately."
+                : "Removing this user will unassign all their active leads. This cannot be reversed."}
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2.5">
+            <button
+              onClick={onCancel}
+              disabled={deleting}
+              className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
+                text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]
+                hover:bg-[#F1F4FF] dark:hover:bg-[#262A38]
+                disabled:opacity-50 disabled:cursor-not-allowed
+                transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={deleting}
+              className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600
+                text-white text-[13px] font-semibold
+                disabled:opacity-60 disabled:cursor-not-allowed
+                transition-colors flex items-center justify-center gap-2"
+            >
+              {deleting ? (
+                <>
+                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  Removing…
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                  Yes, Remove
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Credentials Modal ─────────────────────────────────────────────────────────
 function CredentialsModal({ member, onClose, navigate }) {
   const [copied, setCopied] = useState(null);
   const isUser = member.role === "user";
@@ -115,7 +243,7 @@ function CredentialsModal({ member, onClose, navigate }) {
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] text-center mb-4"> Share these credentials securely. Password can be changed later.</p>
+        <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] text-center mb-4">Share these credentials securely. Password can be changed later.</p>
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-xs font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Done</button>
           {isUser && (
@@ -130,6 +258,7 @@ function CredentialsModal({ member, onClose, navigate }) {
   );
 }
 
+// ── Add Member Modal ──────────────────────────────────────────────────────────
 function AddMemberModal({ role, onClose, onAdd }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -280,6 +409,7 @@ function AddMemberModal({ role, onClose, onAdd }) {
   );
 }
 
+// ── Slot Bar ──────────────────────────────────────────────────────────────────
 function SlotBar({ used, max, isAdmin }) {
   const pct = Math.min(Math.round((used / max) * 100), 100);
   return (
@@ -292,24 +422,42 @@ function SlotBar({ used, max, isAdmin }) {
   );
 }
 
-function MemberRow({ member, onRemove, onViewCreds }) {
+// ── Member Row ────────────────────────────────────────────────────────────────
+// Now calls onRequestRemove instead of onRemove directly
+function MemberRow({ member, onRequestRemove, onViewCreds }) {
   const initials = member.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
   const uid = member._id || member.id || member.email;
   return (
     <div className="flex items-center gap-3 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] last:border-0 group">
-      <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: avatarHex(uid) }}>{initials}</div>
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+        style={{ background: avatarHex(uid) }}
+      >
+        {initials}
+      </div>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{member.name}</p>
         <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] truncate">{member.email}</p>
       </div>
       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition">
         {member.password && (
-          <button onClick={() => onViewCreds(member)} className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-blue-400 hover:text-blue-600 text-[#8B92A9] transition" title="View credentials">
+          <button
+            onClick={() => onViewCreds(member)}
+            className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-blue-400 hover:text-blue-600 text-[#8B92A9] transition"
+            title="View credentials"
+          >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
           </button>
         )}
-        <button onClick={() => onRemove(uid, member.role)} className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-red-400 hover:text-red-500 text-[#8B92A9] transition" title="Remove">
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        {/* X button — now triggers confirmation instead of immediate delete */}
+        <button
+          onClick={() => onRequestRemove(member)}
+          className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 text-[#8B92A9] transition"
+          title="Remove"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
         </button>
       </div>
       <span className="text-[10px] text-[#8B92A9] dark:text-[#565C75] whitespace-nowrap shrink-0">
@@ -319,12 +467,12 @@ function MemberRow({ member, onRemove, onViewCreds }) {
   );
 }
 
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function UserManagement({
-  currentPlan    = "starter",   // FIX: default changed from "basic" → "starter"
+  currentPlan    = "starter",
   existingAdmins = [],
   existingUsers  = [],
 }) {
-  // FIX: normalize whatever the parent passes (Starter/Growth/basic/pro/etc.) to a PLANS key
   const planKey = normalizePlanId(currentPlan);
   const cfg = PLANS[planKey] || PLANS.starter;
   const navigate = useNavigate();
@@ -340,14 +488,14 @@ export default function UserManagement({
     if (existingUsers.length > 0) setUsers(existingUsers.map(u => ({ ...u, isDefault: false })));
   }, [existingUsers]);
 
-  const [modal,        setModal]        = useState(null);
+  const [modal,        setModal]        = useState(null);   // "admin" | "user" | null
   const [credsFor,     setCredsFor]     = useState(null);
   const [upgradeAlert, setUpgradeAlert] = useState("");
 
-  // FIX 3: Removed early "basic plan always blocks admin add" check.
-  //        Now uses the same count-vs-limit logic for all plans.
-  //        Basic/Starter: maxAdmins=1, so adding a second admin hits the limit.
-  //        But adding the FIRST admin is always allowed.
+  // ── Delete confirmation state ──────────────────────────────────────────────
+  // Holds the member object pending deletion, or null
+  const [pendingDelete, setPendingDelete] = useState(null);
+
   const tryAdd = (role) => {
     if (role === "admin" && admins.length >= cfg.maxAdmins) {
       return setUpgradeAlert(
@@ -384,21 +532,77 @@ export default function UserManagement({
     }
   };
 
-  const removeMember = async (id, role) => {
+  // Called when user clicks X on a member row — opens confirmation modal
+  const requestRemove = (member) => {
+    setPendingDelete(member);
+  };
+
+  // Called when user confirms deletion in the modal
+  const confirmRemove = async () => {
+    if (!pendingDelete) return;
+    const { role } = pendingDelete;
+    const id = pendingDelete._id || pendingDelete.id || pendingDelete.email;
     try {
-      if (role === "admin") { await api.delete(`/admin/${id}`); setAdmins(a => a.filter(m => (m._id || m.id) !== id)); }
-      else                  { await api.delete(`/admin/user/${id}`); setUsers(u => u.filter(m => (m._id || m.id) !== id)); }
+      if (role === "admin") {
+        await api.delete(`/admin/${id}`);
+        setAdmins(a => a.filter(m => (m._id || m.id) !== id));
+      } else {
+        await api.delete(`/admin/user/${id}`);
+        setUsers(u => u.filter(m => (m._id || m.id) !== id));
+      }
     } catch {
+      // Optimistically remove even on network error (original behaviour)
       if (role === "admin") setAdmins(a => a.filter(m => (m._id || m.id) !== id));
       else                  setUsers(u  => u.filter(m => (m._id || m.id) !== id));
+    } finally {
+      setPendingDelete(null);
     }
   };
 
   return (
     <div className="mt-8">
-      {modal    && <AddMemberModal  role={modal}  onClose={() => setModal(null)}    onAdd={addMember} />}
-      {credsFor && <CredentialsModal member={credsFor} onClose={() => setCredsFor(null)} navigate={navigate} />}
+      {/* Add member modal */}
+      {modal && (
+        <AddMemberModal role={modal} onClose={() => setModal(null)} onAdd={addMember} />
+      )}
 
+      {/* Credentials modal */}
+      {credsFor && (
+        <CredentialsModal member={credsFor} onClose={() => setCredsFor(null)} navigate={navigate} />
+      )}
+
+      {/* Delete confirmation modal */}
+      {pendingDelete && (
+        <DeleteConfirmModal
+          member={pendingDelete}
+          onConfirm={confirmRemove}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
+
+      {/* Plan limit upgrade modal */}
+      {upgradeAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+            <div className="flex flex-col items-center mb-5">
+              <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center mb-3">
+                <svg className="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              </div>
+              <h2 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA] text-center">Plan Limit Reached</h2>
+              <p className="text-xs text-[#8B92A9] dark:text-[#565C75] mt-2 text-center leading-relaxed">{upgradeAlert}</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setUpgradeAlert("")} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-xs font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+              <button onClick={() => { setUpgradeAlert(""); navigate("/upgrade-plan"); }} className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                Upgrade Plan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
           <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">User Management</h2>
@@ -408,6 +612,7 @@ export default function UserManagement({
         </div>
       </div>
 
+      {/* Plan banner */}
       <div className={`mb-6 rounded-2xl border-2 p-4 flex flex-wrap items-center justify-between gap-4 ${cfg.borderColor} ${cfg.bgColor}`}>
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold ${cfg.badgeColor}`}>{cfg.label[0]}</div>
@@ -437,28 +642,9 @@ export default function UserManagement({
         </div>
       </div>
 
-      {upgradeAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
-            <div className="flex flex-col items-center mb-5">
-              <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center mb-3">
-                <svg className="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-              </div>
-              <h2 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA] text-center">Plan Limit Reached</h2>
-              <p className="text-xs text-[#8B92A9] dark:text-[#565C75] mt-2 text-center leading-relaxed">{upgradeAlert}</p>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => setUpgradeAlert("")} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-xs font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-              <button onClick={() => { setUpgradeAlert(""); navigate("/upgrade-plan"); }} className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                Upgrade Plan
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Member lists */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Admins */}
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
           <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
             <div>
@@ -468,7 +654,10 @@ export default function UserManagement({
               </div>
               <SlotBar used={admins.length} max={cfg.maxAdmins} isAdmin/>
             </div>
-            <button onClick={() => tryAdd("admin")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] dark:text-blue-400 hover:bg-blue-100">
+            <button
+              onClick={() => tryAdd("admin")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] dark:text-blue-400 hover:bg-blue-100"
+            >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               Add Admin
             </button>
@@ -476,11 +665,19 @@ export default function UserManagement({
           <div className="px-5 py-2 max-h-80 overflow-y-auto">
             {admins.length === 0
               ? <div className="py-8 text-center"><p className="text-xs text-[#8B92A9] dark:text-[#565C75]">No admins yet</p></div>
-              : admins.map(m => <MemberRow key={m._id || m.email} member={{ ...m, role: "admin" }} onRemove={(id, role) => removeMember(id, role || "admin")} onViewCreds={setCredsFor}/>)
+              : admins.map(m => (
+                  <MemberRow
+                    key={m._id || m.email}
+                    member={{ ...m, role: "admin" }}
+                    onRequestRemove={requestRemove}
+                    onViewCreds={setCredsFor}
+                  />
+                ))
             }
           </div>
         </div>
 
+        {/* Users */}
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
           <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
             <div>
@@ -490,8 +687,14 @@ export default function UserManagement({
               </div>
               <SlotBar used={users.length} max={cfg.maxUsers} isAdmin={false}/>
             </div>
-            <button onClick={() => tryAdd("user")} disabled={users.length >= cfg.maxUsers}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition ${users.length >= cfg.maxUsers ? "bg-[#F1F4FF] dark:bg-[#262A38] text-[#8B92A9] dark:text-[#565C75] cursor-not-allowed" : "bg-green-50 dark:bg-green-950/40 text-[#059669] dark:text-green-400 hover:bg-green-100"}`}
+            <button
+              onClick={() => tryAdd("user")}
+              disabled={users.length >= cfg.maxUsers}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition
+                ${users.length >= cfg.maxUsers
+                  ? "bg-[#F1F4FF] dark:bg-[#262A38] text-[#8B92A9] dark:text-[#565C75] cursor-not-allowed"
+                  : "bg-green-50 dark:bg-green-950/40 text-[#059669] dark:text-green-400 hover:bg-green-100"
+                }`}
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               Add User
@@ -499,13 +702,22 @@ export default function UserManagement({
           </div>
           <div className="px-5 py-2 max-h-80 overflow-y-auto">
             {users.length === 0
-              ? <div className="py-8 text-center">
+              ? (
+                <div className="py-8 text-center">
                   <div className="w-10 h-10 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center mx-auto mb-2">
                     <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
                   </div>
                   <p className="text-xs text-[#8B92A9] dark:text-[#565C75]">No users (agents) added yet</p>
                 </div>
-              : users.map(m => <MemberRow key={m._id || m.email} member={{ ...m, role: "user" }} onRemove={(id, role) => removeMember(id, role || "user")} onViewCreds={setCredsFor}/>)
+              )
+              : users.map(m => (
+                  <MemberRow
+                    key={m._id || m.email}
+                    member={{ ...m, role: "user" }}
+                    onRequestRemove={requestRemove}
+                    onViewCreds={setCredsFor}
+                  />
+                ))
             }
           </div>
         </div>
