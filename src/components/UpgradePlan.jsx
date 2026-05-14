@@ -5,6 +5,7 @@
 //    import InvoiceReceipt    from "./InvoiceReceipt";
 //    import UpdatePaymentModal from "./UpdatePaymentModal";
 // ─────────────────────────────────────────────────────────────────────────────
+import DowngradeWarningModal from "./DowngradeWarningModal";
 import { useState, useEffect, useCallback } from "react";
 import api from "../data/axiosConfig";
 import InvoiceReceipt from "./InvoiceReceipt";
@@ -309,7 +310,9 @@ function useRazorpay() {
 // ─────────────────────────────────────────────
 //  MAIN COMPONENT
 // ─────────────────────────────────────────────
-export default function UpgradePlan({ onPlanChange }) {
+export default function UpgradePlan({ onPlanChange  currentAdmins = [], 
+  currentUsers  = [], 
+  onDowngrade   = null, }) {
   const [billing, setBilling] = useState("monthly");
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState("plans");
@@ -470,33 +473,49 @@ export default function UpgradePlan({ onPlanChange }) {
     initiatePayment(plan);
   }
 
-  async function initiatePayment(plan) {
-    setPaying(true);
-    setError(null);
-    try {
-      const { data: orderData } = await api.post("/razorpay/create-order", {
-        planId: plan.id,
-        billing,
-      });
-      openCheckout({
-        orderData,
-        plan,
-        billing,
-        onSuccess: (razorpayResponse) => handlePaymentSuccess(plan, razorpayResponse),
-        onFailure: (msg) => {
-          setPaying(false);
-          if (msg) setError(msg);
-          setSelected(null);
-        },
-      });
-    } catch (err) {
-      setError(err?.response?.data?.message || "Could not initiate payment. Try again.");
-    } finally {
-      setPaying(false);
-    }
+async function initiatePayment(
+  plan,
+  isDowngrade     = false,
+  adminsToRemove  = [],   // ← NEW: passed in from modal selection
+  usersToRemove   = [],   // ← NEW
+) {
+  setPaying(true);
+  setError(null);
+  try {
+    const { data: orderData } = await api.post("/razorpay/create-order", {
+      planId: plan.id,
+      billing,
+    });
+    openCheckout({
+      orderData,
+      plan,
+      billing,
+      onSuccess: (razorpayResponse) =>
+        handlePaymentSuccess(
+          plan,
+          razorpayResponse,
+          isDowngrade,
+          adminsToRemove,   // ← pass through
+          usersToRemove,
+        ),
+      onFailure: (msg) => {
+        setPaying(false);
+        if (msg) setError(msg);
+        setSelected(null);
+      },
+    });
+  } catch (err) {
+    setError(
+      err?.response?.data?.message || "Could not initiate payment. Try again."
+    );
+  } finally {
+    setPaying(false);
   }
+}
 
-  async function handlePaymentSuccess(plan, razorpayResponse) {
+  async function handlePaymentSuccess(plan, razorpayResponse, isDowngrade    = false,
+  adminsToRemove = [],   
+  usersToRemove  = [], ) {
     setError(null);
     try {
       const { data } = await api.post("/razorpay/verify-payment", {
@@ -541,6 +560,7 @@ export default function UpgradePlan({ onPlanChange }) {
     }
   }
 
+  
   // ── payment method update ───────────────────────────────────────────────
   function handlePaymentMethodSaved(newMethod) {
     setSubscription((prev) => ({ ...prev, paymentMethod: newMethod }));
