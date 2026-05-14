@@ -800,18 +800,58 @@ export default function ReportPage() {
               Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, filtered.length)} of {filtered.length}
             </span>
             <div className="flex items-center gap-1.5">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
-                <button key={n} onClick={() => setPage(n)}
-                  className={`h-8 w-8 rounded-lg text-[12px] font-semibold transition ${n === page ? "bg-[#2563EB] text-white border border-[#2563EB]" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB]"}`}>{n}</button>
-              ))}
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
-              </button>
+              <button
+  onClick={() => setPage(p => Math.max(1, p - 1))}
+  disabled={page === 1}
+  className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition"
+>
+  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+  </svg>
+</button>
+
+{/* Dynamic Pagination */}
+{Array.from(
+  {
+    length: Math.min(3, totalPages),
+  },
+  (_, i) => {
+    let start = Math.max(1, page - 1);
+
+    if (start + 2 > totalPages) {
+      start = Math.max(1, totalPages - 2);
+    }
+
+    return start + i;
+  }
+).map(n => (
+  <button
+    key={n}
+    onClick={() => setPage(n)}
+    className={`h-8 w-8 rounded-lg text-[12px] font-semibold transition ${
+      n === page
+        ? "bg-[#2563EB] text-white border border-[#2563EB]"
+        : "border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB]"
+    }`}
+  >
+    {n}
+  </button>
+))}
+
+{/* Dots */}
+{totalPages > 3 && (
+  <span className="px-2 text-[#8B92A9]">...</span>
+)}
+
+<button
+  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+  disabled={page === totalPages}
+  className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition"
+>
+  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+  </svg>
+</button>
             </div>
           </div>
         )}
