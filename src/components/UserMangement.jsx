@@ -88,6 +88,19 @@ function DeleteConfirmModal({ member, onConfirm, onCancel }) {
     }
   };
 
+  async function handleDowngrade(adminsToRemove, usersToRemove) {
+  const removeIds = new Set([
+    ...adminsToRemove.map((m) => m._id || m.id),
+    ...usersToRemove.map((m)  => m._id || m.id),
+  ]);
+  setAdmins((a) => a.filter((m) => !removeIds.has(m._id || m.id)));
+  setUsers((u)  => u.filter((m) => !removeIds.has(m._id || m.id)));
+  await Promise.allSettled([
+    ...adminsToRemove.map((m) => api.delete(`/admin/${m._id || m.id}`).catch(() => {})),
+    ...usersToRemove.map((m)  => api.delete(`/admin/user/${m._id || m.id}`).catch(() => {})),
+  ]);
+}
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
