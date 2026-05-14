@@ -56,19 +56,23 @@ function mapLead(l) {
   const hasRecording = recs.length > 0;
   const hasAiSummary = recs.some(r => r.transcribeStatus === "done" && r.summary);
   return {
-    id:          String(l._id),
-    name:        l.name        || "Unknown",
-    phone:       l.mobile      || l.phone || "",
-    email:       l.email       || "",
-    source:      l.source      || "—",
-    campaign:    l.campaign    || "—",
-    status:      l.status      || "New",
-    temperature: l.temperature || l.Quality || null,
-    remark:      l.remark      || "",
-    date:        fmtDate(l.date || l.createdAt),
-    _raw_date:   l.date        || l.createdAt || null,
-    callHistory: Array.isArray(l.callHistory) ? l.callHistory : [],
-    recordings:  recs,
+    id:             String(l._id),
+    name:           l.name           || "Unknown",
+    phone:          l.mobile         || l.phone || "",
+    email:          l.email          || "",
+    source:         l.source         || "—",
+    campaign:       l.campaign       || "—",
+    status:         l.status         || "New",
+    temperature:    l.temperature    || l.Quality || null,
+    remark:         l.remark         || "",
+    date:           fmtDate(l.date   || l.createdAt),
+    _raw_date:      l.date           || l.createdAt || null,
+    callHistory:    Array.isArray(l.callHistory)    ? l.callHistory    : [],
+    scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
+    previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
+    reassignCount:  l.reassignCount  || 0,
+    agent:          l.agent          || null,
+    recordings:     recs,
     hasRecording,
     hasAiSummary,
   };
@@ -477,13 +481,14 @@ function RecordingsTab({ lead }) {
 
 // ── Update drawer ─────────────────────────────────────────────────────────────
 function UpdateDrawer({ lead, onClose, onSaved }) {
-  const [status,      setStatus]      = useState(lead.status);
-  const [remark,      setRemark]      = useState("");
-  const [outcome,     setOutcome]     = useState("Call Back");
-  const [temperature, setTemperature] = useState(lead.temperature || "");
-  const [saving,      setSaving]      = useState(false);
-  const [error,       setError]       = useState("");
-  const [activeTab,   setActiveTab]   = useState("update");
+  const [status,       setStatus]       = useState(lead.status);
+  const [remark,       setRemark]       = useState("");
+  const [outcome,      setOutcome]      = useState("Call Back");
+  const [temperature,  setTemperature]  = useState(lead.temperature || "");
+  const [followUpDate, setFollowUpDate] = useState("");
+  const [saving,       setSaving]       = useState(false);
+  const [error,        setError]        = useState("");
+  const [activeTab,    setActiveTab]    = useState("update");
 
   const isNI = status === "Not Interested";
 
@@ -498,20 +503,29 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
         updatedLead = res.data?.lead || res.data;
       } else {
         const body = { status, remark: remark.trim(), outcome };
-        if (temperature) body.temperature = temperature;
+        if (temperature)  body.temperature  = temperature;
+        if (followUpDate) body.followUpDate = followUpDate;
         const res = await api.patch(`/lead/${lead.id}`, body);
         updatedLead = res.data?.lead || res.data;
       }
-      // Build the new call history entry to reflect optimistically
+      // Prefer backend response for scheduledCalls so progress is always accurate.
+      // Fall back to optimistic merge only if backend didn't return the lead.
       const newCall = { outcome: isNI ? "Not Interested" : outcome, remark: remark.trim(), calledAt: new Date().toISOString() };
-      const mergedCallHistory = [...(lead.callHistory || []), newCall];
+      const mergedCallHistory = updatedLead?.callHistory
+        ? (Array.isArray(updatedLead.callHistory) ? updatedLead.callHistory : [...(lead.callHistory || []), newCall])
+        : [...(lead.callHistory || []), newCall];
+      const mergedScheduled = updatedLead?.scheduledCalls
+        ? (Array.isArray(updatedLead.scheduledCalls) ? updatedLead.scheduledCalls : lead.scheduledCalls || [])
+        : lead.scheduledCalls || [];
       onSaved({
         ...lead,
-        ...(updatedLead || {}),
-        status: isNI ? "Not Interested" : status,
-        remark: remark.trim(),
-        temperature: temperature || lead.temperature,
-        callHistory: mergedCallHistory,
+        ...(updatedLead ? mapLead(updatedLead) : {}),
+        id:             lead.id,  // preserve frontend id
+        status:         isNI ? "Not Interested" : status,
+        remark:         remark.trim(),
+        temperature:    temperature || lead.temperature,
+        callHistory:    mergedCallHistory,
+        scheduledCalls: mergedScheduled,
       });
       onClose();
     } catch (err) {
@@ -675,6 +689,21 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                     })}
                   </div>
                 </div>
+                {!isNI && outcome === "Call Back" && (
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
+                      Follow-up Date
+                      <span className="ml-1 font-normal text-[11px] text-[#8B92A9]">(optional — defaults to tomorrow)</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={followUpDate}
+                      min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+                      onChange={e => setFollowUpDate(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
                     Remark <span className="text-red-500">*</span>
