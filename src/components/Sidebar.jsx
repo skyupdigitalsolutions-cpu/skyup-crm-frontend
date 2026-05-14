@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle";
+import api from "../data/axiosConfig";
 
 // ── Nav items for ADMIN / SUPERADMIN ─────────────────────────────────────────
 const ADMIN_NAV_ITEMS = [
@@ -154,11 +155,32 @@ export function Sidebar() {
   () => localStorage.getItem("sidebar_minimized") === "true"
 );
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [followUpAlerts, setFollowUpAlerts] = useState({ todayCount: 0, overdueCount: 0 });
   const location = useLocation();
   const navigate = useNavigate();
 
   // ── User info from localStorage ───────────────────────────────────────────
   const user = JSON.parse(localStorage.getItem("user") || "null");
+
+  // ── Poll follow-up alerts every 5 minutes ─────────────────────────────────
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+    const endpoint = isAdmin ? "/lead/admin/follow-up-alerts" : "/lead/follow-up-alerts";
+    const fetchAlerts = async () => {
+      try {
+        const res = await api.get(endpoint);
+        setFollowUpAlerts({
+          todayCount:   res.data.todayCount   || 0,
+          overdueCount: res.data.overdueCount || 0,
+        });
+      } catch (_) { /* silent */ }
+    };
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
   const initials = user?.name
     ? user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "?";
@@ -296,6 +318,9 @@ export function Sidebar() {
         <nav className="flex-1 flex flex-col gap-1 px-3 py-4 overflow-y-auto overflow-x-hidden">
           {NAV_ITEMS.map((item) => {
             const isActive = location.pathname === item.to;
+            const isDailyReport = item.to === "/daily-report";
+            const hasOverdue = isDailyReport && followUpAlerts.overdueCount > 0;
+            const hasToday   = isDailyReport && !hasOverdue && followUpAlerts.todayCount > 0;
             return (
               <Link
                 key={item.to}
@@ -306,16 +331,45 @@ export function Sidebar() {
                     : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-indigo-500/15 hover:text-gray-900 dark:hover:text-indigo-300"
                   }`}
               >
-                <span className={`icon-wrap ${isActive ? "text-indigo-500 dark:text-indigo-400" : ""}`}>
+                <span className={`icon-wrap relative ${isActive ? "text-indigo-500 dark:text-indigo-400" : ""}`}>
                   {item.icon}
+                  {/* Follow-up notification dot */}
+                  {hasOverdue && (
+                    <span
+                      className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white dark:border-[#13161E] animate-pulse"
+                      title={`${followUpAlerts.overdueCount} overdue follow-up${followUpAlerts.overdueCount > 1 ? "s" : ""}`}
+                    />
+                  )}
+                  {hasToday && (
+                    <span
+                      className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-yellow-400 border-2 border-white dark:border-[#13161E]"
+                      title={`${followUpAlerts.todayCount} follow-up${followUpAlerts.todayCount > 1 ? "s" : ""} due today`}
+                    />
+                  )}
                 </span>
-                {!minimized && <span className="nav-label">{item.label}</span>}
+                {!minimized && (
+                  <span className="nav-label flex items-center gap-1.5 flex-1">
+                    {item.label}
+                    {hasOverdue && (
+                      <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400">
+                        {followUpAlerts.overdueCount > 9 ? "9+" : followUpAlerts.overdueCount}
+                      </span>
+                    )}
+                    {hasToday && (
+                      <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400">
+                        {followUpAlerts.todayCount > 9 ? "9+" : followUpAlerts.todayCount}
+                      </span>
+                    )}
+                  </span>
+                )}
                 {minimized && isActive && (
                   <span className="absolute right-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-indigo-500" />
                 )}
                 {minimized && (
                   <span className="tooltip absolute left-16 z-50 bg-gray-900 dark:bg-gray-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl">
                     {item.label}
+                    {hasOverdue && ` (${followUpAlerts.overdueCount} overdue)`}
+                    {hasToday && ` (${followUpAlerts.todayCount} today)`}
                   </span>
                 )}
               </Link>
