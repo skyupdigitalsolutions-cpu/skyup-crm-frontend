@@ -472,6 +472,7 @@ export default function UserManagement({
   currentPlan    = "starter",
   existingAdmins = [],
   existingUsers  = [],
+  onMembersChange = null,
 }) {
   const planKey = normalizePlanId(currentPlan);
   const cfg = PLANS[planKey] || PLANS.starter;
@@ -479,6 +480,10 @@ export default function UserManagement({
 
   const [admins, setAdmins] = useState([]);
   const [users,  setUsers]  = useState([]);
+
+  useEffect(() => {
+  onMembersChange?.({ admins, users });
+}, [admins, users]);
 
   useEffect(() => {
     if (existingAdmins.length > 0) setAdmins(existingAdmins.map(a => ({ ...a, isDefault: false })));
