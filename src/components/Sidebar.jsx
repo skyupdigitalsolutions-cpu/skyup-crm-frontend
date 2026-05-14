@@ -150,7 +150,9 @@ const USER_NAV_ITEMS = [
 ];
 
 export function Sidebar() {
-  const [minimized,       setMinimized]       = useState(false);
+  const [minimized, setMinimized] = useState(
+  () => localStorage.getItem("sidebar_minimized") === "true"
+);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -259,7 +261,11 @@ export function Sidebar() {
             </span>
           )}
           <button
-            onClick={() => setMinimized(!minimized)}
+          onClick={() => setMinimized(prev => {
+  const next = !prev;
+  localStorage.setItem("sidebar_minimized", String(next));
+  return next;
+})}
             className={`toggle-btn ml-auto p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 ${minimized ? "rotate-180" : ""}`}
             title={minimized ? "Expand sidebar" : "Minimize sidebar"}
           >
