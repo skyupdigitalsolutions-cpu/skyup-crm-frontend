@@ -253,12 +253,27 @@ export default function Dailyreport() {
     }).sort((a, b) => b.score - a.score);
   }, [dayLeads, allLeads, agents, viewDate]);
 
-  const sources = useMemo(() =>
-    Object.entries(SOURCE_COLORS).map(([label, color]) => ({
-      label, color,
-      count: dayLeads.filter(l => l.source === label).length,
-    })).filter(s => s.count > 0),
-  [dayLeads]);
+  const sources = useMemo(() => {
+  const FALLBACK_COLORS = [
+    "#2563EB", "#7C3AED", "#0891B2", "#059669",
+    "#D97706", "#DC2626", "#0D9488", "#9333EA",
+  ];
+
+  const counts = dayLeads.reduce((acc, l) => {
+    const src = l.source?.trim();
+    if (src) acc[src] = (acc[src] || 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.entries(counts)
+    .map(([label, count], i) => ({
+      label,
+      count,
+      color: SOURCE_COLORS[label] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+    }))
+    .filter(s => s.count > 0)
+    .sort((a, b) => b.count - a.count);
+}, [dayLeads]);
 
   const newLeadsList = useMemo(() =>
     dayLeads.map(l => ({
