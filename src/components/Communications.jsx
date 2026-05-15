@@ -545,6 +545,15 @@ function WhatsAppPanel({ currentUser }) {
     } catch {}
   }, []);
 
+  const loadLeads = useCallback(async () => {
+    setLeadsLoading(true);
+    try {
+      const { data } = await axios.get(`${API_URL}/whatsapp/leads`, authHeaders);
+      setLeads(data.leads || []);
+    } catch {}
+    finally { setLeadsLoading(false); }
+  }, []);
+
   const loadMessages = useCallback(async (conv) => {
     setLoading(true);
     setMessages([]);
@@ -601,6 +610,7 @@ function WhatsAppPanel({ currentUser }) {
     });
     socket.on("wa_assigned", () => loadConversations());
     loadConversations();
+    loadLeads();
     return () => socket.disconnect();
   }, [currentUser]);
 
@@ -681,9 +691,24 @@ function WhatsAppPanel({ currentUser }) {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        {/* Sub-tabs: Chats | Leads */}
+        <div className="flex border-b border-[#E4E7EF] dark:border-[#262A38]">
+          {[{key:"chats",label:"Chats"},{key:"leads",label:`Leads (${leads.length})`}].map(t => (
+            <button key={t.key} onClick={() => { setSideTab(t.key); if(t.key==="leads" && leads.length===0) loadLeads(); }}
+              className={`flex-1 py-2 text-[11px] font-semibold transition border-b-2 ${sideTab===t.key ? "border-[#25D366] text-[#25D366]" : "border-transparent text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#9DA3BB]"}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* CHATS list */}
+        {sideTab === "chats" && <div className="flex-1 overflow-y-auto">
           {filtered.length === 0 && (
-            <div className="p-6 text-center text-[#8B92A9] text-[13px]">No conversations found</div>
+            <div className="flex flex-col items-center justify-center py-10 gap-3">
+              <span className="text-3xl">💬</span>
+              <p className="text-[#8B92A9] text-[12px]">No conversations yet</p>
+              <button onClick={() => setSideTab("leads")} className="text-[11px] text-[#25D366] hover:underline font-semibold">Go to Leads →</button>
+            </div>
           )}
           {filtered.map((conv) => {
             const isActive  = selected?._id === conv._id;
@@ -726,8 +751,76 @@ function WhatsAppPanel({ currentUser }) {
               </div>
             );
           })}
-        </div>
+        </div>}
+
+        {/* LEADS list */}
+        {sideTab === "leads" && <div className="flex-1 overflow-y-auto">
+          <div className="p-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
+            <input type="text" placeholder="Search name or phone..." value={leadsSearch} onChange={e => setLeadsSearch(e.target.value)}
+              className="w-full px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366] transition" />
+          </div>
+          {leadsLoading && <div className="p-6 text-center text-[#8B92A9] text-[12px]">Loading leads...</div>}
+          {!leadsLoading && leads.filter(l => !leadsSearch || l.name?.toLowerCase().includes(leadsSearch.toLowerCase()) || l.mobile?.includes(leadsSearch)).map(lead => {
+            const hasConv = !!lead.existingConversationId;
+            return (
+              <div key={lead._id} className="flex items-center gap-2.5 px-3 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] hover:bg-[#F8F9FC] dark:hover:bg-[#1A1D27] transition">
+                <div className="w-9 h-9 rounded-full bg-[#dcfce7] flex items-center justify-center font-semibold text-[13px] text-[#166534] shrink-0">
+                  {getInitials(lead.name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-medium text-[#0F1117] dark:text-[#F0F2FA] truncate">{lead.name}</div>
+                  <div className="text-[11px] text-[#8B92A9]">{lead.mobile}</div>
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{background: lead.status==="Converted"?"#dcfce7":lead.status==="In Progress"?"#fef9c3":lead.status==="Not Interested"?"#fee2e2":"#dbeafe", color: lead.status==="Converted"?"#166534":lead.status==="In Progress"?"#854d0e":lead.status==="Not Interested"?"#991b1b":"#1e40af"}}>{lead.status}</span>
+                </div>
+                {hasConv ? (
+                  <button onClick={() => { const c = conversations.find(c=>c._id===lead.existingConversationId); if(c){selectConversation(c);setSideTab("chats");}else{loadConversations().then(()=>setSideTab("chats"));} }}
+                    title="Open existing chat" className="w-8 h-8 rounded-full bg-[#dcfce7] border border-[#bbf7d0] flex items-center justify-center text-[#166534] hover:bg-[#bbf7d0] transition shrink-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+                  </button>
+                ) : (
+                  <button onClick={() => { setStartModal(lead); setTmplName(""); setTmplLang("en_US"); setStartErr(""); }}
+                    title="Start WhatsApp chat" className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center text-white hover:bg-[#1da851] transition shrink-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.121 1.531 5.845L.057 23.286a.5.5 0 0 0 .64.64l5.431-1.47A11.952 11.952 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.849 0-3.576-.498-5.066-1.367l-.363-.214-3.765 1.018 1.022-3.734-.234-.376A9.967 9.967 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          {!leadsLoading && leads.length === 0 && <div className="p-6 text-center text-[#8B92A9] text-[12px]">No leads found</div>}
+        </div>}
       </div>
+
+      {/* Start conversation modal */}
+      {startModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={()=>setStartModal(null)}>
+          <div className="bg-white dark:bg-[#1A1D27] rounded-2xl p-6 w-[360px] shadow-2xl" onClick={e=>e.stopPropagation()}>
+            <h3 className="text-[15px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Start WhatsApp Chat</h3>
+            <p className="text-[12px] text-[#8B92A9] mb-4">{startModal.name} · {startModal.mobile}</p>
+            <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Template Name <span className="text-[#DC2626]">*</span></label>
+            <input value={tmplName} onChange={e=>setTmplName(e.target.value)} placeholder="e.g. hello_world" className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#25D366] mb-3 transition" />
+            <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Language Code</label>
+            <input value={tmplLang} onChange={e=>setTmplLang(e.target.value)} placeholder="en_US" className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#25D366] mb-3 transition" />
+            {startErr && <p className="text-[11px] text-[#DC2626] mb-3">{startErr}</p>}
+            <div className="flex gap-2 mt-2">
+              <button onClick={()=>setStartModal(null)} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
+              <button disabled={starting||!tmplName.trim()} onClick={async()=>{
+                setStarting(true); setStartErr("");
+                try {
+                  const phone = (startModal.mobile||"").replace(/\D/g,"");
+                  const {data} = await axios.post(`${API_URL}/whatsapp/start-conversation`,{phone,contactName:startModal.name,templateName:tmplName.trim(),languageCode:tmplLang||"en_US"},authHeaders);
+                  const conv = data.conversation;
+                  setConversations(prev=>[conv,...prev.filter(c=>c._id!==conv._id)]);
+                  setLeads(prev=>prev.map(l=>l._id===startModal._id?{...l,existingConversationId:conv._id}:l));
+                  setStartModal(null); selectConversation(conv); setSideTab("chats");
+                }catch(e){setStartErr(e.response?.data?.error||"Failed to start conversation");}
+                finally{setStarting(false);}
+              }} className="flex-1 py-2 rounded-xl bg-[#25D366] hover:bg-[#1da851] disabled:opacity-50 text-white text-[12px] font-semibold transition">
+                {starting?"Sending…":"Send Template"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Chat window */}
       {!selected ? (
