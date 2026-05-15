@@ -18,7 +18,7 @@
 //    dueDate:       "01 Apr 2025",           // optional
 //    planName:      "Growth",
 //    billingCycle:  "monthly" | "yearly",
-//    baseAmount:    2499,                    // number, before GST (₹)
+//    baseAmount:    799,                     // GST-INCLUSIVE price shown to the user (₹)
 //    transactionId: "TXN1234567890",
 //    paymentMethod: "Visa •••• 4242",        // optional
 //    status:        "Paid" | "Pending",
@@ -29,6 +29,13 @@
 //      gstin:   "29AABCU9603R1ZX",          // optional
 //    }
 //  }
+//
+//  NOTE: baseAmount is the TOTAL price the user sees/pays (GST-inclusive).
+//        GST is NOT added on top — it is split out from the inclusive amount:
+//          taxable value = baseAmount / 1.18
+//          CGST @ 9%     = taxable value × 0.09
+//          SGST @ 9%     = taxable value × 0.09
+//          Total         = baseAmount  (unchanged)
 //
 //  companyDetails (optional, defaults shown):
 //  {
@@ -43,7 +50,7 @@
 
 import { useRef } from "react";
 
-const GST_RATE = 0.18;
+const GST_RATE = 0.18; // total GST rate (CGST 9% + SGST 9%)
 
 const fmt = (n) =>
   Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -54,9 +61,7 @@ function pdfEscape(str) {
     .replace(/\\/g, "\\\\")
     .replace(/\(/g, "\\(")
     .replace(/\)/g, "\\)")
-    // Strip any non-ASCII characters that would break Type1 font rendering
     .replace(/[^\x20-\x7E]/g, (c) => {
-      // Replace common unicode chars with ASCII equivalents
       const map = {
         "\u2013": "-", "\u2014": "--", "\u2018": "'", "\u2019": "'",
         "\u201C": '"', "\u201D": '"', "\u20B9": "Rs.", "\u2022": "*",
@@ -66,20 +71,8 @@ function pdfEscape(str) {
     });
 }
 
-// ── Core PDF builder (FIXED object order) ─────────────────────────────────────
-//
-//  Correct PDF object graph:
-//    1 = Catalog  -> /Pages 2 0 R
-//    2 = Pages    -> /Kids [3 0 R]    ← 3 MUST be the Page, not the stream
-//    3 = Page     -> /Contents 4 0 R
-//    4 = Stream   (actual text content)
-//    5 = Font
-//
-//  The original code had objects 3 and 4 swapped, so /Kids [3 0 R] pointed
-//  to the content stream instead of the page — resulting in a blank PDF.
-//
+// ── Core PDF builder ──────────────────────────────────────────────────────────
 function buildPDF(lines, filename) {
-  // Build the content stream
   const streamBody =
     "BT\n/F1 9 Tf\n45 800 Td\n11 TL\n" +
     lines
@@ -87,25 +80,19 @@ function buildPDF(lines, filename) {
       .join("\n") +
     "\nET";
 
-  // Calculate byte length BEFORE wrapping in obj header
   const streamLen = new TextEncoder().encode(streamBody).length;
 
   const objs = [
-    // obj 1 — Catalog
     { id: 1, body: "<< /Type /Catalog /Pages 2 0 R >>" },
-    // obj 2 — Pages (kids must reference obj 3 = Page)
     { id: 2, body: "<< /Type /Pages /Kids [3 0 R] /Count 1 >>" },
-    // obj 3 — Page (contents reference obj 4 = stream)
     {
       id: 3,
       body: "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842]\n   /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
     },
-    // obj 4 — Content stream
     {
       id: 4,
       body: `<< /Length ${streamLen} >>\nstream\n${streamBody}\nendstream`,
     },
-    // obj 5 — Font
     { id: 5, body: "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>" },
   ];
 
@@ -154,10 +141,21 @@ export default function InvoiceReceipt({
     ...companyProp,
   };
 
-  const base  = Number(invoice.baseAmount) || 0;
-  const cgst  = +(base * (GST_RATE / 2)).toFixed(2);
-  const sgst  = +(base * (GST_RATE / 2)).toFixed(2);
-  const total = +(base + cgst + sgst).toFixed(2);
+  // ── GST-inclusive price breakdown ─────────────────────────────────────────
+  //  The plan price (baseAmount) already includes 18% GST.
+  //  We back-calculate the taxable value and split the GST component.
+  //
+  //    total       = baseAmount  (what the user sees/pays — do NOT change)
+  //    taxable     = total / 1.18
+  //    CGST @ 9%   = taxable × 0.09
+  //    SGST @ 9%   = taxable × 0.09
+  //    taxable + CGST + SGST = total  ✓
+  const total   = +(Number(invoice.baseAmount) || 0).toFixed(2);
+  const taxable = +(total / (1 + GST_RATE)).toFixed(2);
+  const cgst    = +(taxable * (GST_RATE / 2)).toFixed(2);
+  // Assign remaining cents to sgst to avoid rounding drift
+  const sgst    = +(total - taxable - cgst).toFixed(2);
+
   const isPaid = invoice.status === "Paid";
 
   const lineItems = [
@@ -169,8 +167,8 @@ export default function InvoiceReceipt({
           : "Monthly subscription (1 month)",
       hsn: "998315",
       qty: 1,
-      rate: base,
-      amount: base,
+      rate: taxable,   // taxable value (excl. GST) shown in rate column
+      amount: taxable,
     },
   ];
 
@@ -205,13 +203,14 @@ export default function InvoiceReceipt({
           `${l.desc.slice(0, 32).padEnd(32)} ${l.hsn.padEnd(8)} ${String(l.qty).padEnd(4)} ${`Rs.${fmt(l.rate)}`.padEnd(12)} Rs.${fmt(l.amount)}`
       ),
       SEP,
-      `${"Subtotal".padEnd(56)} Rs.${fmt(base)}`,
+      `${"Taxable Value".padEnd(56)} Rs.${fmt(taxable)}`,
       `${"CGST @ 9%".padEnd(56)} Rs.${fmt(cgst)}`,
       `${"SGST @ 9%".padEnd(56)} Rs.${fmt(sgst)}`,
       SEP2,
       `${"TOTAL (INR)".padEnd(56)} Rs.${fmt(total)}`,
       SEP2,
       "",
+      "GST is included in the plan price. The above is a tax breakdown only.",
       "This is a computer-generated invoice.",
       "It does not require a physical signature.",
       "Thank you for your business!",
@@ -319,14 +318,14 @@ export default function InvoiceReceipt({
           </div>
 
           {/* Line items table */}
-          <div className="mb-6 rounded-xl border border-[#E2E8F0] overflow-hidden">
+          <div className="mb-4 rounded-xl border border-[#E2E8F0] overflow-hidden">
             <table className="w-full text-[12px] border-collapse">
               <thead>
                 <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
                   <Th left>Description</Th>
                   <Th>HSN / SAC</Th>
                   <Th>Qty</Th>
-                  <Th>Rate (₹)</Th>
+                  <Th>Taxable Value (₹)</Th>
                   <Th right>Amount (₹)</Th>
                 </tr>
               </thead>
@@ -347,14 +346,19 @@ export default function InvoiceReceipt({
             </table>
           </div>
 
+          {/* GST note */}
+          <p className="text-[10px] text-[#94A3B8] mb-5 pl-1">
+            * Plan price of ₹&nbsp;{fmt(total)} is GST-inclusive. The breakdown below is for tax reporting purposes only — no additional amount is charged.
+          </p>
+
           {/* Totals */}
           <div className="flex justify-end mb-8">
-            <div className="w-full max-w-[280px] space-y-1">
-              <TotalRow label="Subtotal"     value={`₹ ${fmt(base)}`} />
-              <TotalRow label="CGST @ 9%"   value={`₹ ${fmt(cgst)}`} />
-              <TotalRow label="SGST @ 9%"   value={`₹ ${fmt(sgst)}`} />
+            <div className="w-full max-w-[300px] space-y-1">
+              <TotalRow label="Taxable Value"  value={`₹ ${fmt(taxable)}`} />
+              <TotalRow label="CGST @ 9%"      value={`₹ ${fmt(cgst)}`} />
+              <TotalRow label="SGST @ 9%"      value={`₹ ${fmt(sgst)}`} />
               <div className="h-px bg-[#E2E8F0] my-2" />
-              <TotalRow label="Total (INR)"  value={`₹ ${fmt(total)}`} bold accent />
+              <TotalRow label="Total (INR)"    value={`₹ ${fmt(total)}`} bold accent />
               {isPaid && <TotalRow label="Amount Paid" value={`₹ ${fmt(total)}`} bold />}
               {isPaid && <TotalRow label="Balance Due" value="₹ 0.00" muted />}
             </div>
@@ -365,7 +369,7 @@ export default function InvoiceReceipt({
             <p className="text-[10px] text-[#94A3B8] text-center leading-relaxed">
               This is a computer-generated tax invoice and does not require a physical signature.
               <br />
-              GST is applicable as per the IGST / CGST + SGST provisions under GST Act 2017.
+              GST is included in the plan price as per CGST + SGST provisions under GST Act 2017.
               <br />
               For queries: <span className="text-[#2563EB]">{company.email}</span>
             </p>
