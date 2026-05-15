@@ -277,9 +277,10 @@ export function Sidebar() {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-5 border-b border-gray-100 dark:border-white/5 min-w-0">
+          <img src="/skyup_logo1.svg" className="w-5 h-5" alt="skyup_crm"/>
           {!minimized && (
             <span className="nav-label font-semibold text-sm tracking-widest uppercase text-gray-400 dark:text-gray-500">
-            <img src="/skyup_logo1.svg" alt="skyup_crm"/> CRM
+             CRM
             </span>
           )}
           <button
