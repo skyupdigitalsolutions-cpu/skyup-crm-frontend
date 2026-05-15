@@ -136,8 +136,7 @@ export default function AttendancePage() {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
         {SUMMARY_ITEMS.map(({ key, label, color }) => (
           <div key={key}
-            className={`bg-${color}-50 dark:bg-${color}-950/30 border border-${color}-100 dark:border-${color}-900/30 rounded-xl px-4 py-3 cursor-pointer transition hover:shadow-sm`}
-            onClick={() => handleFilterChange({ ...filters, crmStatus: filters.crmStatus === key ? "" : key })}
+            className={`bg-${color}-50 dark:bg-${color}-950/30 border border-${color}-100 dark:border-${color}-900/30 rounded-xl px-4 py-3`}
           >
             <p className={`text-[22px] font-bold text-${color}-600 dark:text-${color}-400`}>
               {loading ? "—" : summary[key] ?? 0}
