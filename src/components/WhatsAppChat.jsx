@@ -206,14 +206,14 @@ export default function WhatsAppChat({ currentUser }) {
   // ── Initial data load ─────────────────────────────────────────────────────
   useEffect(() => {
     loadConversations();
-    if (isAdmin) loadLeads();
+    loadLeads();
   }, []);
 
   // ── Load leads when switching tab ─────────────────────────────────────────
   useEffect(() => {
     if (activeTab === 'leads') {
       setNewLeadCount(0);
-      if (isAdmin && leads.length === 0) loadLeads();
+      if (leads.length === 0) loadLeads();
     }
   }, [activeTab]);
 
@@ -339,9 +339,8 @@ export default function WhatsAppChat({ currentUser }) {
             <span style={{ fontWeight: 500, fontSize: 15, color: 'var(--color-text-primary)' }}>WhatsApp</span>
           </div>
 
-          {/* Tabs */}
-          {isAdmin && (
-            <div style={{ display: 'flex' }}>
+          {/* Tabs — visible to all users */}
+          <div style={{ display: 'flex' }}>
               {[{ key: 'chats', label: 'Chats' }, { key: 'leads', label: 'Leads', badge: newLeadCount }].map(tab => (
                 <button
                   key={tab.key}
@@ -364,7 +363,6 @@ export default function WhatsAppChat({ currentUser }) {
                 </button>
               ))}
             </div>
-          )}
         </div>
 
         {/* ── CHATS TAB CONTENT ───────────────────────────────────────────── */}
@@ -419,7 +417,7 @@ export default function WhatsAppChat({ currentUser }) {
         )}
 
         {/* ── LEADS TAB CONTENT ───────────────────────────────────────────── */}
-        {activeTab === 'leads' && isAdmin && (
+        {activeTab === 'leads' && (
           <>
             <div style={{ padding: '10px 16px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
               <input type="text" placeholder="Search name, phone, source..." value={leadsSearch} onChange={e => setLeadsSearch(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', fontSize: 13 }} />
