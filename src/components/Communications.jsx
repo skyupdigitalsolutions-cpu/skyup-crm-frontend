@@ -505,6 +505,15 @@ function WhatsAppPanel({ currentUser }) {
   const [error,         setError]         = useState("");
   const [showNewChat,   setShowNewChat]   = useState(false);
   const [bulkModal,     setBulkModal]     = useState(false);
+  const [sideTab,       setSideTab]       = useState("chats");
+  const [leads,         setLeads]         = useState([]);
+  const [leadsLoading,  setLeadsLoading]  = useState(false);
+  const [leadsSearch,   setLeadsSearch]   = useState("");
+  const [startModal,    setStartModal]    = useState(null);
+  const [tmplName,      setTmplName]      = useState("");
+  const [tmplLang,      setTmplLang]      = useState("en_US");
+  const [starting,      setStarting]      = useState(false);
+  const [startErr,      setStartErr]      = useState("");
 
   const isAdmin     = currentUser?.role === "admin";
   const token       = localStorage.getItem("token");
