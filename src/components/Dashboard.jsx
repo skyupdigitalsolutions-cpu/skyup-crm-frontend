@@ -816,16 +816,31 @@ export default function Dashboard() {
   );
 
   const sourceStats = useMemo(() => {
-    const total = leads.length || 1;
-    return Object.entries(SOURCE_COLORS)
-      .map(([label, color]) => ({
-        label, color,
-        count: leads.filter((l) => l.source === label).length,
-        pct:   Math.round((leads.filter((l) => l.source === label).length / total) * 100),
-      }))
-      .filter((s) => s.pct > 0)
-      .sort((a, b) => b.pct - a.pct);
-  }, [leads]);
+  const total = leads.length || 1;
+
+  // Dynamically build from actual lead data instead of only predefined keys
+  const counts = leads.reduce((acc, l) => {
+    const src = l.source?.trim();
+    if (src) acc[src] = (acc[src] || 0) + 1;
+    return acc;
+  }, {});
+
+  const FALLBACK_COLORS = [
+    "#2563EB", "#7C3AED", "#0891B2", "#16A34A",
+    "#D97706", "#DC2626", "#0D9488", "#9333EA",
+  ];
+
+  return Object.entries(counts)
+    .map(([label, count], i) => ({
+      label,
+      count,
+      // Use predefined color if available, else pick from fallback palette
+      color: SOURCE_COLORS[label] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+      pct: Math.round((count / total) * 100),
+    }))
+    .filter((s) => s.count > 0)   // ← filter on count, not rounded pct
+    .sort((a, b) => b.count - a.count);
+}, [leads]);
 
   const activity = useMemo(
     () =>
