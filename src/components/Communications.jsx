@@ -342,6 +342,153 @@ function ReEngageModal({ conversationId, authHeaders, onSent }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ── BULK WHATSAPP MODAL ───────────────────────────────────────────────────────
+// Admin sends a template message to ALL leads in one click
+// ─────────────────────────────────────────────────────────────────────────────
+function BulkWhatsAppModal({ onClose, authHeaders }) {
+  const [templateName, setTemplateName] = useState("");
+  const [languageCode, setLanguageCode] = useState("en_US");
+  const [loading,      setLoading]      = useState(false);
+  const [result,       setResult]       = useState(null);
+  const [error,        setError]        = useState("");
+
+  const handleSend = async () => {
+    if (!templateName.trim()) return setError("Template name is required");
+    if (!window.confirm(`Send "${templateName}" to ALL leads? This cannot be undone.`)) return;
+    setLoading(true); setError("");
+    try {
+      const { data } = await axios.post(
+        `${API_URL}/whatsapp/bulk-send`,
+        { templateName: templateName.trim(), languageCode },
+        authHeaders
+      );
+      setResult(data);
+    } catch (err) {
+      setError(err.response?.data?.error || "Bulk send failed");
+    } finally { setLoading(false); }
+  };
+
+  if (result) return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="w-14 h-14 rounded-full bg-[#f0fdf4] dark:bg-[#052e1c] flex items-center justify-center mx-auto mb-4">
+          <svg className="w-7 h-7 text-[#25D366]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2">Bulk Send Complete!</h2>
+        <div className="grid grid-cols-3 gap-3 my-5">
+          {[
+            { label: "Sent",   value: result.sent,   color: "#25D366" },
+            { label: "Failed", value: result.failed, color: "#DC2626" },
+            { label: "Total",  value: result.total,  color: "#2563EB" },
+          ].map((s) => (
+            <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3 text-center border border-[#E4E7EF] dark:border-[#262A38]">
+              <div className="text-[22px] font-bold" style={{ color: s.color }}>{s.value}</div>
+              <div className="text-[10px] text-[#8B92A9] uppercase mt-0.5">{s.label}</div>
+            </div>
+          ))}
+        </div>
+        {result.results?.filter(r => r.status === "failed").length > 0 && (
+          <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] rounded-xl px-4 py-3 text-left text-[11px] text-[#DC2626] mb-4 max-h-28 overflow-y-auto">
+            {result.results.filter(r => r.status === "failed").slice(0, 5).map((r, i) => (
+              <div key={i}>{r.name} ({r.phone}): {r.reason}</div>
+            ))}
+          </div>
+        )}
+        <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#25D366] text-white text-[13px] font-semibold hover:bg-[#1da851] transition">Done</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#f0fdf4] dark:bg-[#052e1c] flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Bulk WhatsApp</h2>
+              <p className="text-[11px] text-[#8B92A9] mt-0.5">Send a template to all leads at once</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] transition">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-4">
+          {/* Warning banner */}
+          <div className="flex gap-2.5 bg-[#FFFBEB] dark:bg-[#1c1600] border border-[#FDE68A] dark:border-[#78350f] rounded-xl px-4 py-3">
+            <span className="text-[14px] shrink-0 mt-0.5">⚠️</span>
+            <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] leading-relaxed">
+              This will send a WhatsApp template message to <strong>every lead</strong> in your CRM that has a mobile number. Make sure your template is approved in MSG91.
+            </p>
+          </div>
+
+          {/* Template name */}
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+              Template Name <span className="text-[#DC2626]">*</span>
+            </label>
+            <input
+              type="text"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="e.g. welcome_message, follow_up_v2"
+              className={FIELD_CLS}
+              autoFocus
+            />
+            <p className="text-[10px] text-[#8B92A9] mt-1">Must exactly match the approved template name in MSG91</p>
+          </div>
+
+          {/* Language */}
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Language</label>
+            <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} className={FIELD_CLS}>
+              <option value="en_US">English (en_US) — recommended</option>
+              <option value="en_GB">English GB (en_GB)</option>
+              <option value="hi">Hindi (hi)</option>
+              <option value="mr">Marathi (mr)</option>
+              <option value="gu">Gujarati (gu)</option>
+              <option value="ta">Tamil (ta)</option>
+              <option value="te">Telugu (te)</option>
+              <option value="kn">Kannada (kn)</option>
+            </select>
+          </div>
+
+          {error && (
+            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">
+              ⚠ {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5 pt-2 flex gap-3">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
+            Cancel
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={!templateName.trim() || loading}
+            className="flex-1 py-2.5 rounded-xl bg-[#25D366] text-white text-[13px] font-semibold hover:bg-[#1da851] disabled:opacity-40 transition flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Sending to all leads…</>
+            ) : (
+              <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>Send to All Leads</>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WhatsAppPanel({ currentUser }) {
   const socketRef  = useRef(null);
   const bottomRef  = useRef(null);
@@ -357,6 +504,7 @@ function WhatsAppPanel({ currentUser }) {
   const [filter,        setFilter]        = useState("all");
   const [error,         setError]         = useState("");
   const [showNewChat,   setShowNewChat]   = useState(false);
+  const [bulkModal,     setBulkModal]     = useState(false);
 
   const isAdmin     = currentUser?.role === "admin";
   const token       = localStorage.getItem("token");
@@ -524,11 +672,11 @@ function WhatsAppPanel({ currentUser }) {
           </div>
           {isAdmin && (
             <button
-              onClick={() => setShowNewChat(true)}
+              onClick={() => setBulkModal(true)}
               className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-xl bg-[#25D366] hover:bg-[#1da851] text-white text-[12px] font-semibold transition"
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
-              New Chat
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+              Bulk WhatsApp
             </button>
           )}
         </div>
@@ -702,6 +850,12 @@ function WhatsAppPanel({ currentUser }) {
         <NewConversationModal
           onClose={() => setShowNewChat(false)}
           onSuccess={handleNewConversation}
+          authHeaders={authHeaders}
+        />
+      )}
+      {bulkModal && (
+        <BulkWhatsAppModal
+          onClose={() => setBulkModal(false)}
           authHeaders={authHeaders}
         />
       )}
