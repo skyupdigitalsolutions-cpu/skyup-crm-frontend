@@ -279,7 +279,7 @@ export function Sidebar() {
         <div className="flex items-center justify-between px-4 py-5 border-b border-gray-100 dark:border-white/5 min-w-0">
           {!minimized && (
             <span className="nav-label font-semibold text-sm tracking-widest uppercase text-gray-400 dark:text-gray-500">
-              CRM
+            <img src="/images/skyup_logo1.svg" alt="skyup_crm"/> CRM
             </span>
           )}
           <button
