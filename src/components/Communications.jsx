@@ -346,42 +346,125 @@ function ReEngageModal({ conversationId, authHeaders, onSent }) {
 // ── BULK WHATSAPP MODAL ───────────────────────────────────────────────────────
 // Admin sends a template message to ALL leads in one click
 // ─────────────────────────────────────────────────────────────────────────────
-function BulkWhatsAppModal({ onClose, authHeaders }) {
+function WhatsAppBlastModal({ onClose, authHeaders }) {
+  // Mode: campaign | single | csv
+  const [mode,        setMode]        = useState("campaign");
+
+  // Campaign mode
+  const [campaigns,   setCampaigns]   = useState([]);
+  const [campaign,    setCampaign]    = useState("");
+  const [leadCount,   setLeadCount]   = useState(null);
+  const [previewing,  setPreviewing]  = useState(false);
+
+  // Single mode
+  const [singleName,  setSingleName]  = useState("");
+  const [singlePhone, setSinglePhone] = useState("");
+
+  // CSV mode
+  const [csvText,   setCsvText]   = useState("name,phone\nRahul Sharma,919876543210\nPriya Patel,919812345678");
+  const [csvParsed, setCsvParsed] = useState(null);
+  const [csvError,  setCsvError]  = useState("");
+
+  // Template (shared)
   const [templateName, setTemplateName] = useState("");
   const [languageCode, setLanguageCode] = useState("en_US");
-  const [loading,      setLoading]      = useState(false);
-  const [result,       setResult]       = useState(null);
-  const [error,        setError]        = useState("");
 
+  // UI state
+  const [loading, setLoading] = useState(false);
+  const [result,  setResult]  = useState(null);
+  const [error,   setError]   = useState("");
+
+  // Load campaign list on mount
+  useEffect(() => {
+    api.get("/email/history/campaigns")
+      .then((r) => setCampaigns(r.data.data || []))
+      .catch(() => {});
+  }, []);
+
+  // Campaign preview
+  const handlePreview = async () => {
+    if (!campaign) return;
+    setPreviewing(true); setLeadCount(null);
+    try {
+      const res = await api.get(`/email-campaign/preview?campaign=${encodeURIComponent(campaign)}`);
+      setLeadCount(res.data.leadCount);
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not fetch preview");
+    } finally { setPreviewing(false); }
+  };
+
+  // CSV parse
+  const parseCSV = () => {
+    setCsvError("");
+    const lines = csvText.trim().split("\n").filter(Boolean);
+    if (lines.length < 2) return setCsvError("Need at least a header row and one data row");
+    const header   = lines[0].toLowerCase().split(",").map((s) => s.trim());
+    const nameIdx  = header.indexOf("name");
+    const phoneIdx = header.findIndex((h) => h === "phone" || h === "mobile" || h === "number");
+    if (phoneIdx === -1) return setCsvError("CSV must have a \'phone\' (or \'mobile\') column");
+    const rows = lines.slice(1).map((line) => {
+      const cols  = line.split(",").map((s) => s.trim());
+      const phone = cols[phoneIdx]?.replace(/\D/g, "");
+      return { name: nameIdx !== -1 ? cols[nameIdx] : "Friend", phone };
+    }).filter((r) => r.phone && r.phone.length >= 7);
+    if (rows.length === 0) return setCsvError("No valid phone rows found");
+    setCsvParsed(rows);
+  };
+
+  // Send
   const handleSend = async () => {
     if (!templateName.trim()) return setError("Template name is required");
-    if (!window.confirm(`Send "${templateName}" to ALL leads? This cannot be undone.`)) return;
     setLoading(true); setError("");
     try {
-      const { data } = await axios.post(
-        `${API_URL}/whatsapp/bulk-send`,
-        { templateName: templateName.trim(), languageCode },
-        authHeaders
-      );
-      setResult(data);
+      let res;
+      if (mode === "campaign") {
+        if (!campaign) { setLoading(false); return setError("Select a campaign"); }
+        let count = leadCount;
+        if (count === null) {
+          setPreviewing(true);
+          const r = await api.get(`/email-campaign/preview?campaign=${encodeURIComponent(campaign)}`);
+          count = r.data.leadCount; setLeadCount(count); setPreviewing(false);
+        }
+        if (!window.confirm(`Send "${templateName}" to ${count} leads in "${campaign}"? This cannot be undone.`)) { setLoading(false); return; }
+        res = await axios.post(`${API_URL}/whatsapp/bulk-send`, { campaign, templateName: templateName.trim(), languageCode }, authHeaders);
+      } else if (mode === "single") {
+        if (!singlePhone.trim()) { setLoading(false); return setError("Phone number is required"); }
+        const phone = singlePhone.replace(/\D/g, "");
+        if (!window.confirm(`Send "${templateName}" to ${singleName || "this contact"} (${phone})?`)) { setLoading(false); return; }
+        await axios.post(`${API_URL}/whatsapp/start-conversation`, { phone, contactName: singleName.trim() || undefined, templateName: templateName.trim(), languageCode }, authHeaders);
+        res = { data: { sent: 1, failed: 0, total: 1, results: [{ name: singleName, phone, status: "sent" }] } };
+      } else {
+        if (!csvParsed) { setLoading(false); return setError("Parse the CSV first"); }
+        if (!window.confirm(`Send "${templateName}" to ${csvParsed.length} recipients from CSV? This cannot be undone.`)) { setLoading(false); return; }
+        res = await axios.post(`${API_URL}/whatsapp/bulk-send-csv`, { recipients: csvParsed, templateName: templateName.trim(), languageCode }, authHeaders);
+      }
+      setResult(res.data);
     } catch (err) {
-      setError(err.response?.data?.error || "Bulk send failed");
+      setError(err.response?.data?.error || err.response?.data?.message || "Failed to send");
     } finally { setLoading(false); }
   };
 
+  const recipientLabel =
+    mode === "campaign" && leadCount !== null ? `${leadCount} leads`
+    : mode === "single" && singlePhone.trim() ? "1 recipient"
+    : mode === "csv" && csvParsed ? `${csvParsed.length} recipients`
+    : "recipients";
+
+  const isValid =
+    templateName.trim() &&
+    (mode === "campaign" ? !!campaign : mode === "single" ? !!singlePhone.trim() : !!csvParsed);
+
+  // Result screen
   if (result) return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
         <div className="w-14 h-14 rounded-full bg-[#f0fdf4] dark:bg-[#052e1c] flex items-center justify-center mx-auto mb-4">
           <svg className="w-7 h-7 text-[#25D366]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
         </div>
-        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2">Bulk Send Complete!</h2>
-        <div className="grid grid-cols-3 gap-3 my-5">
-          {[
-            { label: "Sent",   value: result.sent,   color: "#25D366" },
-            { label: "Failed", value: result.failed, color: "#DC2626" },
-            { label: "Total",  value: result.total,  color: "#2563EB" },
-          ].map((s) => (
+        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">WhatsApp Blast Complete!</h2>
+        <p className="text-[12px] text-[#8B92A9] mb-5">Template messages dispatched successfully.</p>
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          {[{ label: "Sent", value: result.sent ?? 1, color: "#25D366" }, { label: "Failed", value: result.failed ?? 0, color: "#DC2626" }, { label: "Total", value: result.total ?? 1, color: "#2563EB" }].map((s) => (
             <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3 text-center border border-[#E4E7EF] dark:border-[#262A38]">
               <div className="text-[22px] font-bold" style={{ color: s.color }}>{s.value}</div>
               <div className="text-[10px] text-[#8B92A9] uppercase mt-0.5">{s.label}</div>
@@ -402,16 +485,17 @@ function BulkWhatsAppModal({ onClose, authHeaders }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-2xl bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[94vh]" onClick={(e) => e.stopPropagation()}>
+
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-[#f0fdf4] dark:bg-[#052e1c] flex items-center justify-center">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.121 1.531 5.845L.057 23.286a.5.5 0 0 0 .64.64l5.431-1.47A11.952 11.952 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.849 0-3.576-.498-5.066-1.367l-.363-.214-3.765 1.018 1.022-3.734-.234-.376A9.967 9.967 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
             </div>
             <div>
-              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Bulk WhatsApp</h2>
-              <p className="text-[11px] text-[#8B92A9] mt-0.5">Send a template to all leads at once</p>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Send WhatsApp Blast</h2>
+              <p className="text-[11px] text-[#8B92A9] mt-0.5">Personalized bulk messages via MSG91</p>
             </div>
           </div>
           <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] transition">
@@ -419,68 +503,129 @@ function BulkWhatsAppModal({ onClose, authHeaders }) {
           </button>
         </div>
 
+        {/* Mode selector */}
+        <div className="px-6 pt-4 shrink-0">
+          <div className="grid grid-cols-3 gap-2">
+            {[{ key: "campaign", label: "Campaign leads" }, { key: "single", label: "Single lead" }, { key: "csv", label: "CSV import" }].map((m) => (
+              <button key={m.key} onClick={() => { setMode(m.key); setError(""); }}
+                className={`py-2 rounded-xl border text-[12px] font-semibold transition ${mode === m.key ? "border-[#25D366] bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366]" : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#25D366]/50"}`}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          {/* Warning banner */}
-          <div className="flex gap-2.5 bg-[#FFFBEB] dark:bg-[#1c1600] border border-[#FDE68A] dark:border-[#78350f] rounded-xl px-4 py-3">
-            <span className="text-[14px] shrink-0 mt-0.5">⚠️</span>
-            <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] leading-relaxed">
-              This will send a WhatsApp template message to <strong>every lead</strong> in your CRM that has a mobile number. Make sure your template is approved in MSG91.
-            </p>
-          </div>
+        <div className="overflow-y-auto px-6 py-4 space-y-4">
 
-          {/* Template name */}
-          <div>
-            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
-              Template Name <span className="text-[#DC2626]">*</span>
-            </label>
-            <input
-              type="text"
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="e.g. welcome_message, follow_up_v2"
-              className={FIELD_CLS}
-              autoFocus
-            />
-            <p className="text-[10px] text-[#8B92A9] mt-1">Must exactly match the approved template name in MSG91</p>
-          </div>
+          {/* Campaign mode */}
+          {mode === "campaign" && (
+            <div>
+              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Target campaign</label>
+              <div className="flex gap-2">
+                <select value={campaign} onChange={(e) => { setCampaign(e.target.value); setLeadCount(null); }} className={FIELD_CLS + " flex-1"}>
+                  <option value="">— Select a campaign —</option>
+                  {[...new Set(campaigns.map((c) => c).filter(Boolean))].map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <button onClick={handlePreview} disabled={!campaign || previewing}
+                  className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#25D366] hover:border-[#25D366] disabled:opacity-40 transition shrink-0">
+                  {previewing ? "…" : "Preview"}
+                </button>
+              </div>
+              {leadCount !== null && (
+                <div className="mt-2 flex items-center gap-1.5 text-[12px]">
+                  <span className="w-2 h-2 rounded-full bg-[#25D366]" />
+                  <span className="text-[#25D366] font-semibold">{leadCount} leads</span>
+                  <span className="text-[#8B92A9]">with mobile numbers will receive this</span>
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Language */}
-          <div>
-            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Language</label>
-            <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} className={FIELD_CLS}>
-              <option value="en_US">English (en_US) — recommended</option>
-              <option value="en_GB">English GB (en_GB)</option>
-              <option value="hi">Hindi (hi)</option>
-              <option value="mr">Marathi (mr)</option>
-              <option value="gu">Gujarati (gu)</option>
-              <option value="ta">Tamil (ta)</option>
-              <option value="te">Telugu (te)</option>
-              <option value="kn">Kannada (kn)</option>
-            </select>
+          {/* Single mode */}
+          {mode === "single" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Contact name <span className="text-[#8B92A9] font-normal">(optional)</span></label>
+                <input type="text" value={singleName} onChange={(e) => setSingleName(e.target.value)} placeholder="Rahul Sharma" className={FIELD_CLS} />
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">WhatsApp number <span className="text-[#DC2626]">*</span></label>
+                <input type="tel" value={singlePhone} onChange={(e) => setSinglePhone(e.target.value)} placeholder="919876543210 (with country code)" className={FIELD_CLS} />
+                <p className="text-[10px] text-[#8B92A9] mt-1">Include country code, no + sign</p>
+              </div>
+            </div>
+          )}
+
+          {/* CSV mode */}
+          {mode === "csv" && (
+            <div>
+              <label className="flex items-center justify-center gap-2 w-full px-4 py-3 mb-2 rounded-xl border-2 border-dashed border-[#25D366]/40 bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366] text-[12px] font-semibold cursor-pointer hover:border-[#25D366] transition">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                Upload CSV file
+                <input type="file" accept=".csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { setCsvText(ev.target.result); setCsvParsed(null); setCsvError(""); }; r.readAsText(f); e.target.value = ""; }} />
+              </label>
+              <textarea value={csvText} onChange={(e) => { setCsvText(e.target.value); setCsvParsed(null); setCsvError(""); }} rows={4} className={FIELD_CLS + " font-mono text-[12px] resize-y"} placeholder={"name,phone\nRahul Sharma,919876543210"} />
+              <p className="text-[10px] text-[#8B92A9] mt-1 mb-2">Required column: <code className="bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366] px-1 rounded">phone</code> or <code className="bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366] px-1 rounded">mobile</code>. Optional: <code className="bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366] px-1 rounded">name</code>. Include country code.</p>
+              <div className="flex items-center gap-2 mt-2">
+                <button onClick={parseCSV} className="px-4 py-2 rounded-xl bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366] text-[12px] font-semibold hover:bg-[#dcfce7] transition border border-[#25D366]/30">Parse CSV</button>
+                {csvParsed && <span className="text-[12px] text-[#25D366] font-semibold">✓ {csvParsed.length} recipients found</span>}
+              </div>
+              {csvError && <p className="text-[11px] text-[#DC2626] mt-1">⚠ {csvError}</p>}
+            </div>
+          )}
+
+          {/* Template section */}
+          <div className="pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
+            <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-3">WhatsApp Template</p>
+            <div className="flex gap-2.5 bg-[#FFFBEB] dark:bg-[#1c1600] border border-[#FDE68A] dark:border-[#78350f] rounded-xl px-4 py-3 mb-4">
+              <span className="text-[14px] shrink-0 mt-0.5">💡</span>
+              <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] leading-relaxed">
+                WhatsApp requires a <strong>pre-approved template</strong> to send bulk messages. The template name must exactly match what is approved in your MSG91 / Meta dashboard.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template name <span className="text-[#DC2626]">*</span></label>
+                <input type="text" value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="e.g. welcome_message, follow_up_v2" className={FIELD_CLS} />
+                <p className="text-[10px] text-[#8B92A9] mt-1">Must match exactly — case-sensitive</p>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template language</label>
+                <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} className={FIELD_CLS}>
+                  <option value="en_US">English (en_US) — recommended</option>
+                  <option value="en_GB">English GB (en_GB)</option>
+                  <option value="en">English (en) — legacy</option>
+                  <option value="hi">Hindi (hi)</option>
+                  <option value="mr">Marathi (mr)</option>
+                  <option value="gu">Gujarati (gu)</option>
+                  <option value="ta">Tamil (ta)</option>
+                  <option value="te">Telugu (te)</option>
+                  <option value="kn">Kannada (kn)</option>
+                  <option value="ml">Malayalam (ml)</option>
+                  <option value="bn">Bengali (bn)</option>
+                  <option value="pa">Punjabi (pa)</option>
+                </select>
+              </div>
+            </div>
           </div>
 
           {error && (
-            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">
-              ⚠ {error}
-            </div>
+            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">⚠ {error}</div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-5 pt-2 flex gap-3">
+        <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-3 shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
             Cancel
           </button>
-          <button
-            onClick={handleSend}
-            disabled={!templateName.trim() || loading}
-            className="flex-1 py-2.5 rounded-xl bg-[#25D366] text-white text-[13px] font-semibold hover:bg-[#1da851] disabled:opacity-40 transition flex items-center justify-center gap-2"
-          >
+          <button onClick={handleSend} disabled={!isValid || loading}
+            className="flex-1 py-2.5 rounded-xl bg-[#25D366] text-white text-[13px] font-semibold hover:bg-[#1da851] disabled:opacity-40 transition flex items-center justify-center gap-2">
             {loading ? (
-              <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Sending to all leads…</>
+              <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Sending…</>
             ) : (
-              <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>Send to All Leads</>
+              <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>Send to {recipientLabel}</>
             )}
           </button>
         </div>
@@ -488,6 +633,7 @@ function BulkWhatsAppModal({ onClose, authHeaders }) {
     </div>
   );
 }
+
 
 function WhatsAppPanel({ currentUser }) {
   const socketRef  = useRef(null);
@@ -956,7 +1102,7 @@ function WhatsAppPanel({ currentUser }) {
         />
       )}
       {bulkModal && (
-        <BulkWhatsAppModal
+        <WhatsAppBlastModal
           onClose={() => setBulkModal(false)}
           authHeaders={authHeaders}
         />
