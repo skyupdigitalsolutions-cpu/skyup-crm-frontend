@@ -1113,9 +1113,13 @@ export default function AdminLeadsPage() {
   const [filterTemp,  setFilterTemp]  = useState("All");
   const [dateFrom,    setDateFrom]    = useState("");
   const [dateTo,      setDateTo]      = useState("");
-  const [sortBy,      setSortBy]      = useState("date_desc");
+const [sortBy,      setSortBy]      = useState("date_desc");
   const [page,        setPage]        = useState(1);
 
+  const role = getRole();
+  const isSuperAdmin = role === "superadmin";
+
+  // ── Phone masking ─────────────────────────────────────────────────────────
   // ── Phone masking ─────────────────────────────────────────────────────────
   const [revealedPhone, setRevealedPhone] = useState(null);
 
@@ -1258,6 +1262,7 @@ export default function AdminLeadsPage() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#7C3AED] text-white text-[12px] font-semibold hover:bg-violet-700 transition">
             <Upload className="w-3.5 h-3.5" /> Import CSV
           </button>
+          {isSuperAdmin && (
           <button onClick={exportToCSV} disabled={!displayed.length}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-40 disabled:cursor-not-allowed transition">
             <Download className="w-3.5 h-3.5" /> Export CSV
@@ -1266,6 +1271,8 @@ export default function AdminLeadsPage() {
                 {displayed.length}
               </span>
             )}
+          </button>
+          )}
           </button>
           <button onClick={fetchLeads} className="p-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#8B92A9] hover:text-[#2563EB] transition" title="Refresh">
             <RefreshCw className="w-4 h-4" />
@@ -1378,9 +1385,11 @@ export default function AdminLeadsPage() {
                     const sc         = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
                     const isRevealed = revealedPhone === l.id;
                     const viewCount  = viewCounts[l.id] || 0;
-                    const maskedPhone = l.phone
-                      ? "•".repeat(Math.max(0, l.phone.length - 2)) + l.phone.slice(-2)
-                      : "—";
+                   const maskedPhone = isSuperAdmin
+                      ? (l.phone || "—")
+                      : l.phone
+                        ? "•".repeat(Math.max(0, l.phone.length - 2)) + l.phone.slice(-2)
+                        : "—";
 
                     return (
                       <tr key={l.id}
