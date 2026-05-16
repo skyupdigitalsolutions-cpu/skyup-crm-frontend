@@ -1489,8 +1489,8 @@ export default function Campaigns() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 mb-4">
-                    {[{ label: "Sent", value: fmt(c.sent) }, { label: "Leads", value: fmt(c.leads) }, { label: "Conv.", value: c.converted > 0 ? c.converted : "—" }].map((s) => (
+                  <div className="mb-4">
+                    {[ { label: "Leads", value: fmt(c.leads) },].map((s) => (
                       <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
                         <div className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{s.value}</div>
                         <div className="text-[9px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{s.label}</div>
