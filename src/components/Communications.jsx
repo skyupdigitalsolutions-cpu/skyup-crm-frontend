@@ -1670,10 +1670,113 @@ function EmailPanel() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ── SMS BLAST MODAL ───────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
-function SmsBlastModal({ onClose }) {
-  const [mode,       setMode]       = useState("campaign"); // "campaign" | "single" | "csv"
+// ── SMS PANEL — WhatsApp-style layout ────────────────────────────────────────
+// Left: conversation list of SMS leads | Right: chat view + blast composer
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function SmsStatusTick({ status }) {
+  if (status === "sent")
+    return (
+      <svg className="w-4 h-4 text-[#34B7F1] inline-block" viewBox="0 0 16 11" fill="currentColor">
+        <path d="M11.071.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.092-.013l-3-3.5a.75.75 0 1 1 1.14-.977l2.46 2.87 5.908-6.415a.75.75 0 0 1 1.059-.025z"/>
+        <path d="M14.071.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.085.013L4.54 6.653a.75.75 0 0 1 1.14-.977l1.502 1.752 5.83-6.75a.75.75 0 0 1 1.059-.025z"/>
+      </svg>
+    );
+  return (
+    <svg className="w-3.5 h-3.5 text-[#8B92A9] inline-block" viewBox="0 0 16 11" fill="currentColor">
+      <path d="M11.071.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.092-.013l-3-3.5a.75.75 0 1 1 1.14-.977l2.46 2.87 5.908-6.415a.75.75 0 0 1 1.059-.025z"/>
+    </svg>
+  );
+}
+
+function SmsAvatar({ name, size = "md" }) {
+  const initials = (name || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  const colors = ["#EA580C","#7C3AED","#0284C7","#059669","#DC2626","#D97706","#0891B2"];
+  const color  = colors[(name || "?").charCodeAt(0) % colors.length];
+  const sz     = size === "sm" ? "w-9 h-9 text-[11px]" : "w-11 h-11 text-[13px]";
+  return (
+    <div className={`${sz} rounded-full flex items-center justify-center font-bold text-white shrink-0`} style={{ background: color }}>
+      {initials}
+    </div>
+  );
+}
+
+// ── SMS Thread Bubble (right side chat area) ──────────────────────────────────
+function SmsBubble({ log }) {
+  return (
+    <div className="flex justify-end mb-2 px-4">
+      <div className="max-w-[75%]">
+        <div className="bg-[#DCF8C6] dark:bg-[#005C4B] rounded-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
+          <p className="text-[13px] text-[#111B21] dark:text-[#E9EDEF] leading-relaxed whitespace-pre-wrap break-words">
+            {log.message}
+          </p>
+          <div className="flex items-center justify-end gap-1 mt-1">
+            <span className="text-[10px] text-[#667781] dark:text-[#8696A0]">
+              {formatTime(log.sentAt)}
+            </span>
+            <SmsStatusTick status={log.status} />
+          </div>
+        </div>
+        {log.status === "failed" && log.errorMessage && (
+          <p className="text-[10px] text-[#DC2626] mt-0.5 text-right">{log.errorMessage}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Left sidebar lead row ─────────────────────────────────────────────────────
+function SmsLeadRow({ lead, isActive, onClick }) {
+  const lastMsg = lead.lastMessage || "";
+  const lastTime = lead.lastSentAt ? timeAgo(lead.lastSentAt) : "";
+  const failedCount = lead.failedCount || 0;
+  const sentCount   = lead.sentCount   || 0;
+
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-[#F0F2FA] dark:hover:bg-[#1A1D27] transition-colors text-left border-b border-[#F0F2FA] dark:border-[#1E2130] ${
+        isActive ? "bg-[#F0F2FA] dark:bg-[#1A1D27]" : ""
+      }`}
+    >
+      <SmsAvatar name={lead.recipientName || lead.to} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-1">
+          <span className="text-[13px] font-semibold text-[#111B21] dark:text-[#E9EDEF] truncate">
+            {lead.recipientName || lead.to}
+          </span>
+          {lastTime && (
+            <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] shrink-0">{lastTime}</span>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-1 mt-0.5">
+          <p className="text-[12px] text-[#667781] dark:text-[#8696A0] truncate">
+            {lead.to}
+          </p>
+          {failedCount > 0 && (
+            <span className="shrink-0 w-5 h-5 rounded-full bg-[#DC2626] text-white text-[10px] font-bold flex items-center justify-center">
+              {failedCount}
+            </span>
+          )}
+          {failedCount === 0 && sentCount > 0 && (
+            <span className="shrink-0 text-[10px] text-[#059669] font-semibold">{sentCount} ✓</span>
+          )}
+        </div>
+        {lead.campaignId && (
+          <span className="inline-block mt-1 px-1.5 py-0.5 rounded-full bg-[#FFF7ED] dark:bg-[#1c0a00] text-[#EA580C] text-[9px] font-semibold">
+            {lead.campaignId}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+// ── New SMS Blast Composer (right panel when no lead selected) ────────────────
+function SmsBlastComposer({ onSent }) {
+  const [mode,       setMode]       = useState("campaign");
   const [form,       setForm]       = useState({ campaign: "" });
   const [singleLead, setSingleLead] = useState({ name: "", mobile: "" });
   const [csvText,    setCsvText]    = useState("name,mobile\nRahul Sharma,919876543210\nPriya Patel,919988776655");
@@ -1707,9 +1810,9 @@ function SmsBlastModal({ onClose }) {
 
   const parseCsv = () => {
     setCsvError(""); setCsvParsed(null);
-    const lines  = csvText.trim().split("\n").filter(Boolean);
+    const lines = csvText.trim().split("\n").filter(Boolean);
     if (lines.length < 2) return setCsvError("CSV needs a header row + at least one data row");
-    const header   = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const header    = lines[0].split(",").map((h) => h.trim().toLowerCase());
     const mobileIdx = header.indexOf("mobile");
     if (mobileIdx === -1) return setCsvError("CSV must have a 'mobile' column");
     const nameIdx = header.indexOf("name");
@@ -1727,29 +1830,24 @@ function SmsBlastModal({ onClose }) {
     try {
       let res;
       if (mode === "campaign") {
-        if (!form.campaign) return setError("Please select a campaign");
+        if (!form.campaign) { setError("Please select a campaign"); setLoading(false); return; }
         if (!window.confirm(`Send SMS to ${leadCount ?? "?"} leads in "${form.campaign}"?`)) { setLoading(false); return; }
         res = await api.post("/sms-campaign/send", { campaign: form.campaign, message, templateId: templateId || undefined, senderId: senderId || undefined });
       } else if (mode === "single") {
-        if (!singleLead.mobile) return setError("Mobile number is required");
+        if (!singleLead.mobile) { setError("Mobile number is required"); setLoading(false); return; }
         if (!window.confirm(`Send SMS to ${singleLead.name || singleLead.mobile}?`)) { setLoading(false); return; }
         res = await api.post("/sms-campaign/send-single", { name: singleLead.name, mobile: singleLead.mobile, message, templateId: templateId || undefined, senderId: senderId || undefined });
       } else {
-        if (!csvParsed) return setError("Parse your CSV first");
+        if (!csvParsed) { setError("Parse your CSV first"); setLoading(false); return; }
         if (!window.confirm(`Send SMS to ${csvParsed.length} recipients from CSV?`)) { setLoading(false); return; }
         res = await api.post("/sms-campaign/send-csv", { recipients: csvParsed, message, templateId: templateId || undefined, senderId: senderId || undefined });
       }
       setResult({ success: true, message: res.data.message, total: res.data.total });
+      if (onSent) onSent();
     } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data?.error || "Failed to send SMS";
-      setError(msg);
+      setError(err.response?.data?.message || err.response?.data?.error || "Failed to send SMS");
     } finally { setLoading(false); }
   };
-
-  const recipientLabel =
-    mode === "campaign" && leadCount !== null ? `${leadCount} leads` :
-    mode === "single"   && singleLead.mobile  ? "1 recipient"         :
-    mode === "csv"      && csvParsed          ? `${csvParsed.length} recipients` : "recipients";
 
   const isValid = message.trim() && (
     mode === "campaign" ? !!form.campaign :
@@ -1757,112 +1855,122 @@ function SmsBlastModal({ onClose }) {
     !!csvParsed
   );
 
+  const recipientLabel =
+    mode === "campaign" && leadCount !== null ? `${leadCount} leads` :
+    mode === "single"   && singleLead.mobile  ? "1 recipient"         :
+    mode === "csv"      && csvParsed          ? `${csvParsed.length} recipients` : "recipients";
+
+  const previewMsg = message
+    .replace(/{{name}}/g, singleLead.name || "Rahul Sharma")
+    .replace(/{{mobile}}/g, singleLead.mobile || "9876543210")
+    .replace(/{{campaign}}/g, form.campaign || "Campaign")
+    .replace(/{{email}}/g, "rahul@example.com");
+
   if (result) return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
-        <div className="w-16 h-16 rounded-full bg-[#fff7ed] dark:bg-[#1c0a00] flex items-center justify-center mx-auto mb-4">
-          <svg className="w-8 h-8 text-[#EA580C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-          </svg>
-        </div>
-        <h3 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">SMS Blast Started!</h3>
-        <p className="text-[13px] text-[#8B92A9] mb-6">{result.message}</p>
-        <button onClick={onClose} className="px-6 py-2.5 rounded-xl bg-[#EA580C] text-white text-[13px] font-semibold hover:bg-orange-700 transition">Done</button>
+    <div className="flex-1 flex flex-col items-center justify-center bg-[#EFEAE2] dark:bg-[#0B141A] gap-4">
+      <div className="w-20 h-20 rounded-full bg-[#25D366]/10 flex items-center justify-center mb-2">
+        <svg className="w-10 h-10 text-[#25D366]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
       </div>
+      <h3 className="text-[18px] font-bold text-[#111B21] dark:text-[#E9EDEF]">SMS Blast Queued!</h3>
+      <p className="text-[13px] text-[#667781] dark:text-[#8696A0] text-center max-w-xs">{result.message}</p>
+      <button
+        onClick={() => setResult(null)}
+        className="mt-2 px-6 py-2.5 rounded-full bg-[#25D366] text-white text-[13px] font-semibold hover:bg-[#20B858] transition"
+      >
+        Send Another
+      </button>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-2xl bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#fff7ed] dark:bg-[#1c0a00] flex items-center justify-center">
-              <svg className="w-5 h-5 text-[#EA580C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Send SMS Blast</h2>
-              <p className="text-[11px] text-[#8B92A9] mt-0.5">Bulk SMS via MSG91 · DLT compliant</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] transition">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
+    <div className="flex-1 flex flex-col bg-[#EFEAE2] dark:bg-[#0B141A] overflow-hidden">
+      {/* Chat wallpaper header */}
+      <div className="bg-[#075E54] dark:bg-[#202C33] px-4 py-3 flex items-center gap-3 shrink-0">
+        <div className="w-9 h-9 rounded-full bg-[#EA580C] flex items-center justify-center">
+          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+          </svg>
         </div>
+        <div>
+          <h3 className="text-[14px] font-semibold text-white leading-none">New SMS Blast</h3>
+          <p className="text-[11px] text-[#8FB8A8] mt-0.5">via MSG91 · DLT compliant</p>
+        </div>
+      </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+      {/* Scrollable composer body */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
 
-          {/* DLT info banner */}
-          <div className="flex gap-2.5 bg-[#FFF7ED] dark:bg-[#1c0a00] border border-[#FED7AA] dark:border-[#78350f] rounded-xl px-4 py-3">
-            <span className="text-[14px] shrink-0 mt-0.5">📋</span>
-            <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] leading-relaxed">
-              MSG91 requires a <strong>DLT-registered Template ID</strong> for Indian numbers. Enter it below, or leave blank for non-DLT testing. Use merge tags like <code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{{name}}"}</code> to personalise messages.
+        {/* DLT info banner — like a system message */}
+        <div className="flex justify-center">
+          <div className="bg-[#FFF7C7] dark:bg-[#2A2519] rounded-lg px-4 py-2 max-w-sm text-center shadow-sm">
+            <p className="text-[11px] text-[#7B6914] dark:text-[#CDB648] leading-relaxed">
+              📋 MSG91 requires a <strong>DLT Template ID</strong> for Indian numbers.
+              Use <code className="bg-yellow-200 dark:bg-yellow-900 px-1 rounded">{"{{name}}"}</code> to personalise.
             </p>
           </div>
+        </div>
 
-          {/* Mode selector */}
-          <div>
-            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-2">Send to</label>
-            <div className="flex gap-2">
-              {[
-                { key: "campaign", label: "CRM Campaign", icon: "🎯" },
-                { key: "single",   label: "Single Number", icon: "📱" },
-                { key: "csv",      label: "CSV Upload",    icon: "📄" },
-              ].map((m) => (
-                <button key={m.key} onClick={() => setMode(m.key)}
-                  className={`flex-1 py-2.5 px-3 rounded-xl text-[12px] font-semibold border transition ${
-                    mode === m.key
-                      ? "bg-[#fff7ed] dark:bg-[#1c0a00] border-[#EA580C] text-[#EA580C]"
-                      : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-[#EA580C] hover:text-[#EA580C]"
-                  }`}>
-                  <span className="mr-1">{m.icon}</span>{m.label}
-                </button>
-              ))}
-            </div>
+        {/* Mode selector */}
+        <div className="bg-white dark:bg-[#202C33] rounded-2xl p-4 shadow-sm">
+          <p className="text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] uppercase tracking-wide mb-2">Send to</p>
+          <div className="flex gap-2">
+            {[
+              { key: "campaign", label: "CRM Campaign", icon: "🎯" },
+              { key: "single",   label: "Single Number", icon: "📱" },
+              { key: "csv",      label: "CSV Upload",    icon: "📄" },
+            ].map((m) => (
+              <button key={m.key} onClick={() => setMode(m.key)}
+                className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-semibold border transition ${
+                  mode === m.key
+                    ? "bg-[#DCF8C6] dark:bg-[#005C4B] border-[#25D366] text-[#075E54] dark:text-[#E9EDEF]"
+                    : "border-[#E4E7EF] dark:border-[#2A3942] text-[#8B92A9] hover:border-[#25D366] hover:text-[#075E54]"
+                }`}>
+                <span className="mr-1">{m.icon}</span>{m.label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          {/* Campaign mode */}
+        {/* Mode-specific fields */}
+        <div className="bg-white dark:bg-[#202C33] rounded-2xl p-4 shadow-sm space-y-3">
           {mode === "campaign" && (
             <div>
-              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign <span className="text-[#DC2626]">*</span></label>
+              <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">
+                Campaign <span className="text-[#DC2626]">*</span>
+              </label>
               <select value={form.campaign} onChange={(e) => setForm((p) => ({ ...p, campaign: e.target.value }))} className={FIELD_CLS}>
                 <option value="">— Select campaign —</option>
                 {campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               {leadCount !== null && (
                 <p className="text-[11px] text-[#8B92A9] mt-1">
-                  <span className="font-bold text-[#EA580C]">{leadCount}</span>{" "}
-                  leads <span className="text-[#8B92A9]">with mobile numbers will receive this SMS</span>
+                  <span className="font-bold text-[#EA580C]">{leadCount}</span> leads with mobile numbers
                 </p>
               )}
             </div>
           )}
 
-          {/* Single mode */}
           {mode === "single" && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Recipient name</label>
+                <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">Recipient Name</label>
                 <input type="text" value={singleLead.name} onChange={(e) => setSingleLead((p) => ({ ...p, name: e.target.value }))} placeholder="Rahul Sharma" className={FIELD_CLS} />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Mobile number <span className="text-[#DC2626]">*</span></label>
+                <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">Mobile <span className="text-[#DC2626]">*</span></label>
                 <input type="tel" value={singleLead.mobile} onChange={(e) => setSingleLead((p) => ({ ...p, mobile: e.target.value }))} placeholder="919876543210" className={FIELD_CLS} />
               </div>
             </div>
           )}
 
-          {/* CSV mode */}
           {mode === "csv" && (
             <div>
-              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Paste CSV (name, mobile) <span className="text-[#DC2626]">*</span></label>
-              <textarea value={csvText} onChange={(e) => { setCsvText(e.target.value); setCsvParsed(null); setCsvError(""); }} rows={4} className={FIELD_CLS + " font-mono text-[12px] resize-y"} placeholder="name,mobile&#10;Rahul,919876543210" />
+              <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">Paste CSV (name, mobile) <span className="text-[#DC2626]">*</span></label>
+              <textarea value={csvText} onChange={(e) => { setCsvText(e.target.value); setCsvParsed(null); setCsvError(""); }} rows={4} className={FIELD_CLS + " font-mono text-[11px] resize-y"} />
               <div className="flex items-center gap-2 mt-1.5">
-                <button onClick={parseCsv} className="px-3 py-1.5 rounded-lg bg-[#F1F5F9] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] hover:border-[#EA580C] hover:text-[#EA580C] transition">Parse CSV</button>
+                <button onClick={parseCsv} className="px-3 py-1.5 rounded-lg bg-[#F1F5F9] dark:bg-[#2A3942] text-[11px] font-semibold text-[#4B5168] hover:border-[#25D366] hover:text-[#075E54] border border-[#E4E7EF] dark:border-[#2A3942] transition">Parse CSV</button>
                 {csvParsed && <span className="text-[11px] text-[#059669] font-semibold">✓ {csvParsed.length} valid rows</span>}
                 {csvError  && <span className="text-[11px] text-[#DC2626]">⚠ {csvError}</span>}
               </div>
@@ -1870,137 +1978,288 @@ function SmsBlastModal({ onClose }) {
           )}
 
           {/* MSG91 config */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[#F1F5F9] dark:border-[#2A3942]">
             <div>
-              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">DLT Template ID</label>
+              <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">DLT Template ID</label>
               <input type="text" value={templateId} onChange={(e) => setTemplateId(e.target.value)} placeholder="1234567890123456789" className={FIELD_CLS} />
-              <p className="text-[10px] text-[#8B92A9] mt-1">From MSG91 dashboard → DLT</p>
+              <p className="text-[10px] text-[#8B92A9] mt-0.5">MSG91 → DLT dashboard</p>
             </div>
             <div>
-              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Sender ID</label>
+              <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">Sender ID</label>
               <input type="text" maxLength={6} value={senderId} onChange={(e) => setSenderId(e.target.value.toUpperCase())} placeholder="SKYCRM" className={FIELD_CLS} />
-              <p className="text-[10px] text-[#8B92A9] mt-1">6-char DLT-approved sender ID</p>
+              <p className="text-[10px] text-[#8B92A9] mt-0.5">6-char DLT-approved</p>
             </div>
           </div>
+        </div>
 
-          {/* Message body */}
+        {/* Message body */}
+        <div className="bg-white dark:bg-[#202C33] rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] uppercase tracking-wide">
+              Message <span className="text-[#DC2626]">*</span>
+            </label>
+            <div className="flex items-center gap-1 flex-wrap justify-end">
+              {MERGE_TAGS.map((tag) => (
+                <button key={tag} onClick={() => setMessage((m) => m + tag)}
+                  className="px-2 py-0.5 rounded-md bg-[#DCF8C6] dark:bg-[#005C4B] text-[#075E54] dark:text-[#E9EDEF] text-[10px] font-mono font-bold hover:opacity-80 transition">
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={4}
+            className={FIELD_CLS + " resize-y"}
+            placeholder={`Hi {{name}}, this is a message from SkyUp CRM.`}
+          />
+          <div className="flex items-center justify-between mt-1.5">
+            <p className="text-[10px] text-[#8B92A9]">
+              <span className={charCount > 160 ? "text-[#EA580C] font-bold" : ""}>{charCount}</span> chars ·{" "}
+              <span className={smsCount > 1 ? "text-[#EA580C] font-bold" : ""}>{smsCount} SMS</span>/recipient
+            </p>
+            <p className="text-[10px] text-[#8B92A9]">→ <strong className="text-[#EA580C]">{recipientLabel}</strong></p>
+          </div>
+        </div>
+
+        {/* Live preview — looks like a real chat bubble */}
+        {message.trim() && (
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">Message <span className="text-[#DC2626]">*</span></label>
-              <div className="flex items-center gap-2">
-                {MERGE_TAGS.map((tag) => (
-                  <button key={tag} onClick={() => setMessage((m) => m + tag)}
-                    className="px-2 py-0.5 rounded-md bg-[#FFF7ED] dark:bg-[#1c0a00] text-[#EA580C] text-[10px] font-mono font-bold hover:bg-orange-200 transition">
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={5}
-              className={FIELD_CLS + " resize-y"}
-              placeholder="Hi {{name}}, this is a message from SkyUp CRM. Reply STOP to opt out."
-            />
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-[10px] text-[#8B92A9]">
-                <span className={charCount > 160 ? "text-[#EA580C] font-bold" : ""}>{charCount}</span> chars ·{" "}
-                <span className={smsCount > 1 ? "text-[#EA580C] font-bold" : ""}>{smsCount} SMS</span> per recipient
-              </p>
-              <p className="text-[10px] text-[#8B92A9]">Will send to <strong className="text-[#EA580C]">{recipientLabel}</strong></p>
-            </div>
-          </div>
-
-          {/* Live preview */}
-          {message.trim() && (
-            <div>
-              <p className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-2">Preview</p>
-              <div className="bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-4">
-                <div className="inline-block bg-[#EA580C] text-white text-[13px] rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-xs leading-relaxed">
-                  {message
-                    .replace(/{{name}}/g, singleLead.name || "Rahul Sharma")
-                    .replace(/{{mobile}}/g, singleLead.mobile || "9876543210")
-                    .replace(/{{campaign}}/g, form.campaign || "Campaign")
-                    .replace(/{{email}}/g, "rahul@example.com")}
+            <p className="text-[10px] font-semibold text-[#667781] dark:text-[#8696A0] uppercase tracking-wide text-center mb-2">Preview</p>
+            <div className="flex justify-end px-2">
+              <div className="max-w-[75%] bg-[#DCF8C6] dark:bg-[#005C4B] rounded-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
+                <p className="text-[13px] text-[#111B21] dark:text-[#E9EDEF] leading-relaxed whitespace-pre-wrap">{previewMsg}</p>
+                <div className="flex items-center justify-end gap-1 mt-1">
+                  <span className="text-[10px] text-[#667781] dark:text-[#8696A0]">now</span>
+                  <svg className="w-4 h-4 text-[#34B7F1]" viewBox="0 0 16 11" fill="currentColor">
+                    <path d="M11.071.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.092-.013l-3-3.5a.75.75 0 1 1 1.14-.977l2.46 2.87 5.908-6.415a.75.75 0 0 1 1.059-.025z"/>
+                    <path d="M14.071.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.085.013L4.54 6.653a.75.75 0 0 1 1.14-.977l1.502 1.752 5.83-6.75a.75.75 0 0 1 1.059-.025z"/>
+                  </svg>
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">⚠ {error}</div>}
-        </div>
+        {error && (
+          <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">⚠ {error}</div>
+        )}
+      </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-end gap-3 shrink-0">
-          <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] hover:border-[#EA580C] hover:text-[#EA580C] transition">Cancel</button>
-          <button
-            onClick={handleSend}
-            disabled={loading || !isValid}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#EA580C] text-white text-[13px] font-semibold hover:bg-orange-700 disabled:opacity-50 transition"
-          >
-            {loading
-              ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg> Sending…</>
-              : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Send SMS</>}
-          </button>
+      {/* Send bar — mimics WhatsApp input bar */}
+      <div className="bg-[#F0F2F5] dark:bg-[#202C33] px-4 py-3 flex items-center gap-3 shrink-0 border-t border-[#E4E7EF] dark:border-[#2A3942]">
+        <div className="flex-1 bg-white dark:bg-[#2A3942] rounded-full px-4 py-2.5 text-[12px] text-[#667781] dark:text-[#8696A0] select-none">
+          {message.trim()
+            ? <span className="text-[#111B21] dark:text-[#E9EDEF] truncate block">{message.slice(0, 60)}{message.length > 60 ? "…" : ""}</span>
+            : "Compose your message above…"
+          }
         </div>
+        <button
+          onClick={handleSend}
+          disabled={loading || !isValid}
+          className="w-11 h-11 rounded-full bg-[#25D366] hover:bg-[#20B858] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition shadow-md"
+        >
+          {loading
+            ? <svg className="w-5 h-5 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+            : <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+          }
+        </button>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ── SMS PANEL (history + blast button) ───────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-function SmsStatusBadge({ status }) {
-  return status === "sent"
-    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#DCFCE7] dark:bg-[#052E16] text-[#16A34A] text-[11px] font-semibold">✓ Sent</span>
-    : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] dark:bg-[#2D0A0A] text-[#DC2626] text-[11px] font-semibold">✗ Failed</span>;
-}
+// ── Lead Thread view (right panel when a lead is selected) ───────────────────
+function SmsLeadThread({ lead, onBack, onSend }) {
+  const [logs,    setLogs]    = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [templateId, setTemplateId] = useState("");
+  const [senderId,   setSenderId]   = useState("");
+  const [sending, setSending] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const bottomRef = useRef(null);
 
-function SmsSkeletonRow() {
+  useEffect(() => {
+    setLoading(true);
+    api.get(`/sms/history?search=${encodeURIComponent(lead.to)}&limit=100&sortOrder=asc`)
+      .then((r) => setLogs(r.data.data || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [lead.to]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
+  const handleSend = async () => {
+    if (!message.trim()) return;
+    setSending(true);
+    try {
+      await api.post("/sms-campaign/send-single", {
+        name: lead.recipientName || "",
+        mobile: lead.to,
+        message,
+        templateId: templateId || undefined,
+        senderId:   senderId   || undefined,
+      });
+      // Optimistically add the message
+      setLogs((prev) => [...prev, {
+        _id: Date.now(),
+        to: lead.to,
+        recipientName: lead.recipientName,
+        message,
+        status: "sent",
+        sentAt: new Date().toISOString(),
+        campaignId: null,
+      }]);
+      setMessage("");
+      if (onSend) onSend();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to send SMS");
+    } finally { setSending(false); }
+  };
+
+  const name = lead.recipientName || lead.to;
+
   return (
-    <tr className="border-b border-[#E4E7EF] dark:border-[#262A38]">
-      {[140, 220, 100, 80, 120].map((w, i) => (
-        <td key={i} className="px-4 py-3">
-          <div className="h-3.5 rounded-md bg-[#F1F5F9] dark:bg-[#1A1D27] animate-pulse" style={{ width: w }} />
-        </td>
-      ))}
-    </tr>
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Thread header */}
+      <div className="bg-[#075E54] dark:bg-[#202C33] px-4 py-3 flex items-center gap-3 shrink-0">
+        <button onClick={onBack} className="text-white/70 hover:text-white transition mr-1 lg:hidden">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <SmsAvatar name={name} size="sm" />
+        <div className="flex-1 min-w-0">
+          <h3 className="text-[14px] font-semibold text-white leading-none truncate">{name}</h3>
+          <p className="text-[11px] text-[#8FB8A8] mt-0.5">{lead.to} {lead.campaignId ? `· ${lead.campaignId}` : ""}</p>
+        </div>
+        <button
+          onClick={() => setShowConfig((s) => !s)}
+          className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white/70 hover:text-white transition"
+          title="MSG91 settings"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        </button>
+      </div>
+
+      {/* MSG91 config drawer */}
+      {showConfig && (
+        <div className="bg-[#F0F2F5] dark:bg-[#202C33] px-4 py-3 border-b border-[#E4E7EF] dark:border-[#2A3942] flex gap-3 shrink-0">
+          <div className="flex-1">
+            <label className="block text-[10px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1">DLT Template ID</label>
+            <input type="text" value={templateId} onChange={(e) => setTemplateId(e.target.value)} placeholder="1234567890123456789" className={FIELD_CLS} />
+          </div>
+          <div className="flex-1">
+            <label className="block text-[10px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1">Sender ID</label>
+            <input type="text" maxLength={6} value={senderId} onChange={(e) => setSenderId(e.target.value.toUpperCase())} placeholder="SKYCRM" className={FIELD_CLS} />
+          </div>
+        </div>
+      )}
+
+      {/* Messages area */}
+      <div
+        className="flex-1 overflow-y-auto py-4"
+        style={{ background: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }}
+      >
+        {loading ? (
+          <div className="flex justify-center items-center h-full">
+            <svg className="w-6 h-6 animate-spin text-[#25D366]" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-2 opacity-60">
+            <svg className="w-12 h-12 text-[#667781]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+            <p className="text-[13px] text-[#667781] dark:text-[#8696A0]">No messages yet</p>
+          </div>
+        ) : (
+          logs.map((log) => <SmsBubble key={log._id} log={log} />)
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input bar */}
+      <div className="bg-[#F0F2F5] dark:bg-[#202C33] px-3 py-2.5 flex items-end gap-2 shrink-0">
+        <div className="flex-1 bg-white dark:bg-[#2A3942] rounded-2xl px-4 py-2 min-h-[42px] flex items-center">
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            rows={1}
+            placeholder="Type a message"
+            className="w-full bg-transparent text-[13px] text-[#111B21] dark:text-[#E9EDEF] placeholder:text-[#8B92A9] resize-none focus:outline-none leading-relaxed"
+            style={{ maxHeight: "100px", overflowY: "auto" }}
+          />
+        </div>
+        <button
+          onClick={handleSend}
+          disabled={sending || !message.trim()}
+          className="w-11 h-11 rounded-full bg-[#25D366] hover:bg-[#20B858] disabled:opacity-40 flex items-center justify-center transition shadow-md shrink-0"
+        >
+          {sending
+            ? <svg className="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+            : <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          }
+        </button>
+      </div>
+    </div>
   );
 }
 
+// ── Main SMS Panel ────────────────────────────────────────────────────────────
 function SmsPanel() {
-  const [logs,           setLogs]           = useState([]);
-  const [loading,        setLoading]        = useState(true);
-  const [error,          setError]          = useState("");
-  const [showBlast,      setShowBlast]      = useState(false);
-  const [campaigns,      setCampaigns]      = useState([]);
-  const [search,         setSearch]         = useState("");
-  const [campaignFilter, setCampaignFilter] = useState("");
-  const [sortOrder,      setSortOrder]      = useState("desc");
-  const [dateFrom,       setDateFrom]       = useState("");
-  const [dateTo,         setDateTo]         = useState("");
-  const [deletingId,     setDeletingId]     = useState(null);
-  const [exportLoading,  setExportLoading]  = useState(false);
-  const [pagination,     setPagination]     = useState({ page: 1, total: 0, totalPages: 1 });
+  const [leads,         setLeads]         = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [search,        setSearch]        = useState("");
+  const [selectedLead,  setSelectedLead]  = useState(null); // null = show blast composer
+  const [showComposer,  setShowComposer]  = useState(false);
+  const [campaignFilter,setCampaignFilter]= useState("");
+  const [campaigns,     setCampaigns]     = useState([]);
+  const [stats,         setStats]         = useState({ total: 0, sent: 0, failed: 0 });
   const debounceRef = useRef(null);
 
-  const fetchLogs = useCallback(async (page = 1, s = search, camp = campaignFilter, sort = sortOrder, from = dateFrom, to = dateTo) => {
-    setLoading(true); setError("");
+  const fetchLeads = useCallback(async (s = search, camp = campaignFilter) => {
+    setLoading(true);
     try {
-      const params = new URLSearchParams({ page, limit: 50, search: s, campaignId: camp, sortOrder: sort });
-      if (from) params.set("dateFrom", from);
-      if (to)   params.set("dateTo", to);
+      const params = new URLSearchParams({ page: 1, limit: 100, search: s, campaignId: camp, sortOrder: "desc" });
       const res = await api.get(`/sms/history?${params}`);
-      setLogs(res.data.data || []);
-      setPagination(res.data.pagination || { page: 1, total: 0, totalPages: 1 });
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to load SMS history");
-    } finally { setLoading(false); }
-  }, [search, campaignFilter, sortOrder, dateFrom, dateTo]);
+      const data = res.data.data || [];
 
-  useEffect(() => { fetchLogs(1); }, []);
+      // Group by phone number — build lead-level aggregations
+      const byPhone = {};
+      data.forEach((log) => {
+        const key = log.to;
+        if (!byPhone[key]) {
+          byPhone[key] = {
+            to: key,
+            recipientName: log.recipientName || "",
+            campaignId: log.campaignId || null,
+            sentCount: 0,
+            failedCount: 0,
+            lastMessage: "",
+            lastSentAt: null,
+          };
+        }
+        if (log.status === "sent")   byPhone[key].sentCount++;
+        if (log.status === "failed") byPhone[key].failedCount++;
+        if (!byPhone[key].lastSentAt || new Date(log.sentAt) > new Date(byPhone[key].lastSentAt)) {
+          byPhone[key].lastSentAt  = log.sentAt;
+          byPhone[key].lastMessage = log.message;
+        }
+      });
+
+      const leadList = Object.values(byPhone).sort((a, b) => new Date(b.lastSentAt) - new Date(a.lastSentAt));
+      setLeads(leadList);
+      setStats({
+        total:  res.data.pagination?.total || 0,
+        sent:   data.filter((l) => l.status === "sent").length,
+        failed: data.filter((l) => l.status === "failed").length,
+      });
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, [search, campaignFilter]);
+
+  useEffect(() => { fetchLeads(); }, []);
   useEffect(() => {
     api.get("/sms/history/campaigns").then((r) => setCampaigns(r.data.data || [])).catch(() => {});
   }, []);
@@ -2008,175 +2267,141 @@ function SmsPanel() {
   const handleSearchChange = (val) => {
     setSearch(val);
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchLogs(1, val, campaignFilter, sortOrder), 400);
+    debounceRef.current = setTimeout(() => fetchLeads(val, campaignFilter), 400);
   };
 
-  const handleExportCSV = async () => {
-    setExportLoading(true);
-    try {
-      const params = new URLSearchParams({ page: 1, limit: 5000, search, campaignId: campaignFilter, sortOrder });
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo)   params.set("dateTo", dateTo);
-      const res  = await api.get(`/sms/history?${params}`);
-      const data = res.data.data || [];
-      if (data.length === 0) { alert("No records to export"); return; }
-      const headers = ["Mobile","Recipient","Message","Campaign","Status","Sent At","Error"];
-      const rows    = data.map((l) => [
-        `"${l.to}"`, `"${l.recipientName || ""}"`,
-        `"${(l.message || "").replace(/"/g, '""').slice(0, 100)}"`,
-        `"${l.campaignId || ""}"`, l.status, fmtDate(l.sentAt), `"${l.errorMessage || ""}"`
-      ]);
-      const csv  = [headers, ...rows].map((r) => r.join(",")).join("\n");
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a"); a.href = url; a.download = `sms-history-${Date.now()}.csv`; a.click();
-      URL.revokeObjectURL(url);
-    } catch { alert("Export failed"); }
-    finally { setExportLoading(false); }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this SMS log?")) return;
-    setDeletingId(id);
-    try { await api.delete(`/sms/history/${id}`); fetchLogs(pagination.page); }
-    catch { alert("Failed to delete log"); }
-    finally { setDeletingId(null); }
-  };
-
-  const sentCount   = logs.filter((l) => l.status === "sent").length;
-  const failedCount = logs.filter((l) => l.status === "failed").length;
+  const filteredLeads = leads.filter((l) =>
+    (!search || l.to.includes(search) || (l.recipientName || "").toLowerCase().includes(search.toLowerCase()))
+  );
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
-        <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">
-          {loading ? "Loading…" : `${pagination.total.toLocaleString()} total SMS logged`}
-        </p>
-        <div className="flex items-center gap-2">
-          <button onClick={() => fetchLogs(pagination.page)} className="w-9 h-9 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#EA580C] hover:border-[#EA580C] transition" title="Refresh">
-            <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-          </button>
-          <button onClick={handleExportCSV} disabled={exportLoading} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#059669] text-white text-[13px] font-semibold hover:bg-green-700 disabled:opacity-50 transition">
-            {exportLoading
-              ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
-              : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>}
-            Export CSV
-          </button>
-          <button onClick={() => setShowBlast(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#EA580C] text-white text-[13px] font-semibold hover:bg-orange-700 transition">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-            Send SMS
-          </button>
-        </div>
-      </div>
+    <div className="flex h-full overflow-hidden rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] shadow-sm">
 
-      {/* Summary chips */}
-      <div className="flex flex-wrap gap-2 mb-4 shrink-0">
-        {[
-          { label: "This page", value: logs.length,      color: "#EA580C" },
-          { label: "Sent",      value: sentCount,         color: "#059669" },
-          { label: "Failed",    value: failedCount,       color: "#DC2626" },
-          { label: "All time",  value: pagination.total,  color: "#7C3AED" },
-        ].map((s) => (
-          <div key={s.label} className="flex items-center gap-2 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl px-3 py-2">
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
-            <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{s.value.toLocaleString()}</span>
-            <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">{s.label}</span>
+      {/* ── LEFT: Lead sidebar ─────────────────────────────────────────────── */}
+      <div className={`w-[340px] shrink-0 flex flex-col bg-white dark:bg-[#111B21] border-r border-[#E4E7EF] dark:border-[#2A3942] ${selectedLead || showComposer ? "hidden lg:flex" : "flex"}`}>
+
+        {/* Sidebar header */}
+        <div className="bg-[#075E54] dark:bg-[#202C33] px-4 py-3 flex items-center justify-between shrink-0">
+          <div>
+            <h2 className="text-[15px] font-bold text-white leading-none">SMS</h2>
+            <p className="text-[11px] text-[#8FB8A8] mt-0.5">{stats.total} total messages</p>
           </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 mb-4 shrink-0">
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
-          <input type="text" value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Search by mobile…" className="pl-8 pr-4 py-2 w-full rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#EA580C] transition" />
-          {search && <button onClick={() => handleSearchChange("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9]"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>}
+          <button
+            onClick={() => { setSelectedLead(null); setShowComposer(true); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#25D366] hover:bg-[#20B858] text-white text-[12px] font-semibold transition"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+            Blast
+          </button>
         </div>
-        <select value={campaignFilter} onChange={(e) => { setCampaignFilter(e.target.value); fetchLogs(1, search, e.target.value, sortOrder); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#EA580C] transition">
-          <option value="">All Campaigns</option>
-          {campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => { setDateFrom(e.target.value); fetchLogs(1, search, campaignFilter, sortOrder, e.target.value, dateTo); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#EA580C] transition w-[140px]" />
-        <span className="text-[12px] text-[#8B92A9]">to</span>
-        <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => { setDateTo(e.target.value); fetchLogs(1, search, campaignFilter, sortOrder, dateFrom, e.target.value); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#EA580C] transition w-[140px]" />
-        {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); fetchLogs(1, search, campaignFilter, sortOrder, "", ""); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] text-[#8B92A9] hover:text-[#DC2626] hover:border-[#DC2626] transition">✕ Clear</button>}
-        <select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); fetchLogs(1, search, campaignFilter, e.target.value, dateFrom, dateTo); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#EA580C] transition">
-          <option value="desc">Newest first</option>
-          <option value="asc">Oldest first</option>
-        </select>
+
+        {/* Stats chips */}
+        <div className="flex gap-2 px-4 py-2 bg-[#F0F2F5] dark:bg-[#202C33] border-b border-[#E4E7EF] dark:border-[#2A3942] shrink-0">
+          <div className="flex items-center gap-1.5 bg-white dark:bg-[#2A3942] rounded-lg px-2.5 py-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#059669]" />
+            <span className="text-[11px] font-bold text-[#111B21] dark:text-[#E9EDEF]">{stats.sent}</span>
+            <span className="text-[10px] text-[#667781]">sent</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-white dark:bg-[#2A3942] rounded-lg px-2.5 py-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#DC2626]" />
+            <span className="text-[11px] font-bold text-[#111B21] dark:text-[#E9EDEF]">{stats.failed}</span>
+            <span className="text-[10px] text-[#667781]">failed</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-white dark:bg-[#2A3942] rounded-lg px-2.5 py-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#7C3AED]" />
+            <span className="text-[11px] font-bold text-[#111B21] dark:text-[#E9EDEF]">{leads.length}</span>
+            <span className="text-[10px] text-[#667781]">leads</span>
+          </div>
+        </div>
+
+        {/* Search + campaign filter */}
+        <div className="px-3 py-2 bg-[#F0F2F5] dark:bg-[#202C33] flex gap-2 border-b border-[#E4E7EF] dark:border-[#2A3942] shrink-0">
+          <div className="relative flex-1">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search contacts…"
+              className="w-full pl-8 pr-3 py-2 bg-white dark:bg-[#2A3942] rounded-xl text-[12px] text-[#111B21] dark:text-[#E9EDEF] placeholder:text-[#8B92A9] focus:outline-none"
+            />
+          </div>
+          <select
+            value={campaignFilter}
+            onChange={(e) => { setCampaignFilter(e.target.value); fetchLeads(search, e.target.value); }}
+            className="px-2 py-2 bg-white dark:bg-[#2A3942] rounded-xl text-[11px] text-[#111B21] dark:text-[#E9EDEF] focus:outline-none"
+          >
+            <option value="">All</option>
+            {campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        {/* Lead list */}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-[#F0F2FA] dark:border-[#1E2130]">
+                <div className="w-11 h-11 rounded-full bg-[#F1F5F9] dark:bg-[#1A1D27] animate-pulse shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-32 rounded bg-[#F1F5F9] dark:bg-[#1A1D27] animate-pulse" />
+                  <div className="h-2.5 w-48 rounded bg-[#F1F5F9] dark:bg-[#1A1D27] animate-pulse" />
+                </div>
+              </div>
+            ))
+          ) : filteredLeads.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3 p-8 opacity-60">
+              <div className="text-4xl">📱</div>
+              <p className="text-[13px] text-[#667781] text-center">No SMS contacts yet. Send your first blast!</p>
+            </div>
+          ) : (
+            filteredLeads.map((lead) => (
+              <SmsLeadRow
+                key={lead.to}
+                lead={lead}
+                isActive={selectedLead?.to === lead.to}
+                onClick={() => { setSelectedLead(lead); setShowComposer(false); }}
+              />
+            ))
+          )}
+        </div>
       </div>
 
-      {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] mb-3 shrink-0">⚠ {error}</div>}
-
-      {/* Table */}
-      <div className="flex-1 overflow-auto bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
-              {["Mobile","Recipient","Message","Campaign","Status","Sent At",""].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-[11px] font-bold text-[#8B92A9] uppercase tracking-wide whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#E4E7EF] dark:divide-[#262A38]">
-            {loading ? Array.from({ length: 6 }).map((_, i) => <SmsSkeletonRow key={i} />) : logs.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-16 text-center">
-                <div className="text-[36px] mb-3">📱</div>
-                <p className="text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No SMS logs found</p>
-                <p className="text-[12px] text-[#8B92A9] mt-1">{search || campaignFilter || dateFrom || dateTo ? "Try clearing your filters." : "Send SMS blasts to start tracking history."}</p>
-              </td></tr>
-            ) : logs.map((log) => (
-              <tr key={log._id} className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition-colors">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-[#fff7ed] dark:bg-[#1c0a00] flex items-center justify-center shrink-0">
-                      <svg className="w-3.5 h-3.5 text-[#EA580C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                    </div>
-                    <span className="text-[12px] font-medium text-[#0F1117] dark:text-[#F0F2FA]">{log.to}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3"><span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{log.recipientName || "—"}</span></td>
-                <td className="px-4 py-3"><span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] max-w-[220px] truncate block" title={log.message}>{log.message}</span></td>
-                <td className="px-4 py-3">
-                  {log.campaignId ? <span className="inline-block px-2.5 py-1 rounded-full bg-[#FFF7ED] dark:bg-[#1c0a00] text-[#EA580C] text-[11px] font-semibold max-w-[120px] truncate">{log.campaignId}</span> : <span className="text-[12px] text-[#8B92A9]">—</span>}
-                </td>
-                <td className="px-4 py-3"><SmsStatusBadge status={log.status} /></td>
-                <td className="px-4 py-3"><span className="text-[12px] text-[#8B92A9] whitespace-nowrap">{fmtDate(log.sentAt)}</span></td>
-                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => handleDelete(log._id)} disabled={deletingId === log._id} className="p-1.5 rounded-lg text-[#8B92A9] hover:text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#2D0A0A] transition disabled:opacity-40" title="Delete">
-                    {deletingId === log._id
-                      ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
-                      : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Pagination */}
-        {pagination.totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
-            <span className="text-[12px] text-[#8B92A9]">Page {pagination.page} of {pagination.totalPages} · {pagination.total} total</span>
-            <div className="flex items-center gap-1.5">
-              <button disabled={pagination.page <= 1} onClick={() => fetchLogs(pagination.page - 1)} className="px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] disabled:opacity-40 hover:border-[#EA580C] hover:text-[#EA580C] transition">← Prev</button>
-              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                const start = Math.max(1, Math.min(pagination.page - 2, pagination.totalPages - 4));
-                const p = start + i;
-                if (p > pagination.totalPages) return null;
-                return <button key={p} onClick={() => fetchLogs(p)} className={`w-8 h-8 rounded-lg text-[12px] font-semibold transition ${p === pagination.page ? "bg-[#EA580C] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] hover:border-[#EA580C] hover:text-[#EA580C]"}`}>{p}</button>;
-              })}
-              <button disabled={pagination.page >= pagination.totalPages} onClick={() => fetchLogs(pagination.page + 1)} className="px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] disabled:opacity-40 hover:border-[#EA580C] hover:text-[#EA580C] transition">Next →</button>
+      {/* ── RIGHT: Chat/Composer area ──────────────────────────────────────── */}
+      <div className={`flex-1 flex flex-col overflow-hidden ${!selectedLead && !showComposer ? "hidden lg:flex" : "flex"}`}>
+        {selectedLead ? (
+          <SmsLeadThread
+            lead={selectedLead}
+            onBack={() => setSelectedLead(null)}
+            onSend={() => fetchLeads()}
+          />
+        ) : showComposer ? (
+          <SmsBlastComposer onSent={() => { setShowComposer(false); fetchLeads(); }} />
+        ) : (
+          /* Empty state when nothing selected on desktop */
+          <div className="flex-1 flex flex-col items-center justify-center bg-[#EFEAE2] dark:bg-[#0B141A] gap-4">
+            <div className="w-20 h-20 rounded-full bg-[#EA580C]/10 flex items-center justify-center">
+              <svg className="w-10 h-10 text-[#EA580C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+              </svg>
             </div>
+            <div className="text-center">
+              <h3 className="text-[16px] font-bold text-[#111B21] dark:text-[#E9EDEF]">SMS Communications</h3>
+              <p className="text-[13px] text-[#667781] dark:text-[#8696A0] mt-1">Select a contact to view thread or blast to send SMS</p>
+            </div>
+            <button
+              onClick={() => setShowComposer(true)}
+              className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#25D366] hover:bg-[#20B858] text-white text-[13px] font-semibold transition shadow-md"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+              Send SMS Blast
+            </button>
           </div>
         )}
       </div>
-
-      {showBlast && <SmsBlastModal onClose={() => setShowBlast(false)} />}
     </div>
   );
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ── MAIN COMMUNICATIONS PAGE ──────────────────────────────────────────────────
@@ -2208,7 +2433,7 @@ export default function Communications({ currentUser }) {
           </div>
         )}
         {tab === "sms" && (
-          <div className="h-full flex flex-col" style={{ height: "calc(100vh - 160px)" }}>
+          <div className="h-full" style={{ height: "calc(100vh - 160px)" }}>
             <SmsPanel />
           </div>
         )}
