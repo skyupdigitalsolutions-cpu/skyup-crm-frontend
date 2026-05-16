@@ -85,6 +85,17 @@ function TabNav({ active, onChange }) {
       activeColor: "text-[#7C3AED] border-[#7C3AED]",
       activeBg: "bg-[#f5f3ff] dark:bg-[#1e1040]",
     },
+    {
+      key: "sms",
+      label: "SMS",
+      icon: (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+        </svg>
+      ),
+      activeColor: "text-[#EA580C] border-[#EA580C]",
+      activeBg: "bg-[#fff7ed] dark:bg-[#1c0a00]",
+    },
   ];
 
   return (
@@ -1659,6 +1670,515 @@ function EmailPanel() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── SMS BLAST MODAL ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+function SmsBlastModal({ onClose }) {
+  const [mode,       setMode]       = useState("campaign"); // "campaign" | "single" | "csv"
+  const [form,       setForm]       = useState({ campaign: "" });
+  const [singleLead, setSingleLead] = useState({ name: "", mobile: "" });
+  const [csvText,    setCsvText]    = useState("name,mobile\nRahul Sharma,919876543210\nPriya Patel,919988776655");
+  const [csvParsed,  setCsvParsed]  = useState(null);
+  const [csvError,   setCsvError]   = useState("");
+  const [message,    setMessage]    = useState("");
+  const [templateId, setTemplateId] = useState("");
+  const [senderId,   setSenderId]   = useState("");
+  const [leadCount,  setLeadCount]  = useState(null);
+  const [campaigns,  setCampaigns]  = useState([]);
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState("");
+  const [result,     setResult]     = useState(null);
+
+  const MERGE_TAGS = ["{{name}}", "{{mobile}}", "{{email}}", "{{campaign}}"];
+  const charCount  = message.length;
+  const smsCount   = charCount === 0 ? 0 : Math.ceil(charCount / 160);
+
+  useEffect(() => {
+    api.get("/sms/history/campaigns").then((r) => setCampaigns(r.data.data || [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setLeadCount(null);
+    if (mode === "campaign" && form.campaign) {
+      api.get(`/sms-campaign/preview?campaign=${encodeURIComponent(form.campaign)}`)
+        .then((r) => setLeadCount(r.data.count))
+        .catch(() => {});
+    }
+  }, [form.campaign, mode]);
+
+  const parseCsv = () => {
+    setCsvError(""); setCsvParsed(null);
+    const lines  = csvText.trim().split("\n").filter(Boolean);
+    if (lines.length < 2) return setCsvError("CSV needs a header row + at least one data row");
+    const header   = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const mobileIdx = header.indexOf("mobile");
+    if (mobileIdx === -1) return setCsvError("CSV must have a 'mobile' column");
+    const nameIdx = header.indexOf("name");
+    const rows = lines.slice(1).map((line) => {
+      const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+      return { name: nameIdx !== -1 ? cols[nameIdx] : "Friend", mobile: cols[mobileIdx] };
+    }).filter((r) => r.mobile && r.mobile.replace(/\D/g, "").length >= 10);
+    if (rows.length === 0) return setCsvError("No valid mobile rows found (need 10+ digits)");
+    setCsvParsed(rows);
+  };
+
+  const handleSend = async () => {
+    if (!message.trim()) return setError("Message body is required");
+    setLoading(true); setError("");
+    try {
+      let res;
+      if (mode === "campaign") {
+        if (!form.campaign) return setError("Please select a campaign");
+        if (!window.confirm(`Send SMS to ${leadCount ?? "?"} leads in "${form.campaign}"?`)) { setLoading(false); return; }
+        res = await api.post("/sms-campaign/send", { campaign: form.campaign, message, templateId: templateId || undefined, senderId: senderId || undefined });
+      } else if (mode === "single") {
+        if (!singleLead.mobile) return setError("Mobile number is required");
+        if (!window.confirm(`Send SMS to ${singleLead.name || singleLead.mobile}?`)) { setLoading(false); return; }
+        res = await api.post("/sms-campaign/send-single", { name: singleLead.name, mobile: singleLead.mobile, message, templateId: templateId || undefined, senderId: senderId || undefined });
+      } else {
+        if (!csvParsed) return setError("Parse your CSV first");
+        if (!window.confirm(`Send SMS to ${csvParsed.length} recipients from CSV?`)) { setLoading(false); return; }
+        res = await api.post("/sms-campaign/send-csv", { recipients: csvParsed, message, templateId: templateId || undefined, senderId: senderId || undefined });
+      }
+      setResult({ success: true, message: res.data.message, total: res.data.total });
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.error || "Failed to send SMS";
+      setError(msg);
+    } finally { setLoading(false); }
+  };
+
+  const recipientLabel =
+    mode === "campaign" && leadCount !== null ? `${leadCount} leads` :
+    mode === "single"   && singleLead.mobile  ? "1 recipient"         :
+    mode === "csv"      && csvParsed          ? `${csvParsed.length} recipients` : "recipients";
+
+  const isValid = message.trim() && (
+    mode === "campaign" ? !!form.campaign :
+    mode === "single"   ? !!singleLead.mobile :
+    !!csvParsed
+  );
+
+  if (result) return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="w-16 h-16 rounded-full bg-[#fff7ed] dark:bg-[#1c0a00] flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-[#EA580C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+          </svg>
+        </div>
+        <h3 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">SMS Blast Started!</h3>
+        <p className="text-[13px] text-[#8B92A9] mb-6">{result.message}</p>
+        <button onClick={onClose} className="px-6 py-2.5 rounded-xl bg-[#EA580C] text-white text-[13px] font-semibold hover:bg-orange-700 transition">Done</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#fff7ed] dark:bg-[#1c0a00] flex items-center justify-center">
+              <svg className="w-5 h-5 text-[#EA580C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Send SMS Blast</h2>
+              <p className="text-[11px] text-[#8B92A9] mt-0.5">Bulk SMS via MSG91 · DLT compliant</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] transition">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+          {/* DLT info banner */}
+          <div className="flex gap-2.5 bg-[#FFF7ED] dark:bg-[#1c0a00] border border-[#FED7AA] dark:border-[#78350f] rounded-xl px-4 py-3">
+            <span className="text-[14px] shrink-0 mt-0.5">📋</span>
+            <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] leading-relaxed">
+              MSG91 requires a <strong>DLT-registered Template ID</strong> for Indian numbers. Enter it below, or leave blank for non-DLT testing. Use merge tags like <code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{{name}}"}</code> to personalise messages.
+            </p>
+          </div>
+
+          {/* Mode selector */}
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-2">Send to</label>
+            <div className="flex gap-2">
+              {[
+                { key: "campaign", label: "CRM Campaign", icon: "🎯" },
+                { key: "single",   label: "Single Number", icon: "📱" },
+                { key: "csv",      label: "CSV Upload",    icon: "📄" },
+              ].map((m) => (
+                <button key={m.key} onClick={() => setMode(m.key)}
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-[12px] font-semibold border transition ${
+                    mode === m.key
+                      ? "bg-[#fff7ed] dark:bg-[#1c0a00] border-[#EA580C] text-[#EA580C]"
+                      : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-[#EA580C] hover:text-[#EA580C]"
+                  }`}>
+                  <span className="mr-1">{m.icon}</span>{m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Campaign mode */}
+          {mode === "campaign" && (
+            <div>
+              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign <span className="text-[#DC2626]">*</span></label>
+              <select value={form.campaign} onChange={(e) => setForm((p) => ({ ...p, campaign: e.target.value }))} className={FIELD_CLS}>
+                <option value="">— Select campaign —</option>
+                {campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {leadCount !== null && (
+                <p className="text-[11px] text-[#8B92A9] mt-1">
+                  <span className="font-bold text-[#EA580C]">{leadCount}</span>{" "}
+                  leads <span className="text-[#8B92A9]">with mobile numbers will receive this SMS</span>
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Single mode */}
+          {mode === "single" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Recipient name</label>
+                <input type="text" value={singleLead.name} onChange={(e) => setSingleLead((p) => ({ ...p, name: e.target.value }))} placeholder="Rahul Sharma" className={FIELD_CLS} />
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Mobile number <span className="text-[#DC2626]">*</span></label>
+                <input type="tel" value={singleLead.mobile} onChange={(e) => setSingleLead((p) => ({ ...p, mobile: e.target.value }))} placeholder="919876543210" className={FIELD_CLS} />
+              </div>
+            </div>
+          )}
+
+          {/* CSV mode */}
+          {mode === "csv" && (
+            <div>
+              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Paste CSV (name, mobile) <span className="text-[#DC2626]">*</span></label>
+              <textarea value={csvText} onChange={(e) => { setCsvText(e.target.value); setCsvParsed(null); setCsvError(""); }} rows={4} className={FIELD_CLS + " font-mono text-[12px] resize-y"} placeholder="name,mobile&#10;Rahul,919876543210" />
+              <div className="flex items-center gap-2 mt-1.5">
+                <button onClick={parseCsv} className="px-3 py-1.5 rounded-lg bg-[#F1F5F9] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] hover:border-[#EA580C] hover:text-[#EA580C] transition">Parse CSV</button>
+                {csvParsed && <span className="text-[11px] text-[#059669] font-semibold">✓ {csvParsed.length} valid rows</span>}
+                {csvError  && <span className="text-[11px] text-[#DC2626]">⚠ {csvError}</span>}
+              </div>
+            </div>
+          )}
+
+          {/* MSG91 config */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">DLT Template ID</label>
+              <input type="text" value={templateId} onChange={(e) => setTemplateId(e.target.value)} placeholder="1234567890123456789" className={FIELD_CLS} />
+              <p className="text-[10px] text-[#8B92A9] mt-1">From MSG91 dashboard → DLT</p>
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Sender ID</label>
+              <input type="text" maxLength={6} value={senderId} onChange={(e) => setSenderId(e.target.value.toUpperCase())} placeholder="SKYCRM" className={FIELD_CLS} />
+              <p className="text-[10px] text-[#8B92A9] mt-1">6-char DLT-approved sender ID</p>
+            </div>
+          </div>
+
+          {/* Message body */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">Message <span className="text-[#DC2626]">*</span></label>
+              <div className="flex items-center gap-2">
+                {MERGE_TAGS.map((tag) => (
+                  <button key={tag} onClick={() => setMessage((m) => m + tag)}
+                    className="px-2 py-0.5 rounded-md bg-[#FFF7ED] dark:bg-[#1c0a00] text-[#EA580C] text-[10px] font-mono font-bold hover:bg-orange-200 transition">
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={5}
+              className={FIELD_CLS + " resize-y"}
+              placeholder="Hi {{name}}, this is a message from SkyUp CRM. Reply STOP to opt out."
+            />
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-[10px] text-[#8B92A9]">
+                <span className={charCount > 160 ? "text-[#EA580C] font-bold" : ""}>{charCount}</span> chars ·{" "}
+                <span className={smsCount > 1 ? "text-[#EA580C] font-bold" : ""}>{smsCount} SMS</span> per recipient
+              </p>
+              <p className="text-[10px] text-[#8B92A9]">Will send to <strong className="text-[#EA580C]">{recipientLabel}</strong></p>
+            </div>
+          </div>
+
+          {/* Live preview */}
+          {message.trim() && (
+            <div>
+              <p className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-2">Preview</p>
+              <div className="bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-4">
+                <div className="inline-block bg-[#EA580C] text-white text-[13px] rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-xs leading-relaxed">
+                  {message
+                    .replace(/{{name}}/g, singleLead.name || "Rahul Sharma")
+                    .replace(/{{mobile}}/g, singleLead.mobile || "9876543210")
+                    .replace(/{{campaign}}/g, form.campaign || "Campaign")
+                    .replace(/{{email}}/g, "rahul@example.com")}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">⚠ {error}</div>}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-end gap-3 shrink-0">
+          <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] hover:border-[#EA580C] hover:text-[#EA580C] transition">Cancel</button>
+          <button
+            onClick={handleSend}
+            disabled={loading || !isValid}
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#EA580C] text-white text-[13px] font-semibold hover:bg-orange-700 disabled:opacity-50 transition"
+          >
+            {loading
+              ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg> Sending…</>
+              : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Send SMS</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── SMS PANEL (history + blast button) ───────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+function SmsStatusBadge({ status }) {
+  return status === "sent"
+    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#DCFCE7] dark:bg-[#052E16] text-[#16A34A] text-[11px] font-semibold">✓ Sent</span>
+    : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] dark:bg-[#2D0A0A] text-[#DC2626] text-[11px] font-semibold">✗ Failed</span>;
+}
+
+function SmsSkeletonRow() {
+  return (
+    <tr className="border-b border-[#E4E7EF] dark:border-[#262A38]">
+      {[140, 220, 100, 80, 120].map((w, i) => (
+        <td key={i} className="px-4 py-3">
+          <div className="h-3.5 rounded-md bg-[#F1F5F9] dark:bg-[#1A1D27] animate-pulse" style={{ width: w }} />
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+function SmsPanel() {
+  const [logs,           setLogs]           = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [error,          setError]          = useState("");
+  const [showBlast,      setShowBlast]      = useState(false);
+  const [campaigns,      setCampaigns]      = useState([]);
+  const [search,         setSearch]         = useState("");
+  const [campaignFilter, setCampaignFilter] = useState("");
+  const [sortOrder,      setSortOrder]      = useState("desc");
+  const [dateFrom,       setDateFrom]       = useState("");
+  const [dateTo,         setDateTo]         = useState("");
+  const [deletingId,     setDeletingId]     = useState(null);
+  const [exportLoading,  setExportLoading]  = useState(false);
+  const [pagination,     setPagination]     = useState({ page: 1, total: 0, totalPages: 1 });
+  const debounceRef = useRef(null);
+
+  const fetchLogs = useCallback(async (page = 1, s = search, camp = campaignFilter, sort = sortOrder, from = dateFrom, to = dateTo) => {
+    setLoading(true); setError("");
+    try {
+      const params = new URLSearchParams({ page, limit: 50, search: s, campaignId: camp, sortOrder: sort });
+      if (from) params.set("dateFrom", from);
+      if (to)   params.set("dateTo", to);
+      const res = await api.get(`/sms/history?${params}`);
+      setLogs(res.data.data || []);
+      setPagination(res.data.pagination || { page: 1, total: 0, totalPages: 1 });
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load SMS history");
+    } finally { setLoading(false); }
+  }, [search, campaignFilter, sortOrder, dateFrom, dateTo]);
+
+  useEffect(() => { fetchLogs(1); }, []);
+  useEffect(() => {
+    api.get("/sms/history/campaigns").then((r) => setCampaigns(r.data.data || [])).catch(() => {});
+  }, []);
+
+  const handleSearchChange = (val) => {
+    setSearch(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchLogs(1, val, campaignFilter, sortOrder), 400);
+  };
+
+  const handleExportCSV = async () => {
+    setExportLoading(true);
+    try {
+      const params = new URLSearchParams({ page: 1, limit: 5000, search, campaignId: campaignFilter, sortOrder });
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo)   params.set("dateTo", dateTo);
+      const res  = await api.get(`/sms/history?${params}`);
+      const data = res.data.data || [];
+      if (data.length === 0) { alert("No records to export"); return; }
+      const headers = ["Mobile","Recipient","Message","Campaign","Status","Sent At","Error"];
+      const rows    = data.map((l) => [
+        `"${l.to}"`, `"${l.recipientName || ""}"`,
+        `"${(l.message || "").replace(/"/g, '""').slice(0, 100)}"`,
+        `"${l.campaignId || ""}"`, l.status, fmtDate(l.sentAt), `"${l.errorMessage || ""}"`
+      ]);
+      const csv  = [headers, ...rows].map((r) => r.join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a"); a.href = url; a.download = `sms-history-${Date.now()}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    } catch { alert("Export failed"); }
+    finally { setExportLoading(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this SMS log?")) return;
+    setDeletingId(id);
+    try { await api.delete(`/sms/history/${id}`); fetchLogs(pagination.page); }
+    catch { alert("Failed to delete log"); }
+    finally { setDeletingId(null); }
+  };
+
+  const sentCount   = logs.filter((l) => l.status === "sent").length;
+  const failedCount = logs.filter((l) => l.status === "failed").length;
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
+        <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">
+          {loading ? "Loading…" : `${pagination.total.toLocaleString()} total SMS logged`}
+        </p>
+        <div className="flex items-center gap-2">
+          <button onClick={() => fetchLogs(pagination.page)} className="w-9 h-9 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#EA580C] hover:border-[#EA580C] transition" title="Refresh">
+            <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </button>
+          <button onClick={handleExportCSV} disabled={exportLoading} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#059669] text-white text-[13px] font-semibold hover:bg-green-700 disabled:opacity-50 transition">
+            {exportLoading
+              ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+              : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>}
+            Export CSV
+          </button>
+          <button onClick={() => setShowBlast(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#EA580C] text-white text-[13px] font-semibold hover:bg-orange-700 transition">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+            Send SMS
+          </button>
+        </div>
+      </div>
+
+      {/* Summary chips */}
+      <div className="flex flex-wrap gap-2 mb-4 shrink-0">
+        {[
+          { label: "This page", value: logs.length,      color: "#EA580C" },
+          { label: "Sent",      value: sentCount,         color: "#059669" },
+          { label: "Failed",    value: failedCount,       color: "#DC2626" },
+          { label: "All time",  value: pagination.total,  color: "#7C3AED" },
+        ].map((s) => (
+          <div key={s.label} className="flex items-center gap-2 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl px-3 py-2">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
+            <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{s.value.toLocaleString()}</span>
+            <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2 mb-4 shrink-0">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
+          <input type="text" value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Search by mobile…" className="pl-8 pr-4 py-2 w-full rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#EA580C] transition" />
+          {search && <button onClick={() => handleSearchChange("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9]"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>}
+        </div>
+        <select value={campaignFilter} onChange={(e) => { setCampaignFilter(e.target.value); fetchLogs(1, search, e.target.value, sortOrder); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#EA580C] transition">
+          <option value="">All Campaigns</option>
+          {campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => { setDateFrom(e.target.value); fetchLogs(1, search, campaignFilter, sortOrder, e.target.value, dateTo); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#EA580C] transition w-[140px]" />
+        <span className="text-[12px] text-[#8B92A9]">to</span>
+        <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => { setDateTo(e.target.value); fetchLogs(1, search, campaignFilter, sortOrder, dateFrom, e.target.value); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#EA580C] transition w-[140px]" />
+        {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); fetchLogs(1, search, campaignFilter, sortOrder, "", ""); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] text-[#8B92A9] hover:text-[#DC2626] hover:border-[#DC2626] transition">✕ Clear</button>}
+        <select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); fetchLogs(1, search, campaignFilter, e.target.value, dateFrom, dateTo); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#EA580C] transition">
+          <option value="desc">Newest first</option>
+          <option value="asc">Oldest first</option>
+        </select>
+      </div>
+
+      {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] mb-3 shrink-0">⚠ {error}</div>}
+
+      {/* Table */}
+      <div className="flex-1 overflow-auto bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
+              {["Mobile","Recipient","Message","Campaign","Status","Sent At",""].map((h) => (
+                <th key={h} className="px-4 py-3 text-left text-[11px] font-bold text-[#8B92A9] uppercase tracking-wide whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#E4E7EF] dark:divide-[#262A38]">
+            {loading ? Array.from({ length: 6 }).map((_, i) => <SmsSkeletonRow key={i} />) : logs.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-16 text-center">
+                <div className="text-[36px] mb-3">📱</div>
+                <p className="text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No SMS logs found</p>
+                <p className="text-[12px] text-[#8B92A9] mt-1">{search || campaignFilter || dateFrom || dateTo ? "Try clearing your filters." : "Send SMS blasts to start tracking history."}</p>
+              </td></tr>
+            ) : logs.map((log) => (
+              <tr key={log._id} className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition-colors">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-[#fff7ed] dark:bg-[#1c0a00] flex items-center justify-center shrink-0">
+                      <svg className="w-3.5 h-3.5 text-[#EA580C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                    </div>
+                    <span className="text-[12px] font-medium text-[#0F1117] dark:text-[#F0F2FA]">{log.to}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3"><span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{log.recipientName || "—"}</span></td>
+                <td className="px-4 py-3"><span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] max-w-[220px] truncate block" title={log.message}>{log.message}</span></td>
+                <td className="px-4 py-3">
+                  {log.campaignId ? <span className="inline-block px-2.5 py-1 rounded-full bg-[#FFF7ED] dark:bg-[#1c0a00] text-[#EA580C] text-[11px] font-semibold max-w-[120px] truncate">{log.campaignId}</span> : <span className="text-[12px] text-[#8B92A9]">—</span>}
+                </td>
+                <td className="px-4 py-3"><SmsStatusBadge status={log.status} /></td>
+                <td className="px-4 py-3"><span className="text-[12px] text-[#8B92A9] whitespace-nowrap">{fmtDate(log.sentAt)}</span></td>
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => handleDelete(log._id)} disabled={deletingId === log._id} className="p-1.5 rounded-lg text-[#8B92A9] hover:text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#2D0A0A] transition disabled:opacity-40" title="Delete">
+                    {deletingId === log._id
+                      ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                      : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Pagination */}
+        {pagination.totalPages > 1 && (
+          <div className="px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
+            <span className="text-[12px] text-[#8B92A9]">Page {pagination.page} of {pagination.totalPages} · {pagination.total} total</span>
+            <div className="flex items-center gap-1.5">
+              <button disabled={pagination.page <= 1} onClick={() => fetchLogs(pagination.page - 1)} className="px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] disabled:opacity-40 hover:border-[#EA580C] hover:text-[#EA580C] transition">← Prev</button>
+              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                const start = Math.max(1, Math.min(pagination.page - 2, pagination.totalPages - 4));
+                const p = start + i;
+                if (p > pagination.totalPages) return null;
+                return <button key={p} onClick={() => fetchLogs(p)} className={`w-8 h-8 rounded-lg text-[12px] font-semibold transition ${p === pagination.page ? "bg-[#EA580C] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] hover:border-[#EA580C] hover:text-[#EA580C]"}`}>{p}</button>;
+              })}
+              <button disabled={pagination.page >= pagination.totalPages} onClick={() => fetchLogs(pagination.page + 1)} className="px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] disabled:opacity-40 hover:border-[#EA580C] hover:text-[#EA580C] transition">Next →</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showBlast && <SmsBlastModal onClose={() => setShowBlast(false)} />}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── MAIN COMMUNICATIONS PAGE ──────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Communications({ currentUser }) {
@@ -1670,7 +2190,7 @@ export default function Communications({ currentUser }) {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-5 shrink-0">
         <div>
           <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Communications</h1>
-          <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">WhatsApp chats & email history in one place</p>
+          <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">WhatsApp · Email · SMS — all in one place</p>
         </div>
         <TabNav active={tab} onChange={setTab} />
       </div>
@@ -1685,6 +2205,11 @@ export default function Communications({ currentUser }) {
         {tab === "email" && (
           <div className="h-full flex flex-col" style={{ height: "calc(100vh - 160px)" }}>
             <EmailPanel />
+          </div>
+        )}
+        {tab === "sms" && (
+          <div className="h-full flex flex-col" style={{ height: "calc(100vh - 160px)" }}>
+            <SmsPanel />
           </div>
         )}
       </div>
