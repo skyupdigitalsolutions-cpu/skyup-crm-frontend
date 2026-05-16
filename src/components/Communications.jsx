@@ -1729,10 +1729,11 @@ function SmsBubble({ log }) {
 
 // ── Left sidebar lead row ─────────────────────────────────────────────────────
 function SmsLeadRow({ lead, isActive, onClick }) {
-  const lastMsg = lead.lastMessage || "";
-  const lastTime = lead.lastSentAt ? timeAgo(lead.lastSentAt) : "";
+  const lastMsg     = lead.lastMessage || "";
+  const lastTime    = lead.lastSentAt ? timeAgo(lead.lastSentAt) : "";
   const failedCount = lead.failedCount || 0;
   const sentCount   = lead.sentCount   || 0;
+  const hasSms      = lead.hasSmsHistory;
 
   return (
     <button
@@ -1741,31 +1742,48 @@ function SmsLeadRow({ lead, isActive, onClick }) {
         isActive ? "bg-[#F0F2FA] dark:bg-[#1A1D27]" : ""
       }`}
     >
-      <SmsAvatar name={lead.recipientName || lead.to} />
+      <div className="relative shrink-0">
+        <SmsAvatar name={lead.recipientName || lead.to} />
+        {hasSms && (
+          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#25D366] border-2 border-white dark:border-[#111B21] flex items-center justify-center">
+            <svg className="w-2 h-2 text-white" viewBox="0 0 16 11" fill="currentColor">
+              <path d="M11.071.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.092-.013l-3-3.5a.75.75 0 1 1 1.14-.977l2.46 2.87 5.908-6.415a.75.75 0 0 1 1.059-.025z"/>
+            </svg>
+          </span>
+        )}
+      </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-1">
           <span className="text-[13px] font-semibold text-[#111B21] dark:text-[#E9EDEF] truncate">
             {lead.recipientName || lead.to}
           </span>
           {lastTime && (
-            <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] shrink-0">{lastTime}</span>
+            <span className={`text-[11px] shrink-0 ${failedCount > 0 ? "text-[#DC2626]" : "text-[#8B92A9] dark:text-[#565C75]"}`}>
+              {lastTime}
+            </span>
           )}
         </div>
         <div className="flex items-center justify-between gap-1 mt-0.5">
-          <p className="text-[12px] text-[#667781] dark:text-[#8696A0] truncate">
-            {lead.to}
+          <p className="text-[12px] text-[#667781] dark:text-[#8696A0] truncate flex-1">
+            {hasSms
+              ? (lastMsg || lead.to)
+              : <span className="italic opacity-60">{lead.to}</span>
+            }
           </p>
           {failedCount > 0 && (
-            <span className="shrink-0 w-5 h-5 rounded-full bg-[#DC2626] text-white text-[10px] font-bold flex items-center justify-center">
+            <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#DC2626] text-white text-[10px] font-bold flex items-center justify-center">
               {failedCount}
             </span>
           )}
           {failedCount === 0 && sentCount > 0 && (
             <span className="shrink-0 text-[10px] text-[#059669] font-semibold">{sentCount} ✓</span>
           )}
+          {!hasSms && (
+            <span className="shrink-0 text-[10px] text-[#8B92A9] italic">no SMS</span>
+          )}
         </div>
         {lead.campaignId && (
-          <span className="inline-block mt-1 px-1.5 py-0.5 rounded-full bg-[#FFF7ED] dark:bg-[#1c0a00] text-[#EA580C] text-[9px] font-semibold">
+          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded-full bg-[#FFF7ED] dark:bg-[#1c0a00] text-[#EA580C] text-[9px] font-semibold truncate max-w-[140px]">
             {lead.campaignId}
           </span>
         )}
@@ -2208,55 +2226,102 @@ function SmsLeadThread({ lead, onBack, onSend }) {
 
 // ── Main SMS Panel ────────────────────────────────────────────────────────────
 function SmsPanel() {
-  const [leads,         setLeads]         = useState([]);
-  const [loading,       setLoading]       = useState(true);
-  const [search,        setSearch]        = useState("");
-  const [selectedLead,  setSelectedLead]  = useState(null); // null = show blast composer
-  const [showComposer,  setShowComposer]  = useState(false);
-  const [campaignFilter,setCampaignFilter]= useState("");
-  const [campaigns,     setCampaigns]     = useState([]);
-  const [stats,         setStats]         = useState({ total: 0, sent: 0, failed: 0 });
+  const [leads,          setLeads]          = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [search,         setSearch]         = useState("");
+  const [selectedLead,   setSelectedLead]   = useState(null);
+  const [showComposer,   setShowComposer]   = useState(false);
+  const [campaignFilter, setCampaignFilter] = useState("");
+  const [campaigns,      setCampaigns]      = useState([]);
+  const [stats,          setStats]          = useState({ total: 0, sent: 0, failed: 0 });
   const debounceRef = useRef(null);
 
   const fetchLeads = useCallback(async (s = search, camp = campaignFilter) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: 1, limit: 100, search: s, campaignId: camp, sortOrder: "desc" });
-      const res = await api.get(`/sms/history?${params}`);
-      const data = res.data.data || [];
+      // 1️⃣ Fetch CRM leads that have a mobile number (primary source)
+      const [crmRes, smsRes] = await Promise.allSettled([
+        api.get("/lead/admin/all"),
+        api.get(`/sms/history?page=1&limit=500&sortOrder=desc${camp ? `&campaignId=${encodeURIComponent(camp)}` : ""}`),
+      ]);
 
-      // Group by phone number — build lead-level aggregations
-      const byPhone = {};
-      data.forEach((log) => {
-        const key = log.to;
-        if (!byPhone[key]) {
-          byPhone[key] = {
-            to: key,
-            recipientName: log.recipientName || "",
-            campaignId: log.campaignId || null,
-            sentCount: 0,
-            failedCount: 0,
-            lastMessage: "",
-            lastSentAt: null,
-          };
-        }
-        if (log.status === "sent")   byPhone[key].sentCount++;
-        if (log.status === "failed") byPhone[key].failedCount++;
-        if (!byPhone[key].lastSentAt || new Date(log.sentAt) > new Date(byPhone[key].lastSentAt)) {
-          byPhone[key].lastSentAt  = log.sentAt;
-          byPhone[key].lastMessage = log.message;
+      const crmLeads = (crmRes.status === "fulfilled" ? crmRes.value.data : []) || [];
+      const smsLogs  = (smsRes.status === "fulfilled" ? (smsRes.value.data?.data || []) : []);
+
+      // 2️⃣ Build SMS history map keyed by normalised phone
+      const normalise = (p) => (p || "").replace(/\D/g, "").slice(-10);
+      const smsMap = {};
+      smsLogs.forEach((log) => {
+        const key = normalise(log.to);
+        if (!key) return;
+        if (!smsMap[key]) smsMap[key] = { sentCount: 0, failedCount: 0, lastMessage: "", lastSentAt: null, campaignId: null };
+        if (log.status === "sent")   smsMap[key].sentCount++;
+        if (log.status === "failed") smsMap[key].failedCount++;
+        if (!smsMap[key].lastSentAt || new Date(log.sentAt) > new Date(smsMap[key].lastSentAt)) {
+          smsMap[key].lastSentAt  = log.sentAt;
+          smsMap[key].lastMessage = log.message;
+          smsMap[key].campaignId  = log.campaignId || null;
         }
       });
 
-      const leadList = Object.values(byPhone).sort((a, b) => new Date(b.lastSentAt) - new Date(a.lastSentAt));
+      // 3️⃣ Build lead list from CRM leads that have a mobile number
+      let leadList = crmLeads
+        .filter((l) => l.mobile && l.mobile.replace(/\D/g, "").length >= 6)
+        .map((l) => {
+          const key  = normalise(l.mobile);
+          const hist = smsMap[key] || {};
+          return {
+            _id:           l._id,
+            to:            l.mobile,
+            recipientName: l.name || "",
+            campaignId:    l.campaign || hist.campaignId || null,
+            sentCount:     hist.sentCount   || 0,
+            failedCount:   hist.failedCount || 0,
+            lastMessage:   hist.lastMessage || "",
+            lastSentAt:    hist.lastSentAt  || l.createdAt || null,
+            hasSmsHistory: !!hist.lastSentAt,
+          };
+        });
+
+      // 4️⃣ Also add any SMS log entries for numbers NOT in CRM leads
+      const crmNums = new Set(crmLeads.map((l) => normalise(l.mobile)));
+      Object.entries(smsMap).forEach(([key, hist]) => {
+        if (!crmNums.has(key)) {
+          // find original number from logs
+          const origLog = smsLogs.find((l) => normalise(l.to) === key);
+          leadList.push({
+            to:            origLog?.to || key,
+            recipientName: origLog?.recipientName || "",
+            campaignId:    hist.campaignId || null,
+            sentCount:     hist.sentCount,
+            failedCount:   hist.failedCount,
+            lastMessage:   hist.lastMessage,
+            lastSentAt:    hist.lastSentAt,
+            hasSmsHistory: true,
+          });
+        }
+      });
+
+      // 5️⃣ Filter by campaign if selected
+      if (camp) leadList = leadList.filter((l) => l.campaignId === camp || l.hasSmsHistory);
+
+      // 6️⃣ Sort: leads with SMS history first (by date), then others alphabetically
+      leadList.sort((a, b) => {
+        if (a.hasSmsHistory && b.hasSmsHistory) return new Date(b.lastSentAt) - new Date(a.lastSentAt);
+        if (a.hasSmsHistory) return -1;
+        if (b.hasSmsHistory) return 1;
+        return (a.recipientName || "").localeCompare(b.recipientName || "");
+      });
+
       setLeads(leadList);
       setStats({
-        total:  res.data.pagination?.total || 0,
-        sent:   data.filter((l) => l.status === "sent").length,
-        failed: data.filter((l) => l.status === "failed").length,
+        total:  smsLogs.length,
+        sent:   smsLogs.filter((l) => l.status === "sent").length,
+        failed: smsLogs.filter((l) => l.status === "failed").length,
       });
-    } catch { /* silent */ }
-    finally { setLoading(false); }
+    } catch (e) {
+      console.error("SmsPanel fetchLeads error:", e);
+    } finally { setLoading(false); }
   }, [search, campaignFilter]);
 
   useEffect(() => { fetchLeads(); }, []);
@@ -2271,7 +2336,10 @@ function SmsPanel() {
   };
 
   const filteredLeads = leads.filter((l) =>
-    (!search || l.to.includes(search) || (l.recipientName || "").toLowerCase().includes(search.toLowerCase()))
+    !search ||
+    l.to.includes(search) ||
+    (l.recipientName || "").toLowerCase().includes(search.toLowerCase()) ||
+    (l.campaignId    || "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (
