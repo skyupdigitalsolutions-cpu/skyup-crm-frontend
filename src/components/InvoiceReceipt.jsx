@@ -1,20 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  InvoiceReceipt.jsx  (with logo upload support)
+//  InvoiceReceipt.jsx
 //
-//  NEW — Logo upload:
-//    • A small "Upload Logo" button appears in the toolbar (camera icon).
-//    • Accepts PNG / JPG / SVG / WebP (max 2 MB).
-//    • The logo is shown in the invoice header (replacing the "S" avatar).
-//    • The logo is embedded as a base64 <img> in the print window.
-//    • An "×" badge lets the user remove the logo.
-//    • companyProp.logo (JSX node) still works for programmatic logos.
+//  Logo is hardcoded below — replace COMPANY_LOGO_URL with your image URL
+//  or base64 string. Set COMPANY_LOGO_URL = null to show the "S" avatar fallback.
 //
 //  USAGE:
 //    import InvoiceReceipt from "./InvoiceReceipt";
 //
 //    <InvoiceReceipt
 //      invoice={invoiceData}
-//      company={companyDetails}   // optional
+//      company={companyDetails}   // optional overrides
 //      onClose={() => {}}
 //      onDownload={() => {}}      // optional
 //    />
@@ -41,7 +36,13 @@
 //  NOTE: baseAmount is GST-INCLUSIVE. GST is split out, not added on top.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useRef, useState, useCallback } from "react";
+import { useRef } from "react";
+
+// ── SET YOUR LOGO HERE ────────────────────────────────────────────────────────
+// Replace with your image URL or a base64 string like "data:image/png;base64,..."
+// Set to null to show the default "S" avatar instead.
+const COMPANY_LOGO_URL = null; // e.g. "/assets/logo.png" or "data:image/png;base64,..."
+// ─────────────────────────────────────────────────────────────────────────────
 
 const GST_RATE = 0.18;
 
@@ -63,7 +64,7 @@ function pdfEscape(str) {
     });
 }
 
-// ── PDF builder (text-only; logo not embedded due to PDF complexity) ──────────
+// ── PDF builder ───────────────────────────────────────────────────────────────
 function buildPDF(lines, filename) {
   const streamBody =
     "BT\n/F1 9 Tf\n45 800 Td\n11 TL\n" +
@@ -108,13 +109,7 @@ function buildPDF(lines, filename) {
 //  InvoiceReceipt
 // ─────────────────────────────────────────────────────────────────────────────
 export default function InvoiceReceipt({ invoice, company: companyProp, onClose, onDownload }) {
-  const printRef   = useRef(null);
-  const fileInputRef = useRef(null);
-
-  // logoDataUrl: base64 string from uploaded file, or null
-  const [logoDataUrl, setLogoDataUrl] = useState(null);
-  const [logoError, setLogoError]     = useState("");
-  const [isDragging, setIsDragging]   = useState(false);
+  const printRef = useRef(null);
 
   const company = {
     name:    "SKYUP DIGITAL SOLUTIONS LLP",
@@ -122,7 +117,6 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose,
     gstin:   "29AABCS1429B1ZZ",
     cin:     "U72900KA2022PTC150000",
     email:   "skyupdigitalsolutions@gmail.com",
-    logo:    null,
     ...companyProp,
   };
 
@@ -144,53 +138,13 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose,
     },
   ];
 
-  // ── Logo upload logic ─────────────────────────────────────────────────────
-  const processLogoFile = useCallback((file) => {
-    setLogoError("");
-    if (!file) return;
-
-    const allowed = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
-    if (!allowed.includes(file.type)) {
-      setLogoError("Please upload a PNG, JPG, WebP, or SVG image.");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setLogoError("Image must be under 2 MB.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => setLogoDataUrl(e.target.result);
-    reader.onerror = () => setLogoError("Failed to read image.");
-    reader.readAsDataURL(file);
-  }, []);
-
-  const handleFileChange = (e) => processLogoFile(e.target.files?.[0]);
-
-  const handleDrop = useCallback(
-    (e) => {
-      e.preventDefault();
-      setIsDragging(false);
-      processLogoFile(e.dataTransfer.files?.[0]);
-    },
-    [processLogoFile]
-  );
-
-  const removeLogo = () => {
-    setLogoDataUrl(null);
-    setLogoError("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  // The resolved logo to display (uploaded base64 takes precedence over JSX prop)
-  const effectiveLogo = logoDataUrl ? (
+  // ── Logo element ──────────────────────────────────────────────────────────
+  const logoElement = COMPANY_LOGO_URL ? (
     <img
-      src={logoDataUrl}
-      alt="Company logo"
-      style={{ maxHeight: 48, maxWidth: 160, objectFit: "contain", display: "block" }}
+      src={COMPANY_LOGO_URL}
+      alt={company.name}
+      style={{ maxHeight: 48, maxWidth: 180, objectFit: "contain", display: "block" }}
     />
-  ) : company.logo ? (
-    company.logo
   ) : null;
 
   // ── Download ──────────────────────────────────────────────────────────────
@@ -204,7 +158,6 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose,
       company.address,
       `GSTIN: ${company.gstin}   CIN: ${company.cin}`,
       `Email: ${company.email}`,
-      logoDataUrl ? "[Logo embedded in HTML/print version]" : null,
       SEP,
       `Invoice No : ${invoice.invoiceId}`,
       `Date       : ${invoice.date}`,
@@ -253,7 +206,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose,
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #111; padding: 40px; }
         table { border-collapse: collapse; width: 100%; }
         th, td { padding: 8px 12px; }
-        img { max-height: 48px; max-width: 160px; object-fit: contain; }
+        img { max-height: 48px; max-width: 180px; object-fit: contain; }
         @media print { body { padding: 0; } }
       </style></head><body>${content}</body></html>
     `);
@@ -276,42 +229,8 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose,
             Tax Invoice
           </span>
           <div className="flex items-center gap-2">
-
-            {/* Logo upload button */}
-            <div className="relative group">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                className="hidden"
-                onChange={handleFileChange}
-                id="logo-upload-input"
-              />
-              <label
-                htmlFor="logo-upload-input"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-[#CBD5E1] text-[#475569] hover:bg-white cursor-pointer transition"
-                title="Upload company logo"
-              >
-                <ImageIcon />
-                {logoDataUrl ? "Change Logo" : "Upload Logo"}
-              </label>
-            </div>
-
-            {/* Remove logo badge */}
-            {logoDataUrl && (
-              <button
-                onClick={removeLogo}
-                title="Remove logo"
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border border-[#FCA5A5] text-[#EF4444] hover:bg-[#FEF2F2] transition"
-              >
-                <CloseIcon size="3" />
-                Remove Logo
-              </button>
-            )}
-
             <ToolBtn icon={<PrintIcon />}    label="Print"        onClick={handlePrint} />
             <ToolBtn icon={<DownloadIcon />} label="Download PDF" onClick={handleDownload} accent />
-
             <button
               onClick={onClose}
               className="ml-2 w-7 h-7 rounded-lg flex items-center justify-center text-[#94A3B8] hover:text-[#0F172A] hover:bg-[#E2E8F0] transition"
@@ -321,39 +240,17 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose,
           </div>
         </div>
 
-        {/* Logo error */}
-        {logoError && (
-          <div className="px-6 py-2 bg-[#FEF2F2] border-b border-[#FECACA] text-[#DC2626] text-[11px]">
-            {logoError}
-          </div>
-        )}
-
-        {/* ── Drop zone hint (shown only when no logo yet) ── */}
-        {!logoDataUrl && (
-          <div
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleDrop}
-            className={`mx-6 mt-4 mb-0 border-2 border-dashed rounded-xl flex items-center justify-center gap-2 py-3 text-[11px] font-medium transition-colors cursor-pointer select-none
-              ${isDragging
-                ? "border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]"
-                : "border-[#CBD5E1] text-[#94A3B8] hover:border-[#93C5FD] hover:text-[#3B82F6]"
-              }`}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <ImageIcon />
-            {isDragging ? "Drop image here" : "Drag & drop logo here, or click to upload  ·  PNG / JPG / SVG / WebP · max 2 MB"}
-          </div>
-        )}
-
         {/* ── Printable area ── */}
         <div ref={printRef} className="p-8 bg-white">
 
           {/* Header */}
           <div className="flex items-start justify-between mb-8">
             <div>
-              {effectiveLogo ? (
-                <div className="mb-2">{effectiveLogo}</div>
+              {logoElement ? (
+                <>
+                  <div className="mb-2">{logoElement}</div>
+                  <p className="text-[14px] font-bold text-[#0F172A] mb-1">{company.name}</p>
+                </>
               ) : (
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-9 h-9 rounded-xl bg-[#2563EB] flex items-center justify-center">
@@ -361,9 +258,6 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose,
                   </div>
                   <span className="text-[16px] font-bold text-[#0F172A]">{company.name}</span>
                 </div>
-              )}
-              {effectiveLogo && (
-                <p className="text-[14px] font-bold text-[#0F172A] mb-1">{company.name}</p>
               )}
               <p className="text-[11px] text-[#64748B] leading-relaxed max-w-[260px]">{company.address}</p>
               <p className="text-[11px] text-[#64748B] mt-1">GSTIN: <span className="font-semibold text-[#0F172A]">{company.gstin}</span></p>
@@ -462,7 +356,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose,
   );
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function ToolBtn({ icon, label, onClick, accent }) {
   return (
@@ -515,16 +409,6 @@ function TotalRow({ label, value, bold, accent, muted }) {
         {value}
       </span>
     </div>
-  );
-}
-
-function ImageIcon() {
-  return (
-    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="8.5" cy="8.5" r="1.5" />
-      <polyline points="21 15 16 10 5 21" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 
