@@ -1490,7 +1490,7 @@ export default function Campaigns() {
 
                   {/* Stats row */}
                   <div className="mb-3">
-                    <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-4 py-3 text-center border border-[#E4E7EF] dark:border-[#262A38]">
+                    <div className="flex bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-4 py-3 text-center border border-[#E4E7EF] dark:border-[#262A38]">
                       <div className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{fmt(c.leads)}</div>
                       <span className="text-[24px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mt-0.5">Leads</span>
                     </div>
