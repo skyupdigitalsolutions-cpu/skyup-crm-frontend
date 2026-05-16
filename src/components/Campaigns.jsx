@@ -40,6 +40,13 @@ const WEBSITE_COLORS = ["#16A34A", "#0891B2", "#7C3AED", "#D97706", "#059669", "
 const FIELD_CLS =
   "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition";
 
+function maskPhone(phone) {
+  if (!phone) return "—";
+  const str = String(phone).replace(/\s/g, "");
+  if (str.length <= 4) return "••••";
+  return str.slice(0, 2) + "•".repeat(Math.max(str.length - 4, 3)) + str.slice(-2);
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => (n != null && n > 0 ? Number(n).toLocaleString() : "—");
 const fmtDate = (iso) => {
@@ -179,7 +186,7 @@ function LeadDrawer({ campaign, onClose }) {
                         </div>
                         <div>
                           <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{name}</div>
-                          <div className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{phone}</div>
+                       <div className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5 font-mono">{maskPhone(phone)}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
