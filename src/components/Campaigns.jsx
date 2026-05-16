@@ -86,9 +86,6 @@ function SummaryCard({ label, value, sub, color }) {
 function LeadDrawer({ campaign, onClose }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editEmailId, setEditEmailId] = useState(null);
-  const [editEmailVal, setEditEmailVal] = useState("");
-  const [savingEmail, setSavingEmail] = useState(false);
 
   const fetchLeads = () => {
     if (!campaign) return;
@@ -105,20 +102,6 @@ function LeadDrawer({ campaign, onClose }) {
   };
 
   useEffect(() => { fetchLeads(); }, [campaign]);
-
-  const handleSaveEmail = async (leadId) => {
-    if (!editEmailVal.trim()) return;
-    setSavingEmail(true);
-    try {
-      await api.patch(`/lead/admin/update-email/${leadId}`, { email: editEmailVal.trim() });
-      setLeads((prev) => prev.map((l) => (l._id || l.id) === leadId ? { ...l, email: editEmailVal.trim() } : l));
-      setEditEmailId(null);
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to save email");
-    } finally {
-      setSavingEmail(false);
-    }
-  };
 
   if (!campaign) return null;
 
@@ -204,30 +187,12 @@ function LeadDrawer({ campaign, onClose }) {
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${ls.bg} ${ls.text}`}>{status}</span>
                       </div>
                     </div>
-                    {editEmailId === (l._id || l.id) ? (
-                      <div className="flex items-center gap-1.5 mt-1.5 mb-1">
-                        <input type="email" value={editEmailVal} onChange={(e) => setEditEmailVal(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveEmail(l._id || l.id); if (e.key === "Escape") setEditEmailId(null); }}
-                          autoFocus placeholder="email@example.com"
-                          className="flex-1 px-2 py-1 rounded-lg border border-[#7C3AED] bg-white dark:bg-[#0D0F14] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none" />
-                        <button onClick={() => handleSaveEmail(l._id || l.id)} disabled={savingEmail} className="px-2 py-1 rounded-lg bg-[#7C3AED] text-white text-[11px] font-semibold hover:bg-purple-700 disabled:opacity-50">{savingEmail ? "…" : "Save"}</button>
-                        <button onClick={() => setEditEmailId(null)} className="px-2 py-1 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[11px] text-[#8B92A9]">✕</button>
-                      </div>
-                    ) : (
+                    {l.email && l.email.trim() && (
                       <div className="flex items-center gap-1.5 mt-1 mb-1">
-                        {l.email && l.email.trim() ? (
-                          <span className="flex items-center gap-1 text-[11px] text-[#059669] dark:text-[#34D399]">
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                            {l.email}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-[#D97706] italic">No email</span>
-                        )}
-                        <button onClick={() => { setEditEmailId(l._id || l.id); setEditEmailVal(l.email || ""); }}
-                          className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#F5F3FF] dark:bg-[#1E1040] text-[#7C3AED] text-[10px] font-semibold hover:bg-[#ede9fe] transition">
-                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                          {l.email ? "Edit" : "+ Add Email"}
-                        </button>
+                        <span className="flex items-center gap-1 text-[11px] text-[#059669] dark:text-[#34D399]">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                          {l.email}
+                        </span>
                       </div>
                     )}
                     <div className="flex items-center justify-between text-[11px]">
