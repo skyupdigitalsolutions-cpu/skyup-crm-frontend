@@ -276,28 +276,40 @@ export function Sidebar() {
         style={{ width: minimized ? "72px" : "260px" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-5 border-b border-gray-100 dark:border-white/5 min-w-0">
-          <img src="/skyup_logo1.svg" className="w-14 h-14 me-3" alt="skyup_crm"/>
-          {!minimized && (
-            <span className="nav-label font-semibold text-lg tracking-widest uppercase text-gray-600 dark:text-gray-500">
-             SKYUP
-            </span>
-          )}
-          <button
-          onClick={() => setMinimized(prev => {
-  const next = !prev;
-  localStorage.setItem("sidebar_minimized", String(next));
-  return next;
-})}
-            className={`toggle-btn ml-auto p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 ${minimized ? "rotate-180" : ""}`}
-            title={minimized ? "Expand sidebar" : "Minimize sidebar"}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-          </button>
-        </div>
-
+       {/* Header */}
+<div className="flex items-center justify-between px-4 py-5 border-b border-gray-100 dark:border-white/5 min-w-0">
+  <img
+    src="/skyup_logo1.svg"
+    className={`w-14 h-14 me-3 ${minimized ? "cursor-pointer" : ""}`}
+    alt="skyup_crm"
+    onClick={() => {
+      if (minimized) {
+        localStorage.setItem("sidebar_minimized", "false");
+        setMinimized(false);
+      }
+    }}
+    title={minimized ? "Expand sidebar" : undefined}
+  />
+  {!minimized && (
+    <span className="nav-label font-semibold text-lg tracking-widest uppercase text-gray-600 dark:text-gray-500">
+     SKYUP
+    </span>
+  )}
+  {!minimized && (
+    <button
+      onClick={() => {
+        localStorage.setItem("sidebar_minimized", "true");
+        setMinimized(true);
+      }}
+      className="toggle-btn ml-auto p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10"
+      title="Minimize sidebar"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+    </button>
+  )}
+</div>
         {/* User Profile */}
         {user && (
           <div className={`mx-3 mt-3 rounded-xl border bg-gray-50 dark:bg-white/[0.03] ${minimized ? "p-2 flex justify-center" : "p-3 flex items-center gap-3"} ${roleStyle.border}`}>
