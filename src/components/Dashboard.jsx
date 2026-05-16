@@ -12,6 +12,14 @@ import AdminChat from "./Adminchat";
 import LeadTimeline from "./LeadTimeLine";
 import AdminAttendanceView from "./AdminAttendanceView";
 
+// ── Phone masking helper ──────────────────────────────────────────────────────
+function maskPhone(phone) {
+  if (!phone) return "—";
+  const str = String(phone).replace(/\s/g, "");
+  if (str.length <= 4) return "••••";
+  return str.slice(0, 2) + "•".repeat(Math.max(str.length - 4, 3)) + str.slice(-2);
+}
+
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function parseDate(dateStr) {
   if (!dateStr) return new Date(NaN);
@@ -319,13 +327,10 @@ function Modal({ open, onClose, title, subtitle, children, accentColor = "#2563E
       role="dialog"
       aria-modal="true"
     >
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
-
-      {/* Panel */}
       <div
         className="relative z-10 w-full sm:max-w-2xl max-h-[90vh] sm:max-h-[85vh] flex flex-col
           bg-white dark:bg-[#13161E]
@@ -334,15 +339,10 @@ function Modal({ open, onClose, title, subtitle, children, accentColor = "#2563E
           shadow-2xl overflow-hidden"
         style={{ animation: "slideUp 0.22s cubic-bezier(0.4,0,0.2,1) both" }}
       >
-        {/* Accent bar */}
         <div className="h-1 w-full shrink-0" style={{ background: accentColor }} />
-
-        {/* Drag handle for mobile */}
         <div className="flex justify-center pt-2 pb-0 sm:hidden">
           <div className="w-10 h-1 rounded-full bg-[#E5E7EB] dark:bg-[#262A38]" />
         </div>
-
-        {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-[#F0F2FA] dark:border-[#1E2130] shrink-0">
           <div className="min-w-0">
             <h2 className="text-[15px] sm:text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">{title}</h2>
@@ -362,8 +362,6 @@ function Modal({ open, onClose, title, subtitle, children, accentColor = "#2563E
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 overscroll-contain">
           {children}
         </div>
@@ -425,9 +423,9 @@ function PhoneRevealModal({ open, onClose, data }) {
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{item.name}</p>
+                  {/* ── UPDATED: use maskPhone helper ── */}
                   <p className="text-[11px] text-[#8B92A9] font-mono mt-0.5">
-                    {"•".repeat(Math.max(0, (item.mobile || "").length - 4))}
-                    {(item.mobile || "").slice(-4)}
+                    {maskPhone(item.mobile)}
                   </p>
                   <div className="mt-1.5 h-1 bg-[#E5E7EB] dark:bg-[#262A38] rounded-full overflow-hidden w-full">
                     <div
@@ -521,7 +519,6 @@ function LeadsDetailModal({ open, onClose, title, leads, accentColor, TitleIcon 
                   hover:border-blue-300 dark:hover:border-blue-800
                   transition-colors"
               >
-                {/* Avatar */}
                 <div
                   className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-[11px] sm:text-[12px] font-bold text-white shrink-0"
                   style={{ background: accentColor }}
@@ -529,7 +526,6 @@ function LeadsDetailModal({ open, onClose, title, leads, accentColor, TitleIcon 
                   {(lead.name || "?").charAt(0).toUpperCase()}
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">
@@ -556,12 +552,11 @@ function LeadsDetailModal({ open, onClose, title, leads, accentColor, TitleIcon 
                   </div>
                 </div>
 
-                {/* Masked mobile */}
+                {/* ── UPDATED: use maskPhone helper ── */}
                 {lead.mobile && (
                   <div className="shrink-0 text-right hidden sm:block">
                     <p className="text-[11px] font-mono text-[#9CA3AF] dark:text-[#565C75]">
-                      {"•".repeat(Math.max(0, lead.mobile.length - 4))}
-                      {lead.mobile.slice(-4)}
+                      {maskPhone(lead.mobile)}
                     </p>
                   </div>
                 )}
@@ -716,11 +711,9 @@ export default function Dashboard() {
   const [superStats,  setSuperStats]  = useState(null);
   const [dashStats,   setDashStats]   = useState(null);
 
-  // ── FIX: hot/warm leads fetched from backend (temperature field) ──────────
   const [hotLeads,  setHotLeads]  = useState([]);
   const [warmLeads, setWarmLeads] = useState([]);
 
-  // ── Modal state ──────────────────────────────────────────────────────────────
   const [phoneModal, setPhoneModal] = useState(false);
   const [hotModal,   setHotModal]   = useState(false);
   const [warmModal,  setWarmModal]  = useState(false);
@@ -730,7 +723,15 @@ export default function Dashboard() {
   const user         = getStoredUser();
   const isSuperAdmin = role === "superadmin";
 
-  // ── Fetch data ───────────────────────────────────────────────────────────────
+  // ── Fetch dashboard stats ─────────────────────────────────────────────────
+  // Extracted so it can be called manually (refresh button) and on visibility change
+  const fetchDashStats = () => {
+    api.get("/admin/dashboard-stats")
+      .then((r) => setDashStats(r.data))
+      .catch(() => {});
+  };
+
+  // ── Fetch lead data ───────────────────────────────────────────────────────
   const loadData = (isRefresh = false) => {
     if (role === "user") { setLoading(false); return; }
     if (isRefresh) { setRefreshing(true); } else { setLoading(true); }
@@ -742,8 +743,6 @@ export default function Dashboard() {
         setAgents(agents || []);
         setAllLeads(safeLeads);
         if (stats) setSuperStats(stats);
-
-        // ── FIX: derive hot/warm from the actual temperature field ──────────
         setHotLeads(safeLeads.filter((l) => l.temperature === "Hot"  || l.Quality === "Hot"));
         setWarmLeads(safeLeads.filter((l) => l.temperature === "Warm" || l.Quality === "Warm"));
       })
@@ -774,10 +773,19 @@ export default function Dashboard() {
 
   useEffect(() => { loadData(); }, []);
 
+  // ── UPDATED: fetch dashStats on mount AND whenever tab regains focus ──────
+  // This ensures phone reveal counts from AdminLeadsPage are always fresh
   useEffect(() => {
-    api.get("/admin/dashboard-stats")
-      .then((r) => setDashStats(r.data))
-      .catch(() => {});
+    fetchDashStats();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchDashStats();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
   // ── Derived data ─────────────────────────────────────────────────────────────
@@ -816,31 +824,26 @@ export default function Dashboard() {
   );
 
   const sourceStats = useMemo(() => {
-  const total = leads.length || 1;
-
-  // Dynamically build from actual lead data instead of only predefined keys
-  const counts = leads.reduce((acc, l) => {
-    const src = l.source?.trim();
-    if (src) acc[src] = (acc[src] || 0) + 1;
-    return acc;
-  }, {});
-
-  const FALLBACK_COLORS = [
-    "#2563EB", "#7C3AED", "#0891B2", "#16A34A",
-    "#D97706", "#DC2626", "#0D9488", "#9333EA",
-  ];
-
-  return Object.entries(counts)
-    .map(([label, count], i) => ({
-      label,
-      count,
-      // Use predefined color if available, else pick from fallback palette
-      color: SOURCE_COLORS[label] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length],
-      pct: Math.round((count / total) * 100),
-    }))
-    .filter((s) => s.count > 0)   // ← filter on count, not rounded pct
-    .sort((a, b) => b.count - a.count);
-}, [leads]);
+    const total = leads.length || 1;
+    const counts = leads.reduce((acc, l) => {
+      const src = l.source?.trim();
+      if (src) acc[src] = (acc[src] || 0) + 1;
+      return acc;
+    }, {});
+    const FALLBACK_COLORS = [
+      "#2563EB", "#7C3AED", "#0891B2", "#16A34A",
+      "#D97706", "#DC2626", "#0D9488", "#9333EA",
+    ];
+    return Object.entries(counts)
+      .map(([label, count], i) => ({
+        label,
+        count,
+        color: SOURCE_COLORS[label] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+        pct: Math.round((count / total) * 100),
+      }))
+      .filter((s) => s.count > 0)
+      .sort((a, b) => b.count - a.count);
+  }, [leads]);
 
   const activity = useMemo(
     () =>
@@ -894,7 +897,7 @@ export default function Dashboard() {
         </div>
 
         <button
-          onClick={() => loadData(true)}
+          onClick={() => { loadData(true); fetchDashStats(); }}
           disabled={refreshing}
           className={`p-2 sm:p-2 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]
             text-[#6B7280] hover:text-[#2563EB] dark:hover:text-[#4F8EF7]
@@ -932,7 +935,6 @@ export default function Dashboard() {
       {/* ── Quality KPI row + Phone Reveal Stats ── */}
       {dashStats && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-6">
-          {/* Hot Leads */}
           <KpiCard
             label="Hot Leads"
             value={dashStats.quality.hot.toLocaleString()}
@@ -943,8 +945,6 @@ export default function Dashboard() {
             clickable
             onClick={() => setHotModal(true)}
           />
-
-          {/* Warm Leads */}
           <KpiCard
             label="Warm Leads"
             value={dashStats.quality.warm.toLocaleString()}
@@ -955,8 +955,6 @@ export default function Dashboard() {
             clickable
             onClick={() => setWarmModal(true)}
           />
-
-          {/* Phone Reveals */}
           <KpiCard
             label="Phone Reveals"
             value={dashStats.phoneReveal.totalReveals.toLocaleString()}
@@ -965,7 +963,7 @@ export default function Dashboard() {
             IconComponent={Eye}
             variant="purple"
             clickable
-            onClick={() => setPhoneModal(true)}
+            onClick={() => { fetchDashStats(); setPhoneModal(true); }}
           />
         </div>
       )}
@@ -973,7 +971,6 @@ export default function Dashboard() {
       {/* ── Chart row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-6">
 
-        {/* Leads over time */}
         <div className="lg:col-span-2 bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-5">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-5">
@@ -1006,7 +1003,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Pipeline status */}
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
           <h2 className="text-[13px] sm:text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-4 sm:mb-5">Pipeline status</h2>
           <div className="flex items-center gap-4">
@@ -1041,7 +1037,6 @@ export default function Dashboard() {
       {/* ── Bottom row ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
 
-        {/* User performance */}
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
           <h2 className="text-[13px] sm:text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-3 sm:mb-4">
             {isSuperAdmin ? "Top users" : "User performance"}
@@ -1083,7 +1078,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Leads by source */}
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
           <h2 className="text-[13px] sm:text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-3 sm:mb-4">Leads by source</h2>
           <div className="space-y-2.5 sm:space-y-3">
@@ -1129,7 +1123,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Recent activity */}
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2 className="text-[13px] sm:text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Recent activity</h2>
@@ -1174,7 +1167,6 @@ export default function Dashboard() {
         data={dashStats?.phoneReveal}
       />
 
-      {/* ── FIX: hotLeads / warmLeads now come from backend temperature field ── */}
       <LeadsDetailModal
         open={hotModal}
         onClose={() => setHotModal(false)}
