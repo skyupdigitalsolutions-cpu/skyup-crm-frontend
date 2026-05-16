@@ -141,7 +141,9 @@ function LeadDrawer({ campaign, onClose }) {
         {/* Stats */}
         <div className="px-6 py-4 grid grid-cols-3 gap-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[
+            { label: "Sent", value: fmt(campaign.sent) },
             { label: "Leads", value: fmt(campaign.leads) },
+            { label: "Conv. rate", value: convRate + "%" },
           ].map((s) => (
             <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-3 text-center">
               <div className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{s.value}</div>
@@ -184,7 +186,7 @@ function LeadDrawer({ campaign, onClose }) {
                         </div>
                         <div>
                           <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{name}</div>
-                       <div className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5 font-mono">{maskPhone(phone)}</div>
+                          <div className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5 font-mono">{maskPhone(phone)}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -193,11 +195,9 @@ function LeadDrawer({ campaign, onClose }) {
                       </div>
                     </div>
                     {l.email && l.email.trim() && (
-                      <div className="flex items-center gap-1.5 mt-1 mb-1">
-                        <span className="flex items-center gap-1 text-[11px] text-[#059669] dark:text-[#34D399]">
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                          {l.email}
-                        </span>
+                      <div className="flex items-center gap-1 mt-1 mb-1">
+                        <svg className="w-3 h-3 text-[#059669] dark:text-[#34D399] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        <span className="text-[11px] text-[#059669] dark:text-[#34D399] truncate">{l.email}</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between text-[11px]">
@@ -1432,12 +1432,12 @@ export default function Campaigns() {
       </div>
 
       {/* Summary cards */}
-      {/* <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <SummaryCard label="Total sent" value={totalSent.toLocaleString()} color="#2563EB" sub="Across all campaigns" />
         <SummaryCard label="Leads generated" value={totalLeads.toLocaleString()} color="#7C3AED" sub="From all campaigns" />
         <SummaryCard label="Conversions" value={totalConverted.toLocaleString()} color="#059669" sub={totalLeads > 0 ? `${Math.round((totalConverted / totalLeads) * 100)}% conv. rate` : ""} />
         <SummaryCard label="Avg. cost/lead" value={`₹${overallCPL}`} color="#D97706" sub="Across all spend" />
-      </div> */}
+      </div>
 
       {/* Filters + search */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
@@ -1489,20 +1489,35 @@ export default function Campaigns() {
                     </div>
                   </div>
 
-                  <div className="mb-4">
-                    {[ { label: "Leads", value: fmt(c.leads) },].map((s) => (
-                      <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center">
-                        <div className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{s.value}</div>
-                        <div className="text-[9px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{s.label}</div>
-                      </div>
-                    ))}
+                  {/* Stats row */}
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center border border-[#E4E7EF] dark:border-[#262A38]">
+                      <div className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{fmt(c.leads)}</div>
+                      <div className="text-[9px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mt-0.5">Leads</div>
+                    </div>
+                    <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center border border-[#E4E7EF] dark:border-[#262A38]">
+                      <div className="text-[15px] font-bold text-[#059669]">{c.converted > 0 ? c.converted : "—"}</div>
+                      <div className="text-[9px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mt-0.5">Converted</div>
+                    </div>
+                    <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-2 py-2.5 text-center border border-[#E4E7EF] dark:border-[#262A38]">
+                      <div className="text-[15px] font-bold text-[#2563EB]">{c.leads > 0 ? `${convRate}%` : "—"}</div>
+                      <div className="text-[9px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mt-0.5">Conv. %</div>
+                    </div>
                   </div>
 
-               
+                  {/* Conv. progress bar */}
+                  {c.leads > 0 && (
+                    <div className="mb-3">
+                      <div className="h-1 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${convRate}%`, background: c.color }} />
+                      </div>
+                      {c.cost > 0 && <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-1">₹{cpl}/lead · ₹{c.cost.toLocaleString()} total</p>}
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-1.5 mb-3">
                     <svg className="w-3 h-3 text-[#2563EB] dark:text-[#4F8EF7] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    <span className="text-[10px] text-[#8B92A9] dark:text-[#565C75]">
+                    <span className="text-[10px] text-[#8B92A9] dark:text-[#565C75] truncate">
                       Round-robin · {c._isMeta ? "Page ID: " : c._isWebsite ? "Source: " : "Key: "}
                       <span className="font-mono">{c._isMeta ? c.pageId : c._isWebsite ? (c.pageUrl || "Webhook") : (c.googleKey ? "••••••" : "—")}</span>
                     </span>
