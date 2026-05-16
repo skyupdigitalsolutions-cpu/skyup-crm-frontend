@@ -1103,7 +1103,7 @@ export default function AdminLeadsPage() {
   const [showAdd,    setShowAdd]    = useState(false);
   const [showImport, setShowImport] = useState(false);
 
-  // NEW: separate state for recordings drawer
+  // Recordings drawer
   const [recordingsLead, setRecordingsLead] = useState(null);
 
   const [search,      setSearch]      = useState("");
@@ -1118,7 +1118,24 @@ export default function AdminLeadsPage() {
 
   // ── Phone masking ─────────────────────────────────────────────────────────
   const [revealedPhone, setRevealedPhone] = useState(null);
-  const [viewCounts,    setViewCounts]    = useState({});
+
+  // ── FIX: initialise viewCounts from sessionStorage so counts survive refresh ──
+  const [viewCounts, setViewCounts] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem("leadViewCounts");
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Persist viewCounts to sessionStorage whenever it changes
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("leadViewCounts", JSON.stringify(viewCounts));
+    } catch { /* quota exceeded or private mode — silently ignore */ }
+  }, [viewCounts]);
+
   const revealTimerRef = useRef(null);
 
   const handleRevealPhone = async (e, leadId) => {
@@ -1468,10 +1485,9 @@ export default function AdminLeadsPage() {
                           )}
                         </td>
 
-                        {/* Actions column — journey open + recordings button */}
+                        {/* Actions column */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
-                            {/* Recordings & AI button — always visible, stops propagation to open recordings drawer */}
                             <button
                               title="Recordings & AI"
                               onClick={e => { e.stopPropagation(); setRecordingsLead(l); }}
@@ -1480,7 +1496,6 @@ export default function AdminLeadsPage() {
                               <Mic className="w-3 h-3" />
                               Recordings &amp; AI
                             </button>
-                            {/* Journey open chevron — appears on hover */}
                             <button
                               onClick={e => { e.stopPropagation(); setSelected(l); }}
                               className="w-6 h-6 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
@@ -1534,10 +1549,10 @@ export default function AdminLeadsPage() {
         )}
       </div>
 
-      {/* Journey drawer — existing, untouched behaviour */}
+      {/* Journey drawer */}
       {selected && <LeadJourneyDrawer lead={selected} onClose={() => setSelected(null)} />}
 
-      {/* NEW: Recordings & AI drawer — z-[60] so it layers above LeadJourneyDrawer if both open */}
+      {/* Recordings & AI drawer */}
       {recordingsLead && (
         <RecordingsDrawer lead={recordingsLead} onClose={() => setRecordingsLead(null)} />
       )}
