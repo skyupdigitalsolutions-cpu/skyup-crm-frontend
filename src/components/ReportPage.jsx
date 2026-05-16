@@ -600,9 +600,27 @@ export default function ReportPage() {
     return { ...agent, leads: agentLeads.length, converted: agentLeads.filter(l => l.status === "Converted").length };
   }), [leads, agents]);
 
-  const sourceStats = useMemo(() => ALL_SOURCES.map(src => ({
-    label: src, count: leads.filter(l => l.source === src).length, color: SOURCE_COLORS[src],
-  })).filter(s => s.count > 0), [leads]);
+  const sourceStats = useMemo(() => {
+  const FALLBACK_COLORS = [
+    "#2563EB", "#7C3AED", "#0891B2", "#059669",
+    "#D97706", "#DC2626", "#0D9488", "#9333EA",
+  ];
+
+  const counts = leads.reduce((acc, l) => {
+    const src = l.source?.trim();
+    if (src) acc[src] = (acc[src] || 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.entries(counts)
+    .map(([label, count], i) => ({
+      label,
+      count,
+      color: SOURCE_COLORS[label] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+    }))
+    .filter(s => s.count > 0)
+    .sort((a, b) => b.count - a.count);
+}, [leads]);
 
   const converted = leads.filter(l => l.status === "Converted").length;
   const convRate  = leads.length > 0 ? Math.round((converted / leads.length) * 100) : 0;

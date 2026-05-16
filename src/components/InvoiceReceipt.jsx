@@ -1,14 +1,22 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  InvoiceReceipt.jsx
+//  InvoiceReceipt.jsx  (with logo upload support)
+//
+//  NEW — Logo upload:
+//    • A small "Upload Logo" button appears in the toolbar (camera icon).
+//    • Accepts PNG / JPG / SVG / WebP (max 2 MB).
+//    • The logo is shown in the invoice header (replacing the "S" avatar).
+//    • The logo is embedded as a base64 <img> in the print window.
+//    • An "×" badge lets the user remove the logo.
+//    • companyProp.logo (JSX node) still works for programmatic logos.
 //
 //  USAGE:
 //    import InvoiceReceipt from "./InvoiceReceipt";
 //
 //    <InvoiceReceipt
-//      invoice={invoiceData}       // see shape below
-//      company={companyDetails}    // optional overrides
-//      onClose={() => {}}          // called when modal dismissed
-//      onDownload={() => {}}       // optional extra callback after PDF download
+//      invoice={invoiceData}
+//      company={companyDetails}   // optional
+//      onClose={() => {}}
+//      onDownload={() => {}}      // optional
 //    />
 //
 //  invoiceData shape:
@@ -18,7 +26,7 @@
 //    dueDate:       "01 Apr 2025",           // optional
 //    planName:      "Growth",
 //    billingCycle:  "monthly" | "yearly",
-//    baseAmount:    2499,                    // number, before GST (₹)
+//    baseAmount:    799,
 //    transactionId: "TXN1234567890",
 //    paymentMethod: "Visa •••• 4242",        // optional
 //    status:        "Paid" | "Pending",
@@ -30,82 +38,48 @@
 //    }
 //  }
 //
-//  companyDetails (optional, defaults shown):
-//  {
-//    name:    "SkyUp CRM Pvt. Ltd.",
-//    address: "91springboard, Koramangala, Bengaluru - 560095",
-//    gstin:   "29AABCS1429B1ZZ",
-//    cin:     "U72900KA2022PTC150000",
-//    email:   "billing@skyupcrm.com",
-//    logo:    null,
-//  }
+//  NOTE: baseAmount is GST-INCLUSIVE. GST is split out, not added on top.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useRef } from "react";
+import { useRef, useState, useCallback } from "react";
 
 const GST_RATE = 0.18;
 
 const fmt = (n) =>
   Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// ── Safe PDF string escape (ASCII-safe, no unicode issues) ────────────────────
+// ── Safe PDF string escape ────────────────────────────────────────────────────
 function pdfEscape(str) {
   return String(str)
     .replace(/\\/g, "\\\\")
     .replace(/\(/g, "\\(")
     .replace(/\)/g, "\\)")
-    // Strip any non-ASCII characters that would break Type1 font rendering
     .replace(/[^\x20-\x7E]/g, (c) => {
-      // Replace common unicode chars with ASCII equivalents
       const map = {
         "\u2013": "-", "\u2014": "--", "\u2018": "'", "\u2019": "'",
         "\u201C": '"', "\u201D": '"', "\u20B9": "Rs.", "\u2022": "*",
-        "\u2500": "-", "\u2502": "|", "\u2550": "=",
       };
       return map[c] || "";
     });
 }
 
-// ── Core PDF builder (FIXED object order) ─────────────────────────────────────
-//
-//  Correct PDF object graph:
-//    1 = Catalog  -> /Pages 2 0 R
-//    2 = Pages    -> /Kids [3 0 R]    ← 3 MUST be the Page, not the stream
-//    3 = Page     -> /Contents 4 0 R
-//    4 = Stream   (actual text content)
-//    5 = Font
-//
-//  The original code had objects 3 and 4 swapped, so /Kids [3 0 R] pointed
-//  to the content stream instead of the page — resulting in a blank PDF.
-//
+// ── PDF builder (text-only; logo not embedded due to PDF complexity) ──────────
 function buildPDF(lines, filename) {
-  // Build the content stream
   const streamBody =
     "BT\n/F1 9 Tf\n45 800 Td\n11 TL\n" +
-    lines
-      .map((l) => "(" + pdfEscape(l) + ") Tj\n0 -11 Td")
-      .join("\n") +
+    lines.map((l) => "(" + pdfEscape(l) + ") Tj\n0 -11 Td").join("\n") +
     "\nET";
 
-  // Calculate byte length BEFORE wrapping in obj header
   const streamLen = new TextEncoder().encode(streamBody).length;
 
   const objs = [
-    // obj 1 — Catalog
     { id: 1, body: "<< /Type /Catalog /Pages 2 0 R >>" },
-    // obj 2 — Pages (kids must reference obj 3 = Page)
     { id: 2, body: "<< /Type /Pages /Kids [3 0 R] /Count 1 >>" },
-    // obj 3 — Page (contents reference obj 4 = stream)
     {
       id: 3,
       body: "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842]\n   /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
     },
-    // obj 4 — Content stream
-    {
-      id: 4,
-      body: `<< /Length ${streamLen} >>\nstream\n${streamBody}\nendstream`,
-    },
-    // obj 5 — Font
+    { id: 4, body: `<< /Length ${streamLen} >>\nstream\n${streamBody}\nendstream` },
     { id: 5, body: "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>" },
   ];
 
@@ -115,13 +89,10 @@ function buildPDF(lines, filename) {
     offsets.push(pdf.length);
     pdf += `${o.id} 0 obj\n${o.body}\nendobj\n`;
   }
-
   const xrefOffset = pdf.length;
   pdf += `xref\n0 ${objs.length + 1}\n`;
   pdf += "0000000000 65535 f \n";
-  for (const off of offsets) {
-    pdf += String(off).padStart(10, "0") + " 00000 n \n";
-  }
+  for (const off of offsets) pdf += String(off).padStart(10, "0") + " 00000 n \n";
   pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
 
   const blob = new Blob([pdf], { type: "application/pdf" });
@@ -134,51 +105,98 @@ function buildPDF(lines, filename) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  InvoiceReceipt — full-page modal overlay
+//  InvoiceReceipt
 // ─────────────────────────────────────────────────────────────────────────────
-export default function InvoiceReceipt({
-  invoice,
-  company: companyProp,
-  onClose,
-  onDownload,
-}) {
-  const printRef = useRef(null);
+export default function InvoiceReceipt({ invoice, company: companyProp, onClose, onDownload }) {
+  const printRef   = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // logoDataUrl: base64 string from uploaded file, or null
+  const [logoDataUrl, setLogoDataUrl] = useState(null);
+  const [logoError, setLogoError]     = useState("");
+  const [isDragging, setIsDragging]   = useState(false);
 
   const company = {
-    name: "SkyUp CRM Pvt. Ltd.",
-    address: "91springboard, Koramangala, Bengaluru - 560095, Karnataka",
-    gstin: "29AABCS1429B1ZZ",
-    cin: "U72900KA2022PTC150000",
-    email: "billing@skyupcrm.com",
-    logo: null,
+    name:    "SKYUP DIGITAL SOLUTIONS LLP",
+    address: "Parinidhi #23, E Block, 14th A Main Road, 2nd Floor, Sahakaranagar, Bangalore - 560092",
+    gstin:   "29AABCS1429B1ZZ",
+    cin:     "U72900KA2022PTC150000",
+    email:   "skyupdigitalsolutions@gmail.com",
+    logo:    null,
     ...companyProp,
   };
 
-  const base  = Number(invoice.baseAmount) || 0;
-  const cgst  = +(base * (GST_RATE / 2)).toFixed(2);
-  const sgst  = +(base * (GST_RATE / 2)).toFixed(2);
-  const total = +(base + cgst + sgst).toFixed(2);
-  const isPaid = invoice.status === "Paid";
+  // ── GST breakdown ─────────────────────────────────────────────────────────
+  const total   = +(Number(invoice.baseAmount) || 0).toFixed(2);
+  const taxable = +(total / (1 + GST_RATE)).toFixed(2);
+  const cgst    = +(taxable * (GST_RATE / 2)).toFixed(2);
+  const sgst    = +(total - taxable - cgst).toFixed(2);
+  const isPaid  = invoice.status === "Paid";
 
   const lineItems = [
     {
-      desc: `SkyUp CRM - ${invoice.planName} Plan`,
-      sub:
-        invoice.billingCycle === "yearly"
-          ? "Annual subscription (12 months)"
-          : "Monthly subscription (1 month)",
-      hsn: "998315",
-      qty: 1,
-      rate: base,
-      amount: base,
+      desc:   `SkyUp CRM - ${invoice.planName} Plan`,
+      sub:    invoice.billingCycle === "yearly" ? "Annual subscription (12 months)" : "Monthly subscription (1 month)",
+      hsn:    "998315",
+      qty:    1,
+      rate:   taxable,
+      amount: taxable,
     },
   ];
 
-  // ── Download handler ───────────────────────────────────────────────────────
+  // ── Logo upload logic ─────────────────────────────────────────────────────
+  const processLogoFile = useCallback((file) => {
+    setLogoError("");
+    if (!file) return;
+
+    const allowed = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+    if (!allowed.includes(file.type)) {
+      setLogoError("Please upload a PNG, JPG, WebP, or SVG image.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setLogoError("Image must be under 2 MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => setLogoDataUrl(e.target.result);
+    reader.onerror = () => setLogoError("Failed to read image.");
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleFileChange = (e) => processLogoFile(e.target.files?.[0]);
+
+  const handleDrop = useCallback(
+    (e) => {
+      e.preventDefault();
+      setIsDragging(false);
+      processLogoFile(e.dataTransfer.files?.[0]);
+    },
+    [processLogoFile]
+  );
+
+  const removeLogo = () => {
+    setLogoDataUrl(null);
+    setLogoError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // The resolved logo to display (uploaded base64 takes precedence over JSX prop)
+  const effectiveLogo = logoDataUrl ? (
+    <img
+      src={logoDataUrl}
+      alt="Company logo"
+      style={{ maxHeight: 48, maxWidth: 160, objectFit: "contain", display: "block" }}
+    />
+  ) : company.logo ? (
+    company.logo
+  ) : null;
+
+  // ── Download ──────────────────────────────────────────────────────────────
   function handleDownload() {
     const SEP  = "----------------------------------------------------------------";
     const SEP2 = "================================================================";
-
     const lines = [
       "TAX INVOICE",
       SEP2,
@@ -186,6 +204,7 @@ export default function InvoiceReceipt({
       company.address,
       `GSTIN: ${company.gstin}   CIN: ${company.cin}`,
       `Email: ${company.email}`,
+      logoDataUrl ? "[Logo embedded in HTML/print version]" : null,
       SEP,
       `Invoice No : ${invoice.invoiceId}`,
       `Date       : ${invoice.date}`,
@@ -205,13 +224,14 @@ export default function InvoiceReceipt({
           `${l.desc.slice(0, 32).padEnd(32)} ${l.hsn.padEnd(8)} ${String(l.qty).padEnd(4)} ${`Rs.${fmt(l.rate)}`.padEnd(12)} Rs.${fmt(l.amount)}`
       ),
       SEP,
-      `${"Subtotal".padEnd(56)} Rs.${fmt(base)}`,
+      `${"Taxable Value".padEnd(56)} Rs.${fmt(taxable)}`,
       `${"CGST @ 9%".padEnd(56)} Rs.${fmt(cgst)}`,
       `${"SGST @ 9%".padEnd(56)} Rs.${fmt(sgst)}`,
       SEP2,
       `${"TOTAL (INR)".padEnd(56)} Rs.${fmt(total)}`,
       SEP2,
       "",
+      "GST is included in the plan price. The above is a tax breakdown only.",
       "This is a computer-generated invoice.",
       "It does not require a physical signature.",
       "Thank you for your business!",
@@ -221,7 +241,7 @@ export default function InvoiceReceipt({
     if (onDownload) onDownload(invoice);
   }
 
-  // ── Print handler ──────────────────────────────────────────────────────────
+  // ── Print ─────────────────────────────────────────────────────────────────
   function handlePrint() {
     const content = printRef.current?.innerHTML;
     if (!content) return;
@@ -233,6 +253,7 @@ export default function InvoiceReceipt({
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #111; padding: 40px; }
         table { border-collapse: collapse; width: 100%; }
         th, td { padding: 8px 12px; }
+        img { max-height: 48px; max-width: 160px; object-fit: contain; }
         @media print { body { padding: 0; } }
       </style></head><body>${content}</body></html>
     `);
@@ -241,6 +262,7 @@ export default function InvoiceReceipt({
     setTimeout(() => { w.print(); w.close(); }, 400);
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
       className="fixed inset-0 z-[60] flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4"
@@ -248,14 +270,48 @@ export default function InvoiceReceipt({
     >
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden">
 
-        {/* Toolbar */}
+        {/* ── Toolbar ── */}
         <div className="flex items-center justify-between px-6 py-3 bg-[#F1F5F9] border-b border-[#E2E8F0]">
           <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-widest">
             Tax Invoice
           </span>
           <div className="flex items-center gap-2">
-            <ToolBtn icon={<PrintIcon />} label="Print" onClick={handlePrint} />
+
+            {/* Logo upload button */}
+            <div className="relative group">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleFileChange}
+                id="logo-upload-input"
+              />
+              <label
+                htmlFor="logo-upload-input"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-[#CBD5E1] text-[#475569] hover:bg-white cursor-pointer transition"
+                title="Upload company logo"
+              >
+                <ImageIcon />
+                {logoDataUrl ? "Change Logo" : "Upload Logo"}
+              </label>
+            </div>
+
+            {/* Remove logo badge */}
+            {logoDataUrl && (
+              <button
+                onClick={removeLogo}
+                title="Remove logo"
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border border-[#FCA5A5] text-[#EF4444] hover:bg-[#FEF2F2] transition"
+              >
+                <CloseIcon size="3" />
+                Remove Logo
+              </button>
+            )}
+
+            <ToolBtn icon={<PrintIcon />}    label="Print"        onClick={handlePrint} />
             <ToolBtn icon={<DownloadIcon />} label="Download PDF" onClick={handleDownload} accent />
+
             <button
               onClick={onClose}
               className="ml-2 w-7 h-7 rounded-lg flex items-center justify-center text-[#94A3B8] hover:text-[#0F172A] hover:bg-[#E2E8F0] transition"
@@ -265,14 +321,39 @@ export default function InvoiceReceipt({
           </div>
         </div>
 
-        {/* Printable area */}
+        {/* Logo error */}
+        {logoError && (
+          <div className="px-6 py-2 bg-[#FEF2F2] border-b border-[#FECACA] text-[#DC2626] text-[11px]">
+            {logoError}
+          </div>
+        )}
+
+        {/* ── Drop zone hint (shown only when no logo yet) ── */}
+        {!logoDataUrl && (
+          <div
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            className={`mx-6 mt-4 mb-0 border-2 border-dashed rounded-xl flex items-center justify-center gap-2 py-3 text-[11px] font-medium transition-colors cursor-pointer select-none
+              ${isDragging
+                ? "border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]"
+                : "border-[#CBD5E1] text-[#94A3B8] hover:border-[#93C5FD] hover:text-[#3B82F6]"
+              }`}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <ImageIcon />
+            {isDragging ? "Drop image here" : "Drag & drop logo here, or click to upload  ·  PNG / JPG / SVG / WebP · max 2 MB"}
+          </div>
+        )}
+
+        {/* ── Printable area ── */}
         <div ref={printRef} className="p-8 bg-white">
 
           {/* Header */}
           <div className="flex items-start justify-between mb-8">
             <div>
-              {company.logo ? (
-                <div className="mb-2">{company.logo}</div>
+              {effectiveLogo ? (
+                <div className="mb-2">{effectiveLogo}</div>
               ) : (
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-9 h-9 rounded-xl bg-[#2563EB] flex items-center justify-center">
@@ -280,6 +361,9 @@ export default function InvoiceReceipt({
                   </div>
                   <span className="text-[16px] font-bold text-[#0F172A]">{company.name}</span>
                 </div>
+              )}
+              {effectiveLogo && (
+                <p className="text-[14px] font-bold text-[#0F172A] mb-1">{company.name}</p>
               )}
               <p className="text-[11px] text-[#64748B] leading-relaxed max-w-[260px]">{company.address}</p>
               <p className="text-[11px] text-[#64748B] mt-1">GSTIN: <span className="font-semibold text-[#0F172A]">{company.gstin}</span></p>
@@ -294,9 +378,9 @@ export default function InvoiceReceipt({
                 </span>
               </div>
               <p className="text-[22px] font-bold text-[#0F172A] mb-1">{invoice.invoiceId}</p>
-              <MetaRow label="Date" value={invoice.date} />
-              {invoice.dueDate && <MetaRow label="Due Date" value={invoice.dueDate} />}
-              {invoice.transactionId && <MetaRow label="Txn ID" value={invoice.transactionId} mono />}
+              <MetaRow label="Date"   value={invoice.date} />
+              {invoice.dueDate       && <MetaRow label="Due Date" value={invoice.dueDate} />}
+              {invoice.transactionId && <MetaRow label="Txn ID"   value={invoice.transactionId} mono />}
               {invoice.paymentMethod && <MetaRow label="Paid via" value={invoice.paymentMethod} />}
             </div>
           </div>
@@ -307,26 +391,24 @@ export default function InvoiceReceipt({
           <div className="mb-7">
             <p className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-widest mb-2">Bill To</p>
             <p className="text-[13px] font-bold text-[#0F172A]">{invoice.customer?.name || "—"}</p>
-            {invoice.customer?.email && <p className="text-[12px] text-[#64748B]">{invoice.customer.email}</p>}
-            {invoice.customer?.address && (
-              <p className="text-[12px] text-[#64748B] max-w-[260px] leading-relaxed">{invoice.customer.address}</p>
-            )}
-            {invoice.customer?.gstin && (
+            {invoice.customer?.email   && <p className="text-[12px] text-[#64748B]">{invoice.customer.email}</p>}
+            {invoice.customer?.address && <p className="text-[12px] text-[#64748B] max-w-[260px] leading-relaxed">{invoice.customer.address}</p>}
+            {invoice.customer?.gstin   && (
               <p className="text-[12px] text-[#64748B] mt-0.5">
                 GSTIN: <span className="font-semibold text-[#0F172A]">{invoice.customer.gstin}</span>
               </p>
             )}
           </div>
 
-          {/* Line items table */}
-          <div className="mb-6 rounded-xl border border-[#E2E8F0] overflow-hidden">
+          {/* Line items */}
+          <div className="mb-4 rounded-xl border border-[#E2E8F0] overflow-hidden">
             <table className="w-full text-[12px] border-collapse">
               <thead>
                 <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
                   <Th left>Description</Th>
                   <Th>HSN / SAC</Th>
                   <Th>Qty</Th>
-                  <Th>Rate (₹)</Th>
+                  <Th>Taxable Value (₹)</Th>
                   <Th right>Amount (₹)</Th>
                 </tr>
               </thead>
@@ -347,16 +429,20 @@ export default function InvoiceReceipt({
             </table>
           </div>
 
+          <p className="text-[10px] text-[#94A3B8] mb-5 pl-1">
+            * Plan price of ₹&nbsp;{fmt(total)} is GST-inclusive. The breakdown below is for tax reporting purposes only — no additional amount is charged.
+          </p>
+
           {/* Totals */}
           <div className="flex justify-end mb-8">
-            <div className="w-full max-w-[280px] space-y-1">
-              <TotalRow label="Subtotal"     value={`₹ ${fmt(base)}`} />
-              <TotalRow label="CGST @ 9%"   value={`₹ ${fmt(cgst)}`} />
-              <TotalRow label="SGST @ 9%"   value={`₹ ${fmt(sgst)}`} />
+            <div className="w-full max-w-[300px] space-y-1">
+              <TotalRow label="Taxable Value" value={`₹ ${fmt(taxable)}`} />
+              <TotalRow label="CGST @ 9%"     value={`₹ ${fmt(cgst)}`} />
+              <TotalRow label="SGST @ 9%"     value={`₹ ${fmt(sgst)}`} />
               <div className="h-px bg-[#E2E8F0] my-2" />
-              <TotalRow label="Total (INR)"  value={`₹ ${fmt(total)}`} bold accent />
+              <TotalRow label="Total (INR)"   value={`₹ ${fmt(total)}`} bold accent />
               {isPaid && <TotalRow label="Amount Paid" value={`₹ ${fmt(total)}`} bold />}
-              {isPaid && <TotalRow label="Balance Due" value="₹ 0.00" muted />}
+              {isPaid && <TotalRow label="Balance Due"  value="₹ 0.00"           muted />}
             </div>
           </div>
 
@@ -365,7 +451,7 @@ export default function InvoiceReceipt({
             <p className="text-[10px] text-[#94A3B8] text-center leading-relaxed">
               This is a computer-generated tax invoice and does not require a physical signature.
               <br />
-              GST is applicable as per the IGST / CGST + SGST provisions under GST Act 2017.
+              GST is included in the plan price as per CGST + SGST provisions under GST Act 2017.
               <br />
               For queries: <span className="text-[#2563EB]">{company.email}</span>
             </p>
@@ -432,6 +518,16 @@ function TotalRow({ label, value, bold, accent, muted }) {
   );
 }
 
+function ImageIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <polyline points="21 15 16 10 5 21" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function PrintIcon() {
   return (
     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -439,6 +535,7 @@ function PrintIcon() {
     </svg>
   );
 }
+
 function DownloadIcon() {
   return (
     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -446,9 +543,10 @@ function DownloadIcon() {
     </svg>
   );
 }
-function CloseIcon() {
+
+function CloseIcon({ size = "4" }) {
   return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg className={`w-${size} h-${size}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
   );
