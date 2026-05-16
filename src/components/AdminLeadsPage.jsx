@@ -1274,6 +1274,7 @@ const [sortBy,      setSortBy]      = useState("date_desc");
           </button>
           )}
           </button>
+      </div>
           <button onClick={fetchLeads} className="p-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#8B92A9] hover:text-[#2563EB] transition" title="Refresh">
             <RefreshCw className="w-4 h-4" />
           </button>
