@@ -141,9 +141,7 @@ function LeadDrawer({ campaign, onClose }) {
         {/* Stats */}
         <div className="px-6 py-4 grid grid-cols-3 gap-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[
-            { label: "Sent", value: fmt(campaign.sent) },
             { label: "Leads", value: fmt(campaign.leads) },
-            { label: "Conv. rate", value: convRate + "%" },
           ].map((s) => (
             <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-3 text-center">
               <div className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{s.value}</div>
