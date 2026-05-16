@@ -81,7 +81,7 @@ export default function WhatsAppChat({ currentUser }) {
   // ── Start-conversation modal state ───────────────────────────────────────
   const [startModal,   setStartModal]   = useState(null);
   const [templateName, setTemplateName] = useState('');
-  const [langCode,     setLangCode]     = useState('en_US');
+  const [langCode,     setLangCode]     = useState('en');
   const [startError,   setStartError]   = useState('');
   const [starting,     setStarting]     = useState(false);
 
@@ -270,7 +270,7 @@ export default function WhatsAppChat({ currentUser }) {
   const openStartModal = (lead) => {
     setStartModal({ lead });
     setTemplateName('');
-    setLangCode('en_US');
+    setLangCode('en');
     setStartError('');
   };
 
@@ -638,6 +638,7 @@ export default function WhatsAppChat({ currentUser }) {
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: 4 }}>Language Code</label>
               <select value={langCode} onChange={e => setLangCode(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: '8px 10px', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-tertiary)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)' }}>
+                <option value="en">en — English</option>
                 <option value="en_US">en_US — English (US)</option>
                 <option value="en_GB">en_GB — English (UK)</option>
                 <option value="hi">hi — Hindi</option>
