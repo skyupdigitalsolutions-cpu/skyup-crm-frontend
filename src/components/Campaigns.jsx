@@ -1498,18 +1498,7 @@ export default function Campaigns() {
                     ))}
                   </div>
 
-                  {c.leads > 0 && (
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">Conv. rate</span>
-                        <span className="text-[11px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{convRate}%</span>
-                      </div>
-                      <div className="h-1.5 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all" style={{ width: `${convRate}%`, background: c.color }} />
-                      </div>
-                      {c.cost > 0 && <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-1">₹{cpl} cost per lead · ₹{c.cost.toLocaleString()} total spend</p>}
-                    </div>
-                  )}
+               
 
                   <div className="flex items-center gap-1.5 mb-3">
                     <svg className="w-3 h-3 text-[#2563EB] dark:text-[#4F8EF7] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
