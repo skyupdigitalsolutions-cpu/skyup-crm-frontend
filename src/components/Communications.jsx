@@ -149,7 +149,7 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
         },
         authHeaders
       );
-      onSuccess(data.conversation, data.message);
+      onSuccess(data.conversation);
       onClose();
     } catch (err) {
       const msg = err.response?.data?.error || "Failed to start conversation";
@@ -677,30 +677,32 @@ function WhatsAppPanel({ currentUser }) {
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
 
-  const handleNewConversation = (conv, firstMsg) => {
-    // FIX: after admin starts a new conversation, re-fetch it so sessionExpiresAt is populated.
-    // The returned conv object is pre-update (sessionExpiresAt still null), causing
-    // the "24-hour session expired" banner to appear immediately on new chats.
+  const handleNewConversation = (conv) => {
+    // Add conversation to list if not already present
     setConversations((prev) => {
       const exists = prev.find((c) => c._id === conv._id);
       if (exists) return prev;
       return [conv, ...prev];
     });
-    // Pre-populate the template message so the chat window is not empty
-    if (firstMsg) setMessages([firstMsg]);
-    // Select and then re-load from server to get updated sessionExpiresAt
+    // Select the conversation and clear any stale messages immediately —
+    // DO NOT set firstMsg optimistically here. The backend already saved the
+    // template message AND emits it via socket (wa_message). Setting it here
+    // AND getting it from the server fetch caused every new conversation to
+    // show the message twice until a page refresh.
+    setMessages([]);
     setSelected(conv);
     setError("");
+    // Re-fetch from server — single source of truth for messages AND
+    // sessionExpiresAt (which is null on the conv object returned by the API)
     axios.get(`${API_URL}/whatsapp/conversations/${conv._id}/messages`, authHeaders)
       .then(({ data }) => {
-        setMessages(data.messages || (firstMsg ? [firstMsg] : []));
-        // Update the conversation in the list with fresh sessionExpiresAt
+        setMessages(data.messages || []);
         setConversations((prev) =>
           prev.map((c) => c._id === conv._id ? { ...c, ...data.conversation } : c)
         );
         setSelected((sel) => sel?._id === conv._id ? { ...sel, ...data.conversation } : sel);
       })
-      .catch(() => { if (firstMsg) setMessages([firstMsg]); });
+      .catch(() => {});
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
