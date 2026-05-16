@@ -141,9 +141,8 @@ function LeadDrawer({ campaign, onClose }) {
         {/* Stats */}
         <div className="px-6 py-4 grid grid-cols-3 gap-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[
-            { label: "Sent", value: fmt(campaign.sent) },
             { label: "Leads", value: fmt(campaign.leads) },
-            { label: "Conv. rate", value: convRate + "%" },
+        
           ].map((s) => (
             <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-3 text-center">
               <div className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{s.value}</div>
@@ -1432,12 +1431,12 @@ export default function Campaigns() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <SummaryCard label="Total sent" value={totalSent.toLocaleString()} color="#2563EB" sub="Across all campaigns" />
         <SummaryCard label="Leads generated" value={totalLeads.toLocaleString()} color="#7C3AED" sub="From all campaigns" />
         <SummaryCard label="Conversions" value={totalConverted.toLocaleString()} color="#059669" sub={totalLeads > 0 ? `${Math.round((totalConverted / totalLeads) * 100)}% conv. rate` : ""} />
         <SummaryCard label="Avg. cost/lead" value={`₹${overallCPL}`} color="#D97706" sub="Across all spend" />
-      </div>
+      </div> */}
 
       {/* Filters + search */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
