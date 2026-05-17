@@ -490,6 +490,9 @@ export default function UserManagement({
   const planKey = normalizePlanId(currentPlan);
   const cfg = PLANS[planKey] || PLANS.starter;
   const navigate = useNavigate();
+  // Only the company superadmin may add/remove admins & users.
+  const isCompanySuperAdmin = getStoredUser()?.isCompanySuperAdmin === true;
+  
 
   const [admins, setAdmins] = useState([]);
   const [users,  setUsers]  = useState([]);
@@ -672,6 +675,7 @@ export default function UserManagement({
               </div>
               <SlotBar used={admins.length} max={cfg.maxAdmins} isAdmin/>
             </div>
+            {isCompanySuperAdmin && (
             <button
               onClick={() => tryAdd("admin")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] dark:text-blue-400 hover:bg-blue-100"
@@ -679,6 +683,7 @@ export default function UserManagement({
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               Add Admin
             </button>
+            )}
           </div>
           <div className="px-5 py-2 max-h-80 overflow-y-auto">
             {admins.length === 0
