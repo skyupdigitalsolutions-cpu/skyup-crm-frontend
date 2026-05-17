@@ -13,6 +13,13 @@ function maskPhone(phone) {
   return str.slice(0, 2) + "•".repeat(Math.max(str.length - 4, 3)) + str.slice(-2);
 }
 
+// ── Role-aware phone display: superadmin sees full number, others see masked ──
+function displayPhone(phone, role) {
+  if (!phone) return "—";
+  if (role === "superadmin") return String(phone).replace(/\s/g, "");
+  return maskPhone(phone);
+}
+
 const crm = new CRMEncryption();
 
 const CALL_LOGS_API = "/call-logs";
@@ -289,7 +296,8 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
 }
 
 // ── Remarks History Panel ─────────────────────────────────────────────────────
-function RemarksHistoryModal({ lead, onClose }) {
+// FIX: accepts `role` prop and uses displayPhone() instead of maskPhone()
+function RemarksHistoryModal({ lead, role, onClose }) {
   const callHistory = Array.isArray(lead.callHistory) ? lead.callHistory : [];
 
   const sorted = [...callHistory].sort(
@@ -310,7 +318,10 @@ function RemarksHistoryModal({ lead, onClose }) {
             </div>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
-              <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{maskPhone(lead.phone)} · {lead.source}</p>
+              {/* FIX: use displayPhone() so superadmin sees full number */}
+              <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
+                {displayPhone(lead.phone, role)} · {lead.source}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
@@ -400,7 +411,8 @@ function RemarksHistoryModal({ lead, onClose }) {
 }
 
 // ── Recording & Remarks Modal ─────────────────────────────────────────────────
-function RecordingModal({ lead, onClose }) {
+// FIX: accepts `role` prop and uses displayPhone() instead of hardcoded maskPhone()
+function RecordingModal({ lead, role, onClose }) {
   const [mobileLogs, setMobileLogs] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
@@ -438,7 +450,10 @@ function RecordingModal({ lead, onClose }) {
             </div>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
-              <p className="text-[12px] text-[#8B92A9] mt-0.5 font-mono">{maskPhone(lead.phone)}</p>
+              {/* FIX: use displayPhone() so superadmin sees full number */}
+              <p className="text-[12px] text-[#8B92A9] mt-0.5 font-mono">
+                {displayPhone(lead.phone, role)}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
@@ -568,6 +583,7 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
 
+  // FIX: role is read once at the top level and passed down to modals
   const role = getRole();
 
   useEffect(() => {
@@ -601,26 +617,24 @@ export default function ReportPage() {
   }), [leads, agents]);
 
   const sourceStats = useMemo(() => {
-  const FALLBACK_COLORS = [
-    "#2563EB", "#7C3AED", "#0891B2", "#059669",
-    "#D97706", "#DC2626", "#0D9488", "#9333EA",
-  ];
-
-  const counts = leads.reduce((acc, l) => {
-    const src = l.source?.trim();
-    if (src) acc[src] = (acc[src] || 0) + 1;
-    return acc;
-  }, {});
-
-  return Object.entries(counts)
-    .map(([label, count], i) => ({
-      label,
-      count,
-      color: SOURCE_COLORS[label] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length],
-    }))
-    .filter(s => s.count > 0)
-    .sort((a, b) => b.count - a.count);
-}, [leads]);
+    const FALLBACK_COLORS = [
+      "#2563EB", "#7C3AED", "#0891B2", "#059669",
+      "#D97706", "#DC2626", "#0D9488", "#9333EA",
+    ];
+    const counts = leads.reduce((acc, l) => {
+      const src = l.source?.trim();
+      if (src) acc[src] = (acc[src] || 0) + 1;
+      return acc;
+    }, {});
+    return Object.entries(counts)
+      .map(([label, count], i) => ({
+        label,
+        count,
+        color: SOURCE_COLORS[label] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+      }))
+      .filter(s => s.count > 0)
+      .sort((a, b) => b.count - a.count);
+  }, [leads]);
 
   const converted = leads.filter(l => l.status === "Converted").length;
   const convRate  = leads.length > 0 ? Math.round((converted / leads.length) * 100) : 0;
@@ -702,8 +716,24 @@ export default function ReportPage() {
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-8">
 
       {editLead      && <EditLeadModal lead={editLead} agents={agents} onClose={() => setEditLead(null)} onSave={saveLead} />}
-      {recordingLead && <RecordingModal lead={recordingLead} onClose={() => setRecordingLead(null)} />}
-      {remarksLead   && <RemarksHistoryModal lead={remarksLead} onClose={() => setRemarksLead(null)} />}
+
+      {/* FIX: pass role to RecordingModal so superadmin sees unmasked phone */}
+      {recordingLead && (
+        <RecordingModal
+          lead={recordingLead}
+          role={role}
+          onClose={() => setRecordingLead(null)}
+        />
+      )}
+
+      {/* FIX: pass role to RemarksHistoryModal so superadmin sees unmasked phone */}
+      {remarksLead && (
+        <RemarksHistoryModal
+          lead={remarksLead}
+          role={role}
+          onClose={() => setRemarksLead(null)}
+        />
+      )}
 
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -726,12 +756,12 @@ export default function ReportPage() {
           <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Report Page</h1>
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{leads.length} total leads · {agents.length} agents</p>
         </div>
-       <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
           {role === "superadmin" && (
-          <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-            Export CSV
-          </button>
+            <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Export CSV
+            </button>
           )}
         </div>
       </div>
@@ -832,15 +862,15 @@ export default function ReportPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-1.5">{filterBtn(statusFilter, setStatus, statuses)}</div>
-        <div className="flex items-center gap-2 mt-2">
-  <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] self-center">Agent:</span>
-  <AgentSelect
-    value={agentFilter}
-    onChange={(val) => { setAgent(val); setPage(1); }}
-    agents={agents.map(a => a.name)}
-    className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] transition"
-  />
-</div>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] self-center">Agent:</span>
+            <AgentSelect
+              value={agentFilter}
+              onChange={(val) => { setAgent(val); setPage(1); }}
+              agents={agents.map(a => a.name)}
+              className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] transition"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -869,7 +899,12 @@ export default function ReportPage() {
                         <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{lead.name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap font-mono">{maskPhone(lead.phone)}</td>
+
+                    {/* FIX: use displayPhone() — superadmin sees full number, others see masked */}
+                    <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap font-mono">
+                      {displayPhone(lead.phone, role)}
+                    </td>
+
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.source}</td>
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB]">{lead.campaign}</td>
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.agent}</td>
@@ -936,57 +971,49 @@ export default function ReportPage() {
             </span>
             <div className="flex items-center gap-1.5">
               <button
-  onClick={() => setPage(p => Math.max(1, p - 1))}
-  disabled={page === 1}
-  className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition"
->
-  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
-  </svg>
-</button>
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+                </svg>
+              </button>
 
-{/* Dynamic Pagination */}
-{Array.from(
-  {
-    length: Math.min(3, totalPages),
-  },
-  (_, i) => {
-    let start = Math.max(1, page - 1);
+              {Array.from(
+                { length: Math.min(3, totalPages) },
+                (_, i) => {
+                  let start = Math.max(1, page - 1);
+                  if (start + 2 > totalPages) start = Math.max(1, totalPages - 2);
+                  return start + i;
+                }
+              ).map(n => (
+                <button
+                  key={n}
+                  onClick={() => setPage(n)}
+                  className={`h-8 w-8 rounded-lg text-[12px] font-semibold transition ${
+                    n === page
+                      ? "bg-[#2563EB] text-white border border-[#2563EB]"
+                      : "border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB]"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
 
-    if (start + 2 > totalPages) {
-      start = Math.max(1, totalPages - 2);
-    }
+              {totalPages > 3 && (
+                <span className="px-2 text-[#8B92A9]">...</span>
+              )}
 
-    return start + i;
-  }
-).map(n => (
-  <button
-    key={n}
-    onClick={() => setPage(n)}
-    className={`h-8 w-8 rounded-lg text-[12px] font-semibold transition ${
-      n === page
-        ? "bg-[#2563EB] text-white border border-[#2563EB]"
-        : "border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB]"
-    }`}
-  >
-    {n}
-  </button>
-))}
-
-{/* Dots */}
-{totalPages > 3 && (
-  <span className="px-2 text-[#8B92A9]">...</span>
-)}
-
-<button
-  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-  disabled={page === totalPages}
-  className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition"
->
-  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-  </svg>
-</button>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+                </svg>
+              </button>
             </div>
           </div>
         )}
