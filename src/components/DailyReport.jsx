@@ -2,6 +2,16 @@ import { useState, useEffect, useMemo } from "react";
 import { fetchAll } from "../data/dataService";
 import { getRole } from "../data/dataService";
 
+// ── Phone masking utility ─────────────────────────────────────────────────────
+// Superadmin always sees the full number; admin sees last 2 digits only.
+function maskPhone(phone, isSuperAdmin) {
+  if (!phone) return "—";
+  if (isSuperAdmin) return phone;
+  const str = String(phone);
+  if (str.length <= 2) return "••••••••";
+  return "•".repeat(str.length - 2) + str.slice(-2);
+}
+
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function parseDate(dateStr) {
   if (!dateStr) return new Date(NaN);
@@ -183,8 +193,9 @@ export default function Dailyreport() {
   const goBack    = () => setViewDate(d => addDays(d, -1));
   const goForward = () => { if (!isViewingToday) setViewDate(d => addDays(d, 1)); };
   const goToday   = () => setViewDate(new Date());
-  const role = getRole();
-const isSuperAdmin = role === "superadmin";
+
+  const role         = getRole();
+  const isSuperAdmin = role === "superadmin";
 
   const dayLeads = useMemo(
     () => allLeads.filter(l => isSameDay(l.date, viewDate)),
@@ -488,7 +499,7 @@ const isSuperAdmin = role === "superadmin";
               {summary.newLeads > 0 && (
                 <div className="mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
                   <span className="text-[12px] text-[#8B92A9] dark:text-[#565C75]">Conversion rate</span>
-                  <span className="text-[20px] font-bold text-[#059669] dark:text-[#34D399]">{summary.convRate}%</span>
+                  <span className="text-[20px] font:bold text-[#059669] dark:text-[#34D399]">{summary.convRate}%</span>
                 </div>
               )}
             </Card>
@@ -675,7 +686,10 @@ const isSuperAdmin = role === "superadmin";
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{l.name}</span>
-                      <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] font-mono">{maskPhone(l.phone, isSuperAdmin)}</span>                     
+                        {/* Superadmin sees plain number; admin sees masked number */}
+                        <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] font-mono">
+                          {maskPhone(l.phone, isSuperAdmin)}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: srcColor + "20", color: srcColor }}>
@@ -739,7 +753,10 @@ const isSuperAdmin = role === "superadmin";
                         <div className="flex items-start justify-between flex-wrap gap-2 mb-1.5">
                           <div>
                             <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{c.name}</span>
-                              <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] ml-2 font-mono">{maskPhone(c.phone, isSuperAdmin)}</span>          
+                            {/* Superadmin sees plain number; admin sees masked number */}
+                            <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] ml-2 font-mono">
+                              {maskPhone(c.phone, isSuperAdmin)}
+                            </span>
                           </div>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 ${badgeCls}`}>
