@@ -699,9 +699,7 @@ const PIPELINE_SEGMENTS_CONFIG = [
 export default function Dashboard() {
   const [allLeads,    setAllLeads]    = useState([]);
   const [agents,      setAgents]      = useState([]);
-  const [dbAdmins,    setDbAdmins]    = useState([]);
-  const [dbUsers,     setDbUsers]     = useState([]);
-  const [companyPlan, setCompanyPlan] = useState("basic");
+ 
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState(null);
@@ -752,22 +750,22 @@ export default function Dashboard() {
       });
 
     // ── Only fetch admin-specific data when role is "admin" (not superadmin) ──
-    if (role === "admin") {
-      import("../data/axiosConfig").then(({ default: api }) => {
-        Promise.all([
-          api.get("/admin/"),
-          api.get("/admin/company/users"),
-          api.get("/admin/company/me"),
-        ])
-          .then(([adminsRes, usersRes, companyRes]) => {
-            setDbAdmins(adminsRes.data || []);
-            setDbUsers(usersRes.data || []);
-            setCompanyPlan(companyRes.data?.plan || "basic");
-          })
-          .catch(() => {});
-      });
-    }
-  };
+  //   if (role === "admin") {
+  //     import("../data/axiosConfig").then(({ default: api }) => {
+  //       Promise.all([
+  //         api.get("/admin/"),
+  //         api.get("/admin/company/users"),
+  //         api.get("/admin/company/me"),
+  //       ])
+  //         .then(([adminsRes, usersRes, companyRes]) => {
+  //           setDbAdmins(adminsRes.data || []);
+  //           setDbUsers(usersRes.data || []);
+  //           setCompanyPlan(companyRes.data?.plan || "basic");
+  //         })
+  //         .catch(() => {});
+  //     });
+  //   }
+  // };
 
   useEffect(() => { loadData(); }, []);
 
@@ -1147,13 +1145,12 @@ export default function Dashboard() {
            • Admin      → rendered with company-scoped props
            • User role  → hidden entirely
       */}
-      {(isSuperAdmin || role === "admin") && (
-        <UserManagement
-          currentPlan={isSuperAdmin ? "enterprise" : companyPlan}
-          existingAdmins={dbAdmins}
-          existingUsers={dbUsers}
-        />
-      )}
+   {isSuperAdmin && (
+  <UserManagement
+    currentPlan="enterprise"
+  
+  />
+)}
 
       {/* ── Modals ── */}
       <PhoneRevealModal
