@@ -748,6 +748,7 @@ export default function Dashboard() {
         setLoading(false);
         setRefreshing(false);
       });
+      }; 
 
     // ── Only fetch admin-specific data when role is "admin" (not superadmin) ──
   //   if (role === "admin") {
