@@ -728,7 +728,20 @@ function WhatsAppPanel({ currentUser }) {
     try {
       const { data } = await axios.get(`${API_URL}/whatsapp/conversations/${conv._id}/messages`, authHeaders);
       setMessages(data.messages || []);
-      setConversations((prev) => prev.map((c) => c._id === conv._id ? { ...c, unreadCount: 0 } : c));
+      // Sync the fresh conversation data (sessionExpiresAt, status, etc.) into both
+      // the selected state and the conversations list. Without this, the 24h session
+      // banner never shows for expired sessions because selected.sessionExpiresAt is stale.
+      if (data.conversation) {
+        const fresh = data.conversation;
+        setSelected((prev) => prev?._id === fresh._id ? { ...prev, ...fresh } : prev);
+        setConversations((prev) => prev.map((c) =>
+          c._id === fresh._id
+            ? { ...c, unreadCount: 0, sessionExpiresAt: fresh.sessionExpiresAt, status: fresh.status }
+            : c
+        ));
+      } else {
+        setConversations((prev) => prev.map((c) => c._id === conv._id ? { ...c, unreadCount: 0 } : c));
+      }
     } catch {}
     finally { setLoading(false); }
   }, []);
