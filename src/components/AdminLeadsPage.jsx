@@ -32,6 +32,16 @@ const BACKEND_ROOT = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace(/\/api$/, "")
   : "https://skyup-crm-backend.onrender.com";
 
+// ── Phone masking utility ─────────────────────────────────────────────────────
+// Superadmin always sees the full number; admin sees last 2 digits only.
+function maskPhone(phone, isSuperAdmin) {
+  if (!phone) return "—";
+  if (isSuperAdmin) return phone;
+  const str = String(phone);
+  if (str.length <= 2) return "••••••••";
+  return "•".repeat(str.length - 2) + str.slice(-2);
+}
+
 const STATUS_CONFIG = {
   "New":            { bg: "bg-blue-100 dark:bg-blue-950/40",       text: "text-blue-600 dark:text-blue-400",       dot: "#2563EB" },
   "In Progress":    { bg: "bg-amber-100 dark:bg-amber-950/40",     text: "text-amber-600 dark:text-amber-400",     dot: "#D97706" },
@@ -597,7 +607,9 @@ function Spinner() {
 }
 
 // ── Add Lead Modal ────────────────────────────────────────────────────────────
-function AddLeadModal({ onClose, onAdd }) {
+// isSuperAdmin prop controls whether the duplicate lead's mobile is shown
+// in plain text (superadmin) or masked (admin).
+function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
   const [users,   setUsers]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [customSource, setCustomSource] = useState("");
@@ -816,6 +828,8 @@ function AddLeadModal({ onClose, onAdd }) {
                 <Check className="w-3 h-3" /> Number is available
               </p>
             )}
+
+            {/* ── Duplicate card with phone masking ── */}
             {dupCheck.state === "duplicate" && dupCheck.lead && (
               <div className="mt-2 p-3 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600">
                 <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400 mb-2 flex items-center gap-1.5">
@@ -823,7 +837,11 @@ function AddLeadModal({ onClose, onAdd }) {
                 </p>
                 <div className="text-[11px] text-amber-700 dark:text-amber-300 space-y-0.5">
                   <p><span className="font-semibold">Name:</span> {dupCheck.lead.name}</p>
-                  <p><span className="font-semibold">Mobile:</span> {dupCheck.lead.mobile}</p>
+                  {/* Superadmin sees plain number; admin sees masked number */}
+                  <p>
+                    <span className="font-semibold">Mobile:</span>{" "}
+                    <span className="font-mono">{maskPhone(dupCheck.lead.mobile, isSuperAdmin)}</span>
+                  </p>
                   <p><span className="font-semibold">Status:</span> {dupCheck.lead.status}</p>
                   <p><span className="font-semibold">Source:</span> {dupCheck.lead.source}</p>
                   {dupCheck.lead.createdAt && <p><span className="font-semibold">Added:</span> {new Date(dupCheck.lead.createdAt).toLocaleDateString()}</p>}
@@ -1238,7 +1256,8 @@ export default function AdminLeadsPage() {
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-6 py-8">
 
-      {showAdd    && <AddLeadModal   onClose={() => setShowAdd(false)}    onAdd={handleAdd} />}
+      {/* Pass isSuperAdmin so AddLeadModal can mask the duplicate lead's phone */}
+      {showAdd    && <AddLeadModal   onClose={() => setShowAdd(false)}    onAdd={handleAdd}    isSuperAdmin={isSuperAdmin} />}
       {showImport && <ImportCSVModal onClose={() => setShowImport(false)} onImported={fetchLeads} existingLeads={allLeads} />}
 
       {/* Header */}
@@ -1380,9 +1399,8 @@ export default function AdminLeadsPage() {
                     const sc        = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
                     const isRevealed = revealedPhone === l.id;
                     const viewCount  = viewCounts[l.id] || 0;
-                    const maskedPhone = l.phone
-                      ? "•".repeat(Math.max(0, l.phone.length - 2)) + l.phone.slice(-2)
-                      : "—";
+                    // Use shared maskPhone for consistency
+                    const maskedPhone = maskPhone(l.phone, isSuperAdmin);
 
                     return (
                       <tr key={l.id}
