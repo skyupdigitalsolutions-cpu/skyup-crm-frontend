@@ -423,7 +423,6 @@ function PhoneRevealModal({ open, onClose, data }) {
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{item.name}</p>
-                  {/* ── UPDATED: use maskPhone helper ── */}
                   <p className="text-[11px] text-[#8B92A9] font-mono mt-0.5">
                     {maskPhone(item.mobile)}
                   </p>
@@ -552,7 +551,6 @@ function LeadsDetailModal({ open, onClose, title, leads, accentColor, TitleIcon 
                   </div>
                 </div>
 
-                {/* ── UPDATED: use maskPhone helper ── */}
                 {lead.mobile && (
                   <div className="shrink-0 text-right hidden sm:block">
                     <p className="text-[11px] font-mono text-[#9CA3AF] dark:text-[#565C75]">
@@ -724,7 +722,6 @@ export default function Dashboard() {
   const isSuperAdmin = role === "superadmin";
 
   // ── Fetch dashboard stats ─────────────────────────────────────────────────
-  // Extracted so it can be called manually (refresh button) and on visibility change
   const fetchDashStats = () => {
     api.get("/admin/dashboard-stats")
       .then((r) => setDashStats(r.data))
@@ -754,6 +751,7 @@ export default function Dashboard() {
         setRefreshing(false);
       });
 
+    // ── Only fetch admin-specific data when role is "admin" (not superadmin) ──
     if (role === "admin") {
       import("../data/axiosConfig").then(({ default: api }) => {
         Promise.all([
@@ -773,8 +771,6 @@ export default function Dashboard() {
 
   useEffect(() => { loadData(); }, []);
 
-  // ── UPDATED: fetch dashStats on mount AND whenever tab regains focus ──────
-  // This ensures phone reveal counts from AdminLeadsPage are always fresh
   useEffect(() => {
     fetchDashStats();
 
@@ -788,7 +784,7 @@ export default function Dashboard() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
-  // ── Derived data ─────────────────────────────────────────────────────────────
+  // ── Derived data ──────────────────────────────────────────────────────────
   const leads = useMemo(() => filterByRange(allLeads, range), [allLeads, range]);
 
   const kpi = useMemo(() => {
@@ -913,16 +909,6 @@ export default function Dashboard() {
 
       {/* ── Error banner ── */}
       {error && <ErrorBanner message={error} onRetry={() => loadData()} />}
-
-      {/* ── SuperAdmin extra stats ── */}
-      {isSuperAdmin && superStats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
-          <KpiCard label="Total Companies"  value={superStats.totalCompanies}  sub="Registered companies" up IconComponent={Building2} variant="blue" />
-          <KpiCard label="Active Companies" value={superStats.activeCompanies} sub="Currently active"     up IconComponent={CheckCircle} variant="green" />
-          <KpiCard label="Total Admins"     value={superStats.totalAdmins}     sub="Across all companies" up IconComponent={Users} variant="purple" />
-          <KpiCard label="Total Users"      value={superStats.totalUsers}      sub="Across all companies" up IconComponent={Users} variant="amber" />
-        </div>
-      )}
 
       {/* ── KPI row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
@@ -1154,11 +1140,20 @@ export default function Dashboard() {
       <div className="mt-5 p-2">
         <AdminAttendanceView />
       </div>
-      <UserManagement
-        currentPlan={companyPlan}
-        existingAdmins={dbAdmins}
-        existingUsers={dbUsers}
-      />
+
+      {/*
+        ── UserManagement:
+           • SuperAdmin → always rendered (manages companies/users across the platform)
+           • Admin      → rendered with company-scoped props
+           • User role  → hidden entirely
+      */}
+      {(isSuperAdmin || role === "admin") && (
+        <UserManagement
+          currentPlan={isSuperAdmin ? "enterprise" : companyPlan}
+          existingAdmins={dbAdmins}
+          existingUsers={dbUsers}
+        />
+      )}
 
       {/* ── Modals ── */}
       <PhoneRevealModal
