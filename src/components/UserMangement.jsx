@@ -498,6 +498,16 @@ export default function UserManagement({
   const [users,  setUsers]  = useState([]);
 
   useEffect(() => {
+  api.get("/admin/")
+    .then((res) => setAdmins(res.data || []))
+    .catch(() => {});
+
+  api.get("/admin/company/users")
+    .then((res) => setUsers(res.data || []))
+    .catch(() => {});
+}, []);
+
+  useEffect(() => {
   onMembersChange?.({ admins, users });
 }, [admins, users]);
 
