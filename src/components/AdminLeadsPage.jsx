@@ -1579,8 +1579,14 @@ export default function AdminLeadsPage() {
       </div>
 
       {/* Journey drawer */}
-      {selected && <LeadJourneyDrawer lead={selected} onClose={() => setSelected(null)} />}
-
+{selected && (
+  <LeadJourneyDrawer
+    lead={selected}
+    onClose={() => setSelected(null)}
+    isSuperAdmin={isSuperAdmin}
+    maskPhone={maskPhone}
+  />
+)}
       {/* Recordings & AI drawer */}
       {recordingsLead && (
         <RecordingsDrawer lead={recordingsLead} onClose={() => setRecordingsLead(null)} />
