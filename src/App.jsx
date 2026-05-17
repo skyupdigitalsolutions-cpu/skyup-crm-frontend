@@ -3,28 +3,26 @@ import { useEffect, lazy, Suspense } from "react";
 import { Sidebar } from "./components/Sidebar";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
-// Heavy admin pages
 const Dashboard      = lazy(() => import("./components/Dashboard"));
 const Campaigns      = lazy(() => import("./components/Campaigns"));
 const Dailyreport    = lazy(() => import("./components/DailyReport"));
 const ReportPage     = lazy(() => import("./components/ReportPage"));
 const AdminLeadsPage = lazy(() => import("./components/AdminLeadsPage"));
-const CallRecording  = lazy(() => import("./components/CallRecording"));
 const Communications = lazy(() => import("./components/Communications"));
 const AttendancePage = lazy(() => import("./pages/AttendancePage"));
 const UpgradePlan    = lazy(() => import("./components/UpgradePlan"));
 
 // User pages
-const UserLogin      = lazy(() => import("./pages/UserLogin"));
-const UserDashboard  = lazy(() => import("./pages/UserDashboard"));
+const UserLogin       = lazy(() => import("./pages/UserLogin"));
+const UserDashboard   = lazy(() => import("./pages/UserDashboard"));
 const UserDailyReport = lazy(() => import("./pages/UserDailyReport"));
-const UserLeadsPage  = lazy(() => import("./pages/UserLeadsPage"));
+const UserLeadsPage   = lazy(() => import("./pages/UserLeadsPage"));
 
 // Auth pages
 const AdminLogin      = lazy(() => import("./pages/AdminLogin"));
 const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
 
-// ── Page loader — shown while a lazy chunk is downloading ─────────────────────
+// ── Page loader ───────────────────────────────────────────────────────────────
 function PageLoader() {
   return (
     <div className="flex items-center justify-center h-full min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
@@ -39,17 +37,10 @@ function PageLoader() {
   );
 }
 
-// ── Helper to read stored user ─────────────────────────────────────────────────
 function getStoredAuth() {
   const token = localStorage.getItem("token");
   const user  = JSON.parse(localStorage.getItem("user") || "null");
   return { token, user };
-}
-
-// ── Helper to wipe auth from storage ──────────────────────────────────────────
-function clearAuth() {
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
 }
 
 // ── Login Guard ────────────────────────────────────────────────────────────────
@@ -60,22 +51,19 @@ function LoginGuard({ children }) {
 
   useEffect(() => {
     const { token: t, user: u } = getStoredAuth();
-
     if (t && u) {
       const home = u.role === "user" ? "/user/dashboard" : "/dashboard";
       navigate(home, { replace: true });
       return;
     }
-
     window.history.replaceState(null, "", location.pathname);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (token && user) return null;
-
   return children;
 }
 
-// ── Role-aware page switches ─────────────────────────────────────────────────
+// ── Role-aware page switches ──────────────────────────────────────────────────
 function LeadsRoleSwitch() {
   const { user } = getStoredAuth();
   return user?.role === "user" ? <UserLeadsPage /> : <AdminLeadsPage />;
@@ -126,6 +114,25 @@ function AdminRoute({ children }) {
   return children;
 }
 
+// ── SuperAdmin-only Route ──────────────────────────────────────────────────────
+function SuperAdminRoute({ children }) {
+  const { token, user } = getStoredAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { token: t, user: u } = getStoredAuth();
+    if (!t || !u) {
+      navigate("/login", { replace: true });
+    } else if (u.role !== "superadmin") {
+      navigate("/dashboard", { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!token || !user) return <Navigate to="/login" replace />;
+  if (user.role !== "superadmin") return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
 // ── User-only Route ────────────────────────────────────────────────────────────
 function UserRoute({ children }) {
   const { token, user } = getStoredAuth();
@@ -156,25 +163,21 @@ function AppLayout({ children }) {
 }
 
 export default function App() {
-  // Pull current user once for passing as prop where needed
   const { user } = getStoredAuth();
 
   return (
     <BrowserRouter>
-      {/* Suspense wraps all routes — shows PageLoader while any lazy chunk loads */}
       <Suspense fallback={<PageLoader />}>
         <Routes>
 
-          {/* ── Public login routes 🔓 ── */}
+          {/* ── Public login routes ── */}
           <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
           <Route path="/admin/login"      element={<LoginGuard><AdminLogin /></LoginGuard>} />
           <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
 
-          {/* ── Root redirect: role-aware ── */}
+          {/* ── Root redirect ── */}
           <Route path="/" element={
-            <ProtectedRoute>
-              <RootRedirect />
-            </ProtectedRoute>
+            <ProtectedRoute><RootRedirect /></ProtectedRoute>
           }/>
 
           {/* ── Admin Dashboard ── */}
@@ -207,13 +210,15 @@ export default function App() {
               <AppLayout><AttendancePage /></AppLayout>
             </AdminRoute>
           }/>
+
+          {/* ── Upgrade Plan — SuperAdmin only ── */}
           <Route path="/upgrade-plan" element={
-            <AdminRoute>
+            <SuperAdminRoute>
               <AppLayout><UpgradePlan /></AppLayout>
-            </AdminRoute>
+            </SuperAdminRoute>
           }/>
 
-          {/* ── Communications (WhatsApp + Email History + Email Blast) ── */}
+          {/* ── Communications ── */}
           <Route path="/communications" element={
             <AdminRoute>
               <AppLayout>
@@ -222,33 +227,25 @@ export default function App() {
             </AdminRoute>
           }/>
 
-          {/* ── Legacy redirects — keep old bookmarks working ── */}
+          {/* ── Legacy redirects ── */}
           <Route path="/whatsapp"      element={<Navigate to="/communications" replace />} />
           <Route path="/email-history" element={<Navigate to="/communications" replace />} />
+
+          {/* ── Call recordings redirect to dashboard (page removed) ── */}
+          <Route path="/call-recordings" element={<Navigate to="/dashboard" replace />} />
 
           {/* ── Leads — role-aware ── */}
           <Route path="/leads" element={
             <ProtectedRoute>
-              <AppLayout>
-                <LeadsRoleSwitch />
-              </AppLayout>
+              <AppLayout><LeadsRoleSwitch /></AppLayout>
             </ProtectedRoute>
           }/>
 
           {/* ── Daily report — role-aware ── */}
           <Route path="/daily-report" element={
             <ProtectedRoute>
-              <AppLayout>
-                <DailyReportRoleSwitch />
-              </AppLayout>
+              <AppLayout><DailyReportRoleSwitch /></AppLayout>
             </ProtectedRoute>
-          }/>
-
-          {/* ── Call Recordings — admin only ── */}
-          <Route path="/call-recordings" element={
-            <AdminRoute>
-              <AppLayout><CallRecording /></AppLayout>
-            </AdminRoute>
           }/>
 
           {/* ── Fallback ── */}
