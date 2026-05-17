@@ -267,7 +267,12 @@ export default function WhatsAppChat({ currentUser }) {
   };
 
   // ── Open start modal ──────────────────────────────────────────────────────
-  const openStartModal = (lead) => {
+  // Can be called with a lead object OR a conversation object (for re-engagement)
+  const openStartModal = (leadOrConv) => {
+    // Normalize: if passed a conversation, build a lead-like object from it
+    const lead = leadOrConv?.waPhone
+      ? { _id: leadOrConv.lead?._id || leadOrConv.lead, name: leadOrConv.contactName, mobile: leadOrConv.waPhone, cleanPhone: leadOrConv.waPhone }
+      : leadOrConv;
     setStartModal({ lead });
     setTemplateName('');
     setLangCode('en');
@@ -580,17 +585,35 @@ export default function WhatsAppChat({ currentUser }) {
           )}
 
           {/* Input */}
-          <div style={{ padding: '12px 16px', borderTop: '0.5px solid var(--color-border-tertiary)', display: 'flex', gap: 8, alignItems: 'flex-end', background: 'var(--color-background-primary)' }}>
-            <textarea ref={inputRef} value={text} onChange={e => setText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              placeholder={selected.status === 'closed' ? 'Conversation is closed' : session?.expired ? 'Session expired — use template message' : 'Type a message... (Enter to send)'}
-              disabled={selected.status === 'closed' || sending}
-              rows={1}
-              style={{ flex: 1, resize: 'none', fontSize: 14, padding: '10px 12px', borderRadius: '20px', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto' }}
-            />
-            <button onClick={sendMessage} disabled={!text.trim() || sending || selected.status === 'closed'} style={{ width: 40, height: 40, borderRadius: '50%', background: text.trim() && !sending ? '#25D366' : 'var(--color-border-tertiary)', border: 'none', cursor: text.trim() && !sending ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.2s' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill={text.trim() && !sending ? 'white' : '#9ca3af'}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-            </button>
+          <div style={{ padding: '12px 16px', borderTop: '0.5px solid var(--color-border-tertiary)', background: 'var(--color-background-primary)' }}>
+            {/* Session expired — show template button instead of text box */}
+            {(session?.expired || !selected.sessionExpiresAt) && selected.status !== 'closed' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+                  ⚠️ {!selected.sessionExpiresAt ? 'No active session — start with a template message (WhatsApp rule)' : '24h session expired — re-engage with a template message'}
+                </div>
+                <button
+                  onClick={() => openStartModal(selected.lead || { _id: selected.lead, name: selected.contactName, mobile: selected.waPhone, cleanPhone: selected.waPhone })}
+                  style={{ width: '100%', padding: '12px', background: '#25D366', color: '#fff', border: 'none', borderRadius: 'var(--border-radius-md)', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg>
+                  Send Template Message
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                <textarea ref={inputRef} value={text} onChange={e => setText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                  placeholder={selected.status === 'closed' ? 'Conversation is closed' : 'Type a message... (Enter to send)'}
+                  disabled={selected.status === 'closed' || sending}
+                  rows={1}
+                  style={{ flex: 1, resize: 'none', fontSize: 14, padding: '10px 12px', borderRadius: '20px', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto' }}
+                />
+                <button onClick={sendMessage} disabled={!text.trim() || sending || selected.status === 'closed'} style={{ width: 40, height: 40, borderRadius: '50%', background: text.trim() && !sending ? '#25D366' : 'var(--color-border-tertiary)', border: 'none', cursor: text.trim() && !sending ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.2s' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill={text.trim() && !sending ? 'white' : '#9ca3af'}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -636,9 +659,12 @@ export default function WhatsAppChat({ currentUser }) {
 
             {/* Language */}
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: 4 }}>Language Code</label>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: 4 }}>
+                Language Code
+                <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 4 }}>(must match exactly how your template is registered in MSG91)</span>
+              </label>
               <select value={langCode} onChange={e => setLangCode(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: '8px 10px', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-tertiary)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)' }}>
-                <option value="en">en — English</option>
+                <option value="en">en — English (most common for Indian templates)</option>
                 <option value="en_US">en_US — English (US)</option>
                 <option value="en_GB">en_GB — English (UK)</option>
                 <option value="hi">hi — Hindi</option>
