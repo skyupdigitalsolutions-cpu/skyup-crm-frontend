@@ -3,7 +3,7 @@ import { useMemo } from "react";
 function fmtDate(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
-  if (isNaN(d)) return String(iso); // already-formatted string fallback
+  if (isNaN(d)) return String(iso);
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 function fmtTime(iso) {
@@ -15,7 +15,7 @@ function fmtTime(iso) {
 function fmtDateTime(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
-  if (isNaN(d)) return String(iso); // already-formatted string fallback
+  if (isNaN(d)) return String(iso);
   return fmtDate(iso) + " · " + fmtTime(iso);
 }
 function daysSince(iso) {
@@ -34,7 +34,6 @@ const STATUS_COLOR = {
   "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",      text: "text-red-600 dark:text-red-400",      dot: "#DC2626" },
 };
 
-// FIX 1: TEMP_ICON was empty — emojis restored
 const TEMP_ICON = { Hot: "", Warm: "", Cold: "" };
 const TEMP_STYLE = {
   Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400" },
@@ -61,7 +60,6 @@ function SectionLabel({ icon, label }) {
   );
 }
 
-// ── Journey progress bar ─────────────────────────────────────────────────────
 function JourneyProgressBar({ lead, totalCalls, scheduledCalls }) {
   const sc = STATUS_COLOR[lead.status] || STATUS_COLOR["New"];
   const stages = [
@@ -100,8 +98,6 @@ function JourneyProgressBar({ lead, totalCalls, scheduledCalls }) {
   );
 }
 
-// ── Call card ────────────────────────────────────────────────────────────────
-// FIX 3: index now reflects newest-first display order (1 = most recent)
 function CallCard({ call, displayIndex }) {
   const outcome = call.outcome || "No Answer";
   const os = OUTCOME_STYLE[outcome] || OUTCOME_STYLE["No Answer"];
@@ -147,7 +143,6 @@ function CallCard({ call, displayIndex }) {
   );
 }
 
-// ── Scheduled call card ──────────────────────────────────────────────────────
 function ScheduledCard({ sc: call }) {
   const isPast = new Date(call.scheduledAt) < new Date();
   const isOverdue = !call.done && isPast;
@@ -195,7 +190,6 @@ function ScheduledCard({ sc: call }) {
   );
 }
 
-// ── Agent card ───────────────────────────────────────────────────────────────
 function AgentCard({ agent, isCurrent }) {
   const name = typeof agent === "string" ? agent : agent.name || "Unknown";
   const initial = name.charAt(0).toUpperCase();
@@ -220,9 +214,25 @@ function AgentCard({ agent, isCurrent }) {
   );
 }
 
+// ── Default fallback masker (used when AdminLeadsPage doesn't pass maskPhone) ─
+function defaultMaskPhone(phone, isSuperAdmin) {
+  if (!phone) return "—";
+  if (isSuperAdmin) return phone;
+  const str = String(phone);
+  if (str.length <= 2) return "••••••••";
+  return "•".repeat(str.length - 2) + str.slice(-2);
+}
+
 // ── Main drawer ──────────────────────────────────────────────────────────────
-export default function LeadJourneyDrawer({ lead, onClose }) {
+// NEW: accepts isSuperAdmin + maskPhone props for phone number masking.
+// Falls back to defaultMaskPhone if not provided (safe for standalone use).
+export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false, maskPhone }) {
   if (!lead) return null;
+
+  const masker = maskPhone || defaultMaskPhone;
+
+  // ── MASKED phone — used everywhere in this drawer instead of lead.phone ──
+  const displayPhone = masker(lead.phone || lead.mobile, isSuperAdmin);
 
   const sc = STATUS_COLOR[lead.status] || STATUS_COLOR["New"];
   const name = lead.name || "Unknown";
@@ -230,7 +240,6 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
   const scheduledCalls = lead.scheduledCalls || [];
   const previousAgents = lead.previousAgents || [];
 
-  // FIX 4: compute sortedCalls once and reuse everywhere
   const sortedCalls = useMemo(() =>
     [...callHistory].sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt)),
   [callHistory]);
@@ -240,20 +249,16 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
   [scheduledCalls]);
 
   const totalCalls   = callHistory.length;
-  const lastCallAt   = sortedCalls[0]?.calledAt || null; // FIX 4: reuse sortedCalls
-
+  const lastCallAt   = sortedCalls[0]?.calledAt || null;
   const overdueCalls = scheduledCalls.filter(c => !c.done && new Date(c.scheduledAt) < new Date()).length;
 
-  // FIX 2: allAgents dedup — match by name string, mark current correctly
   const allAgents = useMemo(() => {
     const currentAgentName = lead.agent;
-    // Build list: previousAgents first, then add current if not already present
     const prevNames = new Set(previousAgents.map(a => (typeof a === "string" ? a : a.name)));
     const list = previousAgents.map(a => ({
       ...(typeof a === "object" ? a : { name: a }),
       _isCurrent: (typeof a === "string" ? a : a.name) === currentAgentName,
     }));
-    // If current agent not in previousAgents at all, append them
     if (currentAgentName && !prevNames.has(currentAgentName)) {
       list.push({ name: currentAgentName, _isCurrent: true });
     }
@@ -278,7 +283,10 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
               <div>
                 <h2 className="text-[17px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{name}</h2>
                 <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                  {lead.phone && <span className="text-[11px] font-mono text-[#8B92A9]">{lead.phone}</span>}
+                  {/* FIX: use displayPhone instead of lead.phone */}
+                  {(lead.phone || lead.mobile) && (
+                    <span className="text-[11px] font-mono text-[#8B92A9]">{displayPhone}</span>
+                  )}
                   {lead.email && <span className="text-[11px] text-[#8B92A9]">{lead.email}</span>}
                 </div>
               </div>
@@ -322,7 +330,7 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
         {/* ── Quick stats ── */}
         <div className="px-6 py-4 grid grid-cols-2 gap-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[
-            { label: "Calls Made",    value: totalCalls,                              color: "#0891B2" },
+            { label: "Calls Made",    value: totalCalls,                               color: "#0891B2" },
             { label: "Last Activity", value: lastCallAt ? daysSince(lastCallAt) : "—", color: "#7C3AED" },
           ].map(item => (
             <div key={item.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-2.5 text-center">
@@ -342,9 +350,8 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
               {[
                 { label: "Source",    value: lead.source || "—" },
                 { label: "Campaign",  value: lead.campaign && lead.campaign !== "—" ? lead.campaign : "—" },
-                // FIX 6: use _raw_date or createdAt (ISO) for fmtDateTime, not lead.date (already formatted string)
                 { label: "Created",   value: fmtDateTime(lead._raw_date || lead.createdAt) },
-                { label: "Lead Date", value: lead.date || "—" }, // already formatted string — display as-is
+                { label: "Lead Date", value: lead.date || "—" },
               ].map((row, i) => (
                 <div
                   key={row.label}
@@ -369,7 +376,6 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
           <div>
             <SectionLabel icon="" label={`Call History (${sortedCalls.length})`} />
             {sortedCalls.length > 0 ? (
-              // FIX 3: displayIndex = 1-based from newest, so call #1 = most recent
               sortedCalls.map((call, i) => (
                 <CallCard key={i} call={call} displayIndex={i + 1} />
               ))
@@ -411,7 +417,7 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[20px]"
                   style={{ background: sc.dot + "15" }}>
-                  {lead.status === "Converted"      ? ""
+                  {lead.status === "Converted"        ? ""
                    : lead.status === "Not Interested" ? ""
                    : lead.status === "In Progress"    ? ""
                    : ""}
@@ -419,9 +425,9 @@ export default function LeadJourneyDrawer({ lead, onClose }) {
                 <div>
                   <p className="text-[13px] font-bold" style={{ color: sc.dot }}>{lead.status}</p>
                   <p className="text-[10px] text-[#8B92A9]">
-                    {lead.status === "Converted"      ? "Successfully converted to customer" :
-                     lead.status === "Not Interested" ? "Lead declined the offer" :
-                     lead.status === "In Progress"    ? `Active — ${totalCalls} call${totalCalls !== 1 ? "s" : ""} made` :
+                    {lead.status === "Converted"        ? "Successfully converted to customer" :
+                     lead.status === "Not Interested"   ? "Lead declined the offer" :
+                     lead.status === "In Progress"      ? `Active — ${totalCalls} call${totalCalls !== 1 ? "s" : ""} made` :
                      "Newly added, awaiting first contact"}
                   </p>
                 </div>
