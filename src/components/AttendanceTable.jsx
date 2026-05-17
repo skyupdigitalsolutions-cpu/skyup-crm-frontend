@@ -1,10 +1,40 @@
 import { useState, useMemo, useEffect } from "react";
-import { CalendarDays, Users } from "lucide-react";
+import { CalendarDays, Users, Eye, EyeOff } from "lucide-react";
 import { updateAttendance, removeAttendance } from "../services/attendanceService";
+import { getRole } from "../data/dataService";
 import axios from "axios";
+import { maskPhone } from "../utils/maskPhone";
+
+// ─── PhoneText ─────────────────────────────────────────────────────────────────
+// Renders a phone number masked for admins with a toggle eye-button.
+// SuperAdmins always see the raw number.
+function PhoneText({ phone, isSuperAdmin, className = "" }) {
+  const [revealed, setRevealed] = useState(false);
+
+  if (!phone) return <span className={`text-[#8B92A9] ${className}`}>—</span>;
+
+  if (isSuperAdmin) {
+    return <span className={`font-mono ${className}`}>{phone}</span>;
+  }
+
+  return (
+    <span className={`inline-flex items-center gap-1 ${className}`}>
+      <span className="font-mono tracking-wider select-none">
+        {revealed ? phone : maskPhone(phone)}
+      </span>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setRevealed((r) => !r); }}
+        className="text-[#8B92A9] hover:text-[#2563EB] transition shrink-0"
+        title={revealed ? "Hide number" : "Reveal number"}
+      >
+        {revealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+      </button>
+    </span>
+  );
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
 const CRM_STATUS_STYLE = {
   present  : { bg: "bg-emerald-50 dark:bg-emerald-950/40", text: "text-emerald-600 dark:text-emerald-400", dot: "#059669", label: "Present"  },
   absent   : { bg: "bg-red-50 dark:bg-red-950/40",         text: "text-red-600 dark:text-red-400",         dot: "#DC2626", label: "Absent"   },
@@ -12,7 +42,6 @@ const CRM_STATUS_STYLE = {
   half_day : { bg: "bg-blue-50 dark:bg-blue-950/40",       text: "text-blue-600 dark:text-blue-400",       dot: "#2563EB", label: "Half-Day" },
   leave    : { bg: "bg-purple-50 dark:bg-purple-950/40",   text: "text-purple-600 dark:text-purple-400",   dot: "#7C3AED", label: "Leave"    },
 };
-const STATUS_ENUM = ["present", "absent", "late", "half_day", "leave"];
 
 const CALL_TYPE_STYLE = {
   incoming : { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-700 dark:text-emerald-400", icon: "↙", label: "Incoming"  },
@@ -25,7 +54,6 @@ const CALL_TYPE_STYLE = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function fmtTime(d) {
   if (!d) return "—";
   return new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
@@ -73,7 +101,6 @@ function authHeaders() {
 const BASE = import.meta.env.VITE_API_URL || "";
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
-
 function StatusBadge({ status }) {
   const s = CRM_STATUS_STYLE[status] ?? CRM_STATUS_STYLE.absent;
   return (
@@ -118,10 +145,8 @@ function IpBadge({ ip }) {
 const INP = "w-full text-[12px] border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0D0F14] rounded-xl px-3 py-2 text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-indigo-500 transition";
 
 // ─── Login History Modal ──────────────────────────────────────────────────────
-
 function LoginHistoryModal({ user, onClose }) {
   const history = [...(user.loginHistory || [])].reverse();
-
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
@@ -141,7 +166,6 @@ function LoginHistoryModal({ user, onClose }) {
             </svg>
           </button>
         </div>
-
         <div className="max-h-[420px] overflow-y-auto divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
           {history.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-2">
@@ -180,7 +204,6 @@ function LoginHistoryModal({ user, onClose }) {
             );
           })}
         </div>
-
         <div className="px-5 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
           <button onClick={onClose} className="w-full py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27] transition">
             Close
@@ -192,7 +215,6 @@ function LoginHistoryModal({ user, onClose }) {
 }
 
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
-
 function EditModal({ rec, onClose, onRefresh }) {
   const [form, setForm] = useState({
     loginTime : toInputTime(rec.loginTime),
@@ -239,15 +261,6 @@ function EditModal({ rec, onClose, onRefresh }) {
             </div>
           </div>
           <div>
-            <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wider block mb-1">Status Override</label>
-            {/* <select value={form.crmStatus} onChange={e => setForm(f => ({ ...f, crmStatus: e.target.value }))} className={INP}>
-              <option value="">Auto-detect</option>
-              {STATUS_ENUM.map(s => (
-                <option key={s} value={s}>{CRM_STATUS_STYLE[s]?.label ?? s}</option>
-              ))}
-            </select> */}
-          </div>
-          <div>
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wider block mb-1">Remarks</label>
             <input type="text" value={form.remarks} placeholder="Optional note…"
               onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} className={INP} />
@@ -265,7 +278,6 @@ function EditModal({ rec, onClose, onRefresh }) {
 }
 
 // ─── Delete Modal ─────────────────────────────────────────────────────────────
-
 function DeleteModal({ id, onClose, onRefresh }) {
   const [deleting, setDeleting] = useState(false);
   const [error,    setError]    = useState("");
@@ -306,30 +318,42 @@ function DeleteModal({ id, onClose, onRefresh }) {
 }
 
 // ─── Call Log Card ────────────────────────────────────────────────────────────
-
-function CallLogCard({ log }) {
+// isSuperAdmin prop passed down so phone numbers in call logs are masked/shown
+function CallLogCard({ log, isSuperAdmin }) {
   const [expanded, setExpanded] = useState(false);
   const hasRecordings = log.recordings?.length > 0;
   const hasSummary    = log.recordings?.some(r => r.summary || r.transcript);
   const dur           = fmtDuration(log.duration);
 
+  const callTypeColorClass =
+    log.callType === "incoming"  ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" :
+    log.callType === "outgoing"  ? "bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"             :
+    log.callType === "missed"    ? "bg-red-100 dark:bg-red-950/40 text-red-500 dark:text-red-400"                 :
+    log.callType === "rejected"  ? "bg-orange-100 dark:bg-orange-950/40 text-orange-500 dark:text-orange-400"     :
+    log.callType === "voicemail" ? "bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400"     :
+    "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400";
+
+  const callTypeIcon =
+    log.callType === "incoming"  ? "↙" :
+    log.callType === "outgoing"  ? "↗" :
+    log.callType === "missed"    ? "↗" :
+    log.callType === "rejected"  ? "✕" :
+    log.callType === "voicemail" ? "✉" : "?";
+
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
       <div className="px-4 py-3 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[14px] font-bold
-            ${log.callType === "incoming"  ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" :
-              log.callType === "outgoing"  ? "bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"             :
-              log.callType === "missed"    ? "bg-red-100 dark:bg-red-950/40 text-red-500 dark:text-red-400"                 :
-              log.callType === "rejected"  ? "bg-orange-100 dark:bg-orange-950/40 text-orange-500 dark:text-orange-400"     :
-              log.callType === "voicemail" ? "bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400"     :
-              "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"}`}>
-            {log.callType === "incoming" ? "↙" : log.callType === "outgoing" ? "↗" :
-             log.callType === "missed"   ? "↗" : log.callType === "rejected"  ? "✕" :
-             log.callType === "voicemail"? "✉" : "?"}
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[14px] font-bold ${callTypeColorClass}`}>
+            {callTypeIcon}
           </div>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{log.phoneNumber || "Unknown"}</p>
+            {/* ── Phone number: masked for admin, plain for superadmin ── */}
+            <PhoneText
+              phone={log.phoneNumber || "Unknown"}
+              isSuperAdmin={isSuperAdmin}
+              className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]"
+            />
             {log.name && <p className="text-[11px] text-[#8B92A9] truncate">{log.name}</p>}
           </div>
         </div>
@@ -412,8 +436,7 @@ function CallLogCard({ log }) {
 }
 
 // ─── User Detail Drawer ───────────────────────────────────────────────────────
-
-function UserDetailDrawer({ user, records, onClose }) {
+function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
   if (!user) return null;
 
   const [callLogs,         setCallLogs]         = useState([]);
@@ -444,7 +467,6 @@ function UserDetailDrawer({ user, records, onClose }) {
       .finally(() => setLogsLoading(false));
   }, [user._id]);
 
-  // Attendance stats scoped to the records passed in (already filtered by parent)
   const userRecs      = records.filter(r => (r.user?._id || r.user?.id) === (user._id || user.id));
   const total         = userRecs.length;
   const present       = userRecs.filter(r => r.derivedCrmStatus === "present").length;
@@ -456,7 +478,6 @@ function UserDetailDrawer({ user, records, onClose }) {
   const sortedAtt     = [...userRecs].sort((a, b) => new Date(b.date) - new Date(a.date));
   const lastRec       = sortedAtt[0];
 
-  // Call log summary
   const totalCalls    = callLogs.length;
   const totalDuration = callLogs.reduce((s, l) => s + (l.duration || 0), 0);
   const withRecording = callLogs.filter(l => l.recordings?.length > 0).length;
@@ -507,7 +528,14 @@ function UserDetailDrawer({ user, records, onClose }) {
                         {user.role}
                       </span>
                     )}
-                    {user.phone && <span className="text-[10px] font-mono text-[#8B92A9]">{user.phone}</span>}
+                    {/* ── User's own phone number: masked for admin ── */}
+                    {user.phone && (
+                      <PhoneText
+                        phone={user.phone}
+                        isSuperAdmin={isSuperAdmin}
+                        className="text-[10px]"
+                      />
+                    )}
                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${user.isActive !== false ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" : "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"}`}>
                       {user.isActive !== false ? "Active" : "Inactive"}
                     </span>
@@ -652,7 +680,10 @@ function UserDetailDrawer({ user, records, onClose }) {
               ) : pagedLogs.length > 0 ? (
                 <>
                   <div className="space-y-2">
-                    {pagedLogs.map((log, i) => <CallLogCard key={log._id || i} log={log} />)}
+                    {/* ── Pass isSuperAdmin so CallLogCard can mask/show phone ── */}
+                    {pagedLogs.map((log, i) => (
+                      <CallLogCard key={log._id || i} log={log} isSuperAdmin={isSuperAdmin} />
+                    ))}
                   </div>
                   {totalPages > 1 && (
                     <div className="flex items-center justify-between pt-3">
@@ -714,8 +745,7 @@ function UserDetailDrawer({ user, records, onClose }) {
 }
 
 // ─── Attendance Table Tab ─────────────────────────────────────────────────────
-
-function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
+function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin }) {
   const [editRec, setEditRec] = useState(null);
   const [delId,   setDelId]   = useState(null);
 
@@ -823,8 +853,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick }) {
 }
 
 // ─── Users Grid Tab ───────────────────────────────────────────────────────────
-
-function UsersTab({ records, onUserClick }) {
+function UsersTab({ records, onUserClick, isSuperAdmin }) {
   const users = useMemo(() => {
     const map = new Map();
     records.forEach(r => {
@@ -877,6 +906,14 @@ function UsersTab({ records, onUserClick }) {
                 <div className="min-w-0">
                   <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition line-clamp-1">{user.name || "Unknown"}</p>
                   <p className="text-[10px] text-[#8B92A9] truncate">{user.email || "—"}</p>
+                  {/* ── Phone on user card: masked for admin ── */}
+                  {user.phone && (
+                    <PhoneText
+                      phone={user.phone}
+                      isSuperAdmin={isSuperAdmin}
+                      className="text-[10px] mt-0.5"
+                    />
+                  )}
                 </div>
               </div>
               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${user.isActive !== false ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" : "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"}`}>
@@ -945,10 +982,13 @@ function UsersTab({ records, onUserClick }) {
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-
 export default function AttendancePage({ records = [], loading = false, onRefresh = () => {} }) {
   const [activeTab,    setActiveTab]    = useState("attendance");
   const [selectedUser, setSelectedUser] = useState(null);
+
+  // ── Determine role once ───────────────────────────────────────────────────
+  const role         = getRole();
+  const isSuperAdmin = role === "superadmin";
 
   const tabs = [
     { key: "attendance", label: "Attendance",   icon: <CalendarDays className="w-4 h-4" /> },
@@ -985,12 +1025,14 @@ export default function AttendancePage({ records = [], loading = false, onRefres
           loading={loading}
           onRefresh={onRefresh}
           onUserClick={u => { if (u) setSelectedUser(u); }}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
       {activeTab === "users" && (
         <UsersTab
           records={records}
           onUserClick={u => { if (u) setSelectedUser(u); }}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
 
@@ -999,6 +1041,7 @@ export default function AttendancePage({ records = [], loading = false, onRefres
           user={selectedUser}
           records={records}
           onClose={() => setSelectedUser(null)}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
     </div>
