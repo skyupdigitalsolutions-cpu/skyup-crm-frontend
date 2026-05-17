@@ -492,7 +492,7 @@ function RecordingsDrawer({ lead, onClose }) {
           </button>
         </div>
 
-        {/* Tab bar — single tab, styled to match UserLeadsPage */}
+        {/* Tab bar */}
         <div className="px-6 shrink-0 flex border-b border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]">
           <div className="flex items-center gap-1.5 px-3 py-3 text-[12px] font-semibold border-b-2 border-[#2563EB] text-[#2563EB] -mb-px">
             <Mic className="w-3 h-3" />
@@ -1103,7 +1103,6 @@ export default function AdminLeadsPage() {
   const [showAdd,    setShowAdd]    = useState(false);
   const [showImport, setShowImport] = useState(false);
 
-  // Recordings drawer
   const [recordingsLead, setRecordingsLead] = useState(null);
 
   const [search,      setSearch]      = useState("");
@@ -1113,17 +1112,15 @@ export default function AdminLeadsPage() {
   const [filterTemp,  setFilterTemp]  = useState("All");
   const [dateFrom,    setDateFrom]    = useState("");
   const [dateTo,      setDateTo]      = useState("");
-const [sortBy,      setSortBy]      = useState("date_desc");
+  const [sortBy,      setSortBy]      = useState("date_desc");
   const [page,        setPage]        = useState(1);
 
-  const role = getRole();
+  const role         = getRole();
   const isSuperAdmin = role === "superadmin";
 
-  // ── Phone masking ─────────────────────────────────────────────────────────
-  // ── Phone masking ─────────────────────────────────────────────────────────
+  // ── Phone masking — only relevant for non-superadmin ─────────────────────
   const [revealedPhone, setRevealedPhone] = useState(null);
 
-  // ── FIX: initialise viewCounts from sessionStorage so counts survive refresh ──
   const [viewCounts, setViewCounts] = useState(() => {
     try {
       const stored = sessionStorage.getItem("leadViewCounts");
@@ -1133,7 +1130,6 @@ const [sortBy,      setSortBy]      = useState("date_desc");
     }
   });
 
-  // Persist viewCounts to sessionStorage whenever it changes
   useEffect(() => {
     try {
       sessionStorage.setItem("leadViewCounts", JSON.stringify(viewCounts));
@@ -1263,15 +1259,15 @@ const [sortBy,      setSortBy]      = useState("date_desc");
             <Upload className="w-3.5 h-3.5" /> Import CSV
           </button>
           {isSuperAdmin && (
-          <button onClick={exportToCSV} disabled={!displayed.length}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-40 disabled:cursor-not-allowed transition">
-            <Download className="w-3.5 h-3.5" /> Export CSV
-            {displayed.length > 0 && (
-              <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                {displayed.length}
-              </span>
-            )}
-        </button>
+            <button onClick={exportToCSV} disabled={!displayed.length}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-40 disabled:cursor-not-allowed transition">
+              <Download className="w-3.5 h-3.5" /> Export CSV
+              {displayed.length > 0 && (
+                <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {displayed.length}
+                </span>
+              )}
+            </button>
           )}
           <button onClick={fetchLeads} className="p-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#8B92A9] hover:text-[#2563EB] transition" title="Refresh">
             <RefreshCw className="w-4 h-4" />
@@ -1381,14 +1377,12 @@ const [sortBy,      setSortBy]      = useState("date_desc");
                 </thead>
                 <tbody className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
                   {paged.map(l => {
-                    const sc         = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
+                    const sc        = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
                     const isRevealed = revealedPhone === l.id;
                     const viewCount  = viewCounts[l.id] || 0;
-                   const maskedPhone = isSuperAdmin
-                      ? (l.phone || "—")
-                      : l.phone
-                        ? "•".repeat(Math.max(0, l.phone.length - 2)) + l.phone.slice(-2)
-                        : "—";
+                    const maskedPhone = l.phone
+                      ? "•".repeat(Math.max(0, l.phone.length - 2)) + l.phone.slice(-2)
+                      : "—";
 
                     return (
                       <tr key={l.id}
@@ -1409,10 +1403,16 @@ const [sortBy,      setSortBy]      = useState("date_desc");
                           </div>
                         </td>
 
-                        {/* Contact — masked phone */}
+                        {/* Contact */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
-                            {isRevealed ? (
+                            {isSuperAdmin ? (
+                              // ── SuperAdmin: plain number, no eye icon, no view count ──
+                              <span className="font-mono text-[#0F1117] dark:text-[#F0F2FA] text-[12px]">
+                                {l.phone || "—"}
+                              </span>
+                            ) : isRevealed ? (
+                              // ── Admin: revealed state ──
                               <div className="flex items-center gap-1.5">
                                 <span className="font-mono text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap text-[12px] animate-pulse">
                                   {l.phone || "—"}
@@ -1422,6 +1422,7 @@ const [sortBy,      setSortBy]      = useState("date_desc");
                                 </span>
                               </div>
                             ) : (
+                              // ── Admin: masked state with eye button ──
                               <button onClick={(e) => handleRevealPhone(e, l.id)} className="flex items-center gap-1 group/phone" title="Click to reveal number">
                                 <span className="font-mono text-[#8B92A9] dark:text-[#565C75] tracking-widest text-[12px] select-none">
                                   {maskedPhone}
@@ -1429,7 +1430,9 @@ const [sortBy,      setSortBy]      = useState("date_desc");
                                 <Eye className="w-3 h-3 text-[#C4C9D9] dark:text-[#3E4257] group-hover/phone:text-[#2563EB] transition shrink-0" />
                               </button>
                             )}
-                            {viewCount > 0 && (
+
+                            {/* View count badge — hidden for superadmin */}
+                            {!isSuperAdmin && viewCount > 0 && (
                               <span
                                 title={`Viewed ${viewCount} time${viewCount > 1 ? "s" : ""} this session`}
                                 className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 leading-none flex items-center gap-0.5
@@ -1493,7 +1496,7 @@ const [sortBy,      setSortBy]      = useState("date_desc");
                           )}
                         </td>
 
-                        {/* Actions column */}
+                        {/* Actions */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             <button
