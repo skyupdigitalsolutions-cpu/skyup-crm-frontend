@@ -34,12 +34,13 @@ export default function AdminLogin() {
       const token = res.data.token;
 
       localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify({
-        _id:     res.data._id,
-        name:    res.data.name,
-        email:   res.data.email,
-        company: res.data.company,
-        role:    "admin",
+   localStorage.setItem("user", JSON.stringify({
+        _id:                res.data._id,
+        name:               res.data.name,
+        email:              res.data.email,
+        company:            res.data.company,
+        role:               "admin", // keep "admin" so routing/data-fetch is unchanged
+        isCompanySuperAdmin: res.data.role === "superadmin", // NEW: UI gating only
       }));
 
       // ── BIP39 Encryption Setup ────────────────────────────────────────────
