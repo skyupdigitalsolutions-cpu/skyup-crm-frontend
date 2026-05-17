@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle";
 import api from "../data/axiosConfig";
 
-// ── Nav items for ADMIN / SUPERADMIN ─────────────────────────────────────────
+// ── Nav items for ADMIN ───────────────────────────────────────────────────────
 const ADMIN_NAV_ITEMS = [
   {
     to: "/dashboard",
@@ -88,7 +88,10 @@ const ADMIN_NAV_ITEMS = [
       </svg>
     ),
   },
-  
+];
+
+// ── Extra nav items for SUPERADMIN only ───────────────────────────────────────
+const SUPERADMIN_EXTRA_ITEMS = [
   {
     to: "/upgrade-plan",
     label: "Upgrade Plan",
@@ -144,15 +147,15 @@ const USER_NAV_ITEMS = [
 
 export function Sidebar() {
   const [minimized, setMinimized] = useState(
-  () => localStorage.getItem("sidebar_minimized") === "true"
-);
+    () => localStorage.getItem("sidebar_minimized") === "true"
+  );
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [followUpAlerts, setFollowUpAlerts] = useState({ todayCount: 0, overdueCount: 0 });
   const location = useLocation();
   const navigate = useNavigate();
 
-  // ── User info from localStorage ───────────────────────────────────────────
   const user = JSON.parse(localStorage.getItem("user") || "null");
+  const isSuperAdmin = user?.role?.toLowerCase() === "superadmin";
 
   // ── Poll follow-up alerts every 5 minutes ─────────────────────────────────
   useEffect(() => {
@@ -173,21 +176,28 @@ export function Sidebar() {
     const interval = setInterval(fetchAlerts, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
   const initials = user?.name
     ? user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "?";
 
-  // ── Role styles ───────────────────────────────────────────────────────────
   const roleStyle = {
     superadmin: { border: "border-amber-500/30",  bg: "bg-amber-500/10",  text: "text-amber-400"  },
     admin:      { border: "border-purple-500/30", bg: "bg-purple-500/10", text: "text-purple-400" },
     user:       { border: "border-blue-500/30",   bg: "bg-blue-500/10",   text: "text-blue-400"   },
   }[user?.role?.toLowerCase() || "user"] ?? { border: "border-blue-500/30", bg: "bg-blue-500/10", text: "text-blue-400" };
 
-  // ── Pick nav items based on role ──────────────────────────────────────────
-  const NAV_ITEMS = user?.role?.toLowerCase() === "user" ? USER_NAV_ITEMS : ADMIN_NAV_ITEMS;
+  // ── Build nav items based on role ─────────────────────────────────────────
+  // user → user items only
+  // admin → admin items only (no upgrade plan)
+  // superadmin → admin items + upgrade plan
+  const NAV_ITEMS =
+    user?.role?.toLowerCase() === "user"
+      ? USER_NAV_ITEMS
+      : isSuperAdmin
+        ? [...ADMIN_NAV_ITEMS, ...SUPERADMIN_EXTRA_ITEMS]
+        : ADMIN_NAV_ITEMS;
 
-  // ── Logout ────────────────────────────────────────────────────────────────
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -268,40 +278,40 @@ export function Sidebar() {
         style={{ width: minimized ? "72px" : "260px" }}
       >
         {/* Header */}
-       {/* Header */}
-<div className="flex items-center justify-between px-4 py-5 border-b border-gray-100 dark:border-white/5 min-w-0">
-  <img
-    src="/skyup_logo1.svg"
-    className={`w-14 h-14 me-3 ${minimized ? "cursor-pointer" : ""}`}
-    alt="skyup_crm"
-    onClick={() => {
-      if (minimized) {
-        localStorage.setItem("sidebar_minimized", "false");
-        setMinimized(false);
-      }
-    }}
-    title={minimized ? "Expand sidebar" : undefined}
-  />
-  {!minimized && (
-    <span className="nav-label font-semibold text-lg tracking-widest uppercase text-gray-600 dark:text-gray-500">
-     SKYUP
-    </span>
-  )}
-  {!minimized && (
-    <button
-      onClick={() => {
-        localStorage.setItem("sidebar_minimized", "true");
-        setMinimized(true);
-      }}
-      className="toggle-btn ml-auto p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10"
-      title="Minimize sidebar"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-        <path d="M15 18l-6-6 6-6" />
-      </svg>
-    </button>
-  )}
-</div>
+        <div className="flex items-center justify-between px-4 py-5 border-b border-gray-100 dark:border-white/5 min-w-0">
+          <img
+            src="/skyup_logo1.svg"
+            className={`w-14 h-14 me-3 ${minimized ? "cursor-pointer" : ""}`}
+            alt="skyup_crm"
+            onClick={() => {
+              if (minimized) {
+                localStorage.setItem("sidebar_minimized", "false");
+                setMinimized(false);
+              }
+            }}
+            title={minimized ? "Expand sidebar" : undefined}
+          />
+          {!minimized && (
+            <span className="nav-label font-semibold text-lg tracking-widest uppercase text-gray-600 dark:text-gray-500">
+              SKYUP
+            </span>
+          )}
+          {!minimized && (
+            <button
+              onClick={() => {
+                localStorage.setItem("sidebar_minimized", "true");
+                setMinimized(true);
+              }}
+              className="toggle-btn ml-auto p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10"
+              title="Minimize sidebar"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+          )}
+        </div>
+
         {/* User Profile */}
         {user && (
           <div className={`mx-3 mt-3 rounded-xl border bg-gray-50 dark:bg-white/[0.03] ${minimized ? "p-2 flex justify-center" : "p-3 flex items-center gap-3"} ${roleStyle.border}`}>
@@ -338,7 +348,6 @@ export function Sidebar() {
               >
                 <span className={`icon-wrap relative ${isActive ? "text-indigo-500 dark:text-indigo-400" : ""}`}>
                   {item.icon}
-                  {/* Follow-up notification dot */}
                   {hasOverdue && (
                     <span
                       className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white dark:border-[#13161E] animate-pulse"
@@ -384,8 +393,6 @@ export function Sidebar() {
 
         {/* Footer */}
         <div className="px-3 py-4 border-t border-gray-100 dark:border-white/5 flex flex-col gap-1">
-
-          {/* Theme toggle */}
           <div className={`flex items-center px-3 py-2 ${minimized ? "justify-center" : "justify-between"}`}>
             {!minimized && (
               <span className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-widest">
@@ -395,7 +402,6 @@ export function Sidebar() {
             <ThemeToggle />
           </div>
 
-          {/* Sign out */}
           <button
             onClick={() => setShowLogoutModal(true)}
             className={`logout-btn flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium w-full
@@ -416,7 +422,6 @@ export function Sidebar() {
               </span>
             )}
           </button>
-
         </div>
       </div>
     </>
