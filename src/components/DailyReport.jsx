@@ -13,19 +13,12 @@ function maskPhone(phone, isSuperAdmin) {
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
-function parseDate(dateStr) {
-  if (!dateStr) return new Date(NaN);
-  const match = dateStr.match(/^(\d{1,2})\s([A-Za-z]{3})\s(\d{4})$/);
-  if (match) {
-    const months = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
-    const [, day, mon, yr] = match;
-    return new Date(Number(yr), months[mon], parseInt(day, 10), 12);
-  }
-  return new Date(dateStr);
-}
-
-function isSameDay(dateStr, refDate) {
-  const d = parseDate(dateStr);
+// FIX: Use ISO _raw_date for comparisons (locale-safe). Falls back to dateStr
+// for backward compatibility if _raw_date is not present.
+function isSameDay(dateVal, refDate) {
+  if (!dateVal) return false;
+  const d = new Date(dateVal);
+  if (isNaN(d)) return false;
   return (
     d.getDate()     === refDate.getDate()   &&
     d.getMonth()    === refDate.getMonth()  &&
@@ -198,12 +191,12 @@ export default function Dailyreport() {
   const isSuperAdmin = role === "superadmin";
 
   const dayLeads = useMemo(
-    () => allLeads.filter(l => isSameDay(l.date, viewDate)),
+    () => allLeads.filter(l => isSameDay(l._raw_date || l.date, viewDate)),
     [allLeads, viewDate]
   );
 
   const prevDayLeads = useMemo(
-    () => allLeads.filter(l => isSameDay(l.date, addDays(viewDate, -1))),
+    () => allLeads.filter(l => isSameDay(l._raw_date || l.date, addDays(viewDate, -1))),
     [allLeads, viewDate]
   );
 
@@ -371,7 +364,7 @@ export default function Dailyreport() {
       alert(`No leads found for ${formatShortDate(viewDate)} to export.`);
       return;
     }
-    const headers = ["#", "Name", "Phone", "Source", "Agent", "Status", "Date", "Remark"].join(",");
+    const headers = ["#", "Name", "Phone", "Source", "Employee", "Status", "Date", "Remark"].join(",");
     const csv     = [headers, ...rows].join("\n");
     const blob    = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url     = URL.createObjectURL(blob);
@@ -387,7 +380,7 @@ export default function Dailyreport() {
 
   const TABS = [
     { k: "overview",    l: "Overview",       count: null },
-    { k: "agents",      l: "Agent Activity", count: agentStats.filter(a => a.active).length },
+    { k: "agents",      l: "Employee Activity", count: agentStats.filter(a => a.active).length },
     { k: "leads",       l: "New Leads",      count: newLeadsList.length },
     { k: "followups",   l: "Follow-ups",     count: followUps.filter(f => f.urgency !== "upcoming").length },
     { k: "conversions", l: "Conversions",    count: conversions.length },
@@ -535,7 +528,7 @@ export default function Dailyreport() {
               )}
             </Card>
 
-            <Card title="Agent performance" badge={`${agentStats.filter(a => a.active).length} active`} bc="#059669">
+            <Card title="Employee performance" badge={`${agentStats.filter(a => a.active).length} active`} bc="#059669">
               <div className="space-y-3.5">
                 {agentStats.length === 0 ? (
                   <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No agents configured.</p>
@@ -602,7 +595,7 @@ export default function Dailyreport() {
       {tab === "agents" && (
         <div className="space-y-5">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="Total Agents"  value={agents.length}                              sub="Configured"       color="#2563EB" icon="👤" />
+            <StatCard label="Total Employees"  value={agents.length}                              sub="Configured"       color="#2563EB" icon="👤" />
             <StatCard label="Active Today"  value={agentStats.filter(a => a.active).length}    sub="Handled leads"    color="#059669" icon="✓" />
             <StatCard
               label="Top Performer"
@@ -611,15 +604,15 @@ export default function Dailyreport() {
               color="#7C3AED"
               icon="★"
             />
-            <StatCard label="Total Handled" value={summary.newLeads} sub="Across all agents" color="#D97706" icon="↑" />
+            <StatCard label="Total Handled" value={summary.newLeads} sub="Across all employees" color="#D97706" icon="↑" />
           </div>
 
-          <Card title="Agent activity today" badge={`${agentStats.filter(a => a.active).length}/${agents.length} active`} bc="#059669">
+          <Card title="Employee activity today" badge={`${agentStats.filter(a => a.active).length}/${agents.length} active`} bc="#059669">
             <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Agent", "Status", "Leads Assigned", "Calls Made", "Leads Updated", "In Progress", "Converted", "Conv. Rate"].map(h => (
+                    {["Employee", "Status", "Leads Assigned", "Calls Made", "Leads Updated", "In Progress", "Converted", "Conv. Rate"].map(h => (
                       <th key={h} className="text-left pb-3 pr-6 text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -836,7 +829,7 @@ export default function Dailyreport() {
           </Card>
 
           {conversions.length > 0 && (
-            <Card title="Conversion by agent">
+            <Card title="Conversion by employee">
               <div className="space-y-3">
                 {agentStats.filter(a => a.converted > 0).map(a => (
                   <div key={a.name} className="flex items-center gap-3">
