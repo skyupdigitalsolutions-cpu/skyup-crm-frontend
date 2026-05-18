@@ -11,6 +11,7 @@ import UserManagement from "./UserMangement";
 import AdminChat from "./Adminchat";
 import LeadTimeline from "./LeadTimeLine";
 import AdminAttendanceView from "./AdminAttendanceView";
+import CompanyBrandSettings from "./CompanyBrandSettings";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
 function maskPhone(phone) {
@@ -1387,6 +1388,18 @@ export default function Dashboard() {
           existingAdmins={[]}
           existingUsers={[]}
         />
+      )}
+
+      {/* ── Company Branding — SuperAdmin only ── */}
+      {isSuperAdmin && (
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-1 h-5 rounded-full bg-indigo-500" />
+            <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Company Branding</h2>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-semibold">SuperAdmin only</span>
+          </div>
+          <CompanyBrandSettings />
+        </div>
       )}
       {role === "admin" && (
         <UserManagement
