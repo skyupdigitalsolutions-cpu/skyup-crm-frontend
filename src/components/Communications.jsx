@@ -2108,15 +2108,33 @@ function SmsBlastComposer({ onSent }) {
 }
 
 // ── Lead Thread view (right panel when a lead is selected) ───────────────────
+
 function SmsLeadThread({ lead, onBack, onSend }) {
-  const [logs,    setLogs]    = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
+  const [logs,       setLogs]       = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [message,    setMessage]    = useState("");
   const [templateId, setTemplateId] = useState("");
   const [senderId,   setSenderId]   = useState("");
-  const [sending, setSending] = useState(false);
+  const [sending,    setSending]    = useState(false);
   const [showConfig, setShowConfig] = useState(false);
+
+  // ── NEW: Auth Key state ───────────────────────────────────────────────────
+  const [authKey,      setAuthKey]      = useState("");
+  const [configSaved,  setConfigSaved]  = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
   const bottomRef = useRef(null);
+
+  // ── Load saved SMS config (auth key + sender id) on mount ────────────────
+  useEffect(() => {
+    api.get("/sms-config")
+      .then((r) => {
+        if (r.data?.data) {
+          setAuthKey(r.data.data.msg91AuthKey   || "");
+          setSenderId(r.data.data.msg91SenderId || "");
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -2130,26 +2148,43 @@ function SmsLeadThread({ lead, onBack, onSend }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
+  // ── Save config to DB ─────────────────────────────────────────────────────
+  const handleSaveConfig = async () => {
+    if (!authKey.trim()) return alert("Auth Key cannot be empty");
+    setConfigSaving(true);
+    try {
+      await api.put("/sms-config", {
+        msg91AuthKey:  authKey.trim(),
+        msg91SenderId: senderId.trim() || "SKYCRM",
+      });
+      setConfigSaved(true);
+      setTimeout(() => setConfigSaved(false), 2500);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to save config");
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
   const handleSend = async () => {
     if (!message.trim()) return;
     setSending(true);
     try {
       await api.post("/sms-campaign/send-single", {
-        name: lead.recipientName || "",
-        mobile: lead.to,
+        name:       lead.recipientName || "",
+        mobile:     lead.to,
         message,
         templateId: templateId || undefined,
         senderId:   senderId   || undefined,
       });
-      // Optimistically add the message
       setLogs((prev) => [...prev, {
-        _id: Date.now(),
-        to: lead.to,
+        _id:           Date.now(),
+        to:            lead.to,
         recipientName: lead.recipientName,
         message,
-        status: "sent",
-        sentAt: new Date().toISOString(),
-        campaignId: null,
+        status:        "sent",
+        sentAt:        new Date().toISOString(),
+        campaignId:    null,
       }]);
       setMessage("");
       if (onSend) onSend();
@@ -2174,23 +2209,69 @@ function SmsLeadThread({ lead, onBack, onSend }) {
         </div>
         <button
           onClick={() => setShowConfig((s) => !s)}
-          className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white/70 hover:text-white transition"
+          className={`w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition ${showConfig ? "bg-white/20 text-white" : "text-white/70 hover:text-white"}`}
           title="MSG91 settings"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
         </button>
       </div>
 
-      {/* MSG91 config drawer */}
+      {/* ── MSG91 config drawer (gear icon opens this) ────────────────────── */}
       {showConfig && (
-        <div className="bg-[#F0F2F5] dark:bg-[#202C33] px-4 py-3 border-b border-[#E4E7EF] dark:border-[#2A3942] flex gap-3 shrink-0">
-          <div className="flex-1">
-            <label className="block text-[10px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1">DLT Template ID</label>
-            <input type="text" value={templateId} onChange={(e) => setTemplateId(e.target.value)} placeholder="1234567890123456789" className={FIELD_CLS} />
-          </div>
-          <div className="flex-1">
-            <label className="block text-[10px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1">Sender ID</label>
-            <input type="text" maxLength={6} value={senderId} onChange={(e) => setSenderId(e.target.value.toUpperCase())} placeholder="SKYCRM" className={FIELD_CLS} />
+        <div className="bg-[#F0F2F5] dark:bg-[#202C33] px-4 py-3 border-b border-[#E4E7EF] dark:border-[#2A3942] shrink-0">
+          <p className="text-[10px] font-bold text-[#667781] dark:text-[#8696A0] uppercase tracking-widest mb-2.5">
+            MSG91 Settings — saved per account
+          </p>
+          <div className="flex gap-3 flex-wrap">
+            {/* Auth Key */}
+            <div className="flex-1 min-w-[160px]">
+              <label className="block text-[10px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1">
+                Auth Key <span className="text-[#DC2626]">*</span>
+              </label>
+              <input
+                type="password"
+                value={authKey}
+                onChange={(e) => setAuthKey(e.target.value)}
+                placeholder="447171TxxxXXXX67f2b4e5"
+                className={FIELD_CLS}
+              />
+              <p className="text-[9px] text-[#8B92A9] mt-0.5">MSG91 Dashboard → API → Auth Key</p>
+            </div>
+            {/* Sender ID */}
+            <div className="w-28">
+              <label className="block text-[10px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1">Sender ID</label>
+              <input
+                type="text"
+                maxLength={6}
+                value={senderId}
+                onChange={(e) => setSenderId(e.target.value.toUpperCase())}
+                placeholder="SKYCRM"
+                className={FIELD_CLS}
+              />
+              <p className="text-[9px] text-[#8B92A9] mt-0.5">6-char DLT</p>
+            </div>
+            {/* DLT Template ID */}
+            <div className="flex-1 min-w-[160px]">
+              <label className="block text-[10px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1">DLT Template ID</label>
+              <input
+                type="text"
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                placeholder="1234567890123456789"
+                className={FIELD_CLS}
+              />
+              <p className="text-[9px] text-[#8B92A9] mt-0.5">Per-message (optional)</p>
+            </div>
+            {/* Save button */}
+            <div className="flex items-end pb-[18px]">
+              <button
+                onClick={handleSaveConfig}
+                disabled={configSaving || !authKey.trim()}
+                className="px-4 py-2 rounded-lg bg-[#25D366] hover:bg-[#20B858] disabled:opacity-40 text-white text-[11px] font-semibold transition whitespace-nowrap"
+              >
+                {configSaving ? "Saving…" : configSaved ? "✓ Saved!" : "Save"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2242,6 +2323,7 @@ function SmsLeadThread({ lead, onBack, onSend }) {
     </div>
   );
 }
+
 
 // ── Main SMS Panel ────────────────────────────────────────────────────────────
 function SmsPanel() {
