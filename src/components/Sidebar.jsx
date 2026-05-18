@@ -129,6 +129,17 @@ const USER_NAV_ITEMS = [
       </svg>
     ),
   },
+  // ── Communications — users chat with their own assigned leads only ──────────
+  {
+    to: "/user/communications",
+    label: "Communications",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        <path d="M8 10h8M8 14h5" />
+      </svg>
+    ),
+  },
   {
     to: "/daily-report",
     label: "Daily Report",
@@ -151,11 +162,41 @@ export function Sidebar() {
   );
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [followUpAlerts, setFollowUpAlerts] = useState({ todayCount: 0, overdueCount: 0 });
+  // ── Company branding: SuperAdmin sets name + logo via Settings ────────────
+  const [companyBrand, setCompanyBrand] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; }
+  });
   const location = useLocation();
   const navigate = useNavigate();
 
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const isSuperAdmin = user?.role?.toLowerCase() === "superadmin";
+
+  // ── Fetch company branding on mount ───────────────────────────────────────
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    api.get("/admin/company/brand")
+      .then((res) => {
+        if (res.data) {
+          setCompanyBrand(res.data);
+          localStorage.setItem("company_brand", JSON.stringify(res.data));
+        }
+      })
+      .catch(() => {}); // silent — branding is optional
+  }, []);
+
+  // ── Listen for brand updates dispatched by CompanyBrandSettings ──────────
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const b = JSON.parse(localStorage.getItem("company_brand") || "null");
+        setCompanyBrand(b);
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("company_brand_updated", handler);
+    return () => window.removeEventListener("company_brand_updated", handler);
+  }, []);
 
   // ── Poll follow-up alerts every 5 minutes ─────────────────────────────────
   useEffect(() => {
@@ -188,9 +229,6 @@ export function Sidebar() {
   }[user?.role?.toLowerCase() || "user"] ?? { border: "border-blue-500/30", bg: "bg-blue-500/10", text: "text-blue-400" };
 
   // ── Build nav items based on role ─────────────────────────────────────────
-  // user → user items only
-  // admin → admin items only (no upgrade plan)
-  // superadmin → admin items + upgrade plan
   const NAV_ITEMS =
     user?.role?.toLowerCase() === "user"
       ? USER_NAV_ITEMS
@@ -277,31 +315,33 @@ export function Sidebar() {
         className="sidebar sticky top-0 h-screen flex flex-col bg-white dark:bg-[#13161E] border-r border-gray-100 dark:border-white/5 shadow-sm"
         style={{ width: minimized ? "72px" : "260px" }}
       >
-        {/* Header */}
+        {/* Header — shows custom brand logo/name if set by SuperAdmin */}
         <div className="flex items-center justify-between px-4 py-5 border-b border-gray-100 dark:border-white/5 min-w-0">
-          <img
-            src="/skyup_logo1.svg"
-            className={`w-14 h-14 me-3 ${minimized ? "cursor-pointer" : ""}`}
-            alt="skyup_crm"
-            onClick={() => {
-              if (minimized) {
-                localStorage.setItem("sidebar_minimized", "false");
-                setMinimized(false);
-              }
-            }}
-            title={minimized ? "Expand sidebar" : undefined}
-          />
+          {companyBrand?.logoUrl ? (
+            <img
+              src={companyBrand.logoUrl}
+              className={`h-10 w-auto max-w-[120px] object-contain me-2 ${minimized ? "cursor-pointer" : ""}`}
+              alt={companyBrand?.name || "logo"}
+              onClick={() => { if (minimized) { localStorage.setItem("sidebar_minimized", "false"); setMinimized(false); } }}
+              title={minimized ? "Expand sidebar" : undefined}
+            />
+          ) : (
+            <img
+              src="/skyup_logo1.svg"
+              className={`w-14 h-14 me-3 ${minimized ? "cursor-pointer" : ""}`}
+              alt="skyup_crm"
+              onClick={() => { if (minimized) { localStorage.setItem("sidebar_minimized", "false"); setMinimized(false); } }}
+              title={minimized ? "Expand sidebar" : undefined}
+            />
+          )}
           {!minimized && (
-            <span className="nav-label font-semibold text-lg tracking-widest uppercase text-gray-600 dark:text-gray-500">
-              SKYUP
+            <span className="nav-label font-semibold text-lg tracking-widest uppercase text-gray-600 dark:text-gray-500 truncate max-w-[110px]">
+              {companyBrand?.name || "SKYUP"}
             </span>
           )}
           {!minimized && (
             <button
-              onClick={() => {
-                localStorage.setItem("sidebar_minimized", "true");
-                setMinimized(true);
-              }}
+              onClick={() => { localStorage.setItem("sidebar_minimized", "true"); setMinimized(true); }}
               className="toggle-btn ml-auto p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10"
               title="Minimize sidebar"
             >
