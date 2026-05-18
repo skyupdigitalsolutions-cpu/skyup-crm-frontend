@@ -2491,10 +2491,247 @@ function SmsPanel() {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── AUTO TEMPLATE SETTINGS PANEL ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+
+function AutoTemplateSettingsPanel({ activeTab, onClose }) {
+  const [settings, setSettings] = useState(null);
+  const [saving,   setSaving]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [error,    setError]    = useState("");
+
+  useEffect(() => {
+    api.get("/admin/company/auto-template")
+      .then(r => setSettings(r.data.autoTemplate || {}))
+      .catch(() => setSettings({}));
+  }, []);
+
+  const update = (channel, key, value) => {
+    setSettings(prev => ({
+      ...prev,
+      [channel]: { ...(prev?.[channel] || {}), [key]: value },
+    }));
+    setSaved(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true); setError(""); setSaved(false);
+    try {
+      await api.put("/admin/company/auto-template", settings);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to save settings");
+    } finally { setSaving(false); }
+  };
+
+  if (!settings) return (
+    <div className="flex items-center justify-center py-8 gap-2 text-[#8B92A9]">
+      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+      Loading…
+    </div>
+  );
+
+  const wa  = settings.whatsapp || {};
+  const em  = settings.email    || {};
+  const sm  = settings.sms      || {};
+
+  // Channel colour tokens
+  const tokens = {
+    whatsapp: { ring: "#25D366", bg: "bg-[#f0fdf4] dark:bg-[#052e1c]", text: "text-[#25D366]", border: "border-[#25D366]" },
+    email:    { ring: "#7C3AED", bg: "bg-[#f5f3ff] dark:bg-[#1e1040]", text: "text-[#7C3AED]", border: "border-[#7C3AED]" },
+    sms:      { ring: "#EA580C", bg: "bg-[#fff7ed] dark:bg-[#1c0a00]", text: "text-[#EA580C]", border: "border-[#EA580C]" },
+  };
+  const tok = tokens[activeTab] || tokens.whatsapp;
+
+  return (
+    <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden mb-4 shadow-sm">
+      {/* Header */}
+      <div className={`flex items-center justify-between px-5 py-3.5 ${tok.bg} border-b border-[#E4E7EF] dark:border-[#262A38]`}>
+        <div className="flex items-center gap-2.5">
+          <div className={`w-7 h-7 rounded-lg ${tok.bg} border ${tok.border} flex items-center justify-center`}>
+            <svg className={`w-3.5 h-3.5 ${tok.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </div>
+          <div>
+            <p className={`text-[13px] font-bold ${tok.text} leading-none`}>Auto-Template for New Leads</p>
+            <p className="text-[11px] text-[#8B92A9] mt-0.5">Automatically send a message when a new lead is added</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div className="px-5 py-4 space-y-4">
+        {/* ── WHATSAPP TAB ────────────────────────────────────────────────── */}
+        {activeTab === "whatsapp" && (
+          <>
+            {/* Toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Send WhatsApp Template to New Leads</p>
+                <p className="text-[11px] text-[#8B92A9] mt-0.5">Every new lead will automatically receive the template below</p>
+              </div>
+              <button
+                onClick={() => update("whatsapp", "enabled", !wa.enabled)}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${wa.enabled ? "bg-[#25D366]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${wa.enabled ? "translate-x-5" : "translate-x-0"}`} />
+              </button>
+            </div>
+
+            {wa.enabled && (
+              <div className="space-y-3 pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
+                <div className="flex gap-2.5 bg-[#FFFBEB] dark:bg-[#1c1600] border border-[#FDE68A] dark:border-[#78350f] rounded-xl px-4 py-3">
+                  <span className="text-[14px] shrink-0">💡</span>
+                  <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] leading-relaxed">
+                    The template name must exactly match an approved template in your <strong>MSG91 / Meta dashboard</strong>.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Name <span className="text-[#DC2626]">*</span></label>
+                    <input
+                      type="text"
+                      value={wa.templateName || ""}
+                      onChange={e => update("whatsapp", "templateName", e.target.value)}
+                      placeholder="crm_lead_followup"
+                      className={FIELD_CLS}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Language</label>
+                    <select value={wa.languageCode || "en_US"} onChange={e => update("whatsapp", "languageCode", e.target.value)} className={FIELD_CLS}>
+                      <option value="en_US">English (en_US)</option>
+                      <option value="en_GB">English GB (en_GB)</option>
+                      <option value="en">English (en)</option>
+                      <option value="hi">Hindi (hi)</option>
+                      <option value="mr">Marathi (mr)</option>
+                      <option value="gu">Gujarati (gu)</option>
+                      <option value="ta">Tamil (ta)</option>
+                      <option value="te">Telugu (te)</option>
+                      <option value="kn">Kannada (kn)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── EMAIL TAB ───────────────────────────────────────────────────── */}
+        {activeTab === "email" && (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Send Email to New Leads</p>
+                <p className="text-[11px] text-[#8B92A9] mt-0.5">Every new lead with an email address will receive this automatically</p>
+              </div>
+              <button
+                onClick={() => update("email", "enabled", !em.enabled)}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${em.enabled ? "bg-[#7C3AED]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${em.enabled ? "translate-x-5" : "translate-x-0"}`} />
+              </button>
+            </div>
+
+            {em.enabled && (
+              <div className="space-y-3 pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Subject <span className="text-[#DC2626]">*</span></label>
+                    <input type="text" value={em.subject || ""} onChange={e => update("email", "subject", e.target.value)} placeholder="Welcome, {{name}}!" className={FIELD_CLS} />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">From Name (optional)</label>
+                    <input type="text" value={em.fromName || ""} onChange={e => update("email", "fromName", e.target.value)} placeholder="SkyUp CRM Team" className={FIELD_CLS} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Email Body (HTML)</label>
+                  <p className="text-[10px] text-[#8B92A9] mb-1.5">Use <code className="bg-[#f5f3ff] dark:bg-[#1e1040] text-[#7C3AED] px-1 rounded">{"{{name}}"}</code> <code className="bg-[#f5f3ff] dark:bg-[#1e1040] text-[#7C3AED] px-1 rounded">{"{{mobile}}"}</code> <code className="bg-[#f5f3ff] dark:bg-[#1e1040] text-[#7C3AED] px-1 rounded">{"{{campaign}}"}</code> as merge tags</p>
+                  <textarea rows={5} value={em.bodyTemplate || ""} onChange={e => update("email", "bodyTemplate", e.target.value)} className={FIELD_CLS + " font-mono text-[12px] resize-y"} placeholder="<p>Hi {{name}},</p><p>Thank you for your interest!</p>" />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── SMS TAB ─────────────────────────────────────────────────────── */}
+        {activeTab === "sms" && (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Send SMS to New Leads</p>
+                <p className="text-[11px] text-[#8B92A9] mt-0.5">Every new lead with a mobile number will receive this automatically via MSG91</p>
+              </div>
+              <button
+                onClick={() => update("sms", "enabled", !sm.enabled)}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${sm.enabled ? "bg-[#EA580C]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${sm.enabled ? "translate-x-5" : "translate-x-0"}`} />
+              </button>
+            </div>
+
+            {sm.enabled && (
+              <div className="space-y-3 pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">DLT Template ID</label>
+                    <input type="text" value={sm.templateId || ""} onChange={e => update("sms", "templateId", e.target.value)} placeholder="1234567890123456789" className={FIELD_CLS} />
+                    <p className="text-[10px] text-[#8B92A9] mt-0.5">Required for Indian numbers (MSG91)</p>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Sender ID</label>
+                    <input type="text" maxLength={6} value={sm.senderId || ""} onChange={e => update("sms", "senderId", e.target.value.toUpperCase())} placeholder="SKYCRM" className={FIELD_CLS} />
+                    <p className="text-[10px] text-[#8B92A9] mt-0.5">6-char DLT-approved sender</p>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Message <span className="text-[#DC2626]">*</span></label>
+                  <p className="text-[10px] text-[#8B92A9] mb-1.5">Use <code className="bg-[#fff7ed] dark:bg-[#1c0a00] text-[#EA580C] px-1 rounded">{"{{name}}"}</code> <code className="bg-[#fff7ed] dark:bg-[#1c0a00] text-[#EA580C] px-1 rounded">{"{{mobile}}"}</code> <code className="bg-[#fff7ed] dark:bg-[#1c0a00] text-[#EA580C] px-1 rounded">{"{{campaign}}"}</code> as merge tags</p>
+                  <textarea rows={3} value={sm.message || ""} onChange={e => update("sms", "message", e.target.value)} className={FIELD_CLS + " resize-y"} placeholder="Hi {{name}}, thanks for your interest! Our team will contact you soon." />
+                  <p className="text-[10px] text-[#8B92A9] mt-1">{(sm.message || "").length} chars · {Math.max(1, Math.ceil((sm.message || "").length / 160))} SMS</p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
+          {error  && <p className="text-[11px] text-[#DC2626]">⚠ {error}</p>}
+          {saved  && <p className="text-[11px] text-[#059669] font-semibold">✓ Settings saved</p>}
+          {!error && !saved && <span />}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[13px] font-semibold text-white transition disabled:opacity-50 ${
+              activeTab === "email" ? "bg-[#7C3AED] hover:bg-purple-700" :
+              activeTab === "sms"   ? "bg-[#EA580C] hover:bg-orange-700" :
+                                      "bg-[#25D366] hover:bg-[#1da851]"
+            }`}
+          >
+            {saving
+              ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saving…</>
+              : "Save Settings"
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── MAIN COMMUNICATIONS PAGE ──────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Communications({ currentUser }) {
-  const [tab, setTab] = useState("whatsapp");
+  const [tab,          setTab]          = useState("whatsapp");
+  const [showSettings, setShowSettings] = useState(false);
+  const isAdmin = currentUser?.role === "admin";
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-6 flex flex-col">
@@ -2504,23 +2741,56 @@ export default function Communications({ currentUser }) {
           <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Communications</h1>
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">WhatsApp · Email · SMS — all in one place</p>
         </div>
-        <TabNav active={tab} onChange={setTab} />
+        <div className="flex items-center gap-3">
+          <TabNav active={tab} onChange={(t) => { setTab(t); setShowSettings(false); }} />
+          {isAdmin && (
+            <button
+              onClick={() => setShowSettings(s => !s)}
+              title="Auto-Template Settings"
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[13px] font-semibold transition ${
+                showSettings
+                  ? tab === "email"   ? "border-[#7C3AED] bg-[#f5f3ff] dark:bg-[#1e1040] text-[#7C3AED]"
+                  : tab === "sms"     ? "border-[#EA580C] bg-[#fff7ed] dark:bg-[#1c0a00] text-[#EA580C]"
+                                      : "border-[#25D366] bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366]"
+                  : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]"
+              }`}
+            >
+              {/* Toggle icon */}
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+              Auto-Template
+              {/* Status dot */}
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                tab === "email" ? "bg-[#7C3AED]" : tab === "sms" ? "bg-[#EA580C]" : "bg-[#25D366]"
+              } ${showSettings ? "opacity-100" : "opacity-50"}`} />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Auto-template settings panel (collapsible) */}
+      {isAdmin && showSettings && (
+        <AutoTemplateSettingsPanel
+          activeTab={tab}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
 
       {/* Panel area — fills remaining height */}
       <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
         {tab === "whatsapp" && (
-          <div className="h-full" style={{ height: "calc(100vh - 160px)" }}>
+          <div className="h-full" style={{ height: showSettings ? "calc(100vh - 340px)" : "calc(100vh - 160px)" }}>
             <WhatsAppPanel currentUser={currentUser} />
           </div>
         )}
         {tab === "email" && (
-          <div className="h-full flex flex-col" style={{ height: "calc(100vh - 160px)" }}>
+          <div className="h-full flex flex-col" style={{ height: showSettings ? "calc(100vh - 340px)" : "calc(100vh - 160px)" }}>
             <EmailPanel />
           </div>
         )}
         {tab === "sms" && (
-          <div className="h-full" style={{ height: "calc(100vh - 160px)" }}>
+          <div className="h-full" style={{ height: showSettings ? "calc(100vh - 340px)" : "calc(100vh - 160px)" }}>
             <SmsPanel />
           </div>
         )}
