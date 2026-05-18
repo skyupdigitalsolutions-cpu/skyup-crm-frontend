@@ -26,12 +26,10 @@ export default function UserLogin() {
         company: res.data.company,
         role,
       }));
-      // ── FIX: route by role so users never land on admin dashboard ──────────
-      if (role === "user") {
-        navigate("/user/dashboard");
-      } else {
-        navigate("/dashboard");
-      }
+      // ── Route by role ──────────────────────────────────────────────────────
+      if (role === "developer")                            navigate("/developer/dashboard");
+      else if (["super_admin", "admin"].includes(role))   navigate("/dashboard");
+      else                                                 navigate("/user/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "Login failed. Please try again.");
     } finally {
@@ -67,7 +65,7 @@ export default function UserLogin() {
         </div>
 
         <h1 className="login-title text-[26px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Welcome back</h1>
-        <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mb-7">Sign in to your user account</p>
+        <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mb-7">Sign in to your account</p>
 
         {error && (
           <div className="mb-5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 flex items-center gap-2">
