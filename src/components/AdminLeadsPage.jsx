@@ -543,7 +543,7 @@ function AgentSelect({ value, onChange, agents, className }) {
   }, []);
 
   const select = (agent) => { onChange(agent); setOpen(false); setQuery(""); };
-  const label  = value === "All" ? "All agents" : value;
+  const label  = value === "All" ? "All employees" : value;
 
   return (
     <div ref={containerRef} className="relative">
@@ -565,7 +565,7 @@ function AgentSelect({ value, onChange, agents, className }) {
                 type="text"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Search agent…"
+                placeholder="Search employee…"
                 className="w-full pl-7 pr-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition"
               />
             </div>
@@ -575,7 +575,7 @@ function AgentSelect({ value, onChange, agents, className }) {
               <p className="px-3 py-2.5 text-[12px] text-[#8B92A9] italic">No agents found</p>
             ) : filtered.map(agent => {
               const isSelected  = agent === value;
-              const displayName = agent === "All" ? "All agents" : agent;
+              const displayName = agent === "All" ? "All employees" : agent;
               return (
                 <button
                   key={agent}
@@ -686,7 +686,7 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
     if (!mob) e.mobile = "Mobile number is required.";
     else if (mob.length < 7 || mob.length > 15) e.mobile = "Enter a valid mobile number (7–15 digits).";
     else if (currentDupState === "duplicate") e.mobile = "This number already exists. Search for the existing lead to update it.";
-    if (!form.userId) e.userId = "Please select an agent to assign this lead.";
+    if (!form.userId) e.userId = "Please select an employee to assign this lead.";
     if (form.source === "Other" && !customSource.trim()) e.source = "Please enter custom source.";
     return e;
   };
@@ -871,7 +871,7 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
             ) : (
               <select value={form.userId} onChange={e => set("userId", e.target.value)}
                 className={`w-full px-3 py-2.5 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none transition ${errors.userId ? "border-red-400 dark:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`}>
-                <option value="">— Select agent —</option>
+                <option value="">— Select employee —</option>
                 {users.map(u => <option key={u._id} value={u._id}>{u.name} ({u.email})</option>)}
               </select>
             )}
@@ -1237,7 +1237,7 @@ export default function AdminLeadsPage() {
 
   const exportToCSV = useCallback(() => {
     if (!displayed.length) return;
-    const headers = ["Name","Phone","Email","Agent","Source","Campaign","Date","Status","Quality","Calls","Last Outcome","Last Called","Remark"];
+    const headers = ["Name","Phone","Email","Employee","Source","Campaign","Date","Status","Quality","Calls","Last Outcome","Last Called","Remark"];
     const escape  = v => { const s = String(v ?? "").replace(/"/g, '""'); return /[",\n\r]/.test(s) ? `"${s}"` : s; };
     const rows    = displayed.map(l => [
       l.name, l.phone, l.email, l.agent, l.source, l.campaign, l.date, l.status,
@@ -1389,7 +1389,7 @@ export default function AdminLeadsPage() {
               <table className="w-full text-[12px]">
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Lead", "Contact", "Agent", "Source / Campaign", "Date", "Status", "Quality", "Last Outcome", ""].map(h => (
+                    {["Lead", "Contact", "Employee", "Source / Campaign", "Date", "Status", "Quality", "Last Outcome", ""].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
