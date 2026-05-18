@@ -19,6 +19,10 @@ const UserDailyReport        = lazy(() => import("./pages/UserDailyReport"));
 const UserLeadsPage          = lazy(() => import("./pages/UserLeadsPage"));
 const UserLeadCommunication  = lazy(() => import("./pages/UserLeadCommunication"));
 
+// Developer pages
+const DeveloperDashboard = lazy(() => import("./pages/developer/DeveloperDashboard"));
+const DeveloperCompanies = lazy(() => import("./pages/developer/Companies"));
+
 // Auth pages
 const AdminLogin      = lazy(() => import("./pages/AdminLogin"));
 const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
@@ -53,7 +57,9 @@ function LoginGuard({ children }) {
   useEffect(() => {
     const { token: t, user: u } = getStoredAuth();
     if (t && u) {
-      const home = u.role === "user" ? "/user/dashboard" : "/dashboard";
+      let home = "/dashboard";
+      if (u.role === "developer") home = "/developer/dashboard";
+      else if (u.role === "user") home = "/user/dashboard";
       navigate(home, { replace: true });
       return;
     }
@@ -77,9 +83,9 @@ function DailyReportRoleSwitch() {
 
 function RootRedirect() {
   const { user } = getStoredAuth();
-  return user?.role === "user"
-    ? <Navigate to="/user/dashboard" replace />
-    : <Navigate to="/dashboard" replace />;
+  if (user?.role === "developer") return <Navigate to="/developer/dashboard" replace />;
+  if (user?.role === "user")      return <Navigate to="/user/dashboard" replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
 // ── Protected Route ────────────────────────────────────────────────────────────
@@ -107,11 +113,14 @@ function AdminRoute({ children }) {
       navigate("/login", { replace: true });
     } else if (u.role === "user") {
       navigate("/user/dashboard", { replace: true });
+    } else if (u.role === "developer") {
+      navigate("/developer/dashboard", { replace: true });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!token || !user) return <Navigate to="/login" replace />;
-  if (user.role === "user") return <Navigate to="/user/dashboard" replace />;
+  if (user.role === "user")      return <Navigate to="/user/dashboard" replace />;
+  if (user.role === "developer") return <Navigate to="/developer/dashboard" replace />;
   return children;
 }
 
@@ -150,6 +159,25 @@ function UserRoute({ children }) {
 
   if (!token || !user) return <Navigate to="/login" replace />;
   if (user.role !== "user") return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+// ── Developer-only Route ───────────────────────────────────────────────────────
+function DeveloperRoute({ children }) {
+  const { token, user } = getStoredAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { token: t, user: u } = getStoredAuth();
+    if (!t || !u) {
+      navigate("/login", { replace: true });
+    } else if (u.role !== "developer") {
+      navigate("/dashboard", { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!token || !user) return <Navigate to="/login" replace />;
+  if (user.role !== "developer") return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -200,6 +228,18 @@ export default function App() {
             <UserRoute>
               <AppLayout><UserLeadCommunication /></AppLayout>
             </UserRoute>
+          }/>
+
+          {/* ── Developer pages ── */}
+          <Route path="/developer/dashboard" element={
+            <DeveloperRoute>
+              <AppLayout><DeveloperDashboard /></AppLayout>
+            </DeveloperRoute>
+          }/>
+          <Route path="/developer/companies" element={
+            <DeveloperRoute>
+              <AppLayout><DeveloperCompanies /></AppLayout>
+            </DeveloperRoute>
           }/>
 
           {/* ── Admin-only pages ── */}
