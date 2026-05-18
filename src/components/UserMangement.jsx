@@ -291,7 +291,7 @@ function AddMemberModal({ role, onClose, onAdd }) {
                 : <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
               }
             </div>
-            <h2 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Add {isAdmin ? "Admin" : "User (Agent)"}</h2>
+            <h2 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Add {isAdmin ? "Admin" : "User (Employee)"}</h2>
           </div>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -620,7 +620,7 @@ export default function UserManagement({
         <div>
           <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">User Management</h2>
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
-            Manage admins and agents on your <span className={`font-semibold ${cfg.statColor}`}>{cfg.label}</span> plan
+            Manage admins and employees on your <span className={`font-semibold ${cfg.statColor}`}>{cfg.label}</span> plan
           </p>
         </div>
       </div>
@@ -698,7 +698,7 @@ export default function UserManagement({
             <div>
               <div className="flex items-center gap-2">
                 <svg className="w-4 h-4 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
-                <h3 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Users <span className="text-xs font-normal text-[#8B92A9] dark:text-[#565C75]">(Agents)</span></h3>
+                <h3 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Users <span className="text-xs font-normal text-[#8B92A9] dark:text-[#565C75]">(Employees)</span></h3>
               </div>
               <SlotBar used={users.length} max={cfg.maxUsers} isAdmin={false}/>
             </div>
@@ -722,7 +722,7 @@ export default function UserManagement({
                   <div className="w-10 h-10 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center mx-auto mb-2">
                     <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
                   </div>
-                  <p className="text-xs text-[#8B92A9] dark:text-[#565C75]">No users (agents) added yet</p>
+                  <p className="text-xs text-[#8B92A9] dark:text-[#565C75]">No employees added yet</p>
                 </div>
               )
               : users.map(m => (
