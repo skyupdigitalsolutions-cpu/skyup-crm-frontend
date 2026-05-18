@@ -541,10 +541,8 @@ export default function UserManagement({
       setAdmins(prev => [...prev, member]);
       setModal(null);
       setCredsFor(member);
-    } else {
-      const companyId = currentUser?.company;
-      if (!companyId) throw { response: { data: { message: "Company ID missing. Please log out and log in again." } } };
-      const res = await api.post("/auth/register", { name, email, password, companyId });
+   } else {
+      const res = await api.post("/admin/user", { name, email, password });
       const member = { ...res.data, phone, role: "user", password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
       setUsers(prev => [...prev, member]);
       setModal(null);
