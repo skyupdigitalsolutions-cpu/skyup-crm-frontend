@@ -13,10 +13,11 @@ const AttendancePage = lazy(() => import("./pages/AttendancePage"));
 const UpgradePlan    = lazy(() => import("./components/UpgradePlan"));
 
 // User pages
-const UserLogin       = lazy(() => import("./pages/UserLogin"));
-const UserDashboard   = lazy(() => import("./pages/UserDashboard"));
-const UserDailyReport = lazy(() => import("./pages/UserDailyReport"));
-const UserLeadsPage   = lazy(() => import("./pages/UserLeadsPage"));
+const UserLogin              = lazy(() => import("./pages/UserLogin"));
+const UserDashboard          = lazy(() => import("./pages/UserDashboard"));
+const UserDailyReport        = lazy(() => import("./pages/UserDailyReport"));
+const UserLeadsPage          = lazy(() => import("./pages/UserLeadsPage"));
+const UserLeadCommunication  = lazy(() => import("./pages/UserLeadCommunication"));
 
 // Auth pages
 const AdminLogin      = lazy(() => import("./pages/AdminLogin"));
@@ -191,6 +192,13 @@ export default function App() {
           <Route path="/user/dashboard" element={
             <UserRoute>
               <AppLayout><UserDashboard /></AppLayout>
+            </UserRoute>
+          }/>
+
+          {/* ── User Communications (own leads only) ── */}
+          <Route path="/user/communications" element={
+            <UserRoute>
+              <AppLayout><UserLeadCommunication /></AppLayout>
             </UserRoute>
           }/>
 
