@@ -440,15 +440,17 @@ function MemberRow({ member, onRequestRemove, onViewCreds }) {
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
           </button>
         )}
-        <button
-          onClick={() => onRequestRemove(member)}
-          className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 text-[#8B92A9] transition"
-          title="Remove"
-        >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
-        </button>
+          {onRequestRemove && (
+          <button
+            onClick={() => onRequestRemove(member)}
+            className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 text-[#8B92A9] transition"
+            title="Remove"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        )}
       </div>
       <span className="text-[10px] text-[#8B92A9] dark:text-[#565C75] whitespace-nowrap shrink-0">
         {member.addedOn || (member.createdAt ? new Date(member.createdAt).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—")}
@@ -680,11 +682,11 @@ export default function UserManagement({
           <div className="px-5 py-2 max-h-80 overflow-y-auto">
             {admins.length === 0
               ? <div className="py-8 text-center"><p className="text-xs text-[#8B92A9] dark:text-[#565C75]">No admins yet</p></div>
-              : admins.map(m => (
+           : admins.map(m => (
                   <MemberRow
                     key={m._id || m.email}
                     member={{ ...m, role: "admin" }}
-                    onRequestRemove={requestRemove}
+                    onRequestRemove={isCompanySuperAdmin ? requestRemove : undefined}
                     onViewCreds={setCredsFor}
                   />
                 ))
