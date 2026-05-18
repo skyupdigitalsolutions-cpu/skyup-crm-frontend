@@ -210,7 +210,7 @@ export function Sidebar() {
 
   const user        = JSON.parse(localStorage.getItem("user") || "null");
   const role        = user?.role?.toLowerCase() || "user";
-  const isSuperAdmin = role === "superadmin";
+  const isSuperAdmin = role === "super_admin";
   const isDeveloper  = role === "developer";
 
   // ── Dynamic branding — falls back to stored brand, then defaults ──────────
@@ -247,7 +247,7 @@ export function Sidebar() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token || isDeveloper) return;
-    const isAdmin    = role === "admin" || role === "superadmin";
+    const isAdmin    = role === "admin" || role === "super_admin";
     const endpoint   = isAdmin ? "/lead/admin/follow-up-alerts" : "/lead/follow-up-alerts";
     const fetchAlerts = async () => {
       try {
@@ -268,7 +268,7 @@ export function Sidebar() {
     : "?";
 
   const roleStyle = {
-    superadmin: { border: "border-amber-500/30",  bg: "bg-amber-500/10",  text: "text-amber-400"  },
+    super_admin: { border: "border-amber-500/30",  bg: "bg-amber-500/10",  text: "text-amber-400"  },
     admin:      { border: "border-purple-500/30", bg: "bg-purple-500/10", text: "text-purple-400" },
     user:       { border: "border-blue-500/30",   bg: "bg-blue-500/10",   text: "text-blue-400"   },
     developer:  { border: "border-emerald-500/30",bg: "bg-emerald-500/10",text: "text-emerald-400" },
