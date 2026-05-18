@@ -129,7 +129,6 @@ const USER_NAV_ITEMS = [
       </svg>
     ),
   },
-  // ── Communications — users chat with their own assigned leads only ──────────
   {
     to: "/user/communications",
     label: "Communications",
@@ -156,6 +155,46 @@ const USER_NAV_ITEMS = [
   },
 ];
 
+// ── Nav items for DEVELOPER role ──────────────────────────────────────────────
+const DEVELOPER_NAV_ITEMS = [
+  {
+    to: "/developer/dashboard",
+    label: "Platform Dashboard",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    to: "/developer/companies",
+    label: "Companies",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M3 21h18" />
+        <path d="M5 21V7l8-4v18" />
+        <path d="M19 21V11l-6-4" />
+        <path d="M9 9h.01M9 12h.01M9 15h.01M9 18h.01" />
+      </svg>
+    ),
+  },
+  {
+    to: "/developer/subscriptions",
+    label: "Subscriptions",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+        <line x1="1" y1="10" x2="23" y2="10" />
+        <line x1="6"  y1="15" x2="6.01" y2="15" strokeWidth="3" strokeLinecap="round" />
+        <line x1="10" y1="15" x2="14"   y2="15" />
+      </svg>
+    ),
+  },
+];
+
 export function Sidebar() {
   const [minimized, setMinimized] = useState(
     () => localStorage.getItem("sidebar_minimized") === "true"
@@ -167,15 +206,21 @@ export function Sidebar() {
     try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; }
   });
   const location = useLocation();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
 
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-  const isSuperAdmin = user?.role?.toLowerCase() === "superadmin";
+  const user        = JSON.parse(localStorage.getItem("user") || "null");
+  const role        = user?.role?.toLowerCase() || "user";
+  const isSuperAdmin = role === "superadmin";
+  const isDeveloper  = role === "developer";
+
+  // ── Dynamic branding — falls back to stored brand, then defaults ──────────
+  const companyName = companyBrand?.name || user?.companyName || user?.brandName || "SKYUP";
+  const companyLogo = companyBrand?.logoUrl || user?.brandLogoUrl || "/skyup_logo1.svg";
 
   // ── Fetch company branding on mount ───────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token || isDeveloper) return; // developer has no company brand endpoint
     api.get("/admin/company/brand")
       .then((res) => {
         if (res.data) {
@@ -184,7 +229,7 @@ export function Sidebar() {
         }
       })
       .catch(() => {}); // silent — branding is optional
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Listen for brand updates dispatched by CompanyBrandSettings ──────────
   useEffect(() => {
@@ -198,12 +243,12 @@ export function Sidebar() {
     return () => window.removeEventListener("company_brand_updated", handler);
   }, []);
 
-  // ── Poll follow-up alerts every 5 minutes ─────────────────────────────────
+  // ── Poll follow-up alerts every 5 minutes (skip for developer) ────────────
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
-    const isAdmin = user?.role === "admin" || user?.role === "superadmin";
-    const endpoint = isAdmin ? "/lead/admin/follow-up-alerts" : "/lead/follow-up-alerts";
+    if (!token || isDeveloper) return;
+    const isAdmin    = role === "admin" || role === "superadmin";
+    const endpoint   = isAdmin ? "/lead/admin/follow-up-alerts" : "/lead/follow-up-alerts";
     const fetchAlerts = async () => {
       try {
         const res = await api.get(endpoint);
@@ -216,7 +261,7 @@ export function Sidebar() {
     fetchAlerts();
     const interval = setInterval(fetchAlerts, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const initials = user?.name
     ? user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
@@ -226,15 +271,15 @@ export function Sidebar() {
     superadmin: { border: "border-amber-500/30",  bg: "bg-amber-500/10",  text: "text-amber-400"  },
     admin:      { border: "border-purple-500/30", bg: "bg-purple-500/10", text: "text-purple-400" },
     user:       { border: "border-blue-500/30",   bg: "bg-blue-500/10",   text: "text-blue-400"   },
-  }[user?.role?.toLowerCase() || "user"] ?? { border: "border-blue-500/30", bg: "bg-blue-500/10", text: "text-blue-400" };
+    developer:  { border: "border-emerald-500/30",bg: "bg-emerald-500/10",text: "text-emerald-400" },
+  }[role] ?? { border: "border-blue-500/30", bg: "bg-blue-500/10", text: "text-blue-400" };
 
   // ── Build nav items based on role ─────────────────────────────────────────
   const NAV_ITEMS =
-    user?.role?.toLowerCase() === "user"
-      ? USER_NAV_ITEMS
-      : isSuperAdmin
-        ? [...ADMIN_NAV_ITEMS, ...SUPERADMIN_EXTRA_ITEMS]
-        : ADMIN_NAV_ITEMS;
+    isDeveloper  ? DEVELOPER_NAV_ITEMS :
+    role === "user" ? USER_NAV_ITEMS :
+    isSuperAdmin ? [...ADMIN_NAV_ITEMS, ...SUPERADMIN_EXTRA_ITEMS] :
+    ADMIN_NAV_ITEMS;
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -315,28 +360,19 @@ export function Sidebar() {
         className="sidebar sticky top-0 h-screen flex flex-col bg-white dark:bg-[#13161E] border-r border-gray-100 dark:border-white/5 shadow-sm"
         style={{ width: minimized ? "72px" : "260px" }}
       >
-        {/* Header — shows custom brand logo/name if set by SuperAdmin */}
+        {/* Header — shows dynamic brand logo/name */}
         <div className="flex items-center justify-between px-4 py-5 border-b border-gray-100 dark:border-white/5 min-w-0">
-          {companyBrand?.logoUrl ? (
-            <img
-              src={companyBrand.logoUrl}
-              className={`h-10 w-auto max-w-[120px] object-contain me-2 ${minimized ? "cursor-pointer" : ""}`}
-              alt={companyBrand?.name || "logo"}
-              onClick={() => { if (minimized) { localStorage.setItem("sidebar_minimized", "false"); setMinimized(false); } }}
-              title={minimized ? "Expand sidebar" : undefined}
-            />
-          ) : (
-            <img
-              src="/skyup_logo1.svg"
-              className={`w-14 h-14 me-3 ${minimized ? "cursor-pointer" : ""}`}
-              alt="skyup_crm"
-              onClick={() => { if (minimized) { localStorage.setItem("sidebar_minimized", "false"); setMinimized(false); } }}
-              title={minimized ? "Expand sidebar" : undefined}
-            />
-          )}
+          <img
+            src={companyLogo}
+            className={`h-10 w-auto max-w-[120px] object-contain me-2 ${minimized ? "cursor-pointer" : ""}`}
+            alt={companyName}
+            onClick={() => { if (minimized) { localStorage.setItem("sidebar_minimized", "false"); setMinimized(false); } }}
+            title={minimized ? "Expand sidebar" : undefined}
+            onError={e => { e.currentTarget.src = "/skyup_logo1.svg"; }}
+          />
           {!minimized && (
             <span className="nav-label font-semibold text-lg tracking-widest uppercase text-gray-600 dark:text-gray-500 truncate max-w-[110px]">
-              {companyBrand?.name || "SKYUP"}
+              {companyName}
             </span>
           )}
           {!minimized && (
@@ -372,10 +408,10 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 flex flex-col gap-1 px-3 py-4 overflow-y-auto overflow-x-hidden">
           {NAV_ITEMS.map((item) => {
-            const isActive = location.pathname === item.to;
+            const isActive      = location.pathname === item.to;
             const isDailyReport = item.to === "/daily-report";
-            const hasOverdue = isDailyReport && followUpAlerts.overdueCount > 0;
-            const hasToday   = isDailyReport && !hasOverdue && followUpAlerts.todayCount > 0;
+            const hasOverdue    = isDailyReport && followUpAlerts.overdueCount > 0;
+            const hasToday      = isDailyReport && !hasOverdue && followUpAlerts.todayCount > 0;
             return (
               <Link
                 key={item.to}
