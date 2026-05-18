@@ -385,6 +385,14 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
   const [result,  setResult]  = useState(null);
   const [error,   setError]   = useState("");
 
+  const [blastFilter, setBlastFilter] = useState({
+  status:   "",    // "" = all, or "New", "In Progress", "Converted", etc.
+  source:   "",    // "" = all, or "Meta", "Google", etc.
+  assignedTo: "",  // "" = all, or specific user _id
+  dateFrom: "",
+  dateTo:   "",
+});
+
   // Load campaign list on mount
   useEffect(() => {
     api.get("/email/history/campaigns")
