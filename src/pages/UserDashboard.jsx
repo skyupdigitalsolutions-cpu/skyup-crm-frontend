@@ -650,7 +650,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
               {callHistory.map((h, i) => (
                 <div key={i} className="px-3 py-2.5 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38]">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[12px] font-semibold text-[#0F1117] dark:text-white">{h.userName || "Unknown Agent"}</span>
+                    <span className="text-[12px] font-semibold text-[#0F1117] dark:text-white">{h.userName || "Unknown Employee"}</span>
                     <span className="text-[10px] text-[#8B92A9]">{fmt(h.calledAt)}</span>
                   </div>
                   <p className="text-[11px] text-[#4B5168] dark:text-[#E5E7EB]">{h.remark}</p>
@@ -969,6 +969,27 @@ export default function UserDashboard() {
   const [activeTab,     setActiveTab]     = useState("leads");
   const [csvImporting,  setCsvImporting]  = useState(false);
   const [csvResult,     setCsvResult]     = useState(null);
+
+  // ── Company branding: fetch once and cache in localStorage ────────────────
+  const [companyBrand, setCompanyBrand] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; }
+  });
+  useEffect(() => {
+    api.get("/admin/company/brand")
+      .then(res => {
+        if (res.data) {
+          setCompanyBrand(res.data);
+          localStorage.setItem("company_brand", JSON.stringify(res.data));
+        }
+      })
+      .catch(() => {}); // silent — branding is optional
+    const handler = () => {
+      try { setCompanyBrand(JSON.parse(localStorage.getItem("company_brand") || "null")); } catch { /* ignore */ }
+    };
+    window.addEventListener("company_brand_updated", handler);
+    return () => window.removeEventListener("company_brand_updated", handler);
+  }, []);
+
   const PER_PAGE = 10;
 
   const fetchLeads = useCallback(() => {
@@ -1170,12 +1191,20 @@ export default function UserDashboard() {
       {/* ── Header ── */}
       <div className="px-6 py-5 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38]">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <p className="text-[#8B92A9] dark:text-[#D1D5DB] text-[12px] font-medium">{greeting.emoji} {greeting.text}</p>
-            <h1 className="text-[22px] font-black text-[#0F1117] dark:text-white mt-0.5">
-              {user?.name || "Agent"}
-              <span className="text-[#8B92A9] dark:text-[#D1D5DB] text-[16px] font-normal ml-2">— My Workspace</span>
-            </h1>
+          <div className="flex items-center gap-3">
+            {/* Company brand logo/name set by SuperAdmin */}
+            {companyBrand?.logoUrl ? (
+              <img src={companyBrand.logoUrl} alt={companyBrand?.name || "logo"} className="h-9 w-auto max-w-[100px] object-contain" />
+            ) : (
+              <img src="/skyup_logo1.svg" alt="skyup_crm" className="w-9 h-9" />
+            )}
+            <div>
+              <p className="text-[#8B92A9] dark:text-[#D1D5DB] text-[12px] font-medium">{greeting.emoji} {greeting.text}</p>
+              <h1 className="text-[22px] font-black text-[#0F1117] dark:text-white mt-0.5">
+                {user?.name || "Employee"}
+                <span className="text-[#8B92A9] dark:text-[#D1D5DB] text-[16px] font-normal ml-2">— My Workspace</span>
+              </h1>
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
