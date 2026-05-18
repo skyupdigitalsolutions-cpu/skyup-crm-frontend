@@ -594,8 +594,54 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
             </div>
           )}
 
+
+          {/* ── Blast filter / targeting ─────────────────────────────────────────── */}
+<div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-4 mb-4 space-y-3">
+  <p className="text-[11px] font-bold text-[#4B5168] dark:text-[#9DA3BB] uppercase tracking-widest">
+    Target Audience
+  </p>
+  <div className="grid grid-cols-2 gap-3">
+    <div>
+      <label className="text-[11px] font-semibold text-[#8B92A9] mb-1 block">Lead Status</label>
+      <select value={blastFilter.status}
+        onChange={(e) => setBlastFilter(f => ({ ...f, status: e.target.value }))}
+        className={FIELD_CLS}>
+        <option value="">All Statuses</option>
+        <option value="New">New</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Converted">Converted</option>
+        <option value="Not Interested">Not Interested</option>
+      </select>
+    </div>
+    <div>
+      <label className="text-[11px] font-semibold text-[#8B92A9] mb-1 block">Lead Source</label>
+      <select value={blastFilter.source}
+        onChange={(e) => setBlastFilter(f => ({ ...f, source: e.target.value }))}
+        className={FIELD_CLS}>
+        <option value="">All Sources</option>
+        <option value="Meta">Meta</option>
+        <option value="Google">Google</option>
+        <option value="Website">Website</option>
+        <option value="Manual">Manual</option>
+      </select>
+    </div>
+    <div>
+      <label className="text-[11px] font-semibold text-[#8B92A9] mb-1 block">Date From</label>
+      <input type="date" value={blastFilter.dateFrom}
+        onChange={(e) => setBlastFilter(f => ({ ...f, dateFrom: e.target.value }))}
+        className={FIELD_CLS} />
+    </div>
+    <div>
+      <label className="text-[11px] font-semibold text-[#8B92A9] mb-1 block">Date To</label>
+      <input type="date" value={blastFilter.dateTo}
+        onChange={(e) => setBlastFilter(f => ({ ...f, dateTo: e.target.value }))}
+        className={FIELD_CLS} />
+    </div>
+  </div>
+</div>
           {/* Template section */}
           <div className="pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
+            
             <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-3">WhatsApp Template</p>
             <div className="flex gap-2.5 bg-[#FFFBEB] dark:bg-[#1c1600] border border-[#FDE68A] dark:border-[#78350f] rounded-xl px-4 py-3 mb-4">
               <span className="text-[14px] shrink-0 mt-0.5">💡</span>
