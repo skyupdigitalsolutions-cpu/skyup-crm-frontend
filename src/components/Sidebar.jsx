@@ -202,9 +202,7 @@ export function Sidebar() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [followUpAlerts, setFollowUpAlerts] = useState({ todayCount: 0, overdueCount: 0 });
   // ── Company branding: SuperAdmin sets name + logo via Settings ────────────
-  const [companyBrand, setCompanyBrand] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; }
-  });
+  
   const location = useLocation();
   const navigate  = useNavigate();
 
@@ -215,34 +213,9 @@ export function Sidebar() {
   const isSuperAdmin = role === "super_admin";
   const isDeveloper  = role === "developer";
   // ── Dynamic branding — falls back to stored brand, then defaults ──────────
-  const companyName = companyBrand?.name || user?.companyName || user?.brandName || "SKYUP";
-  const companyLogo = companyBrand?.logoUrl || user?.brandLogoUrl || "/skyup_logo1.svg";
+const companyName = "SKYUP";           
+const companyLogo = "/skyup_logo1.svg"; 
 
-  // ── Fetch company branding on mount ───────────────────────────────────────
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token || isDeveloper) return; // developer has no company brand endpoint
-    api.get("/admin/company/brand")
-      .then((res) => {
-        if (res.data) {
-          setCompanyBrand(res.data);
-          localStorage.setItem("company_brand", JSON.stringify(res.data));
-        }
-      })
-      .catch(() => {}); // silent — branding is optional
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Listen for brand updates dispatched by CompanyBrandSettings ──────────
-  useEffect(() => {
-    const handler = () => {
-      try {
-        const b = JSON.parse(localStorage.getItem("company_brand") || "null");
-        setCompanyBrand(b);
-      } catch { /* ignore */ }
-    };
-    window.addEventListener("company_brand_updated", handler);
-    return () => window.removeEventListener("company_brand_updated", handler);
-  }, []);
 
   // ── Poll follow-up alerts every 5 minutes (skip for developer) ────────────
   useEffect(() => {
