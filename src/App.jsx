@@ -25,8 +25,9 @@ const DeveloperCompanies   = lazy(() => import("./pages/developer/Companies"));
 const DeveloperSubscriptions = lazy(() => import("./pages/developer/Subscriptions"));
 
 // Auth pages
-const AdminLogin      = lazy(() => import("./pages/AdminLogin"));
-const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
+const AdminLogin           = lazy(() => import("./pages/AdminLogin"));
+const SuperAdminLogin      = lazy(() => import("./pages/SuperAdminLogin"));
+const SuperAdminDashboard  = lazy(() => import("./pages/superadmin/SuperAdminDashboard"));
 
 // ── Page loader ───────────────────────────────────────────────────────────────
 function PageLoader() {
