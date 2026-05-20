@@ -16,20 +16,22 @@ export default function SuperAdminLogin() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.post("/superadmin/login", { email, password });
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("user", JSON.stringify({
-        _id:  res.data._id,
-        name: res.data.name,
-        email: res.data.email,
-        role: "superadmin",
-      }));
-      navigate("/dashboard");
-    } catch (err) {
-      setError(err.response?.data?.message || "Login failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+  const res = await api.post("/superadmin/login", { email, password });
+  localStorage.setItem("token", res.data.token);
+  localStorage.setItem("user", JSON.stringify({
+    _id:         res.data._id,
+    name:        res.data.name,
+    email:       res.data.email,
+    role:        "super_admin",          // CHANGED: match backend & Sidebar
+    companyId:   res.data.companyId,     // NEW: scope the dashboard to this company
+    companyName: res.data.companyName,   // NEW: shown in Sidebar / Dashboard header
+  }));
+  navigate("/superadmin/dashboard");      // CHANGED: was "/dashboard" (admin route)
+} catch (err) {
+  setError(err.response?.data?.message || "Login failed. Please try again.");
+} finally {
+  setLoading(false);
+}
   };
 
   return (
