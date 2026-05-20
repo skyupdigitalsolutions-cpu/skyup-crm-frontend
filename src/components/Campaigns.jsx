@@ -233,7 +233,7 @@ function LeadDrawer({ campaign, onClose }) {
 function CreateModal({ onClose, onCreated }) {
   const empty = {
     campaignName: "", pageId: "", pageAccessToken: "", appSecret: "", verifyToken: "",
-    graphApiVersion: "v25.0", formIds: "", defaultStatus: "New",
+    graphApiVersion: "v25.0", formIds: "", formId: "", defaultStatus: "New",
     adSetName: "", parentCampaignName: "",
   };
   const [form, setForm] = useState(empty);
@@ -255,6 +255,7 @@ function CreateModal({ onClose, onCreated }) {
         campaignName: form.campaignName.trim(), pageId: form.pageId.trim(),
         pageAccessToken: form.pageAccessToken.trim(),
         formIds: form.formIds ? form.formIds.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        formId: form.formId.trim() || "",
         defaultStatus: form.defaultStatus || "New",
         graphApiVersion: form.graphApiVersion.trim() || "v25.0",
         adSetName: form.adSetName.trim() || undefined,
@@ -379,12 +380,24 @@ function CreateModal({ onClose, onCreated }) {
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Graph API Version <span className="text-[10px] font-normal text-[#8B92A9]">(META_GRAPH_API_VERSION)</span></label>
                   <input type="text" value={form.graphApiVersion} onChange={set("graphApiVersion")} placeholder="v25.0" className={FIELD_CLS} />
                 </div>
+                
               </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Form IDs <span className="text-[10px] font-normal text-[#8B92A9]">(optional — blank = accept all)</span></label>
                 <input type="text" value={form.formIds} onChange={set("formIds")} placeholder="form_id_1, form_id_2" className={FIELD_CLS} />
                 <p className="text-[10px] text-[#8B92A9] mt-1">Comma-separated. Find in Meta Ads Manager → Lead forms</p>
               </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Form ID <span className="text-[10px] font-normal text-[#8B92A9]">(for this specific ad set)</span>
+              </label>
+            <input type="text" value={form.formId || ""} onChange={set("formId")}
+              placeholder="e.g. 1234567890123456" className={FIELD_CLS} />
+            <p className="text-[10px] text-[#8B92A9] mt-1">
+              Each ad set has its own lead form. Find the Form ID in Meta Ads Manager → Lead forms.
+              </p>
+            </div>
             </div>
           </div>
 
@@ -420,6 +433,7 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
     verifyToken: "",
     graphApiVersion: campaign.graphApiVersion || "v25.0",
     formIds: (campaign.formIds || []).join(", "),
+      formId: campaign.formId || "",
     defaultStatus: campaign.defaultStatus || "New",
     adSetName: campaign.adSetName || "",
     parentCampaignName: campaign.parentCampaignName || "",
@@ -439,6 +453,7 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
         campaignName: form.campaignName.trim(),
         pageId: form.pageId.trim(),
         formIds: form.formIds ? form.formIds.split(",").map((s) => s.trim()).filter(Boolean) : [],
+         formId: form.formId?.trim() || "", 
         defaultStatus: form.defaultStatus || "New",
         graphApiVersion: form.graphApiVersion.trim() || "v25.0",
         adSetName: form.adSetName.trim() || undefined,
@@ -517,6 +532,17 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Graph API Version</label><input type="text" value={form.graphApiVersion} onChange={set("graphApiVersion")} placeholder="v25.0" className={FIELD_CLS} /></div>
               </div>
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Form IDs <span className="text-[10px] font-normal text-[#8B92A9]">(blank = accept all forms)</span></label><input type="text" value={form.formIds} onChange={set("formIds")} placeholder="form_id_1, form_id_2" className={FIELD_CLS} /></div>
+
+<div>
+  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+    Form ID <span className="text-[10px] font-normal text-[#8B92A9]">(for this specific ad set)</span>
+  </label>
+  <input type="text" value={form.formId || ""} onChange={set("formId")}
+    placeholder="e.g. 1234567890123456" className={FIELD_CLS} />
+  <p className="text-[10px] text-[#8B92A9] mt-1">
+    Each ad set has its own lead form. Find the Form ID in Meta Ads Manager → Lead forms.
+  </p>
+</div>
             </div>
           </div>
           {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]"> {error}</div>}
@@ -1416,6 +1442,7 @@ export default function Campaigns() {
         graphApiVersion: cfg.graphApiVersion || "v25.0",
         adSetName: cfg.adSetName || "",
         parentCampaignName: cfg.parentCampaignName || "",
+        formId: cfg.formId || "", 
       }));
 
       const googleLeadCounts = await Promise.allSettled(
