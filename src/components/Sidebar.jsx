@@ -361,22 +361,25 @@ export function Sidebar() {
         className="sidebar sticky top-0 h-screen flex flex-col bg-white dark:bg-[#13161E] border-r border-gray-100 dark:border-white/5 shadow-sm"
         style={{ width: minimized ? "72px" : "260px" }}
       >
-        {/* Header — collapse/expand toggle only */}
-        <div className={`flex items-center border-b border-gray-100 dark:border-white/5 ${minimized ? "justify-center px-2 py-4" : "justify-end px-4 py-4"}`}>
-          {minimized ? (
-            <button
-              onClick={() => { localStorage.setItem("sidebar_minimized", "false"); setMinimized(false); }}
-              className="toggle-btn p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10"
-              title="Expand sidebar"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-          ) : (
+        {/* Header — shows dynamic brand logo/name */}
+        <div className="flex items-center justify-between px-4 py-5 border-b border-gray-100 dark:border-white/5 min-w-0">
+          <img
+            src={companyLogo}
+            className={`h-10 w-auto max-w-[120px] object-contain me-2 ${minimized ? "cursor-pointer" : ""}`}
+            alt={companyName}
+            onClick={() => { if (minimized) { localStorage.setItem("sidebar_minimized", "false"); setMinimized(false); } }}
+            title={minimized ? "Expand sidebar" : undefined}
+            onError={e => { e.currentTarget.src = "/skyup_logo1.svg"; }}
+          />
+          {!minimized && (
+            <span className="nav-label font-semibold text-lg tracking-widest uppercase text-gray-600 dark:text-gray-500 truncate max-w-[110px]">
+              {companyName}
+            </span>
+          )}
+          {!minimized && (
             <button
               onClick={() => { localStorage.setItem("sidebar_minimized", "true"); setMinimized(true); }}
-              className="toggle-btn p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10"
+              className="toggle-btn ml-auto p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10"
               title="Minimize sidebar"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -395,8 +398,8 @@ export function Sidebar() {
             {!minimized && (
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 truncate">{user.name}</p>
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${roleStyle.bg} ${roleStyle.text}`}>
-                  {role === "super_admin" ? "Super Admin" : role === "admin" ? "Admin" : role === "developer" ? "Developer" : "User"}
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${roleStyle.bg} ${roleStyle.text}`}>
+                  {user.role}
                 </span>
               </div>
             )}
