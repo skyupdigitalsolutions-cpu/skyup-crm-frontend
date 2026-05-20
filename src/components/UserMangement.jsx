@@ -862,11 +862,7 @@ export default function UserManagement({
           </div>
           {isCompanySuperAdmin && (
             <>
-              <div className={`w-px h-8 ${cfg.dividerColor}`}/>
-              <div className="text-center">
-                <div className="text-xl font-bold text-[#0F1117] dark:text-[#F0F2FA]">{regularAdminCount + users.length}/{cfg.maxAdmins + cfg.maxUsers}</div>
-                <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Total</div>
-              </div>
+
             </>
           )}
         </div>
