@@ -12,6 +12,7 @@ import AdminChat from "./Adminchat";
 import LeadTimeline from "./LeadTimeLine";
 import AdminAttendanceView from "./AdminAttendanceView";
 import CompanyBrandSettings from "./CompanyBrandSettings";
+import SuperAdminFilter from "./SuperAdminFilter";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
 function maskPhone(phone) {
@@ -1382,6 +1383,9 @@ export default function Dashboard() {
            • User role  → hidden entirely
         ── superAdminPlan is null while loading to avoid a flash of wrong limits
       */}
+      {/* ── Admin-Based Filter (SuperAdmin only) ── */}
+      {isSuperAdmin && <SuperAdminFilter />}
+
       {isSuperAdmin && superAdminPlan !== null && (
         <UserManagement
           currentPlan={superAdminPlan}
