@@ -62,6 +62,7 @@ function mapLead(l) {
     email:          l.email          || "",
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
+    adSetName:      l.adSetName      || "",   
     status:         l.status         || "New",
     temperature:    l.temperature    || l.Quality || null,
     remark:         l.remark         || "",
@@ -996,9 +997,12 @@ export default function UserLeadsPage() {
 
                         <td className="px-4 py-3">
                           <p className="text-[#0F1117] dark:text-white truncate max-w-[120px]">{l.source}</p>
-                          {l.campaign !== "—" && (
-                            <p className="text-[14px] text-[#8B92A9] truncate max-w-[120px]">{l.campaign}</p>
-                          )}
+                         {l.campaign !== "—" && (
+  <p className="text-[14px] text-[#8B92A9] truncate max-w-[120px]">{l.campaign}</p>
+)}
+{l.adSetName && (
+  <p className="text-[11px] text-[#E1306C] truncate max-w-[120px]"> {l.adSetName}</p>
+)}
                         </td>
 
                         <td className="px-4 py-3 whitespace-nowrap">
