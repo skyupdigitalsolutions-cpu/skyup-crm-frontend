@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes, Navigate, useNavigate, useLocation } from
 import { useEffect, lazy, Suspense } from "react";
 import React from "react";
 import { Sidebar } from "./components/Sidebar";
+import api from "./data/axiosConfig";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
 const Dashboard      = lazy(() => import("./components/Dashboard"));
@@ -21,10 +22,9 @@ const UserLeadsPage          = lazy(() => import("./pages/UserLeadsPage"));
 const UserLeadCommunication  = lazy(() => import("./pages/UserLeadCommunication"));
 
 // Developer pages
-const DeveloperDashboard   = lazy(() => import("./pages/developer/DeveloperDashboard"));
-const DeveloperCompanies   = lazy(() => import("./pages/developer/Companies"));
+const DeveloperDashboard     = lazy(() => import("./pages/developer/DeveloperDashboard"));
+const DeveloperCompanies     = lazy(() => import("./pages/developer/Companies"));
 const DeveloperSubscriptions = lazy(() => import("./pages/developer/Subscriptions"));
-
 
 // Auth pages
 const AdminLogin      = lazy(() => import("./pages/AdminLogin"));
@@ -57,17 +57,17 @@ function LoginGuard({ children }) {
   const navigate  = useNavigate();
   const { token, user } = getStoredAuth();
 
-useEffect(() => {
-  const { token: t, user: u } = getStoredAuth();
-  if (t && u) {
- let home = "/dashboard";
-if (u.role === "developer") home = "/developer/dashboard";
-else if (u.role === "user") home = "/user/dashboard";
-navigate(home, { replace: true });
-    return;
-  }
-  window.history.replaceState(null, "", location.pathname);
-}, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const { token: t, user: u } = getStoredAuth();
+    if (t && u) {
+      let home = "/dashboard";
+      if (u.role === "developer") home = "/developer/dashboard";
+      else if (u.role === "user") home = "/user/dashboard";
+      navigate(home, { replace: true });
+      return;
+    }
+    window.history.replaceState(null, "", location.pathname);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (token && user) return null;
   return children;
@@ -90,6 +90,7 @@ function RootRedirect() {
   if (user?.role === "user")      return <Navigate to="/user/dashboard" replace />;
   return <Navigate to="/dashboard" replace />;
 }
+
 // ── Protected Route ────────────────────────────────────────────────────────────
 function ProtectedRoute({ children }) {
   const { token, user } = getStoredAuth();
@@ -109,21 +110,21 @@ function AdminRoute({ children }) {
   const { token, user } = getStoredAuth();
   const navigate = useNavigate();
 
- useEffect(() => {
-  const { token: t, user: u } = getStoredAuth();
-  if (!t || !u) {
-    navigate("/login", { replace: true });
-  } else if (u.role === "user") {
-    navigate("/user/dashboard", { replace: true });
-  } else if (u.role === "developer") {
-    navigate("/developer/dashboard", { replace: true });
-  }
-}, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const { token: t, user: u } = getStoredAuth();
+    if (!t || !u) {
+      navigate("/login", { replace: true });
+    } else if (u.role === "user") {
+      navigate("/user/dashboard", { replace: true });
+    } else if (u.role === "developer") {
+      navigate("/developer/dashboard", { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-if (!token || !user) return <Navigate to="/login" replace />;
-if (user.role === "user")      return <Navigate to="/user/dashboard" replace />;
-if (user.role === "developer") return <Navigate to="/developer/dashboard" replace />;
-return children;
+  if (!token || !user) return <Navigate to="/login" replace />;
+  if (user.role === "user")      return <Navigate to="/user/dashboard" replace />;
+  if (user.role === "developer") return <Navigate to="/developer/dashboard" replace />;
+  return children;
 }
 
 // ── SuperAdmin-only Route ──────────────────────────────────────────────────────
@@ -142,10 +143,11 @@ function SuperAdminRoute({ children }) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!token || !user)            return <Navigate to="/login" replace />;
-  if (!isSuperAdmin(user.role))   return <Navigate to="/dashboard" replace />;
+  if (!token || !user)          return <Navigate to="/login" replace />;
+  if (!isSuperAdmin(user.role)) return <Navigate to="/dashboard" replace />;
   return children;
 }
+
 // ── User-only Route ────────────────────────────────────────────────────────────
 function UserRoute({ children }) {
   const { token, user } = getStoredAuth();
@@ -184,16 +186,33 @@ function DeveloperRoute({ children }) {
   return children;
 }
 
-// ── Sticky Company Header (shown in admin/super admin/user panels) ─────────────
+// ── Sticky Company Header ──────────────────────────────────────────────────────
 function CompanyHeader() {
   const { user } = getStoredAuth();
   const role = (user?.role || "user").toLowerCase();
+
+  // Developer role has no company header
   if (role === "developer") return null;
 
   const [brand, setBrand] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; }
   });
 
+  // ── Fetch brand from API on mount ─────────────────────────────────────────
+  React.useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    api.get("/admin/company/brand")
+      .then((res) => {
+        if (res.data) {
+          setBrand(res.data);
+          localStorage.setItem("company_brand", JSON.stringify(res.data));
+        }
+      })
+      .catch(() => {}); // silent — branding is optional
+  }, []);
+
+  // ── Listen for brand updates dispatched by CompanyBrandSettings ──────────
   React.useEffect(() => {
     const handler = () => {
       try { setBrand(JSON.parse(localStorage.getItem("company_brand") || "null")); } catch {}
@@ -204,9 +223,11 @@ function CompanyHeader() {
 
   const companyName = brand?.name || user?.companyName || user?.brandName || "SKYUP";
   const companyLogo = brand?.logoUrl || user?.brandLogoUrl || "/skyup_logo1.svg";
+
   const roleLabel =
     role === "super_admin" || role === "superadmin" ? "Super Admin" :
     role === "admin" ? "Admin" : "User";
+
   const roleColor =
     role === "super_admin" || role === "superadmin"
       ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30"
@@ -302,8 +323,6 @@ export default function App() {
               <AppLayout><DeveloperSubscriptions /></AppLayout>
             </DeveloperRoute>
           }/>
-
-         
 
           {/* ── Admin-only pages ── */}
           <Route path="/reportpage" element={
