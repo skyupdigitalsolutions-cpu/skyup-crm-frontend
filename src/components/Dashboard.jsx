@@ -1398,7 +1398,7 @@ export default function Dashboard() {
             <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Company Branding</h2>
             <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-semibold">SuperAdmin only</span>
           </div>
-          <CompanyBrandSettings />
+          {/* <CompanyBrandSettings /> */}
         </div>
       )}
       {role === "admin" && (
