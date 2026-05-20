@@ -89,6 +89,94 @@ function SummaryCard({ label, value, sub, color }) {
   );
 }
 
+// ── Sync Meta Modal ───────────────────────────────────────────────────────────
+function SyncMetaModal({ onClose, onSynced }) {
+  const [form, setForm] = useState({ pageId: "", pageAccessToken: "", graphApiVersion: "v21.0" });
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const set = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  const handleSync = async () => {
+    if (!form.pageId.trim() || !form.pageAccessToken.trim()) return;
+    setLoading(true); setError("");
+    try {
+      const res = await api.post("/meta-config/sync", {
+        pageId: form.pageId.trim(),
+        pageAccessToken: form.pageAccessToken.trim(),
+        graphApiVersion: form.graphApiVersion.trim() || "v21.0",
+      });
+      setResult(res.data);
+      onSynced && onSynced();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Sync failed");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-6" onClick={e => e.stopPropagation()}>
+        <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">
+          Auto-Sync Campaigns from Meta
+        </h2>
+        <p className="text-[11px] text-[#8B92A9] mb-5">
+          Fetches all lead forms on your page and auto-creates a config for each campaign &amp; ad set.
+        </p>
+
+        <div className="space-y-3 mb-5">
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Page ID</label>
+            <input value={form.pageId} onChange={set("pageId")} placeholder="e.g. 123456789012345" className={FIELD_CLS} />
+          </div>
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Page Access Token</label>
+            <input type="password" value={form.pageAccessToken} onChange={set("pageAccessToken")} placeholder="EAAxxxxxx…" className={FIELD_CLS} />
+          </div>
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Graph API Version</label>
+            <input value={form.graphApiVersion} onChange={set("graphApiVersion")} placeholder="v21.0" className={FIELD_CLS} />
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">
+            {error}
+          </div>
+        )}
+
+        {result && (
+          <div className="mb-4 bg-[#ECFDF5] dark:bg-[#052E1C] border border-[#A7F3D0] rounded-xl px-4 py-3 text-[12px] text-[#059669]">
+            ✅ {result.created} ad sets created, {result.skipped} already existed.
+            <ul className="mt-2 space-y-1">
+              {result.forms.map((f, i) => (
+                <li key={i} className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
+                  <span className="font-semibold">{f.campaignName}</span>
+                  {f.adSetName && <span> › {f.adSetName}</span>}
+                  <span className="ml-1 text-[#8B92A9]">({f.status})</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] hover:bg-[#F8F9FC] transition">
+            Close
+          </button>
+          <button
+            onClick={handleSync}
+            disabled={!form.pageId.trim() || !form.pageAccessToken.trim() || loading}
+            className="flex-1 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] disabled:opacity-40 disabled:cursor-not-allowed transition"
+          >
+            {loading ? "Syncing…" : "Sync All Campaigns & Ad Sets"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Lead drill-down drawer ────────────────────────────────────────────────────
 function LeadDrawer({ campaign, onClose }) {
   const [leads, setLeads] = useState([]);
@@ -380,7 +468,6 @@ function CreateModal({ onClose, onCreated }) {
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Graph API Version <span className="text-[10px] font-normal text-[#8B92A9]">(META_GRAPH_API_VERSION)</span></label>
                   <input type="text" value={form.graphApiVersion} onChange={set("graphApiVersion")} placeholder="v25.0" className={FIELD_CLS} />
                 </div>
-                
               </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Form IDs <span className="text-[10px] font-normal text-[#8B92A9]">(optional — blank = accept all)</span></label>
@@ -1404,6 +1491,7 @@ export default function Campaigns() {
   const [showCreateWebsite, setShowCreateWebsite] = useState(false);
   const [editCampaign, setEditCampaign] = useState(null);
   const [showEmailCampaign, setShowEmailCampaign] = useState(false);
+  const [showSync, setShowSync] = useState(false); // ← NEW
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
 
@@ -1546,7 +1634,7 @@ export default function Campaigns() {
     return matchFilter && matchSearch;
   });
 
-  // ── Step 3: Group Meta campaigns by parentCampaignName ──────────────────────
+  // ── Group Meta campaigns by parentCampaignName ──────────────────────────────
   const groupedMeta = {};
   const ungrouped = [];
   filtered.forEach((c) => {
@@ -1586,7 +1674,12 @@ export default function Campaigns() {
             {pageLoading ? "Loading…" : `${metaCount} Meta · ${googleCount} Google Ads · ${websiteCount} Website`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* ── Sync from Meta button ── */}
+          <button onClick={() => setShowSync(true)}
+            className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#E1306C] hover:bg-[#FFF0F3] transition flex items-center gap-1.5">
+            🔄 Sync from Meta
+          </button>
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" /></svg>
             Connect Meta
@@ -1678,6 +1771,13 @@ export default function Campaigns() {
       {editCampaign && editCampaign._isMeta && <EditMetaModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
       {editCampaign && editCampaign._isGoogle && <EditGoogleModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
       {editCampaign && editCampaign._isWebsite && <EditWebsiteModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
+      {/* ── Sync Meta modal ── */}
+      {showSync && (
+        <SyncMetaModal
+          onClose={() => setShowSync(false)}
+          onSynced={() => { setShowSync(false); fetchCampaigns(); }}
+        />
+      )}
     </div>
   );
 }
