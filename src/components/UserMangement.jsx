@@ -523,6 +523,11 @@ export default function UserManagement({
     if (existingUsers.length > 0) setUsers(existingUsers.map(u => ({ ...u, isDefault: false })));
   }, [existingUsers]);
 
+  // Super Admin is NOT counted against the plan's admin slots
+  const regularAdminCount = admins.filter(
+    m => m.role !== "super_admin" && m.role !== "superadmin"
+  ).length;
+
   const [modal,         setModal]         = useState(null);
   const [credsFor,      setCredsFor]      = useState(null);
   const [upgradeAlert,  setUpgradeAlert]  = useState("");
@@ -543,7 +548,7 @@ export default function UserManagement({
   };
 
   const tryAdd = (role) => {
-    if (role === "admin" && admins.length >= cfg.maxAdmins) {
+    if (role === "admin" && regularAdminCount >= cfg.maxAdmins) {
       return setUpgradeAlert(
         `You are on the ${cfg.label} plan which allows only ${cfg.maxAdmins} admin${cfg.maxAdmins > 1 ? "s" : ""}. To add more admins, please upgrade your plan.`
       );
@@ -674,7 +679,7 @@ export default function UserManagement({
           {isCompanySuperAdmin && (
             <>
               <div className="text-center">
-                <div className={`text-xl font-bold ${cfg.statColor}`}>{admins.length}/{cfg.maxAdmins}</div>
+                <div className={`text-xl font-bold ${cfg.statColor}`}>{regularAdminCount}/{cfg.maxAdmins}</div>
                 <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Admins</div>
               </div>
               <div className={`w-px h-8 ${cfg.dividerColor}`}/>
@@ -688,7 +693,7 @@ export default function UserManagement({
             <>
               <div className={`w-px h-8 ${cfg.dividerColor}`}/>
               <div className="text-center">
-                <div className="text-xl font-bold text-[#0F1117] dark:text-[#F0F2FA]">{admins.length + users.length}/{cfg.maxAdmins + cfg.maxUsers}</div>
+                <div className="text-xl font-bold text-[#0F1117] dark:text-[#F0F2FA]">{regularAdminCount + users.length}/{cfg.maxAdmins + cfg.maxUsers}</div>
                 <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Total</div>
               </div>
             </>
@@ -708,7 +713,7 @@ export default function UserManagement({
                   <svg className="w-4 h-4 text-[#2563EB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
                   <h3 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Admins</h3>
                 </div>
-                <SlotBar used={admins.length} max={cfg.maxAdmins} isAdmin/>
+                <SlotBar used={regularAdminCount} max={cfg.maxAdmins} isAdmin/>
               </div>
               <button
                 onClick={() => tryAdd("admin")}
