@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, lazy, Suspense } from "react";
+import React from "react";
 import { Sidebar } from "./components/Sidebar";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
@@ -183,12 +184,65 @@ function DeveloperRoute({ children }) {
   return children;
 }
 
+// ── Sticky Company Header (shown in admin/super admin/user panels) ─────────────
+function CompanyHeader() {
+  const { user } = getStoredAuth();
+  const role = (user?.role || "user").toLowerCase();
+  if (role === "developer") return null;
+
+  const [brand, setBrand] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; }
+  });
+
+  React.useEffect(() => {
+    const handler = () => {
+      try { setBrand(JSON.parse(localStorage.getItem("company_brand") || "null")); } catch {}
+    };
+    window.addEventListener("company_brand_updated", handler);
+    return () => window.removeEventListener("company_brand_updated", handler);
+  }, []);
+
+  const companyName = brand?.name || user?.companyName || user?.brandName || "SKYUP";
+  const companyLogo = brand?.logoUrl || user?.brandLogoUrl || "/skyup_logo1.svg";
+  const roleLabel =
+    role === "super_admin" || role === "superadmin" ? "Super Admin" :
+    role === "admin" ? "Admin" : "User";
+  const roleColor =
+    role === "super_admin" || role === "superadmin"
+      ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30"
+      : role === "admin"
+      ? "bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-500/30"
+      : "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30";
+
+  return (
+    <div className="sticky top-0 z-30 flex items-center justify-between px-5 py-2.5 bg-white/90 dark:bg-[#13161E]/90 backdrop-blur-md border-b border-gray-100 dark:border-white/5 shadow-sm">
+      <div className="flex items-center gap-3">
+        <img
+          src={companyLogo}
+          alt={companyName}
+          className="h-7 w-auto max-w-[100px] object-contain"
+          onError={e => { e.currentTarget.src = "/skyup_logo1.svg"; }}
+        />
+        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 tracking-tight truncate max-w-[180px]">
+          {companyName}
+        </span>
+      </div>
+      <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${roleColor}`}>
+        {roleLabel}
+      </span>
+    </div>
+  );
+}
+
 // ── Layout with Sidebar ────────────────────────────────────────────────────────
 function AppLayout({ children }) {
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      <main className="flex-1 overflow-y-auto flex flex-col">
+        <CompanyHeader />
+        <div className="flex-1">{children}</div>
+      </main>
     </div>
   );
 }
