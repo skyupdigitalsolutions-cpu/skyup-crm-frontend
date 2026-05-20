@@ -350,6 +350,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
               {[
                 { label: "Source",    value: lead.source || "—" },
                 { label: "Campaign",  value: lead.campaign && lead.campaign !== "—" ? lead.campaign : "—" },
+                { label: "Ad Set",    value: lead.adSetName || "—" },
                 { label: "Created",   value: fmtDateTime(lead._raw_date || lead.createdAt) },
                 { label: "Lead Date", value: lead.date || "—" },
               ].map((row, i) => (
