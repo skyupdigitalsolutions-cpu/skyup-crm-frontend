@@ -14,7 +14,16 @@ export function getStoredUser() {
 
 export function getRole() {
   const user = getStoredUser();
-  return user?.role || "user";
+  const raw  = (user?.role || "user").toLowerCase();
+  // ── Normalize role aliases so every consumer sees ONE canonical value ──
+  // Backend JWT carries "super_admin" (with underscore); legacy code paths use
+  // "superadmin" (no underscore). Collapse them here so every downstream
+  // `role === "superadmin"` check (Dashboard, fetchAll below, UserMangement,
+  // AdminLeadsPage, ReportPage, AttendanceTable, DailyReport, Admin/DailyReport)
+  // works regardless of which form is in localStorage.
+  if (raw === "super_admin") return "superadmin";
+  if (raw === "employee")    return "user";
+  return raw;
 }
 
 // ── FIX 4B: Paginated lead fetcher ────────────────────────────────────────────
@@ -96,30 +105,27 @@ async function fetchAdminData() {
 }
 
 // ── SuperAdmin: fetch all companies + their leads ──────────────────────────
+
 async function fetchSuperAdminData() {
-  const [companiesRes, dashboardRes] = await Promise.all([
-    api.get("/superadmin/companies"),
-    api.get("/superadmin/dashboard"),
+  const [leadsRes, usersRes, dashboardRes] = await Promise.all([
+    api.get("/admin/company/leads?page=1&limit=500"),
+    api.get("/admin/company/users"),
+    api.get("/superadmin/dashboard"), // returns { users, leads, admins } scoped to caller's company
   ]);
 
-  const companies = companiesRes.data;
-  const allLeadsRes = await Promise.all(
-    companies.map((c) => api.get(`/superadmin/companies/${c._id}`))
-  );
+  const rawLeads = leadsRes.data?.leads || (Array.isArray(leadsRes.data) ? leadsRes.data : []);
+  const leads    = await Promise.all(rawLeads.map(formatLead));
+  const agents   = (usersRes.data || []).map((u) => formatAgent(u));
 
-  const leads = await Promise.all(
-    allLeadsRes.flatMap((res) =>
-      (res.data.leads || []).map(formatLead)
-    )
-  );
-
-  const agents = allLeadsRes.flatMap((res, i) =>
-    (res.data.users || []).map(u => formatAgent(u, companies[i]._id))
-  );
-
-  return { leads, agents, stats: dashboardRes.data, companies };
+  return {
+    leads,
+    agents,
+    stats: dashboardRes.data,
+    total: leadsRes.data.total || leads.length,
+    page:  leadsRes.data.page  || 1,
+    pages: leadsRes.data.pages || 1,
+  };
 }
-
 // ── Format lead from DB to dashboard format ────────────────────────────────
 // BUG FIX: The original version returned a plain object with only ~9 fields,
 // silently dropping callHistory, scheduledCalls, previousAgents, reassignCount,
