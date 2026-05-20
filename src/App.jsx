@@ -24,10 +24,10 @@ const DeveloperDashboard   = lazy(() => import("./pages/developer/DeveloperDashb
 const DeveloperCompanies   = lazy(() => import("./pages/developer/Companies"));
 const DeveloperSubscriptions = lazy(() => import("./pages/developer/Subscriptions"));
 
+
 // Auth pages
-const AdminLogin           = lazy(() => import("./pages/AdminLogin"));
-const SuperAdminLogin      = lazy(() => import("./pages/SuperAdminLogin"));
-const SuperAdminDashboard  = lazy(() => import("./pages/superadmin/SuperAdminDashboard"));
+const AdminLogin      = lazy(() => import("./pages/AdminLogin"));
+const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
 
 // ── Page loader ───────────────────────────────────────────────────────────────
 function PageLoader() {
@@ -59,11 +59,10 @@ function LoginGuard({ children }) {
 useEffect(() => {
   const { token: t, user: u } = getStoredAuth();
   if (t && u) {
-    let home = "/dashboard";
-    if (u.role === "developer")                                   home = "/developer/dashboard";
-    else if (u.role === "user")                                   home = "/user/dashboard";
-    else if (u.role === "super_admin" || u.role === "superadmin") home = "/superadmin/dashboard";
-    navigate(home, { replace: true });
+ let home = "/dashboard";
+if (u.role === "developer") home = "/developer/dashboard";
+else if (u.role === "user") home = "/user/dashboard";
+navigate(home, { replace: true });
     return;
   }
   window.history.replaceState(null, "", location.pathname);
@@ -86,12 +85,10 @@ function DailyReportRoleSwitch() {
 
 function RootRedirect() {
   const { user } = getStoredAuth();
-  if (user?.role === "developer")                                  return <Navigate to="/developer/dashboard" replace />;
-  if (user?.role === "user")                                        return <Navigate to="/user/dashboard" replace />;
-  if (user?.role === "super_admin" || user?.role === "superadmin") return <Navigate to="/superadmin/dashboard" replace />;
+  if (user?.role === "developer") return <Navigate to="/developer/dashboard" replace />;
+  if (user?.role === "user")      return <Navigate to="/user/dashboard" replace />;
   return <Navigate to="/dashboard" replace />;
 }
-
 // ── Protected Route ────────────────────────────────────────────────────────────
 function ProtectedRoute({ children }) {
   const { token, user } = getStoredAuth();
@@ -111,24 +108,21 @@ function AdminRoute({ children }) {
   const { token, user } = getStoredAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const { token: t, user: u } = getStoredAuth();
-    if (!t || !u) {
-      navigate("/login", { replace: true });
-    } else if (u.role === "user") {
-      navigate("/user/dashboard", { replace: true });
-    } else if (u.role === "developer") {
-      navigate("/developer/dashboard", { replace: true });
-    } else if (u.role === "super_admin" || u.role === "superadmin") {
-      navigate("/superadmin/dashboard", { replace: true });
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+ useEffect(() => {
+  const { token: t, user: u } = getStoredAuth();
+  if (!t || !u) {
+    navigate("/login", { replace: true });
+  } else if (u.role === "user") {
+    navigate("/user/dashboard", { replace: true });
+  } else if (u.role === "developer") {
+    navigate("/developer/dashboard", { replace: true });
+  }
+}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!token || !user) return <Navigate to="/login" replace />;
-  if (user.role === "user")                                       return <Navigate to="/user/dashboard" replace />;
-  if (user.role === "developer")                                  return <Navigate to="/developer/dashboard" replace />;
-  if (user.role === "super_admin" || user.role === "superadmin")  return <Navigate to="/superadmin/dashboard" replace />;
-  return children;
+if (!token || !user) return <Navigate to="/login" replace />;
+if (user.role === "user")      return <Navigate to="/user/dashboard" replace />;
+if (user.role === "developer") return <Navigate to="/developer/dashboard" replace />;
+return children;
 }
 
 // ── SuperAdmin-only Route ──────────────────────────────────────────────────────
@@ -255,12 +249,7 @@ export default function App() {
             </DeveloperRoute>
           }/>
 
-          {/* ── SuperAdmin Dashboard ── */}
-<Route path="/superadmin/dashboard" element={
-  <SuperAdminRoute>
-    <AppLayout><SuperAdminDashboard /></AppLayout>
-  </SuperAdminRoute>
-}/>
+         
 
           {/* ── Admin-only pages ── */}
           <Route path="/reportpage" element={
