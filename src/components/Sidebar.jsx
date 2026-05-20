@@ -208,11 +208,12 @@ export function Sidebar() {
   const location = useLocation();
   const navigate  = useNavigate();
 
-  const user        = JSON.parse(localStorage.getItem("user") || "null");
-  const role        = user?.role?.toLowerCase() || "user";
+ const user        = JSON.parse(localStorage.getItem("user") || "null");
+  const rawRole     = user?.role?.toLowerCase() || "user";
+  
+  const role        = rawRole === "superadmin" ? "super_admin" : rawRole;
   const isSuperAdmin = role === "super_admin";
   const isDeveloper  = role === "developer";
-
   // ── Dynamic branding — falls back to stored brand, then defaults ──────────
   const companyName = companyBrand?.name || user?.companyName || user?.brandName || "SKYUP";
   const companyLogo = companyBrand?.logoUrl || user?.brandLogoUrl || "/skyup_logo1.svg";
