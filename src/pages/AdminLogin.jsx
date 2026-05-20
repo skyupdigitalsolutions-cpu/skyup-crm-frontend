@@ -28,27 +28,26 @@ export default function AdminLogin() {
     e.preventDefault();
     if (!email || !password) return setError("Please fill in all fields.");
     setLoading(true);
-    setError("");
-try {
-  const res = await api.post("/admin/login", { email, password });
+  setError("");
+    try {
+      const res = await api.post("/admin/login", { email, password });
 
-  // Block super_admin accounts from the admin login — they must use /superadmin/login
-  if (res.data.role === "super_admin" || res.data.role === "superadmin") {
-    setError("This is a Super Admin account. Please sign in at the Super Admin login page.");
-    setLoading(false);
-    return;
-  }
+      // Block super_admin accounts from the admin login — they must use /superadmin/login
+      if (res.data.role === "super_admin" || res.data.role === "superadmin") {
+        setError("This is a Super Admin account. Please sign in at the Super Admin login page.");
+        return;
+      }
 
-  const token = res.data.token;
+      const token = res.data.token;
 
-  localStorage.setItem("token", token);
-  localStorage.setItem("user", JSON.stringify({
-    _id:     res.data._id,
-    name:    res.data.name,
-    email:   res.data.email,
-    company: res.data.company,
-    role:    "admin",
-  }));
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify({
+        _id:     res.data._id,
+        name:    res.data.name,
+        email:   res.data.email,
+        company: res.data.company,
+        role:    "admin",
+      }));
 
       // ── BIP39 Encryption Setup ────────────────────────────────────────────
       const existingKey = crm.getLocalKey();
