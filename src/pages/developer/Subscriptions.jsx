@@ -409,7 +409,6 @@ export default function Subscriptions() {
             </tbody>
           </table>
         </div>
-
         <div className="px-5 py-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
           <p className="text-[12px] text-[#8B92A9]">Showing {filtered.length} of {companies.length} companies</p>
         </div>
