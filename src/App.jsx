@@ -20,8 +20,9 @@ const UserLeadsPage          = lazy(() => import("./pages/UserLeadsPage"));
 const UserLeadCommunication  = lazy(() => import("./pages/UserLeadCommunication"));
 
 // Developer pages
-const DeveloperDashboard = lazy(() => import("./pages/developer/DeveloperDashboard"));
-const DeveloperCompanies = lazy(() => import("./pages/developer/Companies"));
+const DeveloperDashboard   = lazy(() => import("./pages/developer/DeveloperDashboard"));
+const DeveloperCompanies   = lazy(() => import("./pages/developer/Companies"));
+const DeveloperSubscriptions = lazy(() => import("./pages/developer/Subscriptions"));
 
 // Auth pages
 const AdminLogin      = lazy(() => import("./pages/AdminLogin"));
@@ -239,6 +240,11 @@ export default function App() {
           <Route path="/developer/companies" element={
             <DeveloperRoute>
               <AppLayout><DeveloperCompanies /></AppLayout>
+            </DeveloperRoute>
+          }/>
+          <Route path="/developer/subscriptions" element={
+            <DeveloperRoute>
+              <AppLayout><DeveloperSubscriptions /></AppLayout>
             </DeveloperRoute>
           }/>
 
