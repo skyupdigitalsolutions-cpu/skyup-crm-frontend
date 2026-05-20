@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import {
   Building2, Plus, UploadCloud, X, ChevronRight,
-  CheckCircle2, XCircle, ShieldCheck, Image, Loader2,
+  CheckCircle2, XCircle, ShieldCheck, Image, Loader2, Pencil,
 } from "lucide-react";
 import api from "../../data/axiosConfig";
 
@@ -17,6 +17,8 @@ export default function Companies() {
   const [companies,  setCompanies]  = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [showEdit,   setShowEdit]   = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState("");
 
@@ -26,7 +28,15 @@ export default function Companies() {
     logoFile: null, logoPreview: null,
   };
   const [form, setForm] = useState(emptyForm);
-  const fileRef = useRef();
+
+  const emptyEditForm = {
+    companyName: "", email: "", phone: "", plan: "basic",
+    logoFile: null, logoPreview: null,
+  };
+  const [editForm, setEditForm] = useState(emptyEditForm);
+
+  const fileRef     = useRef();
+  const editFileRef = useRef();
 
   useEffect(() => {
     api.get("/developer/companies")
@@ -38,6 +48,21 @@ export default function Companies() {
   const openCreate = () => { setForm(emptyForm); setError(""); setShowCreate(true); };
   const closeCreate = () => { setShowCreate(false); setError(""); };
 
+  const openEdit = (company) => {
+    setEditTarget(company);
+    setEditForm({
+      companyName: company.name || "",
+      email: company.email || "",
+      phone: company.phone || "",
+      plan: company.plan || "basic",
+      logoFile: null,
+      logoPreview: company.logo || null,
+    });
+    setError("");
+    setShowEdit(true);
+  };
+  const closeEdit = () => { setShowEdit(false); setEditTarget(null); setError(""); };
+
   const handleLogo = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -45,12 +70,25 @@ export default function Companies() {
     setForm(p => ({ ...p, logoFile: file, logoPreview: preview }));
   };
 
+  const handleEditLogo = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    setEditForm(p => ({ ...p, logoFile: file, logoPreview: preview }));
+  };
+
   const removeLogo = () => {
     setForm(p => ({ ...p, logoFile: null, logoPreview: null }));
     if (fileRef.current) fileRef.current.value = "";
   };
 
+  const removeEditLogo = () => {
+    setEditForm(p => ({ ...p, logoFile: null, logoPreview: null }));
+    if (editFileRef.current) editFileRef.current.value = "";
+  };
+
   const f = (key) => (v) => setForm(p => ({ ...p, [key]: v }));
+  const ef = (key) => (v) => setEditForm(p => ({ ...p, [key]: v }));
 
   const handleCreate = async () => {
     const { companyName, email, saName, saPassword } = form;
@@ -61,7 +99,6 @@ export default function Companies() {
     setSubmitting(true);
     setError("");
     try {
-      // Build multipart if logo present, else JSON
       let companyRes;
       if (form.logoFile) {
         const fd = new FormData();
@@ -89,6 +126,47 @@ export default function Companies() {
       closeCreate();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create company.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEdit = async () => {
+    const { companyName, email } = editForm;
+    if (!companyName || !email) {
+      setError("Company name and email are required.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      let res;
+      if (editForm.logoFile) {
+        const fd = new FormData();
+        fd.append("name",  companyName);
+        fd.append("email", email);
+        fd.append("phone", editForm.phone);
+        fd.append("plan",  editForm.plan);
+        fd.append("logo",  editForm.logoFile);
+        res = await api.put(`/developer/companies/${editTarget._id}`, fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      } else {
+        res = await api.put(`/developer/companies/${editTarget._id}`, {
+          name: companyName, email, phone: editForm.phone, plan: editForm.plan,
+        });
+      }
+
+      const updated = res.data;
+      setCompanies(prev =>
+        prev.map(c => c._id === editTarget._id
+          ? { ...c, ...updated, name: companyName }
+          : c
+        )
+      );
+      closeEdit();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update company.");
     } finally {
       setSubmitting(false);
     }
@@ -129,7 +207,7 @@ export default function Companies() {
       </div>
 
       {/* ── Global error ── */}
-      {error && !showCreate && (
+      {error && !showCreate && !showEdit && (
         <div className="mb-4 flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 text-sm">
           <XCircle className="w-4 h-4 shrink-0" />
           {error}
@@ -209,16 +287,27 @@ export default function Companies() {
 
                     {/* Actions */}
                     <td className="px-4 py-3.5">
-                      <button
-                        onClick={() => toggleStatus(c._id)}
-                        className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all duration-150 active:scale-95 ${
-                          c.isActive
-                            ? "border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
-                            : "border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10"
-                        }`}
-                      >
-                        {c.isActive ? "Suspend" : "Activate"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {/* Edit Button */}
+                        <button
+                          onClick={() => openEdit(c)}
+                          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all duration-150 active:scale-95"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          Edit
+                        </button>
+                        {/* Toggle Status */}
+                        <button
+                          onClick={() => toggleStatus(c._id)}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all duration-150 active:scale-95 ${
+                            c.isActive
+                              ? "border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                              : "border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10"
+                          }`}
+                        >
+                          {c.isActive ? "Suspend" : "Activate"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -230,138 +319,183 @@ export default function Companies() {
 
       {/* ── Create Company Modal ── */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={closeCreate}
-          />
+        <CompanyModal
+          title="Create Company"
+          subtitle="Fill in the details below"
+          form={form}
+          setForm={setForm}
+          f={f}
+          fileRef={fileRef}
+          handleLogo={handleLogo}
+          removeLogo={removeLogo}
+          error={error}
+          submitting={submitting}
+          onClose={closeCreate}
+          onSubmit={handleCreate}
+          submitLabel="Create Company"
+          showSuperAdmin={true}
+        />
+      )}
 
-          {/* Modal */}
-          <div className="relative w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl shadow-2xl border border-[#E5E7EB] dark:border-[#262A38] max-h-[92vh] overflow-y-auto">
+      {/* ── Edit Company Modal ── */}
+      {showEdit && (
+        <CompanyModal
+          title="Edit Company"
+          subtitle={`Editing: ${editTarget?.name}`}
+          form={editForm}
+          setForm={setEditForm}
+          f={ef}
+          fileRef={editFileRef}
+          handleLogo={handleEditLogo}
+          removeLogo={removeEditLogo}
+          error={error}
+          submitting={submitting}
+          onClose={closeEdit}
+          onSubmit={handleEdit}
+          submitLabel="Save Changes"
+          showSuperAdmin={false}
+        />
+      )}
+    </div>
+  );
+}
 
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[#F0F2FA] dark:border-[#1E2130]">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
-                  <Building2 className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-[#0F1117] dark:text-[#F0F2FA]">Create Company</h2>
-                  <p className="text-[11px] text-[#9DA3BB]">Fill in the details below</p>
-                </div>
-              </div>
-              <button
-                onClick={closeCreate}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#9DA3BB] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] hover:bg-[#F0F2FA] dark:hover:bg-[#262A38] transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
+// ── Reusable Company Modal ────────────────────────────────────────────────────
+function CompanyModal({
+  title, subtitle, form, setForm, f, fileRef, handleLogo, removeLogo,
+  error, submitting, onClose, onSubmit, submitLabel, showSuperAdmin,
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl shadow-2xl border border-[#E5E7EB] dark:border-[#262A38] max-h-[92vh] overflow-y-auto">
+
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[#F0F2FA] dark:border-[#1E2130]">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
+              <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
+            <div>
+              <h2 className="text-base font-bold text-[#0F1117] dark:text-[#F0F2FA]">{title}</h2>
+              <p className="text-[11px] text-[#9DA3BB]">{subtitle}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#9DA3BB] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] hover:bg-[#F0F2FA] dark:hover:bg-[#262A38] transition"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
-            <div className="px-6 py-5 space-y-6">
+        <div className="px-6 py-5 space-y-6">
 
-              {/* ── Section: Company Info ── */}
-              <section>
-                <SectionHeading icon={<Building2 className="w-3.5 h-3.5" />} label="Company Info" />
+          {/* ── Section: Company Info ── */}
+          <section>
+            <SectionHeading icon={<Building2 className="w-3.5 h-3.5" />} label="Company Info" />
 
-                <div className="mt-4 space-y-4">
+            <div className="mt-4 space-y-4">
 
-                  {/* Logo Upload */}
-                  <div>
-                    <Label text="Company Logo" />
-                    {form.logoPreview ? (
-                      <div className="flex items-center gap-4 mt-2">
-                        <img
-                          src={form.logoPreview}
-                          alt="Logo preview"
-                          className="w-16 h-16 rounded-xl object-cover border-2 border-[#E5E7EB] dark:border-[#262A38] shadow-sm"
-                        />
-                        <div className="flex flex-col gap-2">
-                          <button
-                            onClick={() => fileRef.current?.click()}
-                            className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                          >
-                            Change logo
-                          </button>
-                          <button
-                            onClick={removeLogo}
-                            className="text-xs text-red-500 font-medium hover:underline"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
+              {/* Logo Upload */}
+              <div>
+                <Label text="Company Logo" />
+                {form.logoPreview ? (
+                  <div className="flex items-center gap-4 mt-2">
+                    <img
+                      src={form.logoPreview}
+                      alt="Logo preview"
+                      className="w-16 h-16 rounded-xl object-cover border-2 border-[#E5E7EB] dark:border-[#262A38] shadow-sm"
+                    />
+                    <div className="flex flex-col gap-2">
                       <button
                         onClick={() => fileRef.current?.click()}
-                        className="mt-2 w-full flex flex-col items-center justify-center gap-2 h-24 rounded-xl border-2 border-dashed border-[#D1D5DB] dark:border-[#2A2F42] hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-all group"
+                        className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline"
                       >
-                        <UploadCloud className="w-6 h-6 text-[#9DA3BB] group-hover:text-blue-500 transition-colors" />
-                        <span className="text-xs text-[#9DA3BB] group-hover:text-blue-500 transition-colors font-medium">
-                          Click to upload logo
-                        </span>
-                        <span className="text-[10px] text-[#C4C9DA]">PNG, JPG, SVG up to 2MB</span>
+                        Change logo
                       </button>
-                    )}
-                    <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
-                  </div>
-
-                  {/* Company Name */}
-                  <Field
-                    label="Company Name *"
-                    value={form.companyName}
-                    onChange={f("companyName")}
-                    placeholder="Acme Corp"
-                  />
-
-                  {/* Email */}
-                  <Field
-                    label="Email * (used for company & super admin login)"
-                    type="email"
-                    value={form.email}
-                    onChange={f("email")}
-                    placeholder="admin@acme.com"
-                  />
-
-                  {/* Phone */}
-                  <Field
-                    label="Phone"
-                    value={form.phone}
-                    onChange={f("phone")}
-                    placeholder="+91 99999 00000"
-                  />
-
-                  {/* Plan */}
-                  <div>
-                    <Label text="Plan" />
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      {Object.entries(PLAN).map(([key, { label }]) => (
-                        <button
-                          key={key}
-                          onClick={() => setForm(p => ({ ...p, plan: key }))}
-                          className={`py-2.5 rounded-xl text-xs font-semibold border transition-all duration-150 ${
-                            form.plan === key
-                              ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400"
-                              : "border-[#E5E7EB] dark:border-[#262A38] text-[#6B7280] dark:text-[#9DA3BB] hover:border-[#9DA3BB] dark:hover:border-[#3A3F52]"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
+                      <button
+                        onClick={removeLogo}
+                        className="text-xs text-red-500 font-medium hover:underline"
+                      >
+                        Remove
+                      </button>
                     </div>
                   </div>
-                </div>
-              </section>
+                ) : (
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="mt-2 w-full flex flex-col items-center justify-center gap-2 h-24 rounded-xl border-2 border-dashed border-[#D1D5DB] dark:border-[#2A2F42] hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-all group"
+                  >
+                    <UploadCloud className="w-6 h-6 text-[#9DA3BB] group-hover:text-blue-500 transition-colors" />
+                    <span className="text-xs text-[#9DA3BB] group-hover:text-blue-500 transition-colors font-medium">
+                      Click to upload logo
+                    </span>
+                    <span className="text-[10px] text-[#C4C9DA]">PNG, JPG, SVG up to 2MB</span>
+                  </button>
+                )}
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
+              </div>
 
-              {/* ── Divider ── */}
+              {/* Company Name */}
+              <Field
+                label="Company Name *"
+                value={form.companyName}
+                onChange={f("companyName")}
+                placeholder="Acme Corp"
+              />
+
+              {/* Email */}
+              <Field
+                label={showSuperAdmin ? "Email * (used for company & super admin login)" : "Email *"}
+                type="email"
+                value={form.email}
+                onChange={f("email")}
+                placeholder="admin@acme.com"
+              />
+
+              {/* Phone */}
+              <Field
+                label="Phone"
+                value={form.phone}
+                onChange={f("phone")}
+                placeholder="+91 99999 00000"
+              />
+
+              {/* Plan */}
+              <div>
+                <Label text="Plan" />
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {Object.entries({ basic: "Basic", pro: "Pro", enterprise: "Enterprise" }).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setForm(p => ({ ...p, plan: key }))}
+                      className={`py-2.5 rounded-xl text-xs font-semibold border transition-all duration-150 ${
+                        form.plan === key
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                          : "border-[#E5E7EB] dark:border-[#262A38] text-[#6B7280] dark:text-[#9DA3BB] hover:border-[#9DA3BB] dark:hover:border-[#3A3F52]"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Super Admin Section (create only) ── */}
+          {showSuperAdmin && (
+            <>
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-[#F0F2FA] dark:bg-[#1E2130]" />
                 <span className="text-[10px] font-semibold text-[#C4C9DA] uppercase tracking-widest">Super Admin</span>
                 <div className="flex-1 h-px bg-[#F0F2FA] dark:bg-[#1E2130]" />
               </div>
 
-              {/* ── Section: Super Admin ── */}
               <section>
                 <SectionHeading icon={<ShieldCheck className="w-3.5 h-3.5" />} label="Super Admin Credentials" />
                 <p className="text-[11px] text-[#9DA3BB] mt-1 mb-4">
@@ -376,7 +510,6 @@ export default function Companies() {
                     placeholder="Jane Doe"
                   />
 
-                  {/* Email (read-only mirror) */}
                   <div>
                     <Label text="Email (same as above)" />
                     <div className="mt-2 px-3 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-sm text-[#9DA3BB] truncate">
@@ -393,40 +526,45 @@ export default function Companies() {
                   />
                 </div>
               </section>
+            </>
+          )}
 
-              {/* ── Error ── */}
-              {error && (
-                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 text-sm">
-                  <XCircle className="w-4 h-4 shrink-0" />
-                  {error}
-                </div>
-              )}
-
-              {/* ── Actions ── */}
-              <div className="flex gap-3 pt-1 pb-1">
-                <button
-                  onClick={closeCreate}
-                  className="flex-1 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] text-sm font-semibold text-[#6B7280] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreate}
-                  disabled={submitting || !form.companyName || !form.email || !form.saName || !form.saPassword}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-all active:scale-95 shadow-sm shadow-blue-500/20"
-                >
-                  {submitting ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Creating…</>
-                  ) : (
-                    <><CheckCircle2 className="w-4 h-4" /> Create Company</>
-                  )}
-                </button>
-              </div>
-
+          {/* ── Error ── */}
+          {error && (
+            <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 text-sm">
+              <XCircle className="w-4 h-4 shrink-0" />
+              {error}
             </div>
+          )}
+
+          {/* ── Actions ── */}
+          <div className="flex gap-3 pt-1 pb-1">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] text-sm font-semibold text-[#6B7280] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onSubmit}
+              disabled={
+                submitting ||
+                !form.companyName ||
+                !form.email ||
+                (showSuperAdmin && (!form.saName || !form.saPassword))
+              }
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-all active:scale-95 shadow-sm shadow-blue-500/20"
+            >
+              {submitting ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+              ) : (
+                <><CheckCircle2 className="w-4 h-4" /> {submitLabel}</>
+              )}
+            </button>
           </div>
+
         </div>
-      )}
+      </div>
     </div>
   );
 }
