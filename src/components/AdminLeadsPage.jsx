@@ -1090,6 +1090,7 @@ function mapLead(l) {
     email:          l.email          || "",
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
+    adSetName:      l.adSetName      || "",    
     agent:          l.user?.name || l.assignedTo?.name || l.agent || "Unassigned",
     status:         l.status         || "New",
     Quality:        l.temperature || l.Quality || null,
@@ -1483,8 +1484,12 @@ export default function AdminLeadsPage() {
                         {/* Source */}
                         <td className="px-4 py-3">
                           <p className="text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[110px]">{l.source}</p>
-                          {l.campaign !== "—" && <p className="text-[10px] text-[#8B92A9] truncate max-w-[110px]">{l.campaign}</p>}
-                        </td>
+{l.campaign !== "—" && (
+  <p className="text-[10px] text-[#8B92A9] truncate max-w-[110px]">{l.campaign}</p>
+)}
+{l.adSetName && (
+  <p className="text-[10px] text-[#E1306C] truncate max-w-[110px]">📢 {l.adSetName}</p>
+)}                        </td>
 
                         {/* Date */}
                         <td className="px-4 py-3 whitespace-nowrap text-[#0F1117] dark:text-[#F0F2FA]">{l.date}</td>
