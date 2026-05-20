@@ -91,7 +91,7 @@ function SummaryCard({ label, value, sub, color }) {
 
 // ── Sync Meta Modal ───────────────────────────────────────────────────────────
 function SyncMetaModal({ onClose, onSynced }) {
-  const [form, setForm] = useState({ pageId: "", pageAccessToken: "", graphApiVersion: "v21.0" });
+  const [form, setForm] = useState({ pageId: "", pageAccessToken: "", graphApiVersion: "v25.0" });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -105,7 +105,7 @@ function SyncMetaModal({ onClose, onSynced }) {
       const res = await api.post("/meta-config/sync", {
         pageId: form.pageId.trim(),
         pageAccessToken: form.pageAccessToken.trim(),
-        graphApiVersion: form.graphApiVersion.trim() || "v21.0",
+        graphApiVersion: form.graphApiVersion.trim() || "v25.0",
       });
       setResult(res.data);
       onSynced && onSynced();
