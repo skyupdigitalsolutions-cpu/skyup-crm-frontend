@@ -251,7 +251,7 @@ function CredentialsModal({ member, onClose, navigate }) {
 }
 
 // ── Add Member Modal ──────────────────────────────────────────────────────────
-function AddMemberModal({ role, onClose, onAdd }) {
+function AddMemberModal({ role, onClose, onAdd, adminList = [], isSuperAdmin = false }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -260,6 +260,7 @@ function AddMemberModal({ role, onClose, onAdd }) {
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [suggestedPwd, setSuggestedPwd] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const isAdmin = role === "admin";
@@ -272,9 +273,10 @@ function AddMemberModal({ role, onClose, onAdd }) {
     if (!password) return setError("Password is required.");
     if (password.length < 8) return setError("Password must be at least 8 characters.");
     if (password !== confirmPassword) return setError("Passwords do not match.");
+    if (!isAdmin && isSuperAdmin && !assignedTo) return setError("Please select an admin to assign this user to.");
     setError(""); setLoading(true);
     try {
-      await onAdd({ name: name.trim(), email: email.trim(), phone: phone.trim(), role, password });
+      await onAdd({ name: name.trim(), email: email.trim(), phone: phone.trim(), role, password, assignedTo: assignedTo || undefined });
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to create account. Please try again.");
       setLoading(false);
@@ -323,6 +325,22 @@ function AddMemberModal({ role, onClose, onAdd }) {
               />
             </div>
           ))}
+          {/* Assign to Admin — super admin only, when adding a user */}
+          {!isAdmin && isSuperAdmin && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Assign to Admin *</label>
+              <select
+                value={assignedTo}
+                onChange={e => setAssignedTo(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-xs text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition"
+              >
+                <option value="">— Select an admin —</option>
+                {adminList.filter(a => a.role !== "super_admin" && a.role !== "superadmin").map(a => (
+                  <option key={a._id || a.id} value={a._id || a.id}>{a.name} ({a.email})</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <div className="my-4 flex items-center gap-2">
           <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]"/>
@@ -415,7 +433,7 @@ function SlotBar({ used, max, isAdmin }) {
 }
 
 // ── Member Row ────────────────────────────────────────────────────────────────
-function MemberRow({ member, onRequestRemove, onViewCreds }) {
+function MemberRow({ member, onRequestRemove, onViewCreds, onReassign }) {
   const initials = member.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
   const uid = member._id || member.id || member.email;
   const isSuperAdmin = member.role === "super_admin" || member.role === "superadmin";
@@ -426,6 +444,8 @@ function MemberRow({ member, onRequestRemove, onViewCreds }) {
     : isAdmin
     ? { label: "Admin", cls: "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400" }
     : { label: "User", cls: "bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400" };
+
+  const assignedAdminName = member.assignedTo?.name || null;
 
   return (
     <div className="flex items-center gap-3 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] last:border-0 group">
@@ -443,6 +463,12 @@ function MemberRow({ member, onRequestRemove, onViewCreds }) {
           </span>
         </div>
         <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] truncate">{member.email}</p>
+        {/* Show assigned admin for user rows */}
+        {!isAdmin && assignedAdminName && (
+          <p className="text-[10px] text-blue-500 dark:text-blue-400 truncate mt-0.5">
+            Assigned: {assignedAdminName}
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition">
         {member.password && (
@@ -454,7 +480,19 @@ function MemberRow({ member, onRequestRemove, onViewCreds }) {
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
           </button>
         )}
-          {onRequestRemove && !isSuperAdmin && (
+        {/* Edit/Reassign button — super admin only, for users */}
+        {onReassign && !isAdmin && (
+          <button
+            onClick={() => onReassign(member)}
+            className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-[#8B92A9] transition"
+            title="Reassign admin"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+            </svg>
+          </button>
+        )}
+        {onRequestRemove && !isSuperAdmin && (
           <button
             onClick={() => onRequestRemove(member)}
             className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 text-[#8B92A9] transition"
@@ -479,6 +517,94 @@ function MemberRow({ member, onRequestRemove, onViewCreds }) {
       <span className="text-[10px] text-[#8B92A9] dark:text-[#565C75] whitespace-nowrap shrink-0">
         {member.addedOn || (member.createdAt ? new Date(member.createdAt).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—")}
       </span>
+    </div>
+  );
+}
+
+// ── Reassign User Modal (super admin only) ────────────────────────────────────
+function ReassignUserModal({ user, adminList, onClose, onReassign }) {
+  const [selectedAdmin, setSelectedAdmin] = useState(
+    user?.assignedTo?._id || user?.assignedTo || ""
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSave = async () => {
+    if (!selectedAdmin) return setError("Please select an admin.");
+    setLoading(true);
+    try {
+      await onReassign(user._id || user.id, selectedAdmin);
+      onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to reassign. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const regularAdmins = adminList.filter(a => a.role !== "super_admin" && a.role !== "superadmin");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+        <div className="h-1 w-full bg-blue-500" />
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
+                <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                </svg>
+              </div>
+              <h2 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Reassign User</h2>
+            </div>
+            <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] transition">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          {/* User info */}
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] mb-4">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: avatarHex(user._id || user.email) }}>
+              {user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{user.name}</p>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] truncate">{user.email}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1 mb-4">
+            <label className="text-[10px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Assign to Admin</label>
+            <select
+              value={selectedAdmin}
+              onChange={e => setSelectedAdmin(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-xs text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition"
+            >
+              <option value="">— Select an admin —</option>
+              {regularAdmins.map(a => (
+                <option key={a._id || a.id} value={a._id || a.id}>{a.name} ({a.email})</option>
+              ))}
+            </select>
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-500 mb-3 flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              {error}
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <button onClick={onClose} disabled={loading} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-xs font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition disabled:opacity-50">Cancel</button>
+            <button onClick={handleSave} disabled={loading} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition flex items-center justify-center gap-2 disabled:opacity-60">
+              {loading
+                ? <><svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Saving…</>
+                : "Save Assignment"
+              }
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -532,6 +658,7 @@ export default function UserManagement({
   const [credsFor,      setCredsFor]      = useState(null);
   const [upgradeAlert,  setUpgradeAlert]  = useState("");
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [reassignFor,   setReassignFor]   = useState(null); // user to reassign
 
   // Called from a parent (e.g. plan downgrade) to bulk-remove members
   const handleDowngrade = async (adminsToRemove = [], usersToRemove = []) => {
@@ -549,29 +676,40 @@ export default function UserManagement({
 
   const tryAdd = (role) => {
     if (role === "admin" && regularAdminCount >= cfg.maxAdmins) {
-      return setUpgradeAlert(
-        `You are on the ${cfg.label} plan which allows only ${cfg.maxAdmins} admin${cfg.maxAdmins > 1 ? "s" : ""}. To add more admins, please upgrade your plan.`
-      );
+      return setUpgradeAlert({
+        title: "Admin Limit Reached",
+        message: `You are on the ${cfg.label} plan which allows only ${cfg.maxAdmins} admin${cfg.maxAdmins > 1 ? "s" : ""}. To add more admins, please upgrade your plan.`,
+        contactSuperAdmin: false,
+      });
     }
     if (role === "user" && users.length >= cfg.maxUsers) {
       return setUpgradeAlert(
-        `You are on the ${cfg.label} plan which allows only ${cfg.maxUsers} users. To add more users, please upgrade your plan.`
+        isCompanySuperAdmin
+          ? {
+              title: "User Limit Reached",
+              message: `You are on the ${cfg.label} plan which allows only ${cfg.maxUsers} users. Please upgrade your plan to add more.`,
+              contactSuperAdmin: false,
+            }
+          : {
+              title: "User Limit Reached",
+              message: `The ${cfg.label} plan limit of ${cfg.maxUsers} users has been reached. Please contact your Super Admin to upgrade the plan.`,
+              contactSuperAdmin: true,
+            }
       );
     }
     setUpgradeAlert("");
     setModal(role);
   };
 
-  const addMember = async ({ name, email, phone, role, password }) => {
-    const currentUser = getStoredUser();
+  const addMember = async ({ name, email, phone, role, password, assignedTo }) => {
     if (role === "admin") {
       const res = await api.post("/admin/", { name, email, password });
       const member = { ...res.data, phone, role: "admin", password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
       setAdmins(prev => [...prev, member]);
       setModal(null);
       setCredsFor(member);
-   } else {
-      const res = await api.post("/admin/user", { name, email, password });
+    } else {
+      const res = await api.post("/admin/user", { name, email, password, assignedTo });
       const member = { ...res.data, phone, role: "user", password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
       setUsers(prev => [...prev, member]);
       setModal(null);
@@ -610,10 +748,27 @@ export default function UserManagement({
     }
   };
 
+  const reassignUser = async (userId, newAdminId) => {
+    await api.put(`/admin/user/${userId}`, { assignedTo: newAdminId });
+    // Update local state with new assigned admin info
+    const newAdmin = admins.find(a => (a._id || a.id) === newAdminId);
+    setUsers(u => u.map(m =>
+      (m._id || m.id) === userId
+        ? { ...m, assignedTo: newAdmin ? { _id: newAdmin._id || newAdmin.id, name: newAdmin.name, email: newAdmin.email } : newAdminId }
+        : m
+    ));
+  };
+
   return (
     <div className="mt-8">
       {modal && (
-        <AddMemberModal role={modal} onClose={() => setModal(null)} onAdd={addMember} />
+        <AddMemberModal
+          role={modal}
+          onClose={() => setModal(null)}
+          onAdd={addMember}
+          adminList={admins}
+          isSuperAdmin={isCompanySuperAdmin}
+        />
       )}
 
       {credsFor && (
@@ -628,22 +783,38 @@ export default function UserManagement({
         />
       )}
 
+      {reassignFor && (
+        <ReassignUserModal
+          user={reassignFor}
+          adminList={admins}
+          onClose={() => setReassignFor(null)}
+          onReassign={reassignUser}
+        />
+      )}
+
       {upgradeAlert && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
             <div className="flex flex-col items-center mb-5">
-              <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center mb-3">
-                <svg className="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${upgradeAlert.contactSuperAdmin ? "bg-blue-100 dark:bg-blue-900/40" : "bg-amber-100 dark:bg-amber-900/40"}`}>
+                {upgradeAlert.contactSuperAdmin
+                  ? <svg className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                  : <svg className="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                }
               </div>
-              <h2 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA] text-center">Plan Limit Reached</h2>
-              <p className="text-xs text-[#8B92A9] dark:text-[#565C75] mt-2 text-center leading-relaxed">{upgradeAlert}</p>
+              <h2 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA] text-center">{upgradeAlert.title}</h2>
+              <p className="text-xs text-[#8B92A9] dark:text-[#565C75] mt-2 text-center leading-relaxed">{upgradeAlert.message}</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setUpgradeAlert("")} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-xs font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-              <button onClick={() => { setUpgradeAlert(""); navigate("/upgrade-plan"); }} className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                Upgrade Plan
+              <button onClick={() => setUpgradeAlert("")} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-xs font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
+                {upgradeAlert.contactSuperAdmin ? "OK" : "Cancel"}
               </button>
+              {!upgradeAlert.contactSuperAdmin && (
+                <button onClick={() => { setUpgradeAlert(""); navigate("/upgrade-plan"); }} className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                  Upgrade Plan
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -824,6 +995,7 @@ export default function UserManagement({
                     member={{ ...m, role: "user" }}
                     onRequestRemove={requestRemove}
                     onViewCreds={setCredsFor}
+                    onReassign={isCompanySuperAdmin ? setReassignFor : null}
                   />
                 ))
             }
