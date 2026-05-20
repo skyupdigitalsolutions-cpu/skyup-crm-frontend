@@ -1391,7 +1391,7 @@ export default function Dashboard() {
       )}
 
       {/* ── Company Branding — SuperAdmin only ── */}
-      {isSuperAdmin && (
+      /* {isSuperAdmin && (
         <div className="mt-8">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1 h-5 rounded-full bg-indigo-500" />
@@ -1400,7 +1400,7 @@ export default function Dashboard() {
           </div>
           {/* <CompanyBrandSettings /> */}
         </div>
-      )}
+      )} */
       {role === "admin" && (
         <UserManagement
           currentPlan={companyPlan}
