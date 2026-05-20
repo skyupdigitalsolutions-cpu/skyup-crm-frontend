@@ -454,7 +454,7 @@ function MemberRow({ member, onRequestRemove, onViewCreds }) {
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
           </button>
         )}
-          {onRequestRemove && (
+          {onRequestRemove && !isSuperAdmin && (
           <button
             onClick={() => onRequestRemove(member)}
             className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 text-[#8B92A9] transition"
@@ -464,6 +464,16 @@ function MemberRow({ member, onRequestRemove, onViewCreds }) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </button>
+        )}
+        {isSuperAdmin && (
+          <span
+            className="w-6 h-6 flex items-center justify-center rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-amber-500"
+            title="Super Admin cannot be deleted"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          </span>
         )}
       </div>
       <span className="text-[10px] text-[#8B92A9] dark:text-[#565C75] whitespace-nowrap shrink-0">
@@ -573,6 +583,11 @@ export default function UserManagement({
   const confirmRemove = async () => {
     if (!pendingDelete) return;
     const { role } = pendingDelete;
+    // Super Admin is permanently non-deletable
+    if (role === "super_admin" || role === "superadmin") {
+      setPendingDelete(null);
+      return;
+    }
     const id = pendingDelete._id || pendingDelete.id || pendingDelete.email;
     try {
       if (role === "admin") {
@@ -706,14 +721,60 @@ export default function UserManagement({
             <div className="px-5 py-2 max-h-80 overflow-y-auto">
               {admins.length === 0
                 ? <div className="py-8 text-center"><p className="text-xs text-[#8B92A9] dark:text-[#565C75]">No admins yet</p></div>
-                : admins.map(m => (
-                    <MemberRow
-                      key={m._id || m.email}
-                      member={{ ...m, role: m.role || "admin" }}
-                      onRequestRemove={requestRemove}
-                      onViewCreds={setCredsFor}
-                    />
-                  ))
+                : (() => {
+                    const superAdminList = admins.filter(m => m.role === "super_admin" || m.role === "superadmin");
+                    const regularAdmins  = admins.filter(m => m.role !== "super_admin" && m.role !== "superadmin");
+                    return (
+                      <>
+                        {/* Super Admin section */}
+                        {superAdminList.length > 0 && (
+                          <>
+                            <div className="flex items-center gap-2 py-2 mb-1">
+                              <div className="h-px flex-1 bg-amber-200 dark:bg-amber-800/50"/>
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                Super Admin
+                              </span>
+                              <div className="h-px flex-1 bg-amber-200 dark:bg-amber-800/50"/>
+                            </div>
+                            {superAdminList.map(m => (
+                              <MemberRow
+                                key={m._id || m.email}
+                                member={{ ...m, role: m.role || "superadmin" }}
+                                onRequestRemove={null}
+                                onViewCreds={setCredsFor}
+                              />
+                            ))}
+                          </>
+                        )}
+                        {/* Regular Admins section */}
+                        {regularAdmins.length > 0 && (
+                          <>
+                            <div className="flex items-center gap-2 py-2 mb-1 mt-1">
+                              <div className="h-px flex-1 bg-blue-200 dark:bg-blue-800/50"/>
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-blue-500 dark:text-blue-400">
+                                Admins
+                              </span>
+                              <div className="h-px flex-1 bg-blue-200 dark:bg-blue-800/50"/>
+                            </div>
+                            {regularAdmins.map(m => (
+                              <MemberRow
+                                key={m._id || m.email}
+                                member={{ ...m, role: "admin" }}
+                                onRequestRemove={requestRemove}
+                                onViewCreds={setCredsFor}
+                              />
+                            ))}
+                          </>
+                        )}
+                        {regularAdmins.length === 0 && superAdminList.length > 0 && (
+                          <div className="py-3 text-center">
+                            <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">No regular admins yet</p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()
               }
             </div>
           </div>
