@@ -27,7 +27,7 @@ const DeveloperCompanies     = lazy(() => import("./pages/developer/Companies"))
 const DeveloperSubscriptions = lazy(() => import("./pages/developer/Subscriptions"));
 
 // Auth pages
-const AdminLogin      = lazy(() => import("./pages/AdminLogin"));
+const AdminLogin      = lazy(() => import("./pages/UserLogin")); // /admin/login now redirects to the unified login
 const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
 
 // ── Page loader ───────────────────────────────────────────────────────────────
@@ -279,7 +279,7 @@ export default function App() {
 
           {/* ── Public login routes ── */}
           <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
-          <Route path="/admin/login"      element={<LoginGuard><AdminLogin /></LoginGuard>} />
+          <Route path="/admin/login"      element={<Navigate to="/login" replace />} />
           <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
 
           {/* ── Root redirect ── */}
