@@ -797,7 +797,7 @@ function UserChatWidget() {
   const user        = JSON.parse(localStorage.getItem("user") || "null");
   const username    = (user && user.name) || "user";
   // Pass company and assigned adminId so the server can scope this employee's chat
-  const companyId   = user?.company?._id || user?.company || null;
+const companyId = user?.companyId || user?.company?._id || user?.company || null;
   const adminId     = user?.createdBy || null; // the admin who created/assigned this employee
 
   useEffect(() => {
