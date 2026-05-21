@@ -268,6 +268,176 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
   );
 }
 
+// ── LeadCombinedSummaryPanel ──────────────────────────────────────────────────
+function LeadCombinedSummaryPanel({ leadId, leadName }) {
+  const [open,    setOpen]    = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [data,    setData]    = useState(null);
+  const [error,   setError]   = useState(null);
+
+  const fetchSummary = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get(`/transcription/lead/${leadId}/summary`);
+      setData(res.data);
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to generate combined summary.");
+    } finally {
+      setLoading(false);
+    }
+  }, [leadId]);
+
+  const handleToggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && !data && !loading) fetchSummary();
+  };
+
+  const cs        = data?.combinedSummary;
+  const sent      = cs?.overallSentiment;
+  const temp      = cs?.suggestedTemp;
+  const sentStyle = SENTIMENT_STYLE[sent] || SENTIMENT_STYLE.Neutral;
+  const tempStyle = TEMP_STYLE[temp];
+
+  return (
+    <div className="rounded-xl border border-violet-200 dark:border-violet-800/50 overflow-hidden">
+      <button
+        onClick={handleToggle}
+        className="w-full flex items-center justify-between px-4 py-3 bg-violet-50 dark:bg-violet-950/30 hover:bg-violet-100 dark:hover:bg-violet-950/50 transition"
+      >
+        <div className="flex items-center gap-2 flex-wrap">
+          <svg className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+          </svg>
+          <span className="text-[12px] font-bold text-violet-700 dark:text-violet-300">Lead AI Summary</span>
+          <span className="text-[10px] text-violet-500 dark:text-violet-400">
+            {data ? `${data.summarizedCalls} call${data.summarizedCalls !== 1 ? "s" : ""} combined` : "All transcribed calls combined"}
+          </span>
+          {sent && (
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
+          )}
+          {temp && tempStyle && (
+            <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${tempStyle.bg} ${tempStyle.text}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${tempStyle.dot}`} />
+              {temp}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {open && !loading && (
+            <button
+              onClick={e => { e.stopPropagation(); fetchSummary(); }}
+              className="w-5 h-5 flex items-center justify-center rounded text-violet-500 hover:bg-violet-200 dark:hover:bg-violet-900/40 transition"
+              title="Refresh summary"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+            </button>
+          )}
+          <svg className={`w-3.5 h-3.5 text-violet-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </div>
+      </button>
+
+      {open && (
+        <div className="px-4 py-4 bg-white dark:bg-[#1A1D27] space-y-3">
+          {loading && (
+            <div className="flex items-center gap-2 py-2">
+              <svg className="w-3.5 h-3.5 animate-spin text-violet-500" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              <span className="text-[12px] text-violet-500 font-medium">Generating combined summary…</span>
+            </div>
+          )}
+          {error && !loading && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20">
+                <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span className="text-[12px] text-red-500">{error}</span>
+              </div>
+              <button onClick={fetchSummary} className="text-[12px] text-violet-600 underline pl-1">Retry</button>
+            </div>
+          )}
+          {data && !cs && !loading && !error && (
+            <div className="flex items-start gap-2 px-3 py-3 rounded-lg bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38]">
+              <svg className="w-3.5 h-3.5 text-[#8B92A9] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+              </svg>
+              <div>
+                <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{data.message}</p>
+                <p className="text-[10px] text-[#8B92A9] mt-1">
+                  {data.totalCalls} call{data.totalCalls !== 1 ? "s" : ""} logged · 0 transcribed
+                </p>
+              </div>
+            </div>
+          )}
+          {cs && !loading && !error && (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-[#F1F4FF] dark:bg-[#1E2130] text-[#4B5168] dark:text-[#9DA3BB]">
+                  {data.totalCalls} total call{data.totalCalls !== 1 ? "s" : ""}
+                </span>
+                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400">
+                  {data.summarizedCalls} transcribed &amp; summarised
+                </span>
+              </div>
+              {cs.overallSummary && (
+                <div>
+                  <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Overall Summary</p>
+                  <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{cs.overallSummary}</p>
+                </div>
+              )}
+              {cs.relationshipStatus && (
+                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540]">
+                  <svg className="w-3.5 h-3.5 text-[#2563EB] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                  </svg>
+                  <div>
+                    <p className="text-[10px] font-bold text-[#2563EB] dark:text-[#4F8EF7] uppercase tracking-wide mb-0.5">Relationship Status</p>
+                    <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{cs.relationshipStatus}</p>
+                  </div>
+                </div>
+              )}
+              {Array.isArray(cs.keyInsights) && cs.keyInsights.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Key Insights</p>
+                  <ul className="space-y-1.5">
+                    {cs.keyInsights.map((pt, i) => (
+                      <li key={i} className="flex items-start gap-2 text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
+                        {pt}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {cs.recommendedNextAction && (
+                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-[#F0FDF4] dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30">
+                  <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <div>
+                    <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Recommended Next Action</p>
+                    <p className="text-[12px] text-emerald-700 dark:text-emerald-300">{cs.recommendedNextAction}</p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
 // ── RecordingsTab — fetches from /call-logs/recordings, filters by this lead ──
 function RecordingsTab({ lead }) {
   const [callLogs, setCallLogs] = useState([]);
@@ -476,6 +646,9 @@ function RecordingsTab({ lead }) {
           </div>
         </div>
       ))}
+        {lead.id && (
+        <LeadCombinedSummaryPanel leadId={lead.id} leadName={lead.name} />
+      )}
     </div>
   );
 }
