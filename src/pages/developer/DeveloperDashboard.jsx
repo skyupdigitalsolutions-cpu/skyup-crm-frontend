@@ -212,7 +212,7 @@ export default function DeveloperDashboard() {
         <KpiCard
           label="Total Employees"
           value={stats?.totalUsers?.toLocaleString()}
-          sub="Users across all orgs"
+          sub="Employees across all orgs"
           IconComponent={Users}
           variant="amber"
         />
