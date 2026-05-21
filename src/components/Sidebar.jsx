@@ -275,7 +275,8 @@ const companyLogo = "/skyup_logo1.svg";
         .sidebar {
           transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           font-family: 'DM Sans', sans-serif;
-          overflow: hidden;
+          overflow: visible; /* Do NOT set overflow:hidden — it breaks sticky positioning */
+          flex-shrink: 0;
         }
         .nav-label {
           transition: opacity 0.2s ease;
@@ -300,7 +301,7 @@ const companyLogo = "/skyup_logo1.svg";
         .modal-overlay { animation: fadeIn 0.15s ease; }
         .modal-box { animation: scaleIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
         .mobile-overlay { animation: fadeIn 0.2s ease; }
-        .sidebar-mobile { animation: slideInLeft 0.25s cubic-bezier(0.4,0,0.2,1); }
+        .sidebar-mobile-enter { animation: slideInLeft 0.25s cubic-bezier(0.4,0,0.2,1); }
         @keyframes fadeIn  { from { opacity:0; }                          to { opacity:1; } }
         @keyframes scaleIn { from { opacity:0; transform:scale(0.92); }   to { opacity:1; transform:scale(1); } }
         @keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
@@ -366,8 +367,8 @@ const companyLogo = "/skyup_logo1.svg";
 
       {/* ── Sidebar ───────────────────────────────────────────────────────── */}
       <div
-        className={`sidebar-mobile sidebar sticky top-0 h-screen flex flex-col bg-white dark:bg-[#13161E] border-r border-gray-100 dark:border-white/5 shadow-sm
-          fixed md:sticky inset-y-0 left-0 z-40
+        className={`sidebar h-screen flex flex-col bg-white dark:bg-[#13161E] border-r border-gray-100 dark:border-white/5 shadow-sm
+          fixed md:sticky inset-y-0 left-0 z-40 top-0
           transition-transform duration-300 ease-in-out
           ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
