@@ -194,12 +194,16 @@ export default function AdminChat() {
   // ── Full panel ────────────────────────────────────────────────────────────────
   return (
     <div
-      className="fixed bottom-6 right-6 z-50 flex shadow-2xl rounded-2xl overflow-hidden border border-[#E4E7EF] dark:border-[#262A38]"
-      style={{ width: sidebarOpen ? 600 : 380, height: 520, transition: 'width 0.2s ease' }}
+      className="fixed z-50 flex shadow-2xl overflow-hidden border border-[#E4E7EF] dark:border-[#262A38] bottom-0 right-0 left-0 rounded-t-2xl md:rounded-2xl md:bottom-6 md:right-6 md:left-auto"
+      style={{
+        width: (typeof window !== 'undefined' && window.innerWidth < 768) ? '100%' : (sidebarOpen ? 600 : 380),
+        height: (typeof window !== 'undefined' && window.innerWidth < 768) ? '85vh' : 520,
+        transition: 'width 0.2s ease'
+      }}
     >
       {/* ── Sidebar ── */}
       {sidebarOpen && (
-        <div className="w-52 shrink-0 bg-white dark:bg-[#1A1D27] border-r border-[#E4E7EF] dark:border-[#262A38] flex flex-col">
+        <div className={`w-52 shrink-0 bg-white dark:bg-[#1A1D27] border-r border-[#E4E7EF] dark:border-[#262A38] flex flex-col ${selectedUsername ? 'hidden md:flex' : 'flex'}`}>
           <div className="px-3 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center">
@@ -207,7 +211,7 @@ export default function AdminChat() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/>
                 </svg>
               </div>
-              <span className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Users</span>
+              <span className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Employees</span>
               <span className="px-1.5 py-0.5 rounded-full bg-[#F1F4FF] dark:bg-[#21253A] text-[10px] font-semibold text-[#2563EB] dark:text-[#4F8EF7]">
                 {Object.keys(onlineUsers).length} online
               </span>
@@ -261,9 +265,21 @@ export default function AdminChat() {
         {/* Chat header */}
         <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38] shrink-0">
           <div className="flex items-center gap-2.5">
+            {/* Mobile back button — goes back to contact list */}
+            {selectedUsername && (
+              <button
+                onClick={() => setSelectedUsername(null)}
+                className="md:hidden w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] dark:text-[#565C75] transition"
+                title="Back to contacts"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+                </svg>
+              </button>
+            )}
             <button
               onClick={() => setSidebarOpen((s) => !s)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] dark:text-[#565C75] transition"
+              className="hidden md:flex w-7 h-7 items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] dark:text-[#565C75] transition"
               title="Toggle sidebar"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -312,7 +328,7 @@ export default function AdminChat() {
                 </svg>
               </div>
               <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Select a conversation</p>
-              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">Choose a user from the sidebar to start chatting</p>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">Choose an employee from the sidebar to start chatting</p>
             </div>
           ) : (chats[selectedUsername] || []).length === 0 ? (
             <div className="h-full flex items-center justify-center">
@@ -397,7 +413,7 @@ export default function AdminChat() {
             {!selectedSocketId && (
               <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mb-2 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#8B92A9] inline-block"/>
-                User is offline — message will be delivered when they reconnect
+                Employee is offline — message will be delivered when they reconnect
               </p>
             )}
             <div className="flex items-center gap-2">
