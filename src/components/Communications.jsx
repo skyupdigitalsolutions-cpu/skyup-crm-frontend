@@ -58,6 +58,340 @@ const FIELD_CLS =
   "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── INTEGRATIONS SETTINGS MODAL ───────────────────────────────────────────────
+// Covers: Brevo (Email), MSG91 WhatsApp, MSG91 SMS
+// Backend expected:
+//   GET/PUT /admin/company/brevo-config   → { apiKey, senderEmail, senderName, connected }
+//   GET/PUT /admin/company/msg91-config   → { authKey, integratedNumber, connected }
+//   DELETE  /admin/company/brevo-config   → disconnects Brevo
+//   DELETE  /admin/company/msg91-config   → disconnects MSG91
+// ─────────────────────────────────────────────────────────────────────────────
+const FIELD = "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition";
+
+function IntegrationsModal({ onClose }) {
+  const [activeTab, setActiveTab] = useState("whatsapp");
+
+  // ── MSG91 state ────────────────────────────────────────────────────────────
+  const [msg91, setMsg91]             = useState(null);
+  const [msg91Key, setMsg91Key]       = useState("");
+  const [msg91Num, setMsg91Num]       = useState("");
+  const [msg91Show, setMsg91Show]     = useState(false);
+  const [msg91Saving, setMsg91Saving] = useState(false);
+  const [msg91Err, setMsg91Err]       = useState("");
+  const [msg91Ok, setMsg91Ok]         = useState("");
+  const [msg91Disc, setMsg91Disc]     = useState(false);
+
+  // ── Brevo state ────────────────────────────────────────────────────────────
+  const [brevo, setBrevo]                   = useState(null);
+  const [brevoKey, setBrevoKey]             = useState("");
+  const [brevoEmail, setBrevoEmail]         = useState("");
+  const [brevoName, setBrevoName]           = useState("");
+  const [brevoShow, setBrevoShow]           = useState(false);
+  const [brevoSaving, setBrevoSaving]       = useState(false);
+  const [brevoErr, setBrevoErr]             = useState("");
+  const [brevoOk, setBrevoOk]               = useState("");
+  const [brevoDisc, setBrevoDisc]           = useState(false);
+
+  // ── Load configs on mount ──────────────────────────────────────────────────
+  useEffect(() => {
+    api.get("/admin/company/msg91-config").then(r => {
+      setMsg91(r.data || {});
+      setMsg91Key(r.data?.authKey ? "••••••••••••••••" : "");
+      setMsg91Num(r.data?.integratedNumber || "");
+    }).catch(() => setMsg91({}));
+
+    api.get("/admin/company/brevo-config").then(r => {
+      setBrevo(r.data || {});
+      setBrevoKey(r.data?.apiKey ? "••••••••••••••••" : "");
+      setBrevoEmail(r.data?.senderEmail || "");
+      setBrevoName(r.data?.senderName || "");
+    }).catch(() => setBrevo({}));
+  }, []);
+
+  // ── Save MSG91 ─────────────────────────────────────────────────────────────
+  const saveMsg91 = async () => {
+    if (!msg91Key.trim() || msg91Key === "••••••••••••••••") { setMsg91Err("Enter your MSG91 Auth Key"); return; }
+    if (!msg91Num.trim()) { setMsg91Err("Enter your MSG91 integrated WhatsApp number"); return; }
+    setMsg91Saving(true); setMsg91Err(""); setMsg91Ok("");
+    try {
+      const r = await api.put("/admin/company/msg91-config", { authKey: msg91Key.trim(), integratedNumber: msg91Num.trim() });
+      setMsg91(r.data); setMsg91Key("••••••••••••••••");
+      setMsg91Ok("✓ MSG91 connected! WhatsApp and SMS are now active.");
+      setTimeout(() => setMsg91Ok(""), 4000);
+    } catch (e) { setMsg91Err(e.response?.data?.message || "Failed to save MSG91 config"); }
+    finally { setMsg91Saving(false); }
+  };
+
+  const disconnectMsg91 = async () => {
+    if (!window.confirm("Disconnect MSG91? WhatsApp and SMS blasts will stop working.")) return;
+    setMsg91Disc(true);
+    try { await api.delete("/admin/company/msg91-config"); setMsg91({}); setMsg91Key(""); setMsg91Num(""); }
+    catch { setMsg91Err("Failed to disconnect MSG91"); }
+    finally { setMsg91Disc(false); }
+  };
+
+  // ── Save Brevo ─────────────────────────────────────────────────────────────
+  const saveBrevo = async () => {
+    if (!brevoKey.trim() || brevoKey === "••••••••••••••••") { setBrevoErr("Enter your Brevo API Key"); return; }
+    if (!brevoEmail.trim()) { setBrevoErr("Enter sender email address"); return; }
+    setBrevoSaving(true); setBrevoErr(""); setBrevoOk("");
+    try {
+      const r = await api.put("/admin/company/brevo-config", {
+        apiKey: brevoKey.trim(),
+        senderEmail: brevoEmail.trim(),
+        senderName: brevoName.trim() || "CRM",
+      });
+      setBrevo(r.data); setBrevoKey("••••••••••••••••");
+      setBrevoOk("✓ Brevo connected! Email blasts are now active.");
+      setTimeout(() => setBrevoOk(""), 4000);
+    } catch (e) { setBrevoErr(e.response?.data?.message || "Failed to save Brevo config"); }
+    finally { setBrevoSaving(false); }
+  };
+
+  const disconnectBrevo = async () => {
+    if (!window.confirm("Disconnect Brevo? Email blasts will stop working.")) return;
+    setBrevoDisc(true);
+    try { await api.delete("/admin/company/brevo-config"); setBrevo({}); setBrevoKey(""); setBrevoEmail(""); setBrevoName(""); }
+    catch { setBrevoErr("Failed to disconnect Brevo"); }
+    finally { setBrevoDisc(false); }
+  };
+
+  const msg91Connected = msg91?.connected === true;
+  const brevoConnected = brevo?.connected === true;
+
+  const TABS = [
+    { key: "whatsapp", label: "WhatsApp", color: "#25D366", connected: msg91Connected,
+      icon: <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/> },
+    { key: "sms",      label: "SMS",      color: "#EA580C", connected: msg91Connected,
+      icon: <path strokeLinecap="round" strokeLinejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/> },
+    { key: "email",    label: "Email",    color: "#7C3AED", connected: brevoConnected,
+      icon: <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/> },
+  ];
+
+  const currentTab = TABS.find(t => t.key === activeTab);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4" onClick={onClose}>
+      <div
+        className="bg-white dark:bg-[#1A1D27] rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* ── Modal header ── */}
+        <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
+          <div>
+            <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Integrations</h2>
+            <p className="text-[11px] text-[#8B92A9] mt-0.5">Connect your messaging and email providers</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-[#262A38] text-[#8B92A9] transition">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* ── Service tabs ── */}
+        <div className="flex border-b border-[#E4E7EF] dark:border-[#262A38] shrink-0">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`flex-1 flex flex-col items-center gap-1 py-3 text-[12px] font-semibold transition border-b-2 ${
+                activeTab === t.key
+                  ? "border-current"
+                  : "border-transparent text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#9DA3BB]"
+              }`}
+              style={{ color: activeTab === t.key ? t.color : undefined }}
+            >
+              <div className="relative">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>{t.icon}</svg>
+                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#1A1D27] ${t.connected ? "bg-emerald-500" : "bg-[#8B92A9]"}`}/>
+              </div>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Scrollable body ── */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+
+          {/* ── Connection status banner ── */}
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+            currentTab.connected
+              ? "bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800/40"
+              : "bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/40"
+          }`}>
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${currentTab.connected ? "bg-emerald-500" : "bg-amber-400"}`}/>
+            <p className={`text-[12px] font-semibold ${currentTab.connected ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
+              {currentTab.connected
+                ? `${currentTab.label} is connected and active`
+                : `${currentTab.label} is not connected — fill in your credentials below to enable it`}
+            </p>
+            {currentTab.connected && (activeTab === "email" ? (
+              <button onClick={disconnectBrevo} disabled={brevoDisc}
+                className="ml-auto px-3 py-1 rounded-lg border border-red-200 dark:border-red-800 text-[11px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-50 shrink-0">
+                {brevoDisc ? "…" : "Disconnect"}
+              </button>
+            ) : (
+              <button onClick={disconnectMsg91} disabled={msg91Disc}
+                className="ml-auto px-3 py-1 rounded-lg border border-red-200 dark:border-red-800 text-[11px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-50 shrink-0">
+                {msg91Disc ? "…" : "Disconnect"}
+              </button>
+            ))}
+          </div>
+
+          {/* ── WhatsApp & SMS share MSG91 ── */}
+          {(activeTab === "whatsapp" || activeTab === "sms") && (
+            <>
+              {/* How-to steps */}
+              <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-4 space-y-2">
+                <p className="text-[11px] font-bold text-[#4B5168] dark:text-[#9DA3BB] uppercase tracking-widest mb-2">How to get MSG91 credentials</p>
+                {[
+                  "Log in to msg91.com → click your profile → API",
+                  "Copy your Auth Key (keep it secret — never share it)",
+                  "Go to WhatsApp → Integrated Numbers to find your sender number",
+                  "Paste both below and click Connect — this enables both WhatsApp and SMS",
+                ].map((s, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-[#25D366]/10 text-[#25D366] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                    <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{s}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Auth Key */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  MSG91 Auth Key <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input type={msg91Show ? "text" : "password"} value={msg91Key} onChange={e => setMsg91Key(e.target.value)}
+                    placeholder="Paste your MSG91 auth key here"
+                    className={FIELD + " pr-10 font-mono"} autoComplete="off"/>
+                  <button type="button" onClick={() => setMsg91Show(s => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168] transition">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      {msg91Show
+                        ? <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                        : <><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></>
+                      }
+                    </svg>
+                  </button>
+                </div>
+                <p className="text-[10px] text-[#8B92A9] mt-1">msg91.com → Profile → API → Your Auth Key</p>
+              </div>
+
+              {/* Integrated number */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Integrated WhatsApp Number <span className="text-red-500">*</span>
+                </label>
+                <input type="text" value={msg91Num} onChange={e => setMsg91Num(e.target.value)}
+                  placeholder="e.g. 919876543210 (country code, no +)"
+                  className={FIELD + " font-mono"}/>
+                <p className="text-[10px] text-[#8B92A9] mt-1">msg91.com → WhatsApp → Integrated Numbers</p>
+              </div>
+
+              {/* Note about both services */}
+              <div className="bg-[#F0FDF4] dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-3">
+                <p className="text-[12px] text-emerald-700 dark:text-emerald-400">
+                  <strong>One key, two services:</strong> Saving this key enables both <strong>WhatsApp</strong> and <strong>SMS</strong> blasts. You only need to do this once.
+                </p>
+              </div>
+
+              {msg91Err && <div className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-[12px] text-red-600 dark:text-red-400">{msg91Err}</div>}
+              {msg91Ok  && <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-[12px] text-emerald-700 dark:text-emerald-400">{msg91Ok}</div>}
+
+              <button onClick={saveMsg91} disabled={msg91Saving}
+                className="w-full py-2.5 rounded-xl font-semibold text-[13px] text-white transition flex items-center justify-center gap-2 disabled:opacity-60"
+                style={{ background: "#25D366" }}>
+                {msg91Saving && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>}
+                {msg91Saving ? "Connecting…" : msg91Connected ? "Update MSG91 Credentials" : "Connect MSG91"}
+              </button>
+            </>
+          )}
+
+          {/* ── Email (Brevo) ── */}
+          {activeTab === "email" && (
+            <>
+              {/* How-to steps */}
+              <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-4 space-y-2">
+                <p className="text-[11px] font-bold text-[#4B5168] dark:text-[#9DA3BB] uppercase tracking-widest mb-2">How to get your Brevo API key</p>
+                {[
+                  "Log in to app.brevo.com (or create a free account)",
+                  "Go to Settings (top-right) → API Keys → Generate a new key",
+                  "Copy the key — it is shown only once, so save it safely",
+                  "Enter your verified sender email below (must be verified in Brevo)",
+                  "Paste the key below and click Connect",
+                ].map((s, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-[#7C3AED]/10 text-[#7C3AED] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                    <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{s}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Brevo API Key */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Brevo API Key <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input type={brevoShow ? "text" : "password"} value={brevoKey} onChange={e => setBrevoKey(e.target.value)}
+                    placeholder="xkeysib-…"
+                    className={FIELD + " pr-10 font-mono"} autoComplete="off"/>
+                  <button type="button" onClick={() => setBrevoShow(s => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168] transition">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      {brevoShow
+                        ? <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                        : <><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></>
+                      }
+                    </svg>
+                  </button>
+                </div>
+                <p className="text-[10px] text-[#8B92A9] mt-1">app.brevo.com → Settings → API Keys</p>
+              </div>
+
+              {/* Sender email */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Sender Email <span className="text-red-500">*</span>
+                </label>
+                <input type="email" value={brevoEmail} onChange={e => setBrevoEmail(e.target.value)}
+                  placeholder="you@yourdomain.com"
+                  className={FIELD}/>
+                <p className="text-[10px] text-[#8B92A9] mt-1">Must be verified in your Brevo account</p>
+              </div>
+
+              {/* Sender name */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Sender Name <span className="text-[#8B92A9] font-normal">(optional)</span>
+                </label>
+                <input type="text" value={brevoName} onChange={e => setBrevoName(e.target.value)}
+                  placeholder="e.g. SKYUP CRM"
+                  className={FIELD}/>
+                <p className="text-[10px] text-[#8B92A9] mt-1">Shown as the From name in recipients' inboxes</p>
+              </div>
+
+              {brevoErr && <div className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-[12px] text-red-600 dark:text-red-400">{brevoErr}</div>}
+              {brevoOk  && <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-[12px] text-emerald-700 dark:text-emerald-400">{brevoOk}</div>}
+
+              <button onClick={saveBrevo} disabled={brevoSaving}
+                className="w-full py-2.5 rounded-xl font-semibold text-[13px] text-white transition flex items-center justify-center gap-2 disabled:opacity-60"
+                style={{ background: "#7C3AED" }}>
+                {brevoSaving && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>}
+                {brevoSaving ? "Connecting…" : brevoConnected ? "Update Brevo Credentials" : "Connect Brevo"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── TAB NAV ───────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 function TabNav({ active, onChange }) {
@@ -903,8 +1237,8 @@ function WhatsAppPanel({ currentUser }) {
 
   return (
     <div className="flex h-full overflow-hidden rounded-2xl border border-[#E4E7EF] dark:border-[#262A38]">
-      {/* Sidebar */}
-      <div className="w-[300px] shrink-0 flex flex-col border-r border-[#E4E7EF] dark:border-[#262A38] bg-[#FAFBFE] dark:bg-[#13161E]">
+      {/* Sidebar — full width on mobile when no convo selected, hidden when convo open */}
+      <div className={`w-full md:w-[300px] shrink-0 flex flex-col border-r border-[#E4E7EF] dark:border-[#262A38] bg-[#FAFBFE] dark:bg-[#13161E] ${selected ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           <div className="relative mb-2">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
@@ -1028,7 +1362,7 @@ function WhatsAppPanel({ currentUser }) {
       {/* Start conversation modal */}
       {startModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={()=>setStartModal(null)}>
-          <div className="bg-white dark:bg-[#1A1D27] rounded-2xl p-6 w-[360px] shadow-2xl" onClick={e=>e.stopPropagation()}>
+          <div className="bg-white dark:bg-[#1A1D27] rounded-2xl p-6 w-full max-w-[360px] mx-4 shadow-2xl" onClick={e=>e.stopPropagation()}>
             <h3 className="text-[15px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Start WhatsApp Chat</h3>
             <p className="text-[12px] text-[#8B92A9] mb-4">{startModal.name} · {startModal.mobile}</p>
             <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Template Name <span className="text-[#DC2626]">*</span></label>
@@ -1063,7 +1397,7 @@ function WhatsAppPanel({ currentUser }) {
 
       {/* Chat window */}
       {!selected ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-[#8B92A9] bg-white dark:bg-[#1A1D27]">
+        <div className="hidden md:flex flex-1 flex-col items-center justify-center text-[#8B92A9] bg-white dark:bg-[#1A1D27]">
           <div className="w-14 h-14 rounded-full bg-[#f0fdf4] dark:bg-[#052e1c] flex items-center justify-center mb-4">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="#25D366">
               <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
@@ -1077,6 +1411,16 @@ function WhatsAppPanel({ currentUser }) {
         <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1A1D27]">
           {/* Header */}
           <div className="px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3">
+            {/* Mobile back button */}
+            <button
+              onClick={() => setSelected(null)}
+              className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-[#262A38] text-[#8B92A9] shrink-0 transition"
+              title="Back to conversations"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+              </svg>
+            </button>
             <div className="w-9 h-9 rounded-full bg-[#dcfce7] flex items-center justify-center font-semibold text-[13px] text-[#166534] shrink-0">
               {getInitials(selected.contactName || selected.lead?.name || selected.waPhone)}
             </div>
@@ -1087,7 +1431,7 @@ function WhatsAppPanel({ currentUser }) {
               <div className="text-[11px] text-[#8B92A9]">
                 +{selected.waPhone}
                 {selected.lead && ` · ${selected.lead.status}`}
-                {isAdmin && selected.assignedAgent && ` · Agent: ${selected.assignedAgent.name}`}
+                {isAdmin && selected.assignedAgent && ` · Employee: ${selected.assignedAgent.name}`}
               </div>
             </div>
             {selected.status !== "closed" && (
@@ -2865,9 +3209,10 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
 // ── MAIN COMMUNICATIONS PAGE ──────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Communications({ currentUser }) {
-  const [tab,          setTab]          = useState("whatsapp");
-  const [showSettings, setShowSettings] = useState(false);
-  const isAdmin = currentUser?.role === "admin";
+  const [tab,               setTab]               = useState("whatsapp");
+  const [showSettings,      setShowSettings]      = useState(false);
+  const [showIntegrations,  setShowIntegrations]  = useState(false);
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-6 flex flex-col">
@@ -2879,6 +3224,18 @@ export default function Communications({ currentUser }) {
         </div>
         <div className="flex items-center gap-3">
           <TabNav active={tab} onChange={(t) => { setTab(t); setShowSettings(false); }} />
+          {isAdmin && (
+            <button
+              onClick={() => setShowIntegrations(true)}
+              title="Manage Integrations (Brevo, MSG91)"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] hover:border-[#2563EB] transition"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+              </svg>
+              Integrations
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setShowSettings(s => !s)}
@@ -2931,6 +3288,9 @@ export default function Communications({ currentUser }) {
           </div>
         )}
       </div>
+
+      {/* ── Integrations modal ── */}
+      {showIntegrations && <IntegrationsModal onClose={() => setShowIntegrations(false)} />}
     </div>
   );
 }
