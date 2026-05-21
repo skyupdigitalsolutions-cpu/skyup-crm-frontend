@@ -124,7 +124,7 @@ export default function SuperAdminLogin() {
 
         {/* Links */}
         <div className="mt-6 pt-5 border-t border-[#1E2130] flex flex-col items-center gap-2">
-          <Link to="/login"       className="text-[12px] text-[#565C75] hover:text-blue-400 transition">Sign in as User →</Link>
+          <Link to="/login"       className="text-[12px] text-[#565C75] hover:text-blue-400 transition">Sign in as Employee →</Link>
           <Link to="/admin/login" className="text-[12px] text-[#565C75] hover:text-purple-400 transition">Sign in as Admin →</Link>
         </div>
       </div>
