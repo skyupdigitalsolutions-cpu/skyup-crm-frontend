@@ -380,7 +380,7 @@ function RecordingsTab({ lead }) {
                   })}
                 </p>
                 {log.user?.name && (
-                  <p className="text-[10px] text-[#8B92A9] mt-0.5">Agent: {log.user.name}</p>
+                  <p className="text-[10px] text-[#8B92A9] mt-0.5">Employee: {log.user.name}</p>
                 )}
               </div>
             </div>
@@ -519,7 +519,7 @@ function RecordingsDrawer({ lead, onClose }) {
   );
 }
 
-// ── Searchable Agent Select ───────────────────────────────────────────────────
+// ── Searchable Employee Select ───────────────────────────────────────────────────
 function AgentSelect({ value, onChange, agents, className }) {
   const [open,  setOpen]  = useState(false);
   const [query, setQuery] = useState("");
@@ -572,7 +572,7 @@ function AgentSelect({ value, onChange, agents, className }) {
           </div>
           <div className="max-h-52 overflow-y-auto py-1">
             {filtered.length === 0 ? (
-              <p className="px-3 py-2.5 text-[12px] text-[#8B92A9] italic">No agents found</p>
+              <p className="px-3 py-2.5 text-[12px] text-[#8B92A9] italic">No employees found</p>
             ) : filtered.map(agent => {
               const isSelected  = agent === value;
               const displayName = agent === "All" ? "All employees" : agent;
@@ -863,11 +863,11 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
             )}
           </div>
           <div>
-            <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Assign to Agent <span className="text-red-500">*</span></label>
+            <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Assign to Employee <span className="text-red-500">*</span></label>
             {loading ? (
-              <div className={`${inp("userId")} flex items-center gap-2 text-[#8B92A9]`}><Spinner /> Loading agents…</div>
+              <div className={`${inp("userId")} flex items-center gap-2 text-[#8B92A9]`}><Spinner /> Loading employees…</div>
             ) : users.length === 0 ? (
-              <div className={`${inp("userId")} text-red-500`}>No users found. Add users first.</div>
+              <div className={`${inp("userId")} text-red-500`}>No employees found. Add employees first.</div>
             ) : (
               <select value={form.userId} onChange={e => set("userId", e.target.value)}
                 className={`w-full px-3 py-2.5 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none transition ${errors.userId ? "border-red-400 dark:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`}>
@@ -1255,7 +1255,7 @@ export default function AdminLeadsPage() {
   const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition";
 
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-6 py-8">
+    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-3 py-4 md:px-6 md:py-8">
 
       {/* Pass isSuperAdmin so AddLeadModal can mask the duplicate lead's phone */}
       {showAdd    && <AddLeadModal   onClose={() => setShowAdd(false)}    onAdd={handleAdd}    isSuperAdmin={isSuperAdmin} />}
@@ -1468,7 +1468,7 @@ export default function AdminLeadsPage() {
                           )}
                         </td>
 
-                        {/* Agent */}
+                        {/* Employee */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             <div className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-950/40 flex items-center justify-center text-[8px] font-black text-purple-600 dark:text-purple-400 shrink-0">
