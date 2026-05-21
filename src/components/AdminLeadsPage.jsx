@@ -646,7 +646,8 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
   useEffect(() => {
     api.get("/admin/company/users")
       .then(r => {
-        const list = Array.isArray(r.data) ? r.data : [];
+        // Handle new shape { users, totalCompanyUsers } or legacy plain array
+        const list = Array.isArray(r.data) ? r.data : (r.data?.users || []);
         setUsers(list);
         if (list.length > 0) setForm(f => ({ ...f, userId: list[0]._id }));
       })
