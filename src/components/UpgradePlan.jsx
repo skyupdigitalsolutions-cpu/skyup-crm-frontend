@@ -66,7 +66,7 @@ function Spinner() {
 // ─────────────────────────────────────────────
 const COMPARE_ROWS = [
   { label: "Admins",           vals: ["1", "3", "5"] },
-  { label: "Agents",           vals: ["10", "30", "50"] },
+  { label: "Employees",           vals: ["10", "30", "50"] },
   { label: "SMS blast",        vals: [false, true, true] },
   { label: "WhatsApp blast",   vals: [false, true, true] },
   { label: "Email blast",      vals: [false, true, true] },
@@ -151,7 +151,7 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
 
         <div className="flex items-center gap-3 mb-5 flex-wrap">
           <span className="text-[11px] px-2 py-1 rounded-lg font-semibold" style={{ background: plan.color + "15", color: plan.color }}>
-            {plan.agents} agents
+            {plan.agents} employees
           </span>
           <span className="text-[11px] px-2 py-1 rounded-lg font-semibold" style={{ background: plan.color + "15", color: plan.color }}>
             {plan.admins} admins
@@ -284,7 +284,7 @@ export default function UpgradePlan({
       admins: "1",
       agents: "10",
       features: [
-        "1 admins", "10 agents", "SMS & WhatsApp blast",
+        "1 admins", "10 employees", "SMS & WhatsApp blast",
         "Basic dashboard", "Daily report (email)", "Email support",
       ],
       locked: [
@@ -304,7 +304,7 @@ export default function UpgradePlan({
       admins: "3",
       agents: "30",
       features: [
-        "3 admins", "30 agents", "SMS, WhatsApp & Email blast",
+        "3 admins", "30 employees", "SMS, WhatsApp & Email blast",
         "Advanced dashboard", "Daily report (email + PDF)",
         "Google Ads integration", "Facebook Ads integration",
         "Call recordings (30 days)", "API / Webhook access", "Priority support",
@@ -325,7 +325,7 @@ export default function UpgradePlan({
       admins: "5",
       agents: "50",
       features: [
-        "5 admins", "50 agents", "All blast channels",
+        "5 admins", "50 employees", "All blast channels",
         "Full analytics suite", "Custom report builder",
         "Google & Facebook Ads", "API / Webhook access",
         "Unlimited call recordings", "White-label CRM",
