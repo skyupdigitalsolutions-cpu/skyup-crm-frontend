@@ -1,9 +1,4 @@
-// frontend/src/pages/UserDailyReport.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// User Daily Report — pulls from the SAME /api/reports/daily endpoint
-// as the admin panel, passing userId to scope results to the current user.
-// No more front-end aggregation; backend is the single source of truth.
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 import { useState, useMemo } from 'react';
 import { useDailyReport } from '../hooks/useDailyReport';
@@ -165,7 +160,7 @@ export default function UserDailyReport() {
           </div>
           <h1 className="text-[22px] sm:text-[24px] font-bold text-[#0F1117] dark:text-white">My Daily Report</h1>
           <p className="text-[13px] text-[#8B92A9] mt-0.5">
-            {formatLong(viewDate)} · <span className="font-semibold text-[#2563EB]">{storedUser?.name || 'Agent'}</span>
+            {formatLong(viewDate)} · <span className="font-semibold text-[#2563EB]">{storedUser?.name || 'Employee'}</span>
           </p>
         </div>
 
