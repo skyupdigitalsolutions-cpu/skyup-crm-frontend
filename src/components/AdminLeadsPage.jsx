@@ -267,6 +267,157 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
   );
 }
 
+// ── LeadCombinedSummaryPanel ──────────────────────────────────────────────────
+function LeadCombinedSummaryPanel({ leadId, leadName }) {
+  const [open,    setOpen]    = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [data,    setData]    = useState(null);
+  const [error,   setError]   = useState(null);
+
+  const fetchSummary = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get(`/transcription/lead/${leadId}/summary`);
+      setData(res.data);
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to generate combined summary.");
+    } finally {
+      setLoading(false);
+    }
+  }, [leadId]);
+
+  const handleToggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && !data && !loading) fetchSummary();
+  };
+
+  const cs        = data?.combinedSummary;
+  const sent      = cs?.overallSentiment;
+  const temp      = cs?.suggestedTemp;
+  const sentStyle = SENTIMENT_STYLE[sent] || SENTIMENT_STYLE.Neutral;
+  const tempStyle = TEMP_STYLE[temp];
+
+  return (
+    <div className="rounded-xl border border-violet-200 dark:border-violet-800/50 overflow-hidden">
+      <button
+        onClick={handleToggle}
+        className="w-full flex items-center justify-between px-4 py-3 bg-violet-50 dark:bg-violet-950/30 hover:bg-violet-100 dark:hover:bg-violet-950/50 transition"
+      >
+        <div className="flex items-center gap-2 flex-wrap">
+          <Sparkles className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400 shrink-0" />
+          <span className="text-[12px] font-bold text-violet-700 dark:text-violet-300">Lead AI Summary</span>
+          <span className="text-[10px] text-violet-500 dark:text-violet-400">
+            {data ? `${data.summarizedCalls} call${data.summarizedCalls !== 1 ? "s" : ""} combined` : "All transcribed calls combined"}
+          </span>
+          {sent && (
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
+          )}
+          {temp && tempStyle && (
+            <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${tempStyle.bg} ${tempStyle.text}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${tempStyle.dot}`} />
+              {temp}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {open && !loading && (
+            <button
+              onClick={e => { e.stopPropagation(); fetchSummary(); }}
+              className="w-5 h-5 flex items-center justify-center rounded text-violet-500 hover:bg-violet-200 dark:hover:bg-violet-900/40 transition"
+              title="Refresh summary"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          )}
+          <ChevronDown className={`w-3.5 h-3.5 text-violet-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+
+      {open && (
+        <div className="px-4 py-4 bg-white dark:bg-[#1A1D27] space-y-3">
+          {loading && (
+            <div className="flex items-center gap-2 py-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-500" />
+              <span className="text-[12px] text-violet-500 font-medium">Generating combined summary…</span>
+            </div>
+          )}
+          {error && !loading && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20">
+                <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                <span className="text-[12px] text-red-500">{error}</span>
+              </div>
+              <button onClick={fetchSummary} className="text-[12px] text-violet-600 underline pl-1">Retry</button>
+            </div>
+          )}
+          {data && !cs && !loading && !error && (
+            <div className="flex items-start gap-2 px-3 py-3 rounded-lg bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38]">
+              <Mic className="w-3.5 h-3.5 text-[#8B92A9] shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{data.message}</p>
+                <p className="text-[10px] text-[#8B92A9] mt-1">
+                  {data.totalCalls} call{data.totalCalls !== 1 ? "s" : ""} logged · 0 transcribed
+                </p>
+              </div>
+            </div>
+          )}
+          {cs && !loading && !error && (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-[#F1F4FF] dark:bg-[#1E2130] text-[#4B5168] dark:text-[#9DA3BB]">
+                  {data.totalCalls} total call{data.totalCalls !== 1 ? "s" : ""}
+                </span>
+                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400">
+                  {data.summarizedCalls} transcribed &amp; summarised
+                </span>
+              </div>
+              {cs.overallSummary && (
+                <div>
+                  <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Overall Summary</p>
+                  <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{cs.overallSummary}</p>
+                </div>
+              )}
+              {cs.relationshipStatus && (
+                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540]">
+                  <User className="w-3.5 h-3.5 text-[#2563EB] shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] font-bold text-[#2563EB] dark:text-[#4F8EF7] uppercase tracking-wide mb-0.5">Relationship Status</p>
+                    <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{cs.relationshipStatus}</p>
+                  </div>
+                </div>
+              )}
+              {Array.isArray(cs.keyInsights) && cs.keyInsights.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Key Insights</p>
+                  <ul className="space-y-1.5">
+                    {cs.keyInsights.map((pt, i) => (
+                      <li key={i} className="flex items-start gap-2 text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
+                        {pt}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {cs.recommendedNextAction && (
+                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-[#F0FDF4] dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30">
+                  <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Recommended Next Action</p>
+                    <p className="text-[12px] text-emerald-700 dark:text-emerald-300">{cs.recommendedNextAction}</p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── RecordingsTab ─────────────────────────────────────────────────────────────
 function RecordingsTab({ lead }) {
   const [callLogs, setCallLogs] = useState([]);
@@ -362,6 +513,7 @@ function RecordingsTab({ lead }) {
         >
           <RotateCcw className="w-3 h-3" />
         </button>
+         
       </div>
 
       {callLogs.map((log, li) => (
@@ -459,6 +611,9 @@ function RecordingsTab({ lead }) {
           </div>
         </div>
       ))}
+      {lead.id && (
+        <LeadCombinedSummaryPanel leadId={lead.id} leadName={lead.name} />
+      )}
     </div>
   );
 }
