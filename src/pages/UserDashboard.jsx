@@ -805,10 +805,16 @@ function UserChatWidget() {
     const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, "") : "https://skyup-crm-backend.onrender.com");
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
-    socket.on("connect", () => { sharedSocket.current = socket; });
-    if (socket.connected) sharedSocket.current = socket;
-    // Send full identity so server can scope to correct admin thread
-    socket.emit("user_join", { username, userId: user?._id, company: companyId, adminId, displayName: user?.name });
+    // Send user_join AFTER socket connects to avoid losing the event
+    const joinPayload = { username, userId: user?._id, company: companyId, adminId, displayName: user?.name };
+    socket.on("connect", () => {
+      sharedSocket.current = socket;
+      socket.emit("user_join", joinPayload);
+    });
+    if (socket.connected) {
+      sharedSocket.current = socket;
+      socket.emit("user_join", joinPayload);
+    }
     socket.on("chat_history", history => {
       // from can be 'admin:<id>', 'superadmin:<id>', or the employee's username
       const isAdminMsg = (from) => from === "admin" || from?.startsWith("admin:") || from?.startsWith("superadmin:");
