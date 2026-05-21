@@ -201,6 +201,8 @@ export function Sidebar() {
   );
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [followUpAlerts, setFollowUpAlerts] = useState({ todayCount: 0, overdueCount: 0 });
+  // ── Mobile sidebar open/close state ──────────────────────────────────────
+  const [mobileOpen, setMobileOpen] = useState(false);
   // ── Company branding: SuperAdmin sets name + logo via Settings ────────────
   
   const location = useLocation();
@@ -261,6 +263,11 @@ const companyLogo = "/skyup_logo1.svg";
     navigate("/login", { replace: true });
   };
 
+  // Close mobile sidebar when route changes
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   return (
     <>
       <style>{`
@@ -292,8 +299,11 @@ const companyLogo = "/skyup_logo1.svg";
         .logout-btn:hover .icon-wrap { transform: scale(1.15); }
         .modal-overlay { animation: fadeIn 0.15s ease; }
         .modal-box { animation: scaleIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .mobile-overlay { animation: fadeIn 0.2s ease; }
+        .sidebar-mobile { animation: slideInLeft 0.25s cubic-bezier(0.4,0,0.2,1); }
         @keyframes fadeIn  { from { opacity:0; }                          to { opacity:1; } }
         @keyframes scaleIn { from { opacity:0; transform:scale(0.92); }   to { opacity:1; transform:scale(1); } }
+        @keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
       `}</style>
 
       {/* ── Logout Confirmation Modal ─────────────────────────────────────── */}
@@ -329,9 +339,38 @@ const companyLogo = "/skyup_logo1.svg";
         </div>
       )}
 
+      {/* ── Mobile overlay backdrop ───────────────────────────────────────── */}
+      {mobileOpen && (
+        <div
+          className="mobile-overlay fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* ── Mobile hamburger FAB ──────────────────────────────────────────── */}
+      <button
+        className="fixed top-3 left-3 z-50 md:hidden w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-[#13161E] border border-gray-200 dark:border-white/10 shadow-md text-gray-600 dark:text-gray-300"
+        onClick={() => setMobileOpen((v) => !v)}
+        title="Toggle menu"
+      >
+        {mobileOpen ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        )}
+      </button>
+
       {/* ── Sidebar ───────────────────────────────────────────────────────── */}
       <div
-        className="sidebar sticky top-0 h-screen flex flex-col bg-white dark:bg-[#13161E] border-r border-gray-100 dark:border-white/5 shadow-sm"
+        className={`sidebar-mobile sidebar sticky top-0 h-screen flex flex-col bg-white dark:bg-[#13161E] border-r border-gray-100 dark:border-white/5 shadow-sm
+          fixed md:sticky inset-y-0 left-0 z-40
+          transition-transform duration-300 ease-in-out
+          ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        `}
         style={{ width: minimized ? "72px" : "260px" }}
       >
         {/* Header — shows dynamic brand logo/name */}
@@ -362,7 +401,7 @@ const companyLogo = "/skyup_logo1.svg";
           )}
         </div>
 
-        {/* User Profile */}
+        {/* Employee Profile */}
         {user && (
           <div className={`mx-3 mt-3 rounded-xl border bg-gray-50 dark:bg-white/[0.03] ${minimized ? "p-2 flex justify-center" : "p-3 flex items-center gap-3"} ${roleStyle.border}`}>
             <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-[11px] font-bold shrink-0 ${roleStyle.bg} ${roleStyle.border} ${roleStyle.text}`}>
