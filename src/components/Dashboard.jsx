@@ -981,7 +981,9 @@ export default function Dashboard() {
       ])
         .then(([adminsRes, usersRes, companyRes]) => {
           setDbAdmins(adminsRes.data || []);
-          setDbUsers(usersRes.data || []);
+          // Handle new shape { users, totalCompanyUsers } or legacy plain array
+          const parsedUsers = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.users || []);
+          setDbUsers(parsedUsers);
           setCompanyPlan(companyRes.data?.plan || "basic");
         })
         .catch(() => {});
