@@ -793,9 +793,12 @@ function UserChatWidget() {
   const [unread, setUnread]           = useState(0);
   const [editingId, setEditingId]     = useState(null);
   const [editingText, setEditingText] = useState("");
-  const bottomRef = useRef(null);
-  const user     = JSON.parse(localStorage.getItem("user") || "null");
-  const username = (user && user.name) || "user";
+ const bottomRef = useRef(null);
+  const user        = JSON.parse(localStorage.getItem("user") || "null");
+  const username    = (user && user.name) || "user";
+  // Pass company and assigned adminId so the server can scope this employee's chat
+  const companyId   = user?.company?._id || user?.company || null;
+  const adminId     = user?.createdBy || null; // the admin who created/assigned this employee
 
   useEffect(() => {
     const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, "") : "https://skyup-crm-backend.onrender.com");
@@ -803,9 +806,12 @@ function UserChatWidget() {
     socketRef.current = socket;
     socket.on("connect", () => { sharedSocket.current = socket; });
     if (socket.connected) sharedSocket.current = socket;
-    socket.emit("user_join", username);
+    // Send full identity so server can scope to correct admin thread
+    socket.emit("user_join", { username, userId: user?._id, company: companyId, adminId, displayName: user?.name });
     socket.on("chat_history", history => {
-      setMessages(history.map(m => ({ _id: m._id, from: m.from === "admin" ? "Admin" : "You", message: m.message, ts: m.timestamp, isDeleted: m.isDeleted || false, editedAt: m.editedAt || null })));
+      // from can be 'admin:<id>', 'superadmin:<id>', or the employee's username
+      const isAdminMsg = (from) => from === "admin" || from?.startsWith("admin:") || from?.startsWith("superadmin:");
+      setMessages(history.map(m => ({ _id: m._id, from: isAdminMsg(m.from) ? "Admin" : "You", message: m.message, ts: m.timestamp, isDeleted: m.isDeleted || false, editedAt: m.editedAt || null })));
     });
     socket.on("message_saved", data => {
       setMessages(prev => {
@@ -1064,12 +1070,16 @@ export default function UserDashboard() {
   };
 
   // ── CSV template download ─────────────────────────────────────────────────
-  const downloadCSVTemplate = () => {
-    const headers = ["name","mobile","email","source","campaign","status","remark"];
-    const blob = new Blob([[headers,example].map(r=>r.join(",")).join("\n")], { type:"text/csv" });
-    const a = Object.assign(document.createElement("a"), { href:URL.createObjectURL(blob), download:"leads_import_template.csv" });
-    a.click(); URL.revokeObjectURL(a.href);
-  };
+const downloadCSVTemplate = () => {
+  const headers = ["name", "mobile", "email", "source", "campaign", "status", "remark"];
+  const blob = new Blob([headers.join(",")], { type: "text/csv" });
+  const a = Object.assign(document.createElement("a"), {
+    href: URL.createObjectURL(blob),
+    download: "leads_import_template.csv",
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
 
   // ── CSV import with FULL duplicate checking ───────────────────────────────
   const handleImportCSV = async e => {
