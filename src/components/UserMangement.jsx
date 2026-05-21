@@ -871,7 +871,7 @@ export default function UserManagement({
             </>
           )}
           <div className="text-center">
-            <div className="text-xl font-bold text-[#059669] dark:text-[#34D399]">{users.length}/{cfg.maxUsers}</div>
+            <div className="text-xl font-bold text-[#059669] dark:text-[#34D399]">{totalCompanyUsers}/{cfg.maxUsers}</div>
             <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Employees</div>
           </div>
           {isCompanySuperAdmin && (
