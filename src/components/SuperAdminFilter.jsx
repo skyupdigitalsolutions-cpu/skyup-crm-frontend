@@ -160,7 +160,7 @@ function UsersPanel({ users }) {
 // ── Tab-bar for detail view ───────────────────────────────────────────────────
 const TABS = [
   { key: "leads",   label: "Leads",         Icon: FileText },
-  { key: "users",   label: "Users",         Icon: UserCheck },
+  { key: "users",   label: "Employees",         Icon: UserCheck },
   { key: "reveals", label: "Phone Reveals", Icon: Eye },
 ];
 
@@ -334,7 +334,7 @@ export default function SuperAdminFilter() {
 
           {/* Stats row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-            <StatCard icon={Users}     label="Users"         value={details.stats.totalUsers}                          color="blue"   />
+            <StatCard icon={Users}     label="Employees"         value={details.stats.totalUsers}                          color="blue"   />
             <StatCard icon={FileText}  label="Leads"         value={details.stats.totalLeads}                          color="green"  />
             <StatCard icon={TrendingUp} label="Converted"    value={details.stats.statusBreakdown?.Converted || 0}     color="amber"  />
             <StatCard icon={Eye}       label="Phone Reveals" value={details.stats.phoneReveals.totalRevealsByAdmin}    color="purple" />
