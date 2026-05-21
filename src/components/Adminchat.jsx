@@ -25,7 +25,8 @@ export default function AdminChat() {
   const role         = getRole();                       // 'superadmin' | 'admin'
   const isSuperAdmin = role === 'superadmin';
   const adminId      = storedUser?._id || storedUser?.id || '';
-const companyId = storedUser?.companyId || storedUser?.company?._id || storedUser?.company || '';
+  // Admin/SuperAdmin login response stores the field as "companyId" (not "company")
+  const companyId    = storedUser?.companyId || storedUser?.company?._id || storedUser?.company || '';
   const displayName  = storedUser?.name || 'Admin';
 
   // My username key used in Message.from / Message.to
