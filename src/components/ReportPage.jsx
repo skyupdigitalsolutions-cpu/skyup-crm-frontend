@@ -66,7 +66,7 @@ function daysSince(iso) {
   return `${days}d ago`;
 }
 
-// ── Searchable Agent Select ───────────────────────────────────────────────────
+// ── Searchable Employee Select ───────────────────────────────────────────────────
 function AgentSelect({ value, onChange, agents, className }) {
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState("");
@@ -99,7 +99,7 @@ function AgentSelect({ value, onChange, agents, className }) {
     setQuery("");
   };
 
-  const label = value === "All" ? "All agents" : value;
+  const label = value === "All" ? "All employees" : value;
 
   return (
     <div ref={containerRef} className="relative">
@@ -136,10 +136,10 @@ function AgentSelect({ value, onChange, agents, className }) {
           </div>
           <div className="max-h-52 overflow-y-auto py-1">
             {filtered.length === 0 ? (
-              <p className="px-3 py-2.5 text-[12px] text-[#8B92A9] italic">No agents found</p>
+              <p className="px-3 py-2.5 text-[12px] text-[#8B92A9] italic">No employees found</p>
             ) : filtered.map(agent => {
               const isSelected = agent === value;
-              const displayName = agent === "All" ? "All agents" : agent;
+              const displayName = agent === "All" ? "All employees" : employee;
               return (
                 <button
                   key={agent}
@@ -194,7 +194,7 @@ function MiniBar({ value, max, color }) {
 
 function Skeleton() {
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-6 py-8 animate-pulse">
+    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-3 py-4 md:px-6 md:py-8 animate-pulse">
       <div className="h-8 w-48 bg-[#E4E7EF] dark:bg-[#262A38] rounded-xl mb-3" />
       <div className="h-4 w-64 bg-[#E4E7EF] dark:bg-[#262A38] rounded-xl mb-8" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -241,7 +241,7 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
           ))}
           {[
             { label: "Source", key: "source", options: ALL_SOURCES },
-            { label: "Agent",  key: "agent",  options: agents.map(a => a.name) },
+            { label: "Employee",  key: "agent",  options: agents.map(a => a.name) },
             { label: "Status", key: "status", options: ALL_STATUSES },
           ].map(f => (
             <div key={f.key} className="flex flex-col gap-1">
@@ -358,7 +358,7 @@ function RemarksHistoryModal({ lead, role, onClose }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
               </svg>
               <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No call history yet</p>
-              <p className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257]">Remarks appear here after agent interactions</p>
+              <p className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257]">Remarks appear here after employee interactions</p>
             </div>
           ) : sorted.map((entry, i) => {
             const outcome = entry.outcome || "No Answer";
@@ -372,7 +372,7 @@ function RemarksHistoryModal({ lead, role, onClose }) {
                     </div>
                     <div>
                       <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
-                        {entry.userName || "Agent"}
+                        {entry.userName || "Employee"}
                       </p>
                       <p className="text-[10px] text-[#8B92A9] mt-0.5">{fmtDateTime(entry.calledAt)}</p>
                     </div>
@@ -466,7 +466,7 @@ function RecordingModal({ lead, role, onClose }) {
           {[
             { label: "Status",   value: <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${st.bg} ${st.text}`}>{lead.status}</span> },
             { label: "Source",   value: lead.source },
-            { label: "Agent",    value: lead.agent },
+            { label: "Employee",    value: lead.agent },
             { label: "Date",     value: lead.date },
           ].map(({ label, value }) => (
             <div key={label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5">
@@ -490,7 +490,7 @@ function RecordingModal({ lead, role, onClose }) {
                 .map((h, i) => (
                 <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5 border border-[#E4E7EF] dark:border-[#262A38]">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-semibold text-[#2563EB]">{h.userName || "Agent"}</span>
+                    <span className="text-[11px] font-semibold text-[#2563EB]">{h.userName || "Employee"}</span>
                     <span className="text-[10px] text-[#8B92A9]">
                       {h.calledAt ? new Date(h.calledAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
                     </span>
@@ -549,7 +549,7 @@ function RecordingModal({ lead, role, onClose }) {
                 <div key={log._id || i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
-                      {log.user?.name || "Agent"} · {log.callType}
+                      {log.user?.name || "Employee"} · {log.callType}
                     </span>
                     <span className="text-[10px] text-[#8B92A9]">
                       {log.timestamp ? new Date(log.timestamp).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
@@ -681,7 +681,7 @@ export default function ReportPage() {
   };
 
   const exportCSV = () => {
-    const headers = ["#", "Name", "Phone", "Source", "Campaign", "Agent", "Status", "Date", "Remark", "Call Count"];
+    const headers = ["#", "Name", "Phone", "Source", "Campaign", "Employee", "Status", "Date", "Remark", "Call Count"];
     const rows = filtered.map((l, i) =>
       [i + 1, l.name, l.phone, l.source, l.campaign, l.agent, l.status, l.date, l.remark, (l.callHistory || []).length]
         .map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")
@@ -713,7 +713,7 @@ export default function ReportPage() {
   );
 
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-8">
+    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-3 py-4 md:px-6 md:py-8">
 
       {editLead      && <EditLeadModal lead={editLead} agents={agents} onClose={() => setEditLead(null)} onSave={saveLead} />}
 
@@ -777,7 +777,7 @@ export default function ReportPage() {
       {/* ── Charts ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
-          <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-4">Agent performance</h2>
+          <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-4">Employee performance</h2>
           <div className="space-y-4">
             {agentStats.sort((a, b) => b.leads - a.leads).map(a => (
               <div key={a.name}>
@@ -863,7 +863,7 @@ export default function ReportPage() {
           </div>
           <div className="flex flex-wrap gap-1.5">{filterBtn(statusFilter, setStatus, statuses)}</div>
           <div className="flex items-center gap-2 mt-2">
-            <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] self-center">Agent:</span>
+            <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] self-center">Employee:</span>
             <AgentSelect
               value={agentFilter}
               onChange={(val) => { setAgent(val); setPage(1); }}
@@ -877,7 +877,7 @@ export default function ReportPage() {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                {["#", "Lead Name", "Phone", "Source", "Campaign", "Agent", "Status", "Date", "Calls", "Remark", "Actions"].map(h => (
+                {["#", "Lead Name", "Phone", "Source", "Campaign", "Employee", "Status", "Date", "Calls", "Remark", "Actions"].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
