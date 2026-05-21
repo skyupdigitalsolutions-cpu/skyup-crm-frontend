@@ -42,11 +42,12 @@ export default function AdminLogin() {
 
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify({
-        _id:     res.data._id,
-        name:    res.data.name,
-        email:   res.data.email,
-        company: res.data.company,
-        role:    "admin",
+        _id:       res.data._id,
+        name:      res.data.name,
+        email:     res.data.email,
+        companyId: res.data.company,   // adminAuthController returns company (ObjectId)
+        company:   res.data.company,   // keep for legacy reads
+        role:      res.data.role || "admin",
       }));
 
       // ── BIP39 Encryption Setup ────────────────────────────────────────────
