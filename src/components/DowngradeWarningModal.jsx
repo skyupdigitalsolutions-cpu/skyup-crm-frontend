@@ -301,7 +301,7 @@ export default function DowngradeWarningModal({
             {mustRemoveUsers > 0 && (
               <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl overflow-hidden mb-3">
                 <SectionHeader
-                  label="Users"
+                  label="Employees"
                   sublabel={`(keep ${targetUserLimit}, remove at least ${mustRemoveUsers})`}
                   selected={selectedUsers.length}
                   needed={mustRemoveUsers}
