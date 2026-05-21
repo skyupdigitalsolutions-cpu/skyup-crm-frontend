@@ -627,13 +627,25 @@ export default function UserManagement({
   const [admins, setAdmins] = useState([]);
   const [users,  setUsers]  = useState([]);
 
+  const [totalCompanyUsers, setTotalCompanyUsers] = useState(0);
+
   useEffect(() => {
     api.get("/admin/")
       .then((res) => setAdmins(res.data || []))
       .catch(() => {});
 
     api.get("/admin/company/users")
-      .then((res) => setUsers(res.data || []))
+      .then((res) => {
+        // New shape: { users: [...], totalCompanyUsers: N }
+        // Backward-compat: if still a plain array (old backend), handle that too
+        if (Array.isArray(res.data)) {
+          setUsers(res.data);
+          setTotalCompanyUsers(res.data.length);
+        } else {
+          setUsers(res.data?.users || []);
+          setTotalCompanyUsers(res.data?.totalCompanyUsers ?? res.data?.users?.length ?? 0);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -682,7 +694,7 @@ export default function UserManagement({
         contactSuperAdmin: false,
       });
     }
-    if (role === "user" && users.length >= cfg.maxUsers) {
+    if (role === "user" && totalCompanyUsers >= cfg.maxUsers) {
       return setUpgradeAlert(
         isCompanySuperAdmin
           ? {
@@ -712,6 +724,7 @@ export default function UserManagement({
       const res = await api.post("/admin/user", { name, email, password, assignedTo });
       const member = { ...res.data, phone, role: "user", password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
       setUsers(prev => [...prev, member]);
+      setTotalCompanyUsers(prev => prev + 1);
       setModal(null);
       setCredsFor(member);
       sessionStorage.setItem("newUserEmail", res.data.email);
@@ -739,6 +752,7 @@ export default function UserManagement({
       } else {
         await api.delete(`/admin/user/${id}`);
         setUsers(u => u.filter(m => (m._id || m.id) !== id));
+        setTotalCompanyUsers(prev => Math.max(0, prev - 1));
       }
     } catch {
       if (role === "admin") setAdmins(a => a.filter(m => (m._id || m.id) !== id));
@@ -960,13 +974,13 @@ export default function UserManagement({
                 <svg className="w-4 h-4 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
                 <h3 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Users <span className="text-xs font-normal text-[#8B92A9] dark:text-[#565C75]">(Employees)</span></h3>
               </div>
-              <SlotBar used={users.length} max={cfg.maxUsers} isAdmin={false}/>
+              <SlotBar used={totalCompanyUsers} max={cfg.maxUsers} isAdmin={false}/>
             </div>
             <button
               onClick={() => tryAdd("user")}
-              disabled={users.length >= cfg.maxUsers}
+              disabled={totalCompanyUsers >= cfg.maxUsers}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition
-                ${users.length >= cfg.maxUsers
+                ${totalCompanyUsers >= cfg.maxUsers
                   ? "bg-[#F1F4FF] dark:bg-[#262A38] text-[#8B92A9] dark:text-[#565C75] cursor-not-allowed"
                   : "bg-green-50 dark:bg-green-950/40 text-[#059669] dark:text-green-400 hover:bg-green-100"
                 }`}
