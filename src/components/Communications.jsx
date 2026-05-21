@@ -729,7 +729,7 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
 
   // Load campaign list on mount
   useEffect(() => {
-    api.get("/email/history/campaigns")
+    api.get("/lead/distinct-campaigns")
       .then((r) => setCampaigns(r.data.data || []))
       .catch(() => {});
   }, []);
@@ -1659,7 +1659,7 @@ function EmailBlastModal({ onClose }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api.get("/email/history/campaigns").then((r) => setCampaigns(r.data.data || [])).catch(() => {});
+    api.get("/lead/distinct-campaigns").then((r) => setCampaigns(r.data.data || [])).catch(() => {});
   }, []);
 
   const MERGE_TAGS = ["{{name}}", "{{campaign}}", "{{mobile}}", "{{email}}"];
@@ -2231,7 +2231,7 @@ function SmsBlastComposer({ onSent }) {
   const smsCount   = charCount === 0 ? 0 : Math.ceil(charCount / 160);
 
   useEffect(() => {
-    api.get("/sms/history/campaigns").then((r) => setCampaigns(r.data.data || [])).catch(() => {});
+   api.get("/lead/distinct-campaigns").then((r) => setCampaigns(r.data.data || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -2825,7 +2825,7 @@ function SmsPanel() {
 
   useEffect(() => { fetchLeads(); }, []);
   useEffect(() => {
-    api.get("/sms/history/campaigns").then((r) => setCampaigns(r.data.data || [])).catch(() => {});
+    api.get("/lead/distinct-campaigns").then((r) => setCampaigns(r.data.data || [])).catch(() => {});
   }, []);
 
   const handleSearchChange = (val) => {
