@@ -198,10 +198,10 @@ function CompanyHeader() {
     try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; }
   });
 
-  // ── Fetch brand from API on mount ─────────────────────────────────────────
+  // ── Fetch brand from API on mount (skip for developer — no company context) ──
   React.useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token || role === "developer") return;
     api.get("/admin/company/brand")
       .then((res) => {
         if (res.data) {
