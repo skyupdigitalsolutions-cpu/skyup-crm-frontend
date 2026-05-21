@@ -21,7 +21,7 @@ export default function LeadTimeline({ lead }) {
       type: "assigned",
       icon: "",
       color: "#7C3AED",
-      title: `Assigned to ${lead.user?.name || lead.agent || "Agent"}`,
+      title: `Assigned to ${lead.user?.name || lead.agent || "Employee"}`,
       subtitle: lead.user?.email || "",
       time: lead.createdAt || lead.date,
     });
@@ -33,7 +33,7 @@ export default function LeadTimeline({ lead }) {
       type: "call",
       icon: "",
       color: h.outcome === "Not Interested" ? "#DC2626" : "#059669",
-      title: `Called by ${h.userName || "Agent"}`,
+      title: `Called by ${h.userName || "Employee"}`,
       subtitle: `Outcome: ${h.outcome || "—"}  •  Remark: ${h.remark || "—"}`,
       time: h.calledAt,
     });
