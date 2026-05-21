@@ -105,7 +105,7 @@ function DeleteConfirmModal({ member, onConfirm, onCancel }) {
 
           {/* Title */}
           <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] text-center mb-1">
-            Remove {isAdmin ? "Admin" : "User"}?
+            Remove {isAdmin ? "Admin" : "Employee"}?
           </h2>
           <p className="text-[12px] text-[#6B7280] dark:text-[#565C75] text-center mb-5 leading-relaxed">
             This action cannot be undone. The account will be permanently deleted.
@@ -129,7 +129,7 @@ function DeleteConfirmModal({ member, onConfirm, onCancel }) {
                 : "bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400"
               }`}
             >
-              {member.role === "super_admin" || member.role === "superadmin" ? "Super Admin" : isAdmin ? "Admin" : "User"}
+              {member.role === "super_admin" || member.role === "superadmin" ? "Super Admin" : isAdmin ? "Admin" : "Employee"}
             </span>
           </div>
 
@@ -141,7 +141,7 @@ function DeleteConfirmModal({ member, onConfirm, onCancel }) {
             <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
               {isAdmin
                 ? "Removing this admin will revoke their access to the dashboard immediately."
-                : "Removing this user will unassign all their active leads. This cannot be reversed."}
+                : "Removing this employee will unassign all their active leads. This cannot be reversed."}
             </p>
           </div>
 
@@ -273,7 +273,7 @@ function AddMemberModal({ role, onClose, onAdd, adminList = [], isSuperAdmin = f
     if (!password) return setError("Password is required.");
     if (password.length < 8) return setError("Password must be at least 8 characters.");
     if (password !== confirmPassword) return setError("Passwords do not match.");
-    if (!isAdmin && isSuperAdmin && !assignedTo) return setError("Please select an admin to assign this user to.");
+    if (!isAdmin && isSuperAdmin && !assignedTo) return setError("Please select an admin to assign this employee to.");
     setError(""); setLoading(true);
     try {
       await onAdd({ name: name.trim(), email: email.trim(), phone: phone.trim(), role, password, assignedTo: assignedTo || undefined });
@@ -293,7 +293,7 @@ function AddMemberModal({ role, onClose, onAdd, adminList = [], isSuperAdmin = f
                 : <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
               }
             </div>
-            <h2 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Add {isAdmin ? "Admin" : "User (Employee)"}</h2>
+            <h2 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Add {isAdmin ? "Admin" : "Employee"}</h2>
           </div>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -325,7 +325,7 @@ function AddMemberModal({ role, onClose, onAdd, adminList = [], isSuperAdmin = f
               />
             </div>
           ))}
-          {/* Assign to Admin — super admin only, when adding a user */}
+          {/* Assign to Admin — super admin only, when adding an employee */}
           {!isAdmin && isSuperAdmin && (
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Assign to Admin *</label>
@@ -443,7 +443,7 @@ function MemberRow({ member, onRequestRemove, onViewCreds, onReassign }) {
     ? { label: "Super Admin", cls: "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400" }
     : isAdmin
     ? { label: "Admin", cls: "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400" }
-    : { label: "User", cls: "bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400" };
+    : { label: "Employee", cls: "bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400" };
 
   const assignedAdminName = member.assignedTo?.name || null;
 
@@ -463,7 +463,7 @@ function MemberRow({ member, onRequestRemove, onViewCreds, onReassign }) {
           </span>
         </div>
         <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] truncate">{member.email}</p>
-        {/* Show assigned admin for user rows */}
+        {/* Show assigned admin for employee rows */}
         {!isAdmin && assignedAdminName && (
           <p className="text-[10px] text-blue-500 dark:text-blue-400 truncate mt-0.5">
             Assigned: {assignedAdminName}
@@ -521,7 +521,7 @@ function MemberRow({ member, onRequestRemove, onViewCreds, onReassign }) {
   );
 }
 
-// ── Reassign User Modal (super admin only) ────────────────────────────────────
+// ── Reassign Employee Modal (super admin only) ────────────────────────────────────
 function ReassignUserModal({ user, adminList, onClose, onReassign }) {
   const [selectedAdmin, setSelectedAdmin] = useState(
     user?.assignedTo?._id || user?.assignedTo || ""
@@ -555,14 +555,14 @@ function ReassignUserModal({ user, adminList, onClose, onReassign }) {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
                 </svg>
               </div>
-              <h2 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Reassign User</h2>
+              <h2 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Reassign Employee</h2>
             </div>
             <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] transition">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
 
-          {/* User info */}
+          {/* Employee info */}
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] mb-4">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: avatarHex(user._id || user.email) }}>
               {user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
@@ -686,12 +686,12 @@ export default function UserManagement({
       return setUpgradeAlert(
         isCompanySuperAdmin
           ? {
-              title: "User Limit Reached",
+              title: "Employee Limit Reached",
               message: `You are on the ${cfg.label} plan which allows only ${cfg.maxUsers} users. Please upgrade your plan to add more.`,
               contactSuperAdmin: false,
             }
           : {
-              title: "User Limit Reached",
+              title: "Employee Limit Reached",
               message: `The ${cfg.label} plan limit of ${cfg.maxUsers} users has been reached. Please contact your Super Admin to upgrade the plan.`,
               contactSuperAdmin: true,
             }
@@ -823,14 +823,14 @@ export default function UserManagement({
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">User Management</h2>
+          <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Employee Management</h2>
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
             Manage admins and employees on your <span className={`font-semibold ${cfg.statColor}`}>{cfg.label}</span> plan
           </p>
         </div>
       </div>
 
-      {/* Plan banner — super admin sees full stats, admin sees user stats only */}
+      {/* Plan banner — super admin sees full stats, admin sees employee stats only */}
       <div className={`mb-6 rounded-2xl border-2 p-4 flex flex-wrap items-center justify-between gap-4 ${cfg.borderColor} ${cfg.bgColor}`}>
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold ${cfg.badgeColor}`}>{cfg.label[0]}</div>
@@ -858,7 +858,7 @@ export default function UserManagement({
           )}
           <div className="text-center">
             <div className="text-xl font-bold text-[#059669] dark:text-[#34D399]">{users.length}/{cfg.maxUsers}</div>
-            <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Users</div>
+            <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Employees</div>
           </div>
           {isCompanySuperAdmin && (
             <>
@@ -972,7 +972,7 @@ export default function UserManagement({
                 }`}
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
-              Add User
+              Add Employee
             </button>
           </div>
           <div className="px-5 py-2 max-h-80 overflow-y-auto">
