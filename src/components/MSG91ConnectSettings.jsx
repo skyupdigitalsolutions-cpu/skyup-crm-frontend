@@ -19,6 +19,7 @@ export default function MSG91ConnectSettings({ onConnected }) {
   const [config,      setConfig]      = useState(null);
   const [authKey,     setAuthKey]     = useState("");
   const [intNumber,   setIntNumber]   = useState("");
+  const [namespace,   setNamespace]   = useState("");
   const [showKey,     setShowKey]     = useState(false);
   const [saving,      setSaving]      = useState(false);
   const [success,     setSuccess]     = useState(false);
@@ -31,6 +32,7 @@ export default function MSG91ConnectSettings({ onConnected }) {
         setConfig(res.data || {});
         setAuthKey(res.data?.authKey ? "••••••••••••••••" : "");
         setIntNumber(res.data?.integratedNumber || "");
+        setNamespace(res.data?.namespace || "");
       })
       .catch(() => setConfig({}));
   }, []);
@@ -47,6 +49,7 @@ export default function MSG91ConnectSettings({ onConnected }) {
       const res = await api.put("/admin/company/msg91-config", {
         authKey: authKey.trim(),
         integratedNumber: intNumber.trim(),
+        namespace: namespace.trim(),
       });
       setConfig(res.data);
       setAuthKey("••••••••••••••••");
@@ -66,7 +69,7 @@ export default function MSG91ConnectSettings({ onConnected }) {
     try {
       await api.delete("/admin/company/msg91-config");
       setConfig({});
-      setAuthKey(""); setIntNumber("");
+      setAuthKey(""); setIntNumber(""); setNamespace("");
     } catch {
       setError("Failed to disconnect");
     } finally {
@@ -166,6 +169,23 @@ export default function MSG91ConnectSettings({ onConnected }) {
             className={FIELD_CLS}
           />
           <p className="text-[10px] text-[#8B92A9] mt-1">msg91.com → WhatsApp → Integrated Numbers</p>
+        </div>
+
+        {/* Namespace */}
+        <div>
+          <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+            MSG91 WhatsApp Namespace <span className="text-[#8B92A9] font-normal">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={namespace}
+            onChange={(e) => setNamespace(e.target.value)}
+            placeholder="e.g. 68bcef67_e185_4e55_94df_52c26cb0bc37"
+            className={FIELD_CLS}
+          />
+          <p className="text-[10px] text-[#8B92A9] mt-1">
+            MSG91 dashboard → WhatsApp → Templates → Namespace. Required for auto-template delivery.
+          </p>
         </div>
 
         {/* Brevo note for email */}
