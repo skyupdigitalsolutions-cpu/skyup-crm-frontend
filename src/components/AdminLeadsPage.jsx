@@ -1432,14 +1432,18 @@ export default function AdminLeadsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#059669] text-white text-[12px] font-semibold hover:bg-emerald-700 transition">
-            <Plus className="w-3.5 h-3.5" /> Add Lead
-          </button>
-          <button onClick={() => setShowImport(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#7C3AED] text-white text-[12px] font-semibold hover:bg-violet-700 transition">
-            <Upload className="w-3.5 h-3.5" /> Import CSV
-          </button>
+          {!isSuperAdmin && (
+            <button onClick={() => setShowAdd(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#059669] text-white text-[12px] font-semibold hover:bg-emerald-700 transition">
+              <Plus className="w-3.5 h-3.5" /> Add Lead
+            </button>
+          )}
+         {!isSuperAdmin && (
+            <button onClick={() => setShowImport(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#7C3AED] text-white text-[12px] font-semibold hover:bg-violet-700 transition">
+              <Upload className="w-3.5 h-3.5" /> Import CSV
+            </button>
+          )}
           {isSuperAdmin && (
             <button onClick={exportToCSV} disabled={!displayed.length}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-40 disabled:cursor-not-allowed transition">
@@ -1536,10 +1540,12 @@ export default function AdminLeadsPage() {
               {allLeads.length === 0 ? "No leads yet" : "No leads match your filters"}
             </p>
             {allLeads.length === 0 ? (
-              <button onClick={() => setShowAdd(true)}
-                className="mt-1 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] text-white text-[13px] font-semibold hover:bg-emerald-700 transition">
-                <Plus className="w-3.5 h-3.5" /> Add first lead
-              </button>
+              !isSuperAdmin && (
+                <button onClick={() => setShowAdd(true)}
+                  className="mt-1 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] text-white text-[13px] font-semibold hover:bg-emerald-700 transition">
+                  <Plus className="w-3.5 h-3.5" /> Add first lead
+                </button>
+              )
             ) : (
               <button onClick={clearFilters} className="mt-1 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-blue-700 transition">
                 Clear Filters
