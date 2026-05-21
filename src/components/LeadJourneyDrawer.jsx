@@ -110,7 +110,7 @@ function CallCard({ call, displayIndex }) {
           </div>
           <div>
             <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
-              {call.userName || "Agent"}
+              {call.userName || "Employee"}
             </p>
             <p className="text-[10px] text-[#8B92A9]">{fmtDateTime(call.calledAt)}</p>
           </div>
@@ -190,7 +190,7 @@ function ScheduledCard({ sc: call }) {
   );
 }
 
-function AgentCard({ agent, isCurrent }) {
+function EmployeeCard({ agent, isCurrent }) {
   const name = typeof agent === "string" ? agent : agent.name || "Unknown";
   const initial = name.charAt(0).toUpperCase();
   const assignedAt = typeof agent === "object" ? agent.assignedAt : null;
@@ -398,13 +398,13 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
             </div>
           )}
 
-          {/* Agent history */}
+          {/* Employee history */}
           {allAgents.length > 0 && (
             <div>
-              <SectionLabel icon="" label={`Agent History (${allAgents.length})`} />
+              <SectionLabel icon="" label={`Employee History (${allAgents.length})`} />
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-4 py-2">
                 {allAgents.map((ag, i) => (
-                  <AgentCard key={i} agent={ag} isCurrent={ag._isCurrent} />
+                  <EmployeeCard key={i} agent={ag} isCurrent={ag._isCurrent} />
                 ))}
               </div>
             </div>
