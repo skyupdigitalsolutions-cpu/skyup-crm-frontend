@@ -20,10 +20,12 @@ export default function UserLogin() {
       const role = res.data.role || "user";
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify({
-        _id:     res.data._id,
-        name:    res.data.name,
-        email:   res.data.email,
-        company: res.data.company,
+        _id:       res.data._id,
+        name:      res.data.name,
+        email:     res.data.email,
+        companyId: res.data.companyId,   // unified login returns companyId
+        company:   res.data.companyId,   // keep legacy field for any other reads
+        createdBy: res.data.createdBy,   // needed by chat to find the admin thread
         role,
       }));
       // ── Route by role ──────────────────────────────────────────────────────
