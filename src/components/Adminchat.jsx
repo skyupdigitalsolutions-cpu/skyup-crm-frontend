@@ -57,12 +57,16 @@ export default function AdminChat() {
     const socket = io(SOCKET_URL);
     socketRef.current = socket;
 
-    // Join with role-appropriate event
-    if (isSuperAdmin) {
-      socket.emit('super_admin_join', { adminId, company: companyId, displayName });
-    } else {
-      socket.emit('admin_join', { adminId, company: companyId, displayName });
-    }
+    // Send join AFTER socket connects to avoid losing the event
+    const doJoin = () => {
+      if (isSuperAdmin) {
+        socket.emit('super_admin_join', { adminId, company: companyId, displayName });
+      } else {
+        socket.emit('admin_join', { adminId, company: companyId, displayName });
+      }
+    };
+    socket.on('connect', doJoin);
+    if (socket.connected) doJoin();
 
     // Online map (admins/super_admin receive this; scoped to what they can see)
     socket.on('users_list', setOnlineUsers);
