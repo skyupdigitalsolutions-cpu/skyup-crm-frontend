@@ -435,7 +435,7 @@ function CallLogCard({ log, isSuperAdmin }) {
   );
 }
 
-// ─── User Detail Drawer ───────────────────────────────────────────────────────
+// ─── Employee Detail Drawer ───────────────────────────────────────────────────────
 function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
   if (!user) return null;
 
@@ -871,7 +871,7 @@ function UsersTab({ records, onUserClick, isSuperAdmin }) {
       <div className="flex flex-col items-center justify-center py-16 gap-3">
         <span className="text-[48px]">👥</span>
         <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">No users found</p>
-        <p className="text-[12px] text-[#8B92A9]">Users will appear here once attendance records are loaded.</p>
+        <p className="text-[12px] text-[#8B92A9]">Employees will appear here once attendance records are loaded.</p>
       </div>
     );
   }
@@ -992,11 +992,11 @@ export default function AttendancePage({ records = [], loading = false, onRefres
 
   const tabs = [
     { key: "attendance", label: "Attendance",   icon: <CalendarDays className="w-4 h-4" /> },
-    { key: "users",      label: "User Details", icon: <Users className="w-4 h-4" /> },
+    { key: "users",      label: "Employee Details", icon: <Users className="w-4 h-4" /> },
   ];
 
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-6 py-8">
+    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-3 py-4 md:px-6 md:py-8">
       <div className="mb-6">
         <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Attendance</h1>
         <p className="text-[13px] text-[#8B92A9] mt-0.5">Track employee attendance, device info, and call log sync</p>
