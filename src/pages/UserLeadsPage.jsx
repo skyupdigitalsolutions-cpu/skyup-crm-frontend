@@ -395,7 +395,7 @@ function RecordingsTab({ lead }) {
                   })}
                 </p>
                 {log.user?.name && (
-                  <p className="text-[10px] text-[#8B92A9] mt-0.5">Agent: {log.user.name}</p>
+                  <p className="text-[10px] text-[#8B92A9] mt-0.5">Employee: {log.user.name}</p>
                 )}
               </div>
             </div>
@@ -844,7 +844,7 @@ export default function UserLeadsPage() {
   const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition";
 
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-6 py-8">
+    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-3 py-4 md:px-6 md:py-8">
 
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
