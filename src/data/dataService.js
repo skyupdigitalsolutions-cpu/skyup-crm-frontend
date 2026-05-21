@@ -93,7 +93,9 @@ async function fetchAdminData() {
   const rawLeads = leadsRes.data?.leads || (Array.isArray(leadsRes.data) ? leadsRes.data : []);
 
   const leads  = await Promise.all(rawLeads.map(formatLead));
-  const agents = usersRes.data.map(formatAgent);
+  // Handle new shape { users, totalCompanyUsers } or legacy plain array
+  const usersData1 = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.users || []);
+  const agents = usersData1.map(formatAgent);
 
   return {
     leads,
@@ -115,7 +117,9 @@ async function fetchSuperAdminData() {
 
   const rawLeads = leadsRes.data?.leads || (Array.isArray(leadsRes.data) ? leadsRes.data : []);
   const leads    = await Promise.all(rawLeads.map(formatLead));
-  const agents   = (usersRes.data || []).map((u) => formatAgent(u));
+  // Handle new shape { users, totalCompanyUsers } or legacy plain array
+  const usersData2 = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.users || []);
+  const agents   = usersData2.map((u) => formatAgent(u));
 
   return {
     leads,
