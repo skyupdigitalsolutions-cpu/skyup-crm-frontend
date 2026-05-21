@@ -1260,7 +1260,7 @@ export default function Dashboard() {
 
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
           <h2 className="text-[13px] sm:text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-3 sm:mb-4">
-            {isSuperAdmin ? "Top users" : "User performance"}
+            {isSuperAdmin ? "Top employees" : "Employee performance"}
           </h2>
           {agentStats.every((a) => a.leads === 0) ? (
             <p className="text-[13px] text-[#6B7280] dark:text-[#565C75]">No activity in this period.</p>
