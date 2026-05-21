@@ -337,7 +337,7 @@ export default function CallRecording() {
                     <div>
                       <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{rec.matchedLead?.name || rec.phoneNumber}</p>
                       {rec.matchedLead?.name && <p className="text-[11px] text-[#8B92A9] mt-0.5">{rec.phoneNumber}</p>}
-                      <p className="text-[11px] text-[#8B92A9] mt-0.5">Agent: <span className="font-medium text-[#4B5168] dark:text-[#9DA3BB]">{rec.user?.name || '—'}</span></p>
+                      <p className="text-[11px] text-[#8B92A9] mt-0.5">Employee: <span className="font-medium text-[#4B5168] dark:text-[#9DA3BB]">{rec.user?.name || '—'}</span></p>
                       <p className="text-[10px] text-[#8B92A9] mt-0.5">{fmtDate(rec.timestamp)}</p>
                     </div>
                   </div>
