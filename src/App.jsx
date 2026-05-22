@@ -206,10 +206,8 @@ function CompanyHeader() {
     api.get("/admin/company/brand")
       .then((res) => {
         if (res.data) {
-          // Preserve existing _ts so cache-busting survives page reload;
-          // only assign a new _ts if there isn't one yet.
-          const existing = (() => { try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; } })();
-          const b = { ...res.data, _ts: existing?._ts || Date.now() };
+          // Always use a fresh _ts on mount so a page reload always fetches the latest logo
+          const b = { ...res.data, _ts: Date.now() };
           setBrand(b);
           localStorage.setItem("company_brand", JSON.stringify(b));
         }
