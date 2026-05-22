@@ -983,25 +983,8 @@ export default function UserDashboard() {
   const [csvImporting,  setCsvImporting]  = useState(false);
   const [csvResult,     setCsvResult]     = useState(null);
 
-  // ── Company branding: fetch once and cache in localStorage ────────────────
-  const [companyBrand, setCompanyBrand] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; }
-  });
-  useEffect(() => {
-    api.get("/admin/company/brand")
-      .then(res => {
-        if (res.data) {
-          setCompanyBrand(res.data);
-          localStorage.setItem("company_brand", JSON.stringify(res.data));
-        }
-      })
-      .catch(() => {}); // silent — branding is optional
-    const handler = () => {
-      try { setCompanyBrand(JSON.parse(localStorage.getItem("company_brand") || "null")); } catch { /* ignore */ }
-    };
-    window.addEventListener("company_brand_updated", handler);
-    return () => window.removeEventListener("company_brand_updated", handler);
-  }, []);
+  // Note: company branding (logo + name) is now rendered in the sticky CompanyHeader
+  // inside AppLayout — no need to fetch or display it here.
 
   const PER_PAGE = 10;
 
@@ -1205,16 +1188,11 @@ const downloadCSVTemplate = () => {
 
   return (
     <div className="min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
-      {/* ── Header ── */}
-      <div className="px-6 py-5 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38]">
+      {/* ── Sub-header (sticky, sits below the CompanyHeader sticky bar) ── */}
+      <div className="sticky top-[49px] z-20 px-6 py-4 bg-white/95 dark:bg-[#1A1D27]/95 backdrop-blur-md border-b border-[#E4E7EF] dark:border-[#262A38] shadow-sm">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            {/* Company brand logo/name set by SuperAdmin */}
-            {companyBrand?.logoUrl ? (
-              <img src={companyBrand.logoUrl} alt={companyBrand?.name || "logo"} className="h-9 w-auto max-w-[100px] object-contain" />
-            ) : (
-              <img src="/skyup_logo1.svg" alt="skyup_crm" className="w-9 h-9" />
-            )}
+            {/* Greeting + employee name — brand/logo shown in the sticky CompanyHeader above */}
             <div>
               <p className="text-[#8B92A9] dark:text-[#D1D5DB] text-[12px] font-medium">{greeting.emoji} {greeting.text}</p>
               <h1 className="text-[22px] font-black text-[#0F1117] dark:text-white mt-0.5">
