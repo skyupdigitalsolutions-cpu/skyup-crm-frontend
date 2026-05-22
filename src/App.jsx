@@ -206,8 +206,12 @@ function CompanyHeader() {
     api.get("/admin/company/brand")
       .then((res) => {
         if (res.data) {
-          setBrand(res.data);
-          localStorage.setItem("company_brand", JSON.stringify(res.data));
+          // Preserve existing _ts so cache-busting survives page reload;
+          // only assign a new _ts if there isn't one yet.
+          const existing = (() => { try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; } })();
+          const b = { ...res.data, _ts: existing?._ts || Date.now() };
+          setBrand(b);
+          localStorage.setItem("company_brand", JSON.stringify(b));
         }
       })
       .catch(() => {}); // silent — branding is optional
