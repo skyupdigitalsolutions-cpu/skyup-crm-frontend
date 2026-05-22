@@ -104,9 +104,8 @@ export default function Companies() {
       const fd = buildFormData(form, {
         name: companyName, email, phone: form.phone, plan: form.plan,
       });
-      const companyRes = await api.post("/developer/companies", fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      // No manual Content-Type — axios sets multipart/form-data with correct boundary automatically
+      const companyRes = await api.post("/developer/companies", fd);
       const company = companyRes.data;
 
       await api.post(`/developer/companies/${company._id}/super-admin`, {
@@ -132,9 +131,8 @@ export default function Companies() {
       const fd = buildFormData(editForm, {
         name: companyName, email, phone: editForm.phone, plan: editForm.plan,
       });
-      const res = await api.put(`/developer/companies/${editTarget._id}`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      // No manual Content-Type — axios sets multipart/form-data with correct boundary automatically
+      const res = await api.put(`/developer/companies/${editTarget._id}`, fd);
       const updated = res.data;
       setCompanies(prev =>
         prev.map(c => c._id === editTarget._id ? { ...c, ...updated, name: companyName } : c)
