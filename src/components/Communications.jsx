@@ -3085,6 +3085,31 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
                   </p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Name <span className="text-[#DC2626]">*</span></label>
+                    <input
+                      type="text"
+                      value={wa.templateName || ""}
+                      onChange={e => update("whatsapp", "templateName", e.target.value)}
+                      placeholder="crm_followup_leads"
+                      className={FIELD_CLS}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Language</label>
+                    <select value={wa.languageCode || "en"} onChange={e => update("whatsapp", "languageCode", e.target.value)} className={FIELD_CLS}>
+                      <option value="en">English (en) — MSG91 default</option>
+                      <option value="en_US">English (en_US)</option>
+                      <option value="en_GB">English GB (en_GB)</option>
+                      <option value="hi">Hindi (hi)</option>
+                      <option value="mr">Marathi (mr)</option>
+                      <option value="gu">Gujarati (gu)</option>
+                      <option value="ta">Tamil (ta)</option>
+                      <option value="te">Telugu (te)</option>
+                      <option value="kn">Kannada (kn)</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             )}
           </>
