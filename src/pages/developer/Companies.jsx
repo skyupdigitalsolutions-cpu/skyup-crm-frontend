@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import {
   Building2, Plus, UploadCloud, X, ChevronRight,
-  CheckCircle2, XCircle, ShieldCheck, Image, Loader2, Pencil,
+  CheckCircle2, XCircle, ShieldCheck, Image, Loader2, Pencil, Layout,
 } from "lucide-react";
 import api from "../../data/axiosConfig";
 
@@ -26,17 +26,21 @@ export default function Companies() {
     companyName: "", email: "", phone: "", plan: "basic",
     saName: "", saPassword: "",
     logoFile: null, logoPreview: null,
+    headerName: "", headerLogoFile: null, headerLogoPreview: null,
   };
   const [form, setForm] = useState(emptyForm);
 
   const emptyEditForm = {
     companyName: "", email: "", phone: "", plan: "basic",
     logoFile: null, logoPreview: null,
+    headerName: "", headerLogoFile: null, headerLogoPreview: null,
   };
   const [editForm, setEditForm] = useState(emptyEditForm);
 
-  const fileRef     = useRef();
-  const editFileRef = useRef();
+  const fileRef           = useRef();
+  const editFileRef       = useRef();
+  const headerFileRef     = useRef();
+  const editHeaderFileRef = useRef();
 
   useEffect(() => {
     api.get("/developer/companies")
@@ -51,71 +55,83 @@ export default function Companies() {
   const openEdit = (company) => {
     setEditTarget(company);
     setEditForm({
-      companyName: company.name || "",
-      email: company.email || "",
-      phone: company.phone || "",
-      plan: company.plan || "basic",
-      logoFile: null,
-      logoPreview: company.logo || null,
+      companyName:        company.name          || "",
+      email:              company.email         || "",
+      phone:              company.phone         || "",
+      plan:               company.plan          || "basic",
+      logoFile:           null,
+      logoPreview:        company.logo          || null,
+      headerName:         company.headerName    || "",
+      headerLogoFile:     null,
+      headerLogoPreview:  company.headerLogoUrl || null,
     });
     setError("");
     setShowEdit(true);
   };
   const closeEdit = () => { setShowEdit(false); setEditTarget(null); setError(""); };
 
+  // ── Logo handlers ────────────────────────────────────────────────────────────
   const handleLogo = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    setForm(p => ({ ...p, logoFile: file, logoPreview: preview }));
+    const file = e.target.files?.[0]; if (!file) return;
+    setForm(p => ({ ...p, logoFile: file, logoPreview: URL.createObjectURL(file) }));
   };
-
   const handleEditLogo = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    setEditForm(p => ({ ...p, logoFile: file, logoPreview: preview }));
+    const file = e.target.files?.[0]; if (!file) return;
+    setEditForm(p => ({ ...p, logoFile: file, logoPreview: URL.createObjectURL(file) }));
   };
-
   const removeLogo = () => {
     setForm(p => ({ ...p, logoFile: null, logoPreview: null }));
     if (fileRef.current) fileRef.current.value = "";
   };
-
   const removeEditLogo = () => {
     setEditForm(p => ({ ...p, logoFile: null, logoPreview: null }));
     if (editFileRef.current) editFileRef.current.value = "";
   };
 
-  const f = (key) => (v) => setForm(p => ({ ...p, [key]: v }));
+  // ── Header logo handlers ─────────────────────────────────────────────────────
+  const handleHeaderLogo = (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setForm(p => ({ ...p, headerLogoFile: file, headerLogoPreview: URL.createObjectURL(file) }));
+  };
+  const handleEditHeaderLogo = (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setEditForm(p => ({ ...p, headerLogoFile: file, headerLogoPreview: URL.createObjectURL(file) }));
+  };
+  const removeHeaderLogo = () => {
+    setForm(p => ({ ...p, headerLogoFile: null, headerLogoPreview: null }));
+    if (headerFileRef.current) headerFileRef.current.value = "";
+  };
+  const removeEditHeaderLogo = () => {
+    setEditForm(p => ({ ...p, headerLogoFile: null, headerLogoPreview: null }));
+    if (editHeaderFileRef.current) editHeaderFileRef.current.value = "";
+  };
+
+  const f  = (key) => (v) => setForm(p => ({ ...p, [key]: v }));
   const ef = (key) => (v) => setEditForm(p => ({ ...p, [key]: v }));
+
+  // ── Build FormData (always multipart so both logo fields work) ───────────────
+  const buildFormData = (src, extraFields = {}) => {
+    const fd = new FormData();
+    Object.entries(extraFields).forEach(([k, v]) => { if (v !== undefined) fd.append(k, v); });
+    if (src.logoFile)       fd.append("logo",        src.logoFile);
+    if (src.headerLogoFile) fd.append("headerLogo",  src.headerLogoFile);
+    if (src.headerName !== undefined) fd.append("headerName", src.headerName);
+    return fd;
+  };
 
   const handleCreate = async () => {
     const { companyName, email, saName, saPassword } = form;
     if (!companyName || !email || !saName || !saPassword) {
-      setError("Please fill all required fields.");
-      return;
+      setError("Please fill all required fields."); return;
     }
-    setSubmitting(true);
-    setError("");
+    setSubmitting(true); setError("");
     try {
-      let companyRes;
-      if (form.logoFile) {
-        const fd = new FormData();
-        fd.append("name",  companyName);
-        fd.append("email", email);
-        fd.append("phone", form.phone);
-        fd.append("plan",  form.plan);
-        fd.append("logo",  form.logoFile);
-        companyRes = await api.post("/developer/companies", fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-      } else {
-        companyRes = await api.post("/developer/companies", {
-          name: companyName, email, phone: form.phone, plan: form.plan,
-        });
-      }
-
+      const fd = buildFormData(form, {
+        name: companyName, email, phone: form.phone, plan: form.plan,
+      });
+      const companyRes = await api.post("/developer/companies", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       const company = companyRes.data;
 
       await api.post(`/developer/companies/${company._id}/super-admin`, {
@@ -134,35 +150,19 @@ export default function Companies() {
   const handleEdit = async () => {
     const { companyName, email } = editForm;
     if (!companyName || !email) {
-      setError("Company name and email are required.");
-      return;
+      setError("Company name and email are required."); return;
     }
-    setSubmitting(true);
-    setError("");
+    setSubmitting(true); setError("");
     try {
-      let res;
-      if (editForm.logoFile) {
-        const fd = new FormData();
-        fd.append("name",  companyName);
-        fd.append("email", email);
-        fd.append("phone", editForm.phone);
-        fd.append("plan",  editForm.plan);
-        fd.append("logo",  editForm.logoFile);
-        res = await api.put(`/developer/companies/${editTarget._id}`, fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-      } else {
-        res = await api.put(`/developer/companies/${editTarget._id}`, {
-          name: companyName, email, phone: editForm.phone, plan: editForm.plan,
-        });
-      }
-
+      const fd = buildFormData(editForm, {
+        name: companyName, email, phone: editForm.phone, plan: editForm.plan,
+      });
+      const res = await api.put(`/developer/companies/${editTarget._id}`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       const updated = res.data;
       setCompanies(prev =>
-        prev.map(c => c._id === editTarget._id
-          ? { ...c, ...updated, name: companyName }
-          : c
-        )
+        prev.map(c => c._id === editTarget._id ? { ...c, ...updated, name: companyName } : c)
       );
       closeEdit();
     } catch (err) {
@@ -259,7 +259,14 @@ export default function Companies() {
                             </span>
                           </div>
                         )}
-                        <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[160px]">{c.name}</span>
+                        <div className="min-w-0">
+                          <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[160px] block">{c.name}</span>
+                          {c.headerName && (
+                            <span className="text-[10px] text-[#9DA3BB] truncate max-w-[160px] block">
+                              Header: {c.headerName}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
 
@@ -288,7 +295,6 @@ export default function Companies() {
                     {/* Actions */}
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
-                        {/* Edit Button */}
                         <button
                           onClick={() => openEdit(c)}
                           className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all duration-150 active:scale-95"
@@ -296,7 +302,6 @@ export default function Companies() {
                           <Pencil className="w-3 h-3" />
                           Edit
                         </button>
-                        {/* Toggle Status */}
                         <button
                           onClick={() => toggleStatus(c._id)}
                           className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all duration-150 active:scale-95 ${
@@ -326,8 +331,11 @@ export default function Companies() {
           setForm={setForm}
           f={f}
           fileRef={fileRef}
+          headerFileRef={headerFileRef}
           handleLogo={handleLogo}
           removeLogo={removeLogo}
+          handleHeaderLogo={handleHeaderLogo}
+          removeHeaderLogo={removeHeaderLogo}
           error={error}
           submitting={submitting}
           onClose={closeCreate}
@@ -346,8 +354,11 @@ export default function Companies() {
           setForm={setEditForm}
           f={ef}
           fileRef={editFileRef}
+          headerFileRef={editHeaderFileRef}
           handleLogo={handleEditLogo}
           removeLogo={removeEditLogo}
+          handleHeaderLogo={handleEditHeaderLogo}
+          removeHeaderLogo={removeEditHeaderLogo}
           error={error}
           submitting={submitting}
           onClose={closeEdit}
@@ -362,7 +373,10 @@ export default function Companies() {
 
 // ── Reusable Company Modal ────────────────────────────────────────────────────
 function CompanyModal({
-  title, subtitle, form, setForm, f, fileRef, handleLogo, removeLogo,
+  title, subtitle, form, setForm, f,
+  fileRef, headerFileRef,
+  handleLogo, removeLogo,
+  handleHeaderLogo, removeHeaderLogo,
   error, submitting, onClose, onSubmit, submitLabel, showSuperAdmin,
 }) {
   return (
@@ -400,70 +414,27 @@ function CompanyModal({
 
             <div className="mt-4 space-y-4">
 
-              {/* Logo Upload */}
-              <div>
-                <Label text="Company Logo" />
-                {form.logoPreview ? (
-                  <div className="flex items-center gap-4 mt-2">
-                    <img
-                      src={form.logoPreview}
-                      alt="Logo preview"
-                      className="w-16 h-16 rounded-xl object-cover border-2 border-[#E5E7EB] dark:border-[#262A38] shadow-sm"
-                    />
-                    <div className="flex flex-col gap-2">
-                      <button
-                        onClick={() => fileRef.current?.click()}
-                        className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                      >
-                        Change logo
-                      </button>
-                      <button
-                        onClick={removeLogo}
-                        className="text-xs text-red-500 font-medium hover:underline"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className="mt-2 w-full flex flex-col items-center justify-center gap-2 h-24 rounded-xl border-2 border-dashed border-[#D1D5DB] dark:border-[#2A2F42] hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-all group"
-                  >
-                    <UploadCloud className="w-6 h-6 text-[#9DA3BB] group-hover:text-blue-500 transition-colors" />
-                    <span className="text-xs text-[#9DA3BB] group-hover:text-blue-500 transition-colors font-medium">
-                      Click to upload logo
-                    </span>
-                    <span className="text-[10px] text-[#C4C9DA]">PNG, JPG, SVG up to 2MB</span>
-                  </button>
-                )}
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
-              </div>
+              {/* Sidebar Logo Upload */}
+              <LogoUploadField
+                label="Company / Sidebar Logo"
+                hint="Shown in the sidebar nav"
+                preview={form.logoPreview}
+                fileRef={fileRef}
+                onFile={handleLogo}
+                onRemove={removeLogo}
+              />
 
               {/* Company Name */}
-              <Field
-                label="Company Name *"
-                value={form.companyName}
-                onChange={f("companyName")}
-                placeholder="Acme Corp"
-              />
+              <Field label="Company Name *" value={form.companyName} onChange={f("companyName")} placeholder="Acme Corp" />
 
               {/* Email */}
               <Field
                 label={showSuperAdmin ? "Email * (used for company & super admin login)" : "Email *"}
-                type="email"
-                value={form.email}
-                onChange={f("email")}
-                placeholder="admin@acme.com"
+                type="email" value={form.email} onChange={f("email")} placeholder="admin@acme.com"
               />
 
               {/* Phone */}
-              <Field
-                label="Phone"
-                value={form.phone}
-                onChange={f("phone")}
-                placeholder="+91 99999 00000"
-              />
+              <Field label="Phone" value={form.phone} onChange={f("phone")} placeholder="+91 99999 00000" />
 
               {/* Plan */}
               <div>
@@ -487,6 +458,40 @@ function CompanyModal({
             </div>
           </section>
 
+          {/* ── Section: Header Branding ── */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-[#F0F2FA] dark:bg-[#1E2130]" />
+            <span className="text-[10px] font-semibold text-[#C4C9DA] uppercase tracking-widest">Header Branding</span>
+            <div className="flex-1 h-px bg-[#F0F2FA] dark:bg-[#1E2130]" />
+          </div>
+
+          <section>
+            <SectionHeading icon={<Layout className="w-3.5 h-3.5" />} label="Header Bar Branding" />
+            <p className="text-[11px] text-[#9DA3BB] mt-1 mb-4">
+              Customize the logo and name shown in the company's sticky top header bar.
+            </p>
+
+            <div className="space-y-4">
+              {/* Header Name */}
+              <Field
+                label="Header Bar Name"
+                value={form.headerName}
+                onChange={f("headerName")}
+                placeholder="e.g. Acme CRM"
+              />
+
+              {/* Header Logo Upload */}
+              <LogoUploadField
+                label="Header Bar Logo"
+                hint="Shown in the top sticky header"
+                preview={form.headerLogoPreview}
+                fileRef={headerFileRef}
+                onFile={handleHeaderLogo}
+                onRemove={removeHeaderLogo}
+              />
+            </div>
+          </section>
+
           {/* ── Super Admin Section (create only) ── */}
           {showSuperAdmin && (
             <>
@@ -503,12 +508,7 @@ function CompanyModal({
                 </p>
 
                 <div className="space-y-4">
-                  <Field
-                    label="Full Name *"
-                    value={form.saName}
-                    onChange={f("saName")}
-                    placeholder="Jane Doe"
-                  />
+                  <Field label="Full Name *" value={form.saName} onChange={f("saName")} placeholder="Jane Doe" />
 
                   <div>
                     <Label text="Email (same as above)" />
@@ -517,13 +517,7 @@ function CompanyModal({
                     </div>
                   </div>
 
-                  <Field
-                    label="Password *"
-                    type="password"
-                    value={form.saPassword}
-                    onChange={f("saPassword")}
-                    placeholder="••••••••"
-                  />
+                  <Field label="Password *" type="password" value={form.saPassword} onChange={f("saPassword")} placeholder="••••••••" />
                 </div>
               </section>
             </>
@@ -569,6 +563,44 @@ function CompanyModal({
   );
 }
 
+// ── Logo upload sub-component ─────────────────────────────────────────────────
+function LogoUploadField({ label, hint, preview, fileRef, onFile, onRemove }) {
+  return (
+    <div>
+      <Label text={label} />
+      {hint && <p className="text-[10px] text-[#9DA3BB] mt-0.5 mb-2">{hint}</p>}
+      {preview ? (
+        <div className="flex items-center gap-4 mt-1">
+          <img
+            src={preview} alt="Logo preview"
+            className="w-16 h-16 rounded-xl object-cover border-2 border-[#E5E7EB] dark:border-[#262A38] shadow-sm"
+          />
+          <div className="flex flex-col gap-2">
+            <button onClick={() => fileRef.current?.click()} className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline">
+              Change logo
+            </button>
+            <button onClick={onRemove} className="text-xs text-red-500 font-medium hover:underline">
+              Remove
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="mt-1 w-full flex flex-col items-center justify-center gap-2 h-20 rounded-xl border-2 border-dashed border-[#D1D5DB] dark:border-[#2A2F42] hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-all group"
+        >
+          <UploadCloud className="w-5 h-5 text-[#9DA3BB] group-hover:text-blue-500 transition-colors" />
+          <span className="text-xs text-[#9DA3BB] group-hover:text-blue-500 transition-colors font-medium">
+            Click to upload
+          </span>
+          <span className="text-[10px] text-[#C4C9DA]">PNG, JPG, SVG up to 2 MB</span>
+        </button>
+      )}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+    </div>
+  );
+}
+
 // ── Section heading ───────────────────────────────────────────────────────────
 function SectionHeading({ icon, label }) {
   return (
@@ -579,7 +611,7 @@ function SectionHeading({ icon, label }) {
   );
 }
 
-// ── Label ────────────────────────────────────────────────────────────────────
+// ── Label ─────────────────────────────────────────────────────────────────────
 function Label({ text }) {
   return (
     <label className="block text-[11px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider">
@@ -588,7 +620,7 @@ function Label({ text }) {
   );
 }
 
-// ── Input field ──────────────────────────────────────────────────────────────
+// ── Input field ───────────────────────────────────────────────────────────────
 function Field({ label, value, onChange, type = "text", placeholder = "" }) {
   return (
     <div>
