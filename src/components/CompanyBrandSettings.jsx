@@ -1,4 +1,13 @@
-
+// src/components/CompanyBrandSettings.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// SuperAdmin panel: set company name + logo that appear in the Sidebar navbar
+// across ALL interfaces.
+//
+// Backend expected:
+//   GET  /admin/company/brand         → { name, logoUrl }
+//   PUT  /admin/company/brand         → body: FormData (name, logo file)
+//   DELETE /admin/company/brand/logo  → removes the logo
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react";
 import api from "../data/axiosConfig";
@@ -43,9 +52,10 @@ export default function CompanyBrandSettings() {
       const form = new FormData();
       form.append("name", nameInput.trim());
       if (file) form.append("logo", file);
-      const res = await api.put("/admin/company/brand", form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      // Do NOT set Content-Type manually — axios must auto-generate it with the
+      // correct multipart boundary. Setting it manually drops the boundary and
+      // the server cannot parse the uploaded file.
+      const res = await api.put("/admin/company/brand", form);
       // Stamp a timestamp so the header img cache-busts on every save
       const brandWithTs = { ...res.data, _ts: Date.now() };
       setBrand(brandWithTs);
