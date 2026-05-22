@@ -13,7 +13,4 @@ export default defineConfig({
     host: true,
     port: 4173,
   },
-  optimizeDeps: {
-    exclude: ['mongoose'],
-  },
 })
