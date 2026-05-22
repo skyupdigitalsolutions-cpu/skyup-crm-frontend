@@ -463,7 +463,7 @@ function TabNav({ active, onChange }) {
 function NewConversationModal({ onClose, onSuccess, authHeaders }) {
   const [phone,        setPhone]        = useState("");
   const [contactName,  setContactName]  = useState("");
-  const [templateName, setTemplateName] = useState("skyup_greeting");
+  const [templateName, setTemplateName] = useState("crm_followup_leads");
   const [languageCode, setLanguageCode] = useState("en"); // MSG91 template language — match exactly what's in MSG91 dashboard
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
@@ -567,7 +567,7 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
               type="text"
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="skyup_greeting"
+              placeholder="crm_followup_leads"
               className={FIELD_CLS}
             />
             <p className="text-[10px] text-[#8B92A9] mt-1">
@@ -627,7 +627,7 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
 // ── RE-ENGAGE MODAL (inline) — sends a template to re-open expired session ───
 // ─────────────────────────────────────────────────────────────────────────────
 function ReEngageModal({ conversationId, authHeaders, onSent }) {
-  const [templateName, setTemplateName] = useState("skyup_greeting");
+  const [templateName, setTemplateName] = useState("crm_followup_leads");
   const [languageCode, setLanguageCode] = useState("en");
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState("");
@@ -656,7 +656,7 @@ function ReEngageModal({ conversationId, authHeaders, onSent }) {
           value={templateName}
           onChange={(e) => setTemplateName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
-          placeholder="skyup_greeting"
+          placeholder="crm_followup_leads"
           className={FIELD_CLS + " flex-1 text-[12px]"}
           autoFocus
         />
@@ -711,8 +711,8 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
   const [csvParsed, setCsvParsed] = useState(null);
   const [csvError,  setCsvError]  = useState("");
 
-  // Template (shared) — skyup_greeting is the approved MSG91 template
-  const [templateName, setTemplateName] = useState("skyup_greeting");
+  // Template (shared) — crm_followup_leads is the approved MSG91 template
+  const [templateName, setTemplateName] = useState("crm_followup_leads");
   const [languageCode, setLanguageCode] = useState("en");
   const [loading, setLoading] = useState(false);
   const [result,  setResult]  = useState(null);
@@ -985,7 +985,7 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template name <span className="text-[#DC2626]">*</span></label>
-                <input type="text" value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="skyup_greeting" className={FIELD_CLS} />
+                <input type="text" value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="crm_followup_leads" className={FIELD_CLS} />
                 <p className="text-[10px] text-[#8B92A9] mt-1">Must match exactly — case-sensitive</p>
               </div>
               <div>
@@ -1054,7 +1054,7 @@ function WhatsAppPanel({ currentUser }) {
   const [leadsLoading,  setLeadsLoading]  = useState(false);
   const [leadsSearch,   setLeadsSearch]   = useState("");
   const [startModal,    setStartModal]    = useState(null);
-  const [tmplName,      setTmplName]      = useState("skyup_greeting");
+  const [tmplName,      setTmplName]      = useState("crm_followup_leads");
   const [tmplLang,      setTmplLang]      = useState("en");
   const [starting,      setStarting]      = useState(false);
   const [startErr,      setStartErr]      = useState("");
@@ -1346,7 +1346,7 @@ function WhatsAppPanel({ currentUser }) {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
                   </button>
                 ) : (
-                  <button onClick={() => { setStartModal(lead); setTmplName("skyup_greeting"); setTmplLang("en"); setStartErr(""); }}
+                  <button onClick={() => { setStartModal(lead); setTmplName("crm_followup_leads"); setTmplLang("en"); setStartErr(""); }}
                     title="Start WhatsApp chat" className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center text-white hover:bg-[#1da851] transition shrink-0">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.121 1.531 5.845L.057 23.286a.5.5 0 0 0 .64.64l5.431-1.47A11.952 11.952 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.849 0-3.576-.498-5.066-1.367l-.363-.214-3.765 1.018 1.022-3.734-.234-.376A9.967 9.967 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
                   </button>
@@ -1365,7 +1365,7 @@ function WhatsAppPanel({ currentUser }) {
             <h3 className="text-[15px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Start WhatsApp Chat</h3>
             <p className="text-[12px] text-[#8B92A9] mb-4">{startModal.name} · {startModal.mobile}</p>
             <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Template Name <span className="text-[#DC2626]">*</span></label>
-            <input value={tmplName} onChange={e=>setTmplName(e.target.value)} placeholder="skyup_greeting" className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#25D366] mb-1 transition" />
+            <input value={tmplName} onChange={e=>setTmplName(e.target.value)} placeholder="crm_followup_leads" className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#25D366] mb-1 transition" />
             <p className="text-[10px] text-[#8B92A9] mb-3">Must match exactly the approved template name in MSG91</p>
             <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Language</label>
             <select value={tmplLang} onChange={e=>setTmplLang(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#25D366] mb-3 transition">
@@ -3076,7 +3076,7 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
                       type="text"
                       value={wa.templateName || ""}
                       onChange={e => update("whatsapp", "templateName", e.target.value)}
-                      placeholder="skyup_greeting"
+                      placeholder="crm_followup_leads"
                       className={FIELD_CLS}
                     />
                   </div>
