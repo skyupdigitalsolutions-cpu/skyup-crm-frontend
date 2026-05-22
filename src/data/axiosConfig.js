@@ -41,6 +41,7 @@ api.interceptors.response.use(
     if (status === 401 && (isAuthEndpoint || isInvalidToken)) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+      localStorage.removeItem("company_brand");
       window.location.href = "/login";
     }
 
