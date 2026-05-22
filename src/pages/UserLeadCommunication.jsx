@@ -316,12 +316,14 @@ export default function UserLeadCommunication() {
   const [loadingLeads, setLoadingLeads] = useState(true);
 
   // ── Chat tab state ────────────────────────────────────────────────────────
-  const [selected,    setSelected]    = useState(null);
-  const [messages,    setMessages]    = useState([]);
-  const [loadingMsgs, setLoadingMsgs] = useState(false);
-  const [msgText,     setMsgText]     = useState("");
-  const [sending,     setSending]     = useState(false);
-  const [search,      setSearch]      = useState("");
+  const [selected,       setSelected]       = useState(null);  // selected Lead doc
+  const [conversationId, setConversationId] = useState(null);  // looked up by lead ID
+  const [messages,       setMessages]       = useState([]);
+  const [loadingMsgs,    setLoadingMsgs]    = useState(false);
+  const [loadingConv,    setLoadingConv]    = useState(false);
+  const [msgText,        setMsgText]        = useState("");
+  const [sending,        setSending]        = useState(false);
+  const [search,         setSearch]         = useState("");
 
   const socketRef = useRef(null);
   const bottomRef = useRef(null);
@@ -338,29 +340,45 @@ export default function UserLeadCommunication() {
       .finally(() => setLoadingLeads(false));
   }, []);
 
+  // ── Look up conversation when a lead is selected ─────────────────────────
+  useEffect(() => {
+    if (!selected?._id) { setConversationId(null); setMessages([]); return; }
+    setLoadingConv(true);
+    setConversationId(null);
+    setMessages([]);
+    axios
+      .get(`${API_URL}/whatsapp/conversation-by-lead/${selected._id}`, authHeaders)
+      .then((res) => setConversationId(res.data?.conversation?._id || null))
+      .catch(() => setConversationId(null))
+      .finally(() => setLoadingConv(false));
+  }, [selected?._id]);
+
   // ── Socket for real-time messages ─────────────────────────────────────────
   useEffect(() => {
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
     socket.emit("wa_agent_join", { agentId: user?._id });
     socket.on("new_wa_message", (msg) => {
-      if (selected && msg.conversationId === selected.conversationId) {
+      if (conversationId && msg.conversationId === conversationId) {
         setMessages((prev) => [...prev, msg]);
       }
     });
     return () => socket.disconnect();
-  }, [selected]);
+  }, [conversationId]);
 
-  // ── Load messages for selected lead ───────────────────────────────────────
+  // ── Load messages once conversationId is resolved ─────────────────────────
   useEffect(() => {
-    if (!selected?.conversationId) return;
+    if (!conversationId) return;
     setLoadingMsgs(true);
     axios
-      .get(`${API_URL}/whatsapp/conversations/${selected.conversationId}/messages`, authHeaders)
-      .then((res) => setMessages(res.data || []))
+      .get(`${API_URL}/whatsapp/conversations/${conversationId}/messages`, authHeaders)
+      .then((res) => {
+        const d = res.data;
+        setMessages(Array.isArray(d) ? d : d?.messages || []);
+      })
       .catch(() => setMessages([]))
       .finally(() => setLoadingMsgs(false));
-  }, [selected]);
+  }, [conversationId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -369,22 +387,24 @@ export default function UserLeadCommunication() {
   // ── Send message ───────────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
     const text = msgText.trim();
-    if (!text || !selected?.conversationId || sending) return;
+    if (!text || !conversationId || sending) return;
     setSending(true);
     try {
       const { data } = await axios.post(
         `${API_URL}/whatsapp/send`,
-        { conversationId: selected.conversationId, text },
+        { conversationId, text },
         authHeaders
       );
-      setMessages((prev) => [...prev, data]);
+      // API returns { success, message } — push the message object
+      setMessages((prev) => [...prev, data?.message || data]);
       setMsgText("");
     } catch (e) {
-      alert(e.response?.data?.message || "Failed to send message");
+      const err = e.response?.data?.error || e.response?.data?.message || "Failed to send message";
+      alert(err);
     } finally {
       setSending(false);
     }
-  }, [msgText, selected, sending]);
+  }, [msgText, conversationId, sending]);
 
   const filteredLeads = leads.filter(
     (l) =>
@@ -507,6 +527,25 @@ export default function UserLeadCommunication() {
           {/* Right panel: chat */}
           {!selected ? (
             <EmptyPane />
+          ) : loadingConv ? (
+            <div className="flex-1 flex items-center justify-center bg-[#F0F4FF] dark:bg-[#0B141A]">
+              <svg className="w-6 h-6 animate-spin text-[#25D366]" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            </div>
+          ) : !conversationId ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-[#F0F4FF] dark:bg-[#0B141A]">
+              <div className="w-16 h-16 rounded-full bg-[#25D366]/10 flex items-center justify-center">
+                <svg className="w-8 h-8 text-[#25D366]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
+              <h3 className="text-[14px] font-bold text-[#4B5168] dark:text-[#8B92A9]">No WhatsApp conversation yet</h3>
+              <p className="text-[11px] text-[#8B92A9] text-center max-w-xs px-4">
+                Use the <strong>WhatsApp Blast</strong> tab to send the first template message to <strong>{selected.name}</strong>, then return here to chat.
+              </p>
+            </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Chat header */}
@@ -569,7 +608,7 @@ export default function UserLeadCommunication() {
                 </div>
                 <button
                   onClick={handleSend}
-                  disabled={sending || !msgText.trim()}
+                  disabled={sending || !msgText.trim() || !conversationId}
                   className="w-11 h-11 rounded-full bg-[#25D366] hover:bg-[#20B858] disabled:opacity-40 flex items-center justify-center transition shadow-md shrink-0"
                 >
                   {sending ? (
