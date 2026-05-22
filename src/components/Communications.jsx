@@ -80,6 +80,7 @@ function IntegrationsModal({ onClose }) {
   const [msg91Err, setMsg91Err]       = useState("");
   const [msg91Ok, setMsg91Ok]         = useState("");
   const [msg91Disc, setMsg91Disc]     = useState(false);
+  const [msg91NS,   setMsg91NS]       = useState("");
 
   // ── Brevo state ────────────────────────────────────────────────────────────
   const [brevo, setBrevo]                   = useState(null);
