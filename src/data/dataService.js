@@ -124,7 +124,12 @@ async function fetchSuperAdminData() {
   return {
     leads,
     agents,
-    stats: dashboardRes.data,
+    stats: {
+      ...dashboardRes.data,
+      // /superadmin/dashboard returns { users, leads, admins, totalCompanies }
+      // Normalize to totalCompanies so Dashboard header shows correct count
+      totalCompanies: dashboardRes.data?.totalCompanies ?? 0,
+    },
     total: leadsRes.data.total || leads.length,
     page:  leadsRes.data.page  || 1,
     pages: leadsRes.data.pages || 1,
