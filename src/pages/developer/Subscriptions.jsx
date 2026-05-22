@@ -1,9 +1,4 @@
-// frontend/src/pages/developer/Subscriptions.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// Developer Subscription Management Page
-// Shows all company subscriptions and allows the developer to activate,
-// cancel, or extend trials per company.
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../data/axiosConfig';
@@ -187,7 +182,21 @@ function ExtendTrialModal({ company, onClose, onSuccess }) {
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+// ── Calendar-accurate days remaining ─────────────────────────────────────────
+// Uses UTC midnight comparison so "June 3 → July 3" = exactly 30 days,
+// regardless of DST or the millisecond rounding used by the backend.
+function calcDaysRemaining(expiryDateStr) {
+  if (!expiryDateStr) return null;
+  const now   = new Date();
+  const expiry = new Date(expiryDateStr);
+  // Normalise both to UTC midnight to get whole-day difference
+  const nowMidnight    = Date.UTC(now.getUTCFullYear(),    now.getUTCMonth(),    now.getUTCDate());
+  const expiryMidnight = Date.UTC(expiry.getUTCFullYear(), expiry.getUTCMonth(), expiry.getUTCDate());
+  const diff = Math.round((expiryMidnight - nowMidnight) / 86_400_000);
+  return diff > 0 ? diff : 0;
+}
+
+
 export default function Subscriptions() {
   const [companies, setCompanies] = useState([]);
   const [loading,   setLoading]   = useState(true);
@@ -204,7 +213,13 @@ export default function Subscriptions() {
     setLoading(true); setError('');
     try {
       const res = await api.get('/subscription/all');
-      setCompanies(res.data?.companies || []);
+      const raw = res.data?.companies || [];
+      // Recompute daysRemaining on the frontend so "Jun 3 → Jul 3" = 30 days
+      const companies = raw.map(c => ({
+        ...c,
+        daysRemaining: calcDaysRemaining(c.subscriptionExpiry || c.trialEndsAt),
+      }));
+      setCompanies(companies);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load subscriptions.');
     } finally {
