@@ -464,7 +464,7 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
   const [phone,        setPhone]        = useState("");
   const [contactName,  setContactName]  = useState("");
   const [templateName, setTemplateName] = useState("skyup_greeting");
-  const [languageCode, setLanguageCode] = useState("en_US"); // skyup_greeting is the approved template
+  const [languageCode, setLanguageCode] = useState("en"); // MSG91 template language — match exactly what's in MSG91 dashboard
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
 
@@ -479,7 +479,7 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
           phone:        phone.trim().replace(/\D/g, ""),
           contactName:  contactName.trim(),
           templateName: templateName.trim(),
-          languageCode: languageCode.trim() || "en_US",
+          languageCode: languageCode.trim() || "en",
         },
         authHeaders
       );
@@ -579,9 +579,9 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
           <div>
             <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Language</label>
             <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} className={FIELD_CLS}>
-              <option value="en_US">English (en_US) — recommended</option>
+              <option value="en">English (en) — MSG91 default</option>
+              <option value="en_US">English (en_US)</option>
               <option value="en_GB">English GB (en_GB)</option>
-              <option value="en">English (en) — legacy</option>
               <option value="hi">Hindi (hi)</option>
               <option value="mr">Marathi (mr)</option>
               <option value="gu">Gujarati (gu)</option>
@@ -628,7 +628,7 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function ReEngageModal({ conversationId, authHeaders, onSent }) {
   const [templateName, setTemplateName] = useState("skyup_greeting");
-  const [languageCode, setLanguageCode] = useState("en_US");
+  const [languageCode, setLanguageCode] = useState("en");
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState("");
 
@@ -661,6 +661,7 @@ function ReEngageModal({ conversationId, authHeaders, onSent }) {
           autoFocus
         />
         <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} className={FIELD_CLS + " w-[130px] text-[12px]"}>
+          <option value="en">en</option>
           <option value="en_US">en_US</option>
           <option value="en_GB">en_GB</option>
           <option value="hi">hi</option>
@@ -712,9 +713,7 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
 
   // Template (shared) — skyup_greeting is the approved MSG91 template
   const [templateName, setTemplateName] = useState("skyup_greeting");
-  const [languageCode, setLanguageCode] = useState("en_US");
-
-  // UI state
+  const [languageCode, setLanguageCode] = useState("en");
   const [loading, setLoading] = useState(false);
   const [result,  setResult]  = useState(null);
   const [error,   setError]   = useState("");
@@ -992,9 +991,9 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template language</label>
                 <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} className={FIELD_CLS}>
-                  <option value="en_US">English (en_US) — recommended</option>
+                  <option value="en">English (en) — MSG91 default</option>
+                  <option value="en_US">English (en_US)</option>
                   <option value="en_GB">English GB (en_GB)</option>
-                  <option value="en">English (en) — legacy</option>
                   <option value="hi">Hindi (hi)</option>
                   <option value="mr">Marathi (mr)</option>
                   <option value="gu">Gujarati (gu)</option>
@@ -1056,7 +1055,7 @@ function WhatsAppPanel({ currentUser }) {
   const [leadsSearch,   setLeadsSearch]   = useState("");
   const [startModal,    setStartModal]    = useState(null);
   const [tmplName,      setTmplName]      = useState("skyup_greeting");
-  const [tmplLang,      setTmplLang]      = useState("en_US");
+  const [tmplLang,      setTmplLang]      = useState("en");
   const [starting,      setStarting]      = useState(false);
   const [startErr,      setStartErr]      = useState("");
 
@@ -1347,7 +1346,7 @@ function WhatsAppPanel({ currentUser }) {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
                   </button>
                 ) : (
-                  <button onClick={() => { setStartModal(lead); setTmplName("skyup_greeting"); setTmplLang("en_US"); setStartErr(""); }}
+                  <button onClick={() => { setStartModal(lead); setTmplName("skyup_greeting"); setTmplLang("en"); setStartErr(""); }}
                     title="Start WhatsApp chat" className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center text-white hover:bg-[#1da851] transition shrink-0">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.121 1.531 5.845L.057 23.286a.5.5 0 0 0 .64.64l5.431-1.47A11.952 11.952 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.849 0-3.576-.498-5.066-1.367l-.363-.214-3.765 1.018 1.022-3.734-.234-.376A9.967 9.967 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
                   </button>
@@ -1370,8 +1369,8 @@ function WhatsAppPanel({ currentUser }) {
             <p className="text-[10px] text-[#8B92A9] mb-3">Must match exactly the approved template name in MSG91</p>
             <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Language</label>
             <select value={tmplLang} onChange={e=>setTmplLang(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#25D366] mb-3 transition">
-              <option value="en_US">English (en_US) — recommended</option>
-              <option value="en">English (en)</option>
+              <option value="en">English (en) — MSG91 default</option>
+              <option value="en_US">English (en_US)</option>
             </select>
             {startErr && <p className="text-[11px] text-[#DC2626] mb-3">{startErr}</p>}
             <div className="flex gap-2 mt-2">
@@ -1380,7 +1379,7 @@ function WhatsAppPanel({ currentUser }) {
                 setStarting(true); setStartErr("");
                 try {
                   const phone = (startModal.mobile||"").replace(/\D/g,"");
-                  const {data} = await axios.post(`${API_URL}/whatsapp/start-conversation`,{phone,contactName:startModal.name,templateName:tmplName.trim(),languageCode:tmplLang||"en_US"},authHeaders);
+                  const {data} = await axios.post(`${API_URL}/whatsapp/start-conversation`,{phone,contactName:startModal.name,templateName:tmplName.trim(),languageCode:tmplLang||"en"},authHeaders);
                   const conv = data.conversation;
                   setConversations(prev=>[conv,...prev.filter(c=>c._id!==conv._id)]);
                   setLeads(prev=>prev.map(l=>l._id===startModal._id?{...l,existingConversationId:conv._id}:l));
@@ -3083,10 +3082,10 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Language</label>
-                    <select value={wa.languageCode || "en_US"} onChange={e => update("whatsapp", "languageCode", e.target.value)} className={FIELD_CLS}>
+                    <select value={wa.languageCode || "en"} onChange={e => update("whatsapp", "languageCode", e.target.value)} className={FIELD_CLS}>
+                      <option value="en">English (en) — MSG91 default</option>
                       <option value="en_US">English (en_US)</option>
                       <option value="en_GB">English GB (en_GB)</option>
-                      <option value="en">English (en)</option>
                       <option value="hi">Hindi (hi)</option>
                       <option value="mr">Marathi (mr)</option>
                       <option value="gu">Gujarati (gu)</option>
