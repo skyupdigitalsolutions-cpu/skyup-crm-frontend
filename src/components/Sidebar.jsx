@@ -259,6 +259,7 @@ export function Sidebar() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("company_brand");
     navigate("/login", { replace: true });
   };
 
