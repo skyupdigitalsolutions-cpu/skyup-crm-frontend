@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import ThemeToggle from "./ThemeToggle";
 import api from "../data/axiosConfig";
 
 // ── Nav items for ADMIN ───────────────────────────────────────────────────────
@@ -483,15 +482,6 @@ const companyLogo = "/skyup_logo1.svg";
 
         {/* Footer */}
         <div className="px-3 py-4 border-t border-gray-100 dark:border-white/5 flex flex-col gap-1">
-          <div className={`flex items-center px-3 py-2 ${minimized ? "justify-center" : "justify-between"}`}>
-            {!minimized && (
-              <span className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-                Theme
-              </span>
-            )}
-            <ThemeToggle />
-          </div>
-
           <button
             onClick={() => setShowLogoutModal(true)}
             className={`logout-btn flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium w-full
