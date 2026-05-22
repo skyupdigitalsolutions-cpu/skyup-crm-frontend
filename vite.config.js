@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  appType: 'spa',   // ← tells Vite's preview server to serve index.html for all 404s
+  appType: 'spa',
   server: {
     host: true,
     port: 5173,
@@ -13,10 +13,7 @@ export default defineConfig({
     host: true,
     port: 4173,
   },
-  build: {
-    rollupOptions: {
-    
-      external: ['mongoose'],
-    },
+  optimizeDeps: {
+    exclude: ['mongoose'],
   },
 })
