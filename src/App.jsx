@@ -225,8 +225,13 @@ function CompanyHeader() {
   // ── Header bar shows per-company branding (headerName / headerLogoUrl).
   //    Sidebar always shows SKYUP — the header is the only place that differs per company.
   //    Falls back to SKYUP if no header branding has been configured yet.
-  const headerName = brand?.headerName || brand?.name || "SKYUP";
-  const headerLogo = brand?.headerLogoUrl || "/skyup_logo1.svg";
+  const headerName = brand?.name || brand?.headerName || "SKYUP";
+  // Add cache-busting timestamp so the browser always fetches the latest logo
+  // after an update (avoids stale cached image when filename stays the same).
+  const rawLogo = brand?.logoUrl || brand?.headerLogoUrl;
+  const headerLogo = rawLogo
+    ? `${rawLogo}${rawLogo.includes("?") ? "&" : "?"}v=${brand._ts || ""}`
+    : "/skyup_logo1.svg";
 
   const roleLabel =
     role === "super_admin" || role === "superadmin" ? "Super Admin" :
