@@ -25,20 +25,16 @@ export default function Companies() {
   const emptyForm = {
     companyName: "", email: "", phone: "", plan: "basic",
     saName: "", saPassword: "",
-    logoFile: null, logoPreview: null,
     headerName: "", headerLogoFile: null, headerLogoPreview: null,
   };
   const [form, setForm] = useState(emptyForm);
 
   const emptyEditForm = {
     companyName: "", email: "", phone: "", plan: "basic",
-    logoFile: null, logoPreview: null,
     headerName: "", headerLogoFile: null, headerLogoPreview: null,
   };
   const [editForm, setEditForm] = useState(emptyEditForm);
 
-  const fileRef           = useRef();
-  const editFileRef       = useRef();
   const headerFileRef     = useRef();
   const editHeaderFileRef = useRef();
 
@@ -59,8 +55,6 @@ export default function Companies() {
       email:              company.email         || "",
       phone:              company.phone         || "",
       plan:               company.plan          || "basic",
-      logoFile:           null,
-      logoPreview:        company.logo          || null,
       headerName:         company.headerName    || "",
       headerLogoFile:     null,
       headerLogoPreview:  company.headerLogoUrl || null,
@@ -69,24 +63,6 @@ export default function Companies() {
     setShowEdit(true);
   };
   const closeEdit = () => { setShowEdit(false); setEditTarget(null); setError(""); };
-
-  // ── Logo handlers ────────────────────────────────────────────────────────────
-  const handleLogo = (e) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setForm(p => ({ ...p, logoFile: file, logoPreview: URL.createObjectURL(file) }));
-  };
-  const handleEditLogo = (e) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setEditForm(p => ({ ...p, logoFile: file, logoPreview: URL.createObjectURL(file) }));
-  };
-  const removeLogo = () => {
-    setForm(p => ({ ...p, logoFile: null, logoPreview: null }));
-    if (fileRef.current) fileRef.current.value = "";
-  };
-  const removeEditLogo = () => {
-    setEditForm(p => ({ ...p, logoFile: null, logoPreview: null }));
-    if (editFileRef.current) editFileRef.current.value = "";
-  };
 
   // ── Header logo handlers ─────────────────────────────────────────────────────
   const handleHeaderLogo = (e) => {
@@ -113,7 +89,6 @@ export default function Companies() {
   const buildFormData = (src, extraFields = {}) => {
     const fd = new FormData();
     Object.entries(extraFields).forEach(([k, v]) => { if (v !== undefined) fd.append(k, v); });
-    if (src.logoFile)       fd.append("logo",        src.logoFile);
     if (src.headerLogoFile) fd.append("headerLogo",  src.headerLogoFile);
     if (src.headerName !== undefined) fd.append("headerName", src.headerName);
     return fd;
@@ -330,10 +305,7 @@ export default function Companies() {
           form={form}
           setForm={setForm}
           f={f}
-          fileRef={fileRef}
           headerFileRef={headerFileRef}
-          handleLogo={handleLogo}
-          removeLogo={removeLogo}
           handleHeaderLogo={handleHeaderLogo}
           removeHeaderLogo={removeHeaderLogo}
           error={error}
@@ -353,10 +325,7 @@ export default function Companies() {
           form={editForm}
           setForm={setEditForm}
           f={ef}
-          fileRef={editFileRef}
           headerFileRef={editHeaderFileRef}
-          handleLogo={handleEditLogo}
-          removeLogo={removeEditLogo}
           handleHeaderLogo={handleEditHeaderLogo}
           removeHeaderLogo={removeEditHeaderLogo}
           error={error}
@@ -374,8 +343,7 @@ export default function Companies() {
 // ── Reusable Company Modal ────────────────────────────────────────────────────
 function CompanyModal({
   title, subtitle, form, setForm, f,
-  fileRef, headerFileRef,
-  handleLogo, removeLogo,
+  headerFileRef,
   handleHeaderLogo, removeHeaderLogo,
   error, submitting, onClose, onSubmit, submitLabel, showSuperAdmin,
 }) {
@@ -413,16 +381,6 @@ function CompanyModal({
             <SectionHeading icon={<Building2 className="w-3.5 h-3.5" />} label="Company Info" />
 
             <div className="mt-4 space-y-4">
-
-              {/* Sidebar Logo Upload */}
-              <LogoUploadField
-                label="Company / Sidebar Logo"
-                hint="Shown in the sidebar nav"
-                preview={form.logoPreview}
-                fileRef={fileRef}
-                onFile={handleLogo}
-                onRemove={removeLogo}
-              />
 
               {/* Company Name */}
               <Field label="Company Name *" value={form.companyName} onChange={f("companyName")} placeholder="Acme Corp" />
