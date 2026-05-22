@@ -203,7 +203,11 @@ function CompanyHeader() {
   React.useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token || role === "developer") return;
-    api.get("/admin/company/brand")
+    // Employees (role="user") cannot access /admin/company/brand (admin-only route).
+    // Use the /public variant which is accessible via the shared protectAny middleware.
+    const brandEndpoint =
+      role === "user" ? "/admin/company/brand/public" : "/admin/company/brand";
+    api.get(brandEndpoint)
       .then((res) => {
         if (res.data) {
           // Always use a fresh _ts on mount so a page reload always fetches the latest logo
