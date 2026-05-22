@@ -13,4 +13,10 @@ export default defineConfig({
     host: true,
     port: 4173,
   },
+  build: {
+    rollupOptions: {
+    
+      external: ['mongoose'],
+    },
+  },
 })
