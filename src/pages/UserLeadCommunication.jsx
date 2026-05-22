@@ -51,9 +51,9 @@ function Bubble({ msg, isOwn }) {
             : "bg-white dark:bg-[#202C33] text-[#111B21] dark:text-[#E9EDEF] rounded-bl-none border border-[#E4E7EF] dark:border-transparent"
         }`}
       >
-        <p className="break-words leading-relaxed">{msg.text || msg.message}</p>
+        <p className="break-words leading-relaxed">{msg.body || msg.text || msg.message}</p>
         <p className="text-[10px] opacity-50 text-right mt-0.5">
-          {fmtTime(msg.createdAt || msg.timestamp)}
+          {fmtTime(msg.waTimestamp || msg.createdAt || msg.timestamp)}
         </p>
       </div>
     </div>
@@ -357,10 +357,18 @@ export default function UserLeadCommunication() {
   useEffect(() => {
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
+    // Join the correct agent room so the backend can target this employee
     socket.emit("wa_agent_join", { agentId: user?._id });
-    socket.on("new_wa_message", (msg) => {
-      if (conversationId && msg.conversationId === conversationId) {
-        setMessages((prev) => [...prev, msg]);
+    // FIX: backend emits "wa_message", not "new_wa_message"
+    socket.on("wa_message", (payload) => {
+      if (conversationId && payload.conversationId === conversationId) {
+        // payload.message is the message object from the backend
+        const msg = payload.message || payload;
+        setMessages((prev) => {
+          // Avoid duplicates (backend may also persist; we'll get it from DB load)
+          if (prev.some((m) => m._id && m._id === msg._id)) return prev;
+          return [...prev, msg];
+        });
       }
     });
     return () => socket.disconnect();
