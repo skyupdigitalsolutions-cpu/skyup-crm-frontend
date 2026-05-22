@@ -98,6 +98,7 @@ function IntegrationsModal({ onClose }) {
       setMsg91(r.data || {});
       setMsg91Key(r.data?.authKey ? "••••••••••••••••" : "");
       setMsg91Num(r.data?.integratedNumber || "");
+      setMsg91NS(r.data?.namespace || "");
     }).catch(() => setMsg91({}));
 
     api.get("/admin/company/brevo-config").then(r => {
@@ -114,7 +115,7 @@ function IntegrationsModal({ onClose }) {
     if (!msg91Num.trim()) { setMsg91Err("Enter your MSG91 integrated WhatsApp number"); return; }
     setMsg91Saving(true); setMsg91Err(""); setMsg91Ok("");
     try {
-      const r = await api.put("/admin/company/msg91-config", { authKey: msg91Key.trim(), integratedNumber: msg91Num.trim() });
+      const r = await api.put("/admin/company/msg91-config", { authKey: msg91Key.trim(), integratedNumber: msg91Num.trim(), namespace: msg91NS.trim() });
       setMsg91(r.data); setMsg91Key("••••••••••••••••");
       setMsg91Ok("✓ MSG91 connected! WhatsApp and SMS are now active.");
       setTimeout(() => setMsg91Ok(""), 4000);
@@ -289,6 +290,17 @@ function IntegrationsModal({ onClose }) {
                   placeholder="e.g. 919876543210 (country code, no +)"
                   className={FIELD + " font-mono"}/>
                 <p className="text-[10px] text-[#8B92A9] mt-1">msg91.com → WhatsApp → Integrated Numbers</p>
+              </div>
+
+              {/* Namespace */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  WhatsApp Namespace <span className="text-[10px] font-normal text-[#8B92A9]">(required for templates)</span>
+                </label>
+                <input type="text" value={msg91NS} onChange={e => setMsg91NS(e.target.value)}
+                  placeholder="e.g. 68bcef67_e185_4e55_94df_52c26cb0bc37"
+                  className={FIELD + " font-mono"}/>
+                <p className="text-[10px] text-[#8B92A9] mt-1">MSG91 → Templates → click any template → Code JSON → copy "namespace" value</p>
               </div>
 
               {/* Note about both services */}
