@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes, Navigate, useNavigate, useLocation } from
 import { useEffect, lazy, Suspense } from "react";
 import React from "react";
 import { Sidebar } from "./components/Sidebar";
+import ThemeToggle from "./components/ThemeToggle";
 import api from "./data/axiosConfig";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
@@ -248,9 +249,12 @@ function CompanyHeader() {
           {companyName}
         </span>
       </div>
-      <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${roleColor}`}>
-        {roleLabel}
-      </span>
+      <div className="flex items-center gap-2.5">
+        <ThemeToggle />
+        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${roleColor}`}>
+          {roleLabel}
+        </span>
+      </div>
     </div>
   );
 }
