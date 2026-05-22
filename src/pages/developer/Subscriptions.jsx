@@ -235,7 +235,7 @@ export default function Subscriptions() {
     total:     companies.length,
     active:    companies.filter(c => c.subscriptionStatus === 'active').length,
     trial:     companies.filter(c => c.subscriptionStatus === 'trial').length,
-    expiring:  companies.filter(c => c.daysRemaining > 0 && c.daysRemaining <= 7).length,
+expiring: companies.filter(c => c.daysRemaining >= 0 && c.daysRemaining <= 30 && ['active','trial'].includes(c.subscriptionStatus)).length,
   };
 
   const filtered = companies.filter(c => {
@@ -376,9 +376,19 @@ export default function Subscriptions() {
                     </td>
                     <td className="px-5 py-4"><StatusBadge status={c.subscriptionStatus} /></td>
                     <td className="px-5 py-4">
-                      <span className={`font-bold text-[13px] ${c.daysRemaining <= 7 ? 'text-[#DC2626]' : c.daysRemaining <= 30 ? 'text-[#D97706]' : 'text-[#059669]'}`}>
-                        {c.daysRemaining > 0 ? `${c.daysRemaining}d` : '—'}
-                      </span>
+                      {c.subscriptionStatus === 'cancelled' ? (
+                        <span className="text-[13px] text-[#8B92A9]">—</span>
+                      ) : c.daysRemaining === 0 ? (
+                        <span className="font-bold text-[13px] text-[#DC2626]">Expired</span>
+                      ) : (
+                        <span className={`font-bold text-[13px] ${
+                          c.daysRemaining <= 7  ? 'text-[#DC2626]' :
+                          c.daysRemaining <= 30 ? 'text-[#D97706]' :
+                                                  'text-[#059669]'
+                        }`}>
+                          {c.daysRemaining}d
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-[#4B5168] dark:text-[#9DA3BB]">
                       {expiryDate ? new Date(expiryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
