@@ -327,6 +327,9 @@ export default function UserLeadCommunication() {
 
   const socketRef = useRef(null);
   const bottomRef = useRef(null);
+  // Ref always holds latest conversationId so socket listener never has stale closure
+  const conversationIdRef = useRef(null);
+  useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
 
   // ── Fetch assigned leads ───────────────────────────────────────────────────
   useEffect(() => {
@@ -353,26 +356,25 @@ export default function UserLeadCommunication() {
       .finally(() => setLoadingConv(false));
   }, [selected?._id]);
 
-  // ── Socket for real-time messages ─────────────────────────────────────────
+  // ── Socket — created ONCE, stays alive for the whole page session ────────
   useEffect(() => {
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
-    // Join the correct agent room so the backend can target this employee
     socket.emit("wa_agent_join", { agentId: user?._id });
-    // FIX: backend emits "wa_message", not "new_wa_message"
+    // Use conversationIdRef so listener always checks latest value without reconnecting
     socket.on("wa_message", (payload) => {
-      if (conversationId && payload.conversationId === conversationId) {
-        // payload.message is the message object from the backend
+      const currentConvId = conversationIdRef.current;
+      if (currentConvId && payload.conversationId === currentConvId) {
         const msg = payload.message || payload;
         setMessages((prev) => {
-          // Avoid duplicates (backend may also persist; we'll get it from DB load)
           if (prev.some((m) => m._id && m._id === msg._id)) return prev;
           return [...prev, msg];
         });
       }
     });
     return () => socket.disconnect();
-  }, [conversationId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // empty deps — socket lives for the lifetime of this page
 
   // ── Load messages once conversationId is resolved ─────────────────────────
   useEffect(() => {
