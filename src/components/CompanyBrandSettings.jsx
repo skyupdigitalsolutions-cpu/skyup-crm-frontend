@@ -1,13 +1,4 @@
-// src/components/CompanyBrandSettings.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// SuperAdmin panel: set company name + logo that appear in the Sidebar navbar
-// across ALL interfaces.
-//
-// Backend expected:
-//   GET  /admin/company/brand         → { name, logoUrl }
-//   PUT  /admin/company/brand         → body: FormData (name, logo file)
-//   DELETE /admin/company/brand/logo  → removes the logo
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 import { useState, useEffect, useRef } from "react";
 import api from "../data/axiosConfig";
@@ -55,9 +46,11 @@ export default function CompanyBrandSettings() {
       const res = await api.put("/admin/company/brand", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setBrand(res.data);
-      localStorage.setItem("company_brand", JSON.stringify(res.data));
-      // Notify Sidebar to re-render
+      // Stamp a timestamp so the header img cache-busts on every save
+      const brandWithTs = { ...res.data, _ts: Date.now() };
+      setBrand(brandWithTs);
+      localStorage.setItem("company_brand", JSON.stringify(brandWithTs));
+      // Notify header bar to re-render with new logo
       window.dispatchEvent(new Event("company_brand_updated"));
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -72,10 +65,12 @@ export default function CompanyBrandSettings() {
     if (!window.confirm("Remove the company logo?")) return;
     try {
       await api.delete("/admin/company/brand/logo");
-      setBrand((b) => ({ ...b, logoUrl: "" }));
+      const updatedBrand = { ...brand, logoUrl: "", _ts: Date.now() };
+      setBrand(updatedBrand);
       setPreview(null);
       setFile(null);
-      localStorage.setItem("company_brand", JSON.stringify({ ...brand, logoUrl: "" }));
+      localStorage.setItem("company_brand", JSON.stringify(updatedBrand));
+      window.dispatchEvent(new Event("company_brand_updated"));
     } catch {
       setError("Failed to remove logo");
     }
