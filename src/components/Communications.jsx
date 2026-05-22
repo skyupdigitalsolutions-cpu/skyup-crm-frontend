@@ -446,12 +446,12 @@ function TabNav({ active, onChange }) {
   ];
 
   return (
-    <div className="flex gap-1 p-1 bg-[#F1F5F9] dark:bg-[#13161E] rounded-2xl">
+    <div className="flex gap-1 p-1 bg-[#F1F5F9] dark:bg-[#13161E] rounded-2xl overflow-x-auto" style={{scrollbarWidth:"none"}}>
       {tabs.map((t) => (
         <button
           key={t.key}
           onClick={() => onChange(t.key)}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all ${
+          className={`flex items-center gap-1.5 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[12px] sm:text-[13px] font-semibold transition-all whitespace-nowrap shrink-0 ${
             active === t.key
               ? `${t.activeBg} ${t.activeColor.split(" ")[0]} shadow-sm`
               : "text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#9DA3BB]"
@@ -870,7 +870,7 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
 
         {/* Mode selector */}
         <div className="px-6 pt-4 shrink-0">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
             {[{ key: "campaign", label: "Campaign leads" }, { key: "single", label: "Single lead" }, { key: "csv", label: "CSV import" }].map((m) => (
               <button key={m.key} onClick={() => { setMode(m.key); setError(""); }}
                 className={`py-2 rounded-xl border text-[12px] font-semibold transition ${mode === m.key ? "border-[#25D366] bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366]" : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#25D366]/50"}`}>
@@ -909,7 +909,7 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
 
           {/* Single mode */}
           {mode === "single" && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Contact name <span className="text-[#8B92A9] font-normal">(optional)</span></label>
                 <input type="text" value={singleName} onChange={(e) => setSingleName(e.target.value)} placeholder="Rahul Sharma" className={FIELD_CLS} />
@@ -946,7 +946,7 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
   <p className="text-[11px] font-bold text-[#4B5168] dark:text-[#9DA3BB] uppercase tracking-widest">
     Target Audience
   </p>
-  <div className="grid grid-cols-2 gap-3">
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
     <div>
       <label className="text-[11px] font-semibold text-[#8B92A9] mb-1 block">Lead Status</label>
       <select value={blastFilter.status}
@@ -995,7 +995,7 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
                 WhatsApp requires a <strong>pre-approved template</strong> to send bulk messages. The template name must exactly match what is approved in your MSG91 / Meta dashboard.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template name <span className="text-[#DC2626]">*</span></label>
                 <input type="text" value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="crm_followup_leads" className={FIELD_CLS} />
@@ -1250,7 +1250,7 @@ function WhatsAppPanel({ currentUser }) {
   return (
     <div className="flex h-full overflow-hidden rounded-2xl border border-[#E4E7EF] dark:border-[#262A38]">
       {/* Sidebar — full width on mobile when no convo selected, hidden when convo open */}
-      <div className={`w-full md:w-[300px] shrink-0 flex flex-col border-r border-[#E4E7EF] dark:border-[#262A38] bg-[#FAFBFE] dark:bg-[#13161E] ${selected ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`w-full sm:w-[300px] shrink-0 flex flex-col border-r border-[#E4E7EF] dark:border-[#262A38] bg-[#FAFBFE] dark:bg-[#13161E] ${selected ? 'hidden sm:flex' : 'flex'}`}>
         <div className="p-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           <div className="relative mb-2">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
@@ -1409,7 +1409,7 @@ function WhatsAppPanel({ currentUser }) {
 
       {/* Chat window */}
       {!selected ? (
-        <div className="hidden md:flex flex-1 flex-col items-center justify-center text-[#8B92A9] bg-white dark:bg-[#1A1D27]">
+        <div className="hidden sm:flex flex-1 flex-col items-center justify-center text-[#8B92A9] bg-white dark:bg-[#1A1D27]">
           <div className="w-14 h-14 rounded-full bg-[#f0fdf4] dark:bg-[#052e1c] flex items-center justify-center mb-4">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="#25D366">
               <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
@@ -1426,7 +1426,7 @@ function WhatsAppPanel({ currentUser }) {
             {/* Mobile back button */}
             <button
               onClick={() => setSelected(null)}
-              className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-[#262A38] text-[#8B92A9] shrink-0 transition"
+              className="sm:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-[#262A38] text-[#8B92A9] shrink-0 transition"
               title="Back to conversations"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1615,7 +1615,7 @@ function LogDetailModal({ logId, onClose }) {
             <p className="text-center text-[#8B92A9] py-8">Could not load log details.</p>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { label: "To", value: log.to },
                   { label: "Campaign", value: log.campaignId || "—" },
@@ -1781,7 +1781,7 @@ function EmailBlastModal({ onClose }) {
 
         {/* Mode selector */}
         <div className="px-6 pt-4 shrink-0">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
             {[
               { key: "campaign", label: "Campaign leads" },
               { key: "single", label: "Single lead" },
@@ -1818,7 +1818,7 @@ function EmailBlastModal({ onClose }) {
 
           {/* Single mode */}
           {mode === "single" && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Full name *</label>
                 <input type="text" value={singleLead.name} onChange={(e) => setSingleLead((p) => ({ ...p, name: e.target.value }))} placeholder="Rahul Sharma" className={FIELD_CLS} />
@@ -1847,7 +1847,7 @@ function EmailBlastModal({ onClose }) {
           )}
 
           {/* Email details */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Subject *</label>
               <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Special offer for {{name}}!" className={FIELD_CLS} />
@@ -1973,13 +1973,13 @@ function EmailPanel() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2 sm:gap-3 mb-4 shrink-0">
         <div>
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">
             {loading ? "Loading…" : `${pagination.total.toLocaleString()} total emails logged`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => fetchLogs(pagination.page)} className="w-9 h-9 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] transition" title="Refresh">
             <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
           </button>
@@ -1995,7 +1995,7 @@ function EmailPanel() {
       </div>
 
       {/* Summary chips */}
-      <div className="flex flex-wrap gap-2 mb-4 shrink-0">
+      <div className="flex flex-wrap gap-2 mb-3 shrink-0">
         {[
           { label: "This page", value: logs.length, color: "#2563EB" },
           { label: "Sent", value: sentCount, color: "#059669" },
@@ -2012,34 +2012,36 @@ function EmailPanel() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-4 shrink-0">
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
+        <div className="relative w-full sm:flex-1 sm:min-w-[180px] sm:max-w-xs">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
           <input type="text" value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Search by recipient…" className="pl-8 pr-4 py-2 w-full rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition" />
           {search && <button onClick={() => handleSearchChange("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9]"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>}
         </div>
-        <select value={campaignFilter} onChange={(e) => { setCampaignFilter(e.target.value); fetchLogs(1, search, e.target.value, sortOrder); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition">
-          <option value="">All Source</option>
-          {campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => { setDateFrom(e.target.value); fetchLogs(1, search, campaignFilter, sortOrder, e.target.value, dateTo); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition w-[140px]" title="From date" />
-        <span className="text-[12px] text-[#8B92A9]">to</span>
-        <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => { setDateTo(e.target.value); fetchLogs(1, search, campaignFilter, sortOrder, dateFrom, e.target.value); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition w-[140px]" title="To date" />
-        {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); fetchLogs(1, search, campaignFilter, sortOrder, "", ""); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] text-[#8B92A9] hover:text-[#DC2626] hover:border-[#DC2626] transition">✕ Clear</button>}
-        <select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); fetchLogs(1, search, campaignFilter, e.target.value, dateFrom, dateTo); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition">
-          <option value="desc">Newest first</option>
-          <option value="asc">Oldest first</option>
-        </select>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <select value={campaignFilter} onChange={(e) => { setCampaignFilter(e.target.value); fetchLogs(1, search, e.target.value, sortOrder); }} className="flex-1 sm:flex-none px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition">
+            <option value="">All Source</option>
+            {campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => { setDateFrom(e.target.value); fetchLogs(1, search, campaignFilter, sortOrder, e.target.value, dateTo); }} className="flex-1 sm:flex-none px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition sm:w-[140px]" title="From date" />
+          <span className="text-[12px] text-[#8B92A9] hidden sm:inline">to</span>
+          <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => { setDateTo(e.target.value); fetchLogs(1, search, campaignFilter, sortOrder, dateFrom, e.target.value); }} className="flex-1 sm:flex-none px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition sm:w-[140px]" title="To date" />
+          {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); fetchLogs(1, search, campaignFilter, sortOrder, "", ""); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] text-[#8B92A9] hover:text-[#DC2626] hover:border-[#DC2626] transition">✕ Clear</button>}
+          <select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); fetchLogs(1, search, campaignFilter, e.target.value, dateFrom, dateTo); }} className="flex-1 sm:flex-none px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition">
+            <option value="desc">Newest first</option>
+            <option value="asc">Oldest first</option>
+          </select>
+        </div>
       </div>
 
       {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] mb-3 shrink-0">⚠ {error}</div>}
 
       {/* Table */}
       <div className="flex-1 overflow-auto bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl">
-        <table className="w-full">
+        <table className="w-full min-w-[500px]">
           <thead>
             <tr className="border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
-              {["Recipient","Subject","Source","Status","Sent At",""].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-[11px] font-bold text-[#8B92A9] uppercase tracking-wide whitespace-nowrap">{h}</th>
+              {["Recipient","Subject","Source","Status","Sent At",""].map((h, i) => (
+                <th key={h} className={`px-4 py-3 text-left text-[11px] font-bold text-[#8B92A9] uppercase tracking-wide whitespace-nowrap ${i === 2 ? "hidden sm:table-cell" : ""}`}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -2059,7 +2061,7 @@ function EmailPanel() {
                   </div>
                 </td>
                 <td className="px-4 py-3"><span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] max-w-[200px] truncate block">{log.subject}</span></td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 hidden sm:table-cell">
                   {log.campaignId ? <span className="inline-block px-2.5 py-1 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] text-[11px] font-semibold max-w-[140px] truncate">{log.campaignId}</span> : <span className="text-[12px] text-[#8B92A9]">—</span>}
                 </td>
                 <td className="px-4 py-3"><StatusBadge status={log.status} /></td>
@@ -2400,7 +2402,7 @@ function SmsBlastComposer({ onSent }) {
           )}
 
           {mode === "single" && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">Recipient Name</label>
                 <input type="text" value={singleLead.name} onChange={(e) => setSingleLead((p) => ({ ...p, name: e.target.value }))} placeholder="Rahul Sharma" className={FIELD_CLS} />
@@ -2425,7 +2427,7 @@ function SmsBlastComposer({ onSent }) {
           )}
 
           {/* MSG91 config */}
-          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[#F1F5F9] dark:border-[#2A3942]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#F1F5F9] dark:border-[#2A3942]">
             <div>
               <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">DLT Template ID</label>
               <input type="text" value={templateId} onChange={(e) => setTemplateId(e.target.value)} placeholder="1234567890123456789" className={FIELD_CLS} />
@@ -2609,7 +2611,7 @@ function SmsLeadThread({ lead, onBack, onSend }) {
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Thread header */}
       <div className="bg-[#075E54] dark:bg-[#202C33] px-4 py-3 flex items-center gap-3 shrink-0">
-        <button onClick={onBack} className="text-white/70 hover:text-white transition mr-1 lg:hidden">
+        <button onClick={onBack} className="text-white/70 hover:text-white transition mr-1 sm:hidden">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
         </button>
         <SmsAvatar name={name} size="sm" />
@@ -2857,7 +2859,7 @@ function SmsPanel() {
     <div className="flex h-full overflow-hidden rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] shadow-sm">
 
       {/* ── LEFT: Lead sidebar ─────────────────────────────────────────────── */}
-      <div className={`w-[340px] shrink-0 flex flex-col bg-white dark:bg-[#111B21] border-r border-[#E4E7EF] dark:border-[#2A3942] ${selectedLead || showComposer ? "hidden lg:flex" : "flex"}`}>
+      <div className={`w-full sm:w-[300px] lg:w-[340px] shrink-0 flex flex-col bg-white dark:bg-[#111B21] border-r border-[#E4E7EF] dark:border-[#2A3942] ${selectedLead || showComposer ? "hidden sm:flex" : "flex"}`}>
 
         {/* Sidebar header */}
         <div className="bg-[#075E54] dark:bg-[#202C33] px-4 py-3 flex items-center justify-between shrink-0">
@@ -2946,7 +2948,7 @@ function SmsPanel() {
       </div>
 
       {/* ── RIGHT: Chat/Composer area ──────────────────────────────────────── */}
-      <div className={`flex-1 flex flex-col overflow-hidden ${!selectedLead && !showComposer ? "hidden lg:flex" : "flex"}`}>
+      <div className={`flex-1 flex flex-col overflow-hidden ${!selectedLead && !showComposer ? "hidden sm:flex" : "flex"}`}>
         {selectedLead ? (
           <SmsLeadThread
             lead={selectedLead}
@@ -3082,32 +3084,7 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
                     The template name must exactly match an approved template in your <strong>MSG91 / Meta dashboard</strong>.
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Name <span className="text-[#DC2626]">*</span></label>
-                    <input
-                      type="text"
-                      value={wa.templateName || ""}
-                      onChange={e => update("whatsapp", "templateName", e.target.value)}
-                      placeholder="crm_followup_leads"
-                      className={FIELD_CLS}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Language</label>
-                    <select value={wa.languageCode || "en"} onChange={e => update("whatsapp", "languageCode", e.target.value)} className={FIELD_CLS}>
-                      <option value="en">English (en) — MSG91 default</option>
-                      <option value="en_US">English (en_US)</option>
-                      <option value="en_GB">English GB (en_GB)</option>
-                      <option value="hi">Hindi (hi)</option>
-                      <option value="mr">Marathi (mr)</option>
-                      <option value="gu">Gujarati (gu)</option>
-                      <option value="ta">Tamil (ta)</option>
-                      <option value="te">Telugu (te)</option>
-                      <option value="kn">Kannada (kn)</option>
-                    </select>
-                  </div>
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               </div>
             )}
           </>
@@ -3131,7 +3108,7 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
 
             {em.enabled && (
               <div className="space-y-3 pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Subject <span className="text-[#DC2626]">*</span></label>
                     <input type="text" value={em.subject || ""} onChange={e => update("email", "subject", e.target.value)} placeholder="Welcome, {{name}}!" className={FIELD_CLS} />
@@ -3169,7 +3146,7 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
 
             {sm.enabled && (
               <div className="space-y-3 pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">DLT Template ID</label>
                     <input type="text" value={sm.templateId || ""} onChange={e => update("sms", "templateId", e.target.value)} placeholder="1234567890123456789" className={FIELD_CLS} />
@@ -3227,32 +3204,32 @@ export default function Communications({ currentUser }) {
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
 
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-6 flex flex-col">
+    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-3 sm:px-6 py-3 sm:py-6 flex flex-col">
       {/* Page header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-5 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2 sm:gap-4 mb-3 sm:mb-5 shrink-0">
         <div>
-          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Communications</h1>
-          <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">WhatsApp · Email · SMS — all in one place</p>
+          <h1 className="text-[20px] sm:text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Communications</h1>
+          <p className="text-[12px] sm:text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">WhatsApp · Email · SMS — all in one place</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <TabNav active={tab} onChange={(t) => { setTab(t); setShowSettings(false); }} />
           {isAdmin && (
             <button
               onClick={() => setShowIntegrations(true)}
               title="Manage Integrations (Brevo, MSG91)"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] hover:border-[#2563EB] transition"
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] sm:text-[13px] font-semibold text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] hover:border-[#2563EB] transition"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
               </svg>
-              Integrations
+              <span className="hidden sm:inline">Integrations</span>
             </button>
           )}
           {isAdmin && (
             <button
               onClick={() => setShowSettings(s => !s)}
               title="Auto-Template Settings"
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[13px] font-semibold transition ${
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border text-[12px] sm:text-[13px] font-semibold transition ${
                 showSettings
                   ? tab === "email"   ? "border-[#7C3AED] bg-[#f5f3ff] dark:bg-[#1e1040] text-[#7C3AED]"
                   : tab === "sms"     ? "border-[#EA580C] bg-[#fff7ed] dark:bg-[#1c0a00] text-[#EA580C]"
@@ -3260,12 +3237,10 @@ export default function Communications({ currentUser }) {
                   : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]"
               }`}
             >
-              {/* Toggle icon */}
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
               </svg>
-              Auto-Template
-              {/* Status dot */}
+              <span className="hidden sm:inline">Auto-Template</span>
               <span className={`w-1.5 h-1.5 rounded-full ${
                 tab === "email" ? "bg-[#7C3AED]" : tab === "sms" ? "bg-[#EA580C]" : "bg-[#25D366]"
               } ${showSettings ? "opacity-100" : "opacity-50"}`} />
@@ -3285,17 +3260,17 @@ export default function Communications({ currentUser }) {
       {/* Panel area — fills remaining height */}
       <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
         {tab === "whatsapp" && (
-          <div className="h-full" style={{ height: showSettings ? "calc(100vh - 340px)" : "calc(100vh - 160px)" }}>
+          <div className="h-full">
             <WhatsAppPanel currentUser={currentUser} />
           </div>
         )}
         {tab === "email" && (
-          <div className="h-full flex flex-col" style={{ height: showSettings ? "calc(100vh - 340px)" : "calc(100vh - 160px)" }}>
+          <div className="h-full flex flex-col">
             <EmailPanel />
           </div>
         )}
         {tab === "sms" && (
-          <div className="h-full" style={{ height: showSettings ? "calc(100vh - 340px)" : "calc(100vh - 160px)" }}>
+          <div className="h-full">
             <SmsPanel />
           </div>
         )}
