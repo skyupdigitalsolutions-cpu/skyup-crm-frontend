@@ -213,9 +213,9 @@ export function Sidebar() {
   const role        = rawRole === "superadmin" ? "super_admin" : rawRole;
   const isSuperAdmin = role === "super_admin";
   const isDeveloper  = role === "developer";
-  // ── Dynamic branding — falls back to stored brand, then defaults ──────────
-const companyName = "SKYUP";           
-const companyLogo = "/skyup_logo1.svg"; 
+  // ── Sidebar branding is fixed — always shows SKYUP identity ─────────────
+  const companyName = "SKYUP";
+  const companyLogo = "/skyup_logo1.svg";
 
 
   // ── Poll follow-up alerts every 5 minutes (skip for developer) ────────────
