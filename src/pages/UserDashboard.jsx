@@ -719,7 +719,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
 }
 
 function AddLeadModal({ onClose, onAdd }) {
-  const [form, setForm] = useState({ name:"", phone:"", source:"Google Ads", campaign:"", status:"New", remark:"" });
+  const [form, setForm] = useState({ name:"", phone:"", email:"", source:"Google Ads", campaign:"", status:"New", remark:"" });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
@@ -728,6 +728,8 @@ function AddLeadModal({ onClose, onAdd }) {
     if (!form.name.trim() || form.name.trim().length < 2) e.name = "Name must be at least 2 characters.";
     if (!form.phone.trim()) e.phone = "Phone is required.";
     else if (!/^\d{10}$/.test(form.phone.trim())) e.phone = "Phone must be exactly 10 digits.";
+     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+    e.email = "Enter a valid email address."
     return e;
   };
   const handleSubmit = async () => {
@@ -735,9 +737,9 @@ function AddLeadModal({ onClose, onAdd }) {
     if (Object.keys(e).length) { setErrors(e); return; }
     setSubmitting(true);
     try {
-      const res = await api.post("/lead", { name:form.name.trim(), mobile:form.phone.trim(), source:form.source, campaign:form.campaign.trim()||null, status:form.status, date:new Date(), remark:form.remark.trim()||"Manually added" });
+      const res = await api.post("/lead", { name:form.name.trim(), mobile:form.phone.trim(), email:form.email.trim() || null, source:form.source, campaign:form.campaign.trim()||null, status:form.status, date:new Date(), remark:form.remark.trim()||"Manually added" });
       const saved = res.data;
-      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, temperature:saved.temperature||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
+      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", email:saved.email  || "", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, temperature:saved.temperature||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
       onClose();
     } catch (err) {
       setErrors({ submit:(err.response?.data?.message)||"Failed to save lead." });
@@ -760,7 +762,7 @@ function AddLeadModal({ onClose, onAdd }) {
           </button>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {[{label:"Lead Name *",key:"name",placeholder:"Full name"},{label:"Phone *",key:"phone",placeholder:"10-digit number"},{label:"Campaign",key:"campaign",placeholder:"Campaign name"},{label:"Remark",key:"remark",placeholder:"Notes"}].map(f => (
+          {[{label:"Lead Name *",key:"name",placeholder:"Full name"},{label:"Phone *",key:"phone",placeholder:"10-digit number"}, {label:"Email", key:"email", placeholder:"email@example.com"},{label:"Campaign",key:"campaign",placeholder:"Campaign name"},{label:"Remark",key:"remark",placeholder:"Notes"}].map(f => (
             <div key={f.key} className="flex flex-col gap-1">
               <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">{f.label}</label>
               <input type="text" placeholder={f.placeholder} value={form[f.key]} onChange={e => set(f.key, e.target.value)} className={CLS(f.key)} />
