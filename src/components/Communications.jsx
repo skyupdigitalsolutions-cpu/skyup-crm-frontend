@@ -1153,7 +1153,7 @@ function WhatsAppPanel({ currentUser }) {
     else if (currentUser?._id) socket.emit("wa_agent_join", { agentId: currentUser._id });
 
     socket.on("wa_message", (payload) => {
-      const { conversationId, message: msg } = payload;
+      const { conversationId, message: msg, sessionExpiresAt: newExpiry } = payload;
       setConversations((prev) => {
         const idx = prev.findIndex((c) => c._id === conversationId);
         if (idx === -1) { loadConversations(); return prev; }
@@ -1161,14 +1161,27 @@ function WhatsAppPanel({ currentUser }) {
         const conv    = { ...updated[idx] };
         conv.lastMessage   = msg.body;
         conv.lastMessageAt = msg.waTimestamp;
-        if (msg.direction === "inbound") { conv.status = "waiting"; conv.unreadCount = (conv.unreadCount || 0) + 1; }
-        else conv.status = "open";
+        if (msg.direction === "inbound") {
+          conv.status = "waiting";
+          conv.unreadCount = (conv.unreadCount || 0) + 1;
+          // BUG 4 FIX: When lead replies, backend resets the 24h window.
+          // Update sessionExpiresAt so the "session expired" banner clears
+          // and the Send button becomes visible again.
+          if (newExpiry) conv.sessionExpiresAt = newExpiry;
+        } else {
+          conv.status = "open";
+        }
         updated[idx] = conv;
         updated.unshift(updated.splice(idx, 1)[0]);
         return updated;
       });
       setSelected((sel) => {
         if (sel?._id === conversationId) {
+          // Also update sessionExpiresAt on the selected conversation object
+          // so sessionBanner() recalculates immediately without a full reload.
+          if (msg.direction === "inbound" && newExpiry) {
+            sel = { ...sel, sessionExpiresAt: newExpiry, status: "waiting" };
+          }
           setMessages((prev) => {
             if (prev.some((m) => m._id === msg._id)) return prev;
             return [...prev, msg];
@@ -1186,6 +1199,13 @@ function WhatsAppPanel({ currentUser }) {
         return [conversation, ...prev];
       });
     });
+
+    // BUG 5 FIX: Backend emits "wa_message_status" but frontend was listening for
+    // "wa_status_update" — wrong event name, so delivery ticks never updated.
+    socket.on("wa_message_status", ({ waMessageId, status }) => {
+      setMessages((prev) => prev.map((m) => m.waMessageId === waMessageId ? { ...m, status } : m));
+    });
+    // Keep old name as fallback in case any other part of the system uses it
     socket.on("wa_status_update", ({ waMessageId, status }) => {
       setMessages((prev) => prev.map((m) => m.waMessageId === waMessageId ? { ...m, status } : m));
     });
