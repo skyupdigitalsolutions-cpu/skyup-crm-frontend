@@ -139,7 +139,7 @@ function AgentSelect({ value, onChange, agents, className }) {
               <p className="px-3 py-2.5 text-[12px] text-[#8B92A9] italic">No employees found</p>
             ) : filtered.map(agent => {
               const isSelected = agent === value;
-              const displayName = agent === "All" ? "All employees" : employee;
+              const displayName = agent === "All" ? "All employees" : agent;
               return (
                 <button
                   key={agent}
