@@ -831,7 +831,7 @@ export default function ReportPage() {
       </div>
 
       {/* ── Leads table ── */}
-      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl">
         <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
@@ -872,7 +872,8 @@ export default function ReportPage() {
             />
           </div>
         </div>
-
+        
+      <div className="overflow-hidden rounded-b-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead>
@@ -1018,6 +1019,7 @@ export default function ReportPage() {
           </div>
         )}
       </div>
+    </div> 
     </div>
   );
 }
