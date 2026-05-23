@@ -458,8 +458,9 @@ export default function UserLeadCommunication() {
         setConversationId(convId);
         // Clear unread badge for this conversation
         if (convId) {
-          setLeadConvMap((prev) => ({ ...prev, [convId]: selected._id }));
-          setUnreadCounts((prev) => { const n = { ...prev }; delete n[convId]; return n; });
+          // Ensure both keys are strings so === comparisons in socket handler work
+          setLeadConvMap((prev) => ({ ...prev, [convId.toString()]: selected._id.toString() }));
+          setUnreadCounts((prev) => { const n = { ...prev }; delete n[selected._id.toString()]; return n; });
         }
       })
       .catch(() => setConversationId(null))
@@ -474,17 +475,17 @@ export default function UserLeadCommunication() {
 
     socket.on("wa_message", (payload) => {
       const msg          = payload.message || payload;
-      const incomingConv = payload.conversationId;
+      const incomingConv = payload.conversationId?.toString();
 
       if (msg.direction !== "inbound") return; // outbound already shown via optimistic update
 
-      const currentConvId    = conversationIdRef.current;
-      const currentLeadId    = selectedLeadIdRef.current;
+      const currentConvId    = conversationIdRef.current?.toString();
+      const currentLeadId    = selectedLeadIdRef.current?.toString();
 
       if (currentConvId && incomingConv === currentConvId) {
         // ── Active conversation: append message directly ──────────────────
         setMessages((prev) => {
-          if (prev.some((m) => m._id && m._id === msg._id)) return prev;
+          if (prev.some((m) => m._id && m._id.toString() === msg._id?.toString())) return prev;
           return [...prev, msg];
         });
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -492,14 +493,15 @@ export default function UserLeadCommunication() {
         // ── Different conversation: find which lead it belongs to and bump unread ──
         const leadId = leadConvMapRef.current[incomingConv];
         if (leadId) {
-          setUnreadCounts((prev) => ({ ...prev, [leadId]: (prev[leadId] || 0) + 1 }));
+          setUnreadCounts((prev) => ({ ...prev, [leadId.toString()]: (prev[leadId.toString()] || 0) + 1 }));
         }
 
         // If this conversation belongs to the currently selected lead
         // (conversationId was null because the lead had no prior convo),
         // set it now so the chat window opens automatically.
-        if (currentLeadId && !currentConvId && payload.assignedAgent === user?._id) {
+        if (currentLeadId && !currentConvId && payload.assignedAgent?.toString() === user?._id?.toString()) {
           setConversationId(incomingConv);
+          setLeadConvMap((prev) => ({ ...prev, [incomingConv]: currentLeadId }));
           setMessages([msg]);
         }
       }
@@ -639,7 +641,7 @@ export default function UserLeadCommunication() {
               ) : (
                 filteredLeads.map((lead) => {
                   const isActive  = selected?._id === lead._id;
-                  const unread    = unreadCounts[lead._id] || 0;
+                  const unread    = unreadCounts[lead._id?.toString()] || 0;
                   return (
                     <button
                       key={lead._id}
@@ -692,7 +694,15 @@ export default function UserLeadCommunication() {
               lead={selected}
               authHeaders={authHeaders}
               apiUrl={API_URL}
-              onStarted={(convId) => setConversationId(convId)}
+              onStarted={(convId) => {
+                setConversationId(convId);
+                // CRITICAL FIX: map this new conversation → lead so that
+                // incoming socket messages for it show the unread badge on
+                // the correct lead row and are appended to the open chat.
+                if (convId && selected?._id) {
+                  setLeadConvMap((prev) => ({ ...prev, [convId]: selected._id.toString() }));
+                }
+              }}
             />
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden">
