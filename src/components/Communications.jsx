@@ -1046,6 +1046,11 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
 }
 
 
+// Strip non-digits and leading + for phone comparison
+function normalizeWaPhone(p) {
+  return String(p || "").replace(/\D/g, "").replace(/^0+/, "");
+}
+
 function WhatsAppPanel({ currentUser }) {
   const socketRef  = useRef(null);
   const bottomRef  = useRef(null);
@@ -1153,7 +1158,8 @@ function WhatsAppPanel({ currentUser }) {
     else if (currentUser?._id) socket.emit("wa_agent_join", { agentId: currentUser._id });
 
     socket.on("wa_message", (payload) => {
-      const { conversationId, message: msg, sessionExpiresAt: newExpiry } = payload;
+      const { conversationId, message: msg, sessionExpiresAt: newExpiry, waPhone: inboundWaPhone } = payload;
+
       setConversations((prev) => {
         const idx = prev.findIndex((c) => c._id === conversationId);
         if (idx === -1) { loadConversations(); return prev; }
@@ -1162,11 +1168,8 @@ function WhatsAppPanel({ currentUser }) {
         conv.lastMessage   = msg.body;
         conv.lastMessageAt = msg.waTimestamp;
         if (msg.direction === "inbound") {
-          conv.status = "waiting";
+          conv.status      = "waiting";
           conv.unreadCount = (conv.unreadCount || 0) + 1;
-          // BUG 4 FIX: When lead replies, backend resets the 24h window.
-          // Update sessionExpiresAt so the "session expired" banner clears
-          // and the Send button becomes visible again.
           if (newExpiry) conv.sessionExpiresAt = newExpiry;
         } else {
           conv.status = "open";
@@ -1175,10 +1178,12 @@ function WhatsAppPanel({ currentUser }) {
         updated.unshift(updated.splice(idx, 1)[0]);
         return updated;
       });
+
       setSelected((sel) => {
-        if (sel?._id === conversationId) {
-          // Also update sessionExpiresAt on the selected conversation object
-          // so sessionBanner() recalculates immediately without a full reload.
+        if (!sel) return sel;
+
+        // Case 1: admin is viewing the exact conversation the message arrived for
+        if (sel._id === conversationId) {
           if (msg.direction === "inbound" && newExpiry) {
             sel = { ...sel, sessionExpiresAt: newExpiry, status: "waiting" };
           }
@@ -1187,7 +1192,34 @@ function WhatsAppPanel({ currentUser }) {
             return [...prev, msg];
           });
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+          return sel;
         }
+
+        // Case 2: admin is viewing a DIFFERENT conversation for the SAME phone number
+        // (happens when duplicate conversations exist — backend now deduplicates them,
+        //  but the admin's UI may still show the old conversation ID).
+        // Solution: silently switch selected to the correct conversation and append the message.
+        if (
+          msg.direction === "inbound" &&
+          inboundWaPhone &&
+          sel.waPhone &&
+          normalizeWaPhone(sel.waPhone) === normalizeWaPhone(inboundWaPhone) &&
+          sel._id !== conversationId
+        ) {
+          console.warn(`⚠️  Admin viewing conv ${sel._id} but inbound arrived for conv ${conversationId} (same phone ${inboundWaPhone}) — reloading messages`);
+          // Re-fetch the correct conversation's messages so the UI is consistent
+          axios.get(`${API_URL}/whatsapp/conversations/${conversationId}/messages`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+            .then(({ data }) => {
+              setMessages(data.messages || []);
+              if (data.conversation) {
+                setSelected(prev => prev?._id === sel._id ? { ...prev, ...data.conversation, _id: conversationId } : prev);
+                setConversations(prev => prev.map(c => c._id === sel._id ? { ...c, ...data.conversation, _id: conversationId } : c));
+              }
+              setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+            })
+            .catch(() => {});
+        }
+
         return sel;
       });
     });
