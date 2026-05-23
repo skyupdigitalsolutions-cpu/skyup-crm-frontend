@@ -301,6 +301,98 @@ function BlastTab({ leads, authHeaders }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── START CONVERSATION PANE ───────────────────────────────────────────────────
+// Shown when no conversation exists yet for the selected lead.
+// Lets the employee send the first template message without switching tabs.
+// ─────────────────────────────────────────────────────────────────────────────
+function StartConversationPane({ lead, authHeaders, apiUrl, onStarted }) {
+  const [templateName, setTemplateName] = useState("crm_followup_leads");
+  const [langCode,     setLangCode]     = useState("en");
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
+
+  const handleStart = async () => {
+    if (!templateName.trim()) return setError("Template name is required");
+    setLoading(true); setError("");
+    try {
+      const phone = (lead.mobile || lead.phone || "").replace(/\D/g, "");
+      const { data } = await axios.post(
+        `${apiUrl}/whatsapp/start-conversation`,
+        { phone, contactName: lead.name, templateName: templateName.trim(), languageCode: langCode },
+        authHeaders
+      );
+      onStarted(data.conversation?._id);
+    } catch (e) {
+      setError(e.response?.data?.error || e.response?.data?.message || "Failed to start conversation");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-[#F0F4FF] dark:bg-[#0B141A] p-6">
+      <div className="w-16 h-16 rounded-full bg-[#25D366]/10 flex items-center justify-center">
+        <svg className="w-8 h-8 text-[#25D366]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      </div>
+      <h3 className="text-[14px] font-bold text-[#4B5168] dark:text-[#8B92A9]">No WhatsApp conversation yet</h3>
+      <p className="text-[11px] text-[#8B92A9] text-center max-w-xs">
+        Send the first template message to start a conversation with <strong>{lead.name}</strong>.
+      </p>
+
+      <div className="w-full max-w-sm bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-5 shadow-sm">
+        <div className="mb-3">
+          <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
+            Template Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            value={templateName}
+            onChange={(e) => setTemplateName(e.target.value)}
+            placeholder="e.g. crm_followup_leads"
+            className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366] transition"
+          />
+          <p className="text-[10px] text-[#8B92A9] mt-1">Must match exactly the approved template name in MSG91</p>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Language</label>
+          <select
+            value={langCode}
+            onChange={(e) => setLangCode(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#25D366] transition"
+          >
+            <option value="en">English (en)</option>
+            <option value="en_US">English US (en_US)</option>
+            <option value="hi">Hindi (hi)</option>
+          </select>
+        </div>
+
+        {error && <p className="text-[11px] text-red-500 mb-3">{error}</p>}
+
+        <button
+          onClick={handleStart}
+          disabled={loading || !templateName.trim()}
+          className="w-full py-2.5 rounded-xl bg-[#25D366] hover:bg-[#1da851] disabled:opacity-40 text-white text-[13px] font-semibold transition flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+          )}
+          {loading ? "Sending…" : "Send Template & Start Chat"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 export default function UserLeadCommunication() {
@@ -358,7 +450,7 @@ export default function UserLeadCommunication() {
 
   // ── Socket — created ONCE, stays alive for the whole page session ────────
   useEffect(() => {
-    const socket = io(SOCKET_URL, { withCredentials: true });
+    const socket = io(SOCKET_URL, { withCredentials: true, auth: { token } });
     socketRef.current = socket;
     socket.emit("wa_agent_join", { agentId: user?._id });
     // Use conversationIdRef so listener always checks latest value without reconnecting
@@ -545,17 +637,12 @@ export default function UserLeadCommunication() {
               </svg>
             </div>
           ) : !conversationId ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-[#F0F4FF] dark:bg-[#0B141A]">
-              <div className="w-16 h-16 rounded-full bg-[#25D366]/10 flex items-center justify-center">
-                <svg className="w-8 h-8 text-[#25D366]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-              </div>
-              <h3 className="text-[14px] font-bold text-[#4B5168] dark:text-[#8B92A9]">No WhatsApp conversation yet</h3>
-              <p className="text-[11px] text-[#8B92A9] text-center max-w-xs px-4">
-                Use the <strong>WhatsApp Blast</strong> tab to send the first template message to <strong>{selected.name}</strong>, then return here to chat.
-              </p>
-            </div>
+            <StartConversationPane
+              lead={selected}
+              authHeaders={authHeaders}
+              apiUrl={API_URL}
+              onStarted={(convId) => setConversationId(convId)}
+            />
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Chat header */}

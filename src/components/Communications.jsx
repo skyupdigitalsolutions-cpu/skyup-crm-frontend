@@ -1077,7 +1077,7 @@ function WhatsAppPanel({ currentUser }) {
   const [starting,      setStarting]      = useState(false);
   const [startErr,      setStartErr]      = useState("");
 
-  const isAdmin     = currentUser?.role === "admin";
+  const isAdmin     = currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
   const token       = localStorage.getItem("token");
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
