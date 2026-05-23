@@ -5,6 +5,7 @@ import { useDailyReport } from '../hooks/useDailyReport';
 import {
   addDays, formatLong, formatMedium, isToday as isTodayFn,
 } from '../utils/dateUtils';
+import { FlameIcon, CheckIcon, LoaderICon, TrendingUpIcon} from "lucide-icon";
 
 const STATUS_STYLE = {
   'New':            { bg: 'bg-[#EEF3FF] dark:bg-[#1A2540]', text: 'text-[#2563EB] dark:text-[#4F8EF7]', dot: '#2563EB' },
@@ -28,7 +29,7 @@ function StatCard({ label, value, sub, icon, color, trend }) {
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
       <div className="flex items-start justify-between mb-3">
         <span className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">{label}</span>
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[15px]" style={{ background: color + '20' }}>{icon}</div>
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: color + '20' }}>{icon}</div>
       </div>
       <div className="text-[28px] font-bold text-[#0F1117] dark:text-white leading-none mb-1">{value ?? '—'}</div>
       {sub && <div className="text-[11px] text-[#8B92A9]">{sub}</div>}
@@ -200,10 +201,10 @@ export default function UserDailyReport() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Leads today"  value={summary.total || 0}      icon="📋" color="#2563EB" sub="Assigned to you"                             trend={summary.trendTotal} />
-        <StatCard label="Converted"    value={summary.converted || 0}  icon="✅" color="#059669" sub={`${summary.convRate || 0}% conv. rate`}      trend={summary.trendConverted} />
-        <StatCard label="In progress"  value={summary.inProgress || 0} icon="⏳" color="#D97706" sub="Need follow-up" />
-        <StatCard label="Hot leads"    value={hot}                     icon="🔥" color="#DC2626" sub={`${warm} warm · ${cold} cold`} />
+        <StatCard label="Leads today"  value={summary.total || 0}      icon={<TrendingUpIcon  size={16} strokeWidth={2} />} color="#2563EB" sub="Assigned to you"                        trend={summary.trendTotal} />
+        <StatCard label="Converted"    value={summary.converted || 0}  icon={<CheckIcon   size={16} strokeWidth={2} />} color="#059669" sub={`${summary.convRate || 0}% conv. rate`} trend={summary.trendConverted} />
+        <StatCard label="In progress"  value={summary.inProgress || 0} icon={<LoaderIcon          size={16} strokeWidth={2} />} color="#D97706" sub="Need follow-up" />
+        <StatCard label="Hot leads"    value={hot}                     icon={<FlameIcon          size={16} strokeWidth={2} />} color="#DC2626" sub={`${warm} warm · ${cold} cold`} />
       </div>
 
       {/* Tabs */}
