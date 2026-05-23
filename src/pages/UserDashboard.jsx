@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
 import { maskPhone } from "../utils/maskPhone";
 import { io } from "socket.io-client";
+import { FlameIcon, UsersIcon, LoaderIcon, CheckIcon } from "lucide-react";
 import NotInterestedModal from "../components/Notinterestedmodal";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -420,13 +421,19 @@ function AttendanceMiniWidget() {
   );
 }
 
-// ── KPI / Chart / Activity helpers (unchanged) ────────────────────────────────
+// KPI / Chart / Activity helpers (unchanged)
 function KpiCard({ label, value, sub, color, icon, trend, trendUp }) {
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <span className="text-[12px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-widest">{label}</span>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[18px]" style={{ background: color + "18" }}>{icon}</div>
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center"
+          style={{ background: color + "18" }}
+        >
+          {/* ✅ renders the Lucide icon component passed as a prop */}
+          {icon}
+        </div>
       </div>
       <div>
         <p className="text-[32px] font-black text-[#0F1117] dark:text-white leading-none">{value}</p>
@@ -1284,10 +1291,10 @@ const downloadCSVTemplate = () => {
 
         {/* KPI cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon="" />
-          <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon="" trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
-          <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon="" />
-          <KpiCard label="Hot Leads "   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon="" />
+          <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon={<UsersIcon className="w-5 h-5"/>} />
+          <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon={<CheckIcon className="w-5 h-5"/>} trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
+          <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon={<LoaderIcon className="w-5 h-5"/>} />
+          <KpiCard label="Hot Leads "   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon={<FlameIcon className="w-5 h-5"/>} />
         </div>
 
         {/* Targets + Quality */}
