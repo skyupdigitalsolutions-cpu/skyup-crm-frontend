@@ -1369,7 +1369,7 @@ function WhatsAppPanel({ currentUser }) {
                       {hasUnread && <span className="bg-[#25D366] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center">{conv.unreadCount}</span>}
                     </div>
                   </div>
-                  {isAdmin && conv.assignedAgent && <div className="text-[10px] text-[#8B92A9] mt-0.5">{conv.assignedAgent.name}</div>}
+                  {isAdmin && conv.assignedAgent?.name && <div className="text-[10px] text-[#8B92A9] mt-0.5">{conv.assignedAgent.name}</div>}
                 </div>
                 {/* Delete button — only visible on hover for zombie conversations */}
                 {isZombie && (
@@ -1494,8 +1494,8 @@ function WhatsAppPanel({ currentUser }) {
               </div>
               <div className="text-[11px] text-[#8B92A9]">
                 +{selected.waPhone}
-                {selected.lead && ` · ${selected.lead.status}`}
-                {isAdmin && selected.assignedAgent && ` · Employee: ${selected.assignedAgent.name}`}
+                {selected.lead?.status ? ` · ${selected.lead.status}` : ""}
+                {isAdmin && selected.assignedAgent?.name ? ` · Employee: ${selected.assignedAgent.name}` : ""}
               </div>
             </div>
             {selected.status !== "closed" && (
