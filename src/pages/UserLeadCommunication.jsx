@@ -4,6 +4,9 @@
 // Two tabs:
 //   1. Chat  — one-on-one WhatsApp chat with assigned leads
 //   2. Blast — send a WhatsApp template to ALL assigned leads at once
+//
+// FIX: Ported the same robust socket logic from the admin Communications panel
+// so inbound messages from leads appear in real-time in the employee chat UI.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -24,6 +27,21 @@ function fmtTime(iso) {
   return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
+function sessionBanner(sessionExpiresAt) {
+  if (!sessionExpiresAt) return null;
+  const remaining = new Date(sessionExpiresAt) - Date.now();
+  if (remaining <= 0) return { expired: true, text: "24h session expired — send a template message to re-engage" };
+  const hours = Math.floor(remaining / 3600000);
+  const mins  = Math.floor((remaining % 3600000) / 60000);
+  if (hours < 2) return { expired: false, text: `Session closes in ${hours}h ${mins}m` };
+  return null;
+}
+
+// Strip non-digits for phone comparison
+function normalizePhone(p) {
+  return String(p || "").replace(/\D/g, "").replace(/^0+/, "");
+}
+
 // ── Avatar ────────────────────────────────────────────────────────────────────
 function Avatar({ name, size = "md" }) {
   const initials = (name || "?").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
@@ -42,6 +60,7 @@ function Avatar({ name, size = "md" }) {
 
 // ── Message bubble ─────────────────────────────────────────────────────────────
 function Bubble({ msg, isOwn }) {
+  const status = msg.status;
   return (
     <div className={`flex mb-2 ${isOwn ? "justify-end" : "justify-start"} px-3`}>
       <div
@@ -51,10 +70,22 @@ function Bubble({ msg, isOwn }) {
             : "bg-white dark:bg-[#202C33] text-[#111B21] dark:text-[#E9EDEF] rounded-bl-none border border-[#E4E7EF] dark:border-transparent"
         }`}
       >
-        <p className="break-words leading-relaxed">{msg.body || msg.text || msg.message}</p>
-        <p className="text-[10px] opacity-50 text-right mt-0.5">
-          {fmtTime(msg.waTimestamp || msg.createdAt || msg.timestamp)}
-        </p>
+        {msg.messageType === "image"    && <span>🖼️ </span>}
+        {msg.messageType === "document" && <span>📄 </span>}
+        {msg.messageType === "audio"    && <span>🎵 </span>}
+        {msg.messageType === "video"    && <span>🎥 </span>}
+        {msg.messageType === "template" && <span>📋 </span>}
+        <p className="break-words leading-relaxed inline">{msg.body || msg.text || msg.message}</p>
+        <div className="flex items-center justify-end gap-1 mt-0.5">
+          <p className="text-[10px] opacity-50">
+            {fmtTime(msg.waTimestamp || msg.createdAt || msg.timestamp)}
+          </p>
+          {isOwn && (
+            <span className={`text-[10px] ${status === "read" ? "text-[#2563eb]" : "text-[#9ca3af]"}`}>
+              {status === "read" ? "✓✓" : status === "delivered" ? "✓✓" : status === "sent" ? "✓" : status === "failed" ? "✗" : "⏳"}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -78,8 +109,68 @@ function EmptyPane() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── RE-ENGAGE inline widget ───────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+function ReEngageWidget({ conversationId, authHeaders, onSent }) {
+  const [templateName, setTemplateName] = useState("crm_followup_leads");
+  const [languageCode, setLanguageCode] = useState("en");
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState("");
+
+  const handleSend = async () => {
+    if (!templateName.trim()) return setError("Template name is required");
+    setLoading(true); setError("");
+    try {
+      const { data } = await axios.post(
+        `${API_URL}/whatsapp/send-template`,
+        { conversationId, templateName: templateName.trim(), languageCode },
+        authHeaders
+      );
+      onSent(data.message);
+      setTemplateName("");
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to send template");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={templateName}
+          onChange={(e) => setTemplateName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+          placeholder="crm_followup_leads"
+          className="flex-1 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366] transition"
+          autoFocus
+        />
+        <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)}
+          className="w-[110px] px-2 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#25D366] transition">
+          <option value="en">en</option>
+          <option value="en_US">en_US</option>
+          <option value="hi">hi</option>
+          <option value="mr">mr</option>
+          <option value="gu">gu</option>
+          <option value="ta">ta</option>
+          <option value="te">te</option>
+          <option value="kn">kn</option>
+        </select>
+        <button
+          onClick={handleSend}
+          disabled={!templateName.trim() || loading}
+          className="px-4 py-2 rounded-xl bg-[#25D366] hover:bg-[#1da851] text-white text-[12px] font-semibold disabled:opacity-40 transition shrink-0"
+        >
+          {loading ? "…" : "Re-engage"}
+        </button>
+      </div>
+      {error && <p className="text-[11px] text-[#DC2626]">⚠ {error}</p>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── BLAST TAB ─────────────────────────────────────────────────────────────────
-// Sends a WhatsApp template to ALL leads assigned to this employee.
 // ─────────────────────────────────────────────────────────────────────────────
 function BlastTab({ leads, authHeaders }) {
   const [templateName, setTemplateName] = useState("crm_followup_leads");
@@ -111,7 +202,6 @@ function BlastTab({ leads, authHeaders }) {
     }
   };
 
-  // ── Result screen ─────────────────────────────────────────────────────────
   if (result) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-6 bg-[#F0F4FF] dark:bg-[#0B141A] p-6">
@@ -123,31 +213,18 @@ function BlastTab({ leads, authHeaders }) {
           </div>
           <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">WhatsApp Blast Sent!</h2>
           <p className="text-[12px] text-[#8B92A9] mb-5">Your template messages were dispatched to your leads.</p>
-
           <div className="grid grid-cols-3 gap-3 mb-5">
             {[
               { label: "Sent",   value: result.sent   ?? 0, color: "#25D366" },
               { label: "Failed", value: result.failed ?? 0, color: "#DC2626" },
               { label: "Total",  value: result.total  ?? 0, color: "#2563EB" },
             ].map((s) => (
-              <div
-                key={s.label}
-                className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3 text-center border border-[#E4E7EF] dark:border-[#262A38]"
-              >
+              <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3 text-center border border-[#E4E7EF] dark:border-[#262A38]">
                 <div className="text-[22px] font-bold" style={{ color: s.color }}>{s.value}</div>
                 <div className="text-[10px] text-[#8B92A9] uppercase mt-0.5">{s.label}</div>
               </div>
             ))}
           </div>
-
-          {result.results?.filter((r) => r.status === "failed").length > 0 && (
-            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] rounded-xl px-4 py-3 text-left text-[11px] text-[#DC2626] mb-4 max-h-28 overflow-y-auto">
-              {result.results.filter((r) => r.status === "failed").slice(0, 5).map((r, i) => (
-                <div key={i}>{r.name} ({r.phone}): {r.reason}</div>
-              ))}
-            </div>
-          )}
-
           <button
             onClick={() => { setResult(null); setTemplateName("crm_followup_leads"); }}
             className="w-full py-2.5 rounded-xl bg-[#25D366] text-white text-[13px] font-semibold hover:bg-[#1da851] transition"
@@ -159,12 +236,9 @@ function BlastTab({ leads, authHeaders }) {
     );
   }
 
-  // ── Form screen ───────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col items-center justify-start gap-0 bg-[#F0F4FF] dark:bg-[#0B141A] overflow-y-auto p-6">
       <div className="w-full max-w-lg">
-
-        {/* Header card */}
         <div className="bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-6 mb-4 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-[#f0fdf4] dark:bg-[#052e1c] flex items-center justify-center shrink-0">
@@ -179,7 +253,6 @@ function BlastTab({ leads, authHeaders }) {
             </div>
           </div>
 
-          {/* Recipient summary */}
           <div className="bg-[#F0FDF4] dark:bg-[#052e1c]/50 border border-[#BBF7D0] dark:border-[#14532D] rounded-xl px-4 py-3 flex items-center gap-3 mb-5">
             <svg className="w-5 h-5 text-[#16A34A] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -190,7 +263,6 @@ function BlastTab({ leads, authHeaders }) {
             </div>
           </div>
 
-          {/* Template name */}
           <div className="mb-4">
             <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
               Template Name <span className="text-red-500">*</span>
@@ -201,16 +273,11 @@ function BlastTab({ leads, authHeaders }) {
               placeholder="e.g. crm_followup_leads"
               className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366]"
             />
-            <p className="text-[10px] text-[#8B92A9] mt-1">
-              Must match exactly the approved template name in your MSG91 / Meta dashboard
-            </p>
+            <p className="text-[10px] text-[#8B92A9] mt-1">Must match exactly the approved template name in your MSG91 / Meta dashboard</p>
           </div>
 
-          {/* Language code */}
           <div className="mb-5">
-            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
-              Template Language
-            </label>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Language</label>
             <select
               value={languageCode}
               onChange={(e) => setLanguageCode(e.target.value)}
@@ -227,19 +294,16 @@ function BlastTab({ leads, authHeaders }) {
             </select>
           </div>
 
-          {/* Info note */}
           <div className="bg-[#EFF6FF] dark:bg-[#1E3A5F]/30 border border-[#BFDBFE] dark:border-[#1D4ED8]/30 rounded-xl px-4 py-3 text-[11px] text-[#2563EB] dark:text-[#93C5FD] mb-5">
-            <strong>How it works:</strong> WhatsApp requires a pre-approved template to initiate conversations. The template is sent to all your assigned leads with a valid mobile number. Conversations are opened and visible in the Chat tab after sending.
+            <strong>How it works:</strong> WhatsApp requires a pre-approved template to initiate conversations. The template is sent to all your assigned leads with a valid mobile number.
           </div>
 
-          {/* Error */}
           {error && (
             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] mb-4">
               {error}
             </div>
           )}
 
-          {/* Send button */}
           <button
             onClick={handleBlast}
             disabled={loading || !templateName.trim() || leads.length === 0}
@@ -264,20 +328,14 @@ function BlastTab({ leads, authHeaders }) {
           </button>
         </div>
 
-        {/* Lead preview list */}
         {leads.length > 0 && (
           <div className="bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden shadow-sm">
             <div className="px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
-              <p className="text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
-                Leads that will receive the blast
-              </p>
+              <p className="text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">Leads that will receive the blast</p>
             </div>
             <div className="max-h-64 overflow-y-auto">
               {leads.map((lead) => (
-                <div
-                  key={lead._id}
-                  className="flex items-center gap-3 px-4 py-2.5 border-b border-[#F0F2F5] dark:border-[#262A38] last:border-0"
-                >
+                <div key={lead._id} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#F0F2F5] dark:border-[#262A38] last:border-0">
                   <Avatar name={lead.name} size="sm" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#E9EDEF] truncate">{lead.name}</p>
@@ -302,8 +360,6 @@ function BlastTab({ leads, authHeaders }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ── START CONVERSATION PANE ───────────────────────────────────────────────────
-// Shown when no conversation exists yet for the selected lead.
-// Lets the employee send the first template message without switching tabs.
 // ─────────────────────────────────────────────────────────────────────────────
 function StartConversationPane({ lead, authHeaders, apiUrl, onStarted }) {
   const [templateName, setTemplateName] = useState("crm_followup_leads");
@@ -321,7 +377,7 @@ function StartConversationPane({ lead, authHeaders, apiUrl, onStarted }) {
         { phone, contactName: lead.name, templateName: templateName.trim(), languageCode: langCode },
         authHeaders
       );
-      onStarted(data.conversation?._id);
+      onStarted(data.conversation);
     } catch (e) {
       setError(e.response?.data?.error || e.response?.data?.message || "Failed to start conversation");
     } finally {
@@ -365,6 +421,8 @@ function StartConversationPane({ lead, authHeaders, apiUrl, onStarted }) {
             <option value="en">English (en)</option>
             <option value="en_US">English US (en_US)</option>
             <option value="hi">Hindi (hi)</option>
+            <option value="mr">Marathi (mr)</option>
+            <option value="gu">Gujarati (gu)</option>
           </select>
         </div>
 
@@ -401,37 +459,39 @@ export default function UserLeadCommunication() {
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
   // ── Tab state ────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState("chat"); // "chat" | "blast"
+  const [activeTab, setActiveTab] = useState("chat");
 
-  // ── Shared leads (used by both tabs) ─────────────────────────────────────
+  // ── Shared leads ─────────────────────────────────────────────────────────
   const [leads,        setLeads]        = useState([]);
   const [loadingLeads, setLoadingLeads] = useState(true);
 
   // ── Chat tab state ────────────────────────────────────────────────────────
-  const [selected,       setSelected]       = useState(null);  // selected Lead doc
-  const [conversationId, setConversationId] = useState(null);  // looked up by lead ID
-  const [messages,       setMessages]       = useState([]);
-  const [loadingMsgs,    setLoadingMsgs]    = useState(false);
-  const [loadingConv,    setLoadingConv]    = useState(false);
-  const [msgText,        setMsgText]        = useState("");
-  const [sending,        setSending]        = useState(false);
-  const [search,         setSearch]         = useState("");
-  // unread counts per lead._id — incremented on incoming socket messages when that lead isn't selected
-  const [unreadCounts,   setUnreadCounts]   = useState({});
-  // maps conversationId → leadId, built as leads are clicked, for unread badge lookup
-  const [leadConvMap,    setLeadConvMap]    = useState({}); // { convId: leadId }
+  const [selected,          setSelected]          = useState(null);   // selected Lead doc
+  const [conversation,      setConversation]      = useState(null);   // { _id, sessionExpiresAt, status, waPhone }
+  const [messages,          setMessages]          = useState([]);
+  const [loadingMsgs,       setLoadingMsgs]       = useState(false);
+  const [loadingConv,       setLoadingConv]       = useState(false);
+  const [msgText,           setMsgText]           = useState("");
+  const [sending,           setSending]           = useState(false);
+  const [sendError,         setSendError]         = useState("");
+  const [search,            setSearch]            = useState("");
+  // unread counts keyed by lead._id
+  const [unreadCounts,      setUnreadCounts]      = useState({});
+  // maps conversationId (string) → lead._id (string) — built as leads are clicked
+  const [convLeadMap,       setConvLeadMap]       = useState({});
 
-  const socketRef = useRef(null);
-  const bottomRef = useRef(null);
-  // Ref always holds latest conversationId so socket listener never has stale closure
-  const conversationIdRef = useRef(null);
-  useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
-  // Ref for the lead linked to the current conversation (to track unreads)
-  const selectedLeadIdRef = useRef(null);
-  useEffect(() => { selectedLeadIdRef.current = selected?._id || null; }, [selected]);
-  // Ref for leadConvMap so socket handler can read it without stale closure
-  const leadConvMapRef = useRef({});
-  useEffect(() => { leadConvMapRef.current = leadConvMap; }, [leadConvMap]);
+  const socketRef      = useRef(null);
+  const bottomRef      = useRef(null);
+  const inputRef       = useRef(null);
+
+  // Stable refs so socket handlers never close over stale state
+  const conversationRef  = useRef(null);   // full conversation object
+  const selectedRef      = useRef(null);   // selected lead
+  const convLeadMapRef   = useRef({});
+
+  useEffect(() => { conversationRef.current  = conversation;  }, [conversation]);
+  useEffect(() => { selectedRef.current      = selected;      }, [selected]);
+  useEffect(() => { convLeadMapRef.current   = convLeadMap;   }, [convLeadMap]);
 
   // ── Fetch assigned leads ───────────────────────────────────────────────────
   useEffect(() => {
@@ -447,114 +507,193 @@ export default function UserLeadCommunication() {
 
   // ── Look up conversation when a lead is selected ─────────────────────────
   useEffect(() => {
-    if (!selected?._id) { setConversationId(null); setMessages([]); return; }
+    if (!selected?._id) {
+      setConversation(null);
+      setMessages([]);
+      return;
+    }
     setLoadingConv(true);
-    setConversationId(null);
+    setConversation(null);
     setMessages([]);
+    setSendError("");
     axios
       .get(`${API_URL}/whatsapp/conversation-by-lead/${selected._id}`, authHeaders)
       .then((res) => {
-        const convId = res.data?.conversation?._id || null;
-        setConversationId(convId);
-        // Clear unread badge for this conversation
-        if (convId) {
-          // Ensure both keys are strings so === comparisons in socket handler work
-          setLeadConvMap((prev) => ({ ...prev, [convId.toString()]: selected._id.toString() }));
-          setUnreadCounts((prev) => { const n = { ...prev }; delete n[selected._id.toString()]; return n; });
+        const conv = res.data?.conversation || null;
+        if (conv) {
+          const convIdStr = String(conv._id);
+          setConversation(conv);
+          // Build the map so socket handler can look up which lead a convId belongs to
+          setConvLeadMap((prev) => ({ ...prev, [convIdStr]: selected._id }));
+          // Clear unread badge for this lead
+          setUnreadCounts((prev) => { const n = { ...prev }; delete n[selected._id]; return n; });
+        } else {
+          setConversation(null);
         }
       })
-      .catch(() => setConversationId(null))
+      .catch(() => setConversation(null))
       .finally(() => setLoadingConv(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?._id]);
 
-  // ── Socket — created ONCE, stays alive for the whole page session ────────
+  // ── Load messages once conversation is resolved ────────────────────────────
   useEffect(() => {
-    const socket = io(SOCKET_URL, { withCredentials: true, auth: { token } });
-    socketRef.current = socket;
-    socket.emit("wa_agent_join", { agentId: user?._id });
-
-    socket.on("wa_message", (payload) => {
-      const msg          = payload.message || payload;
-      const incomingConv = payload.conversationId?.toString();
-
-      if (msg.direction !== "inbound") return; // outbound already shown via optimistic update
-
-      const currentConvId    = conversationIdRef.current?.toString();
-      const currentLeadId    = selectedLeadIdRef.current?.toString();
-
-      if (currentConvId && incomingConv === currentConvId) {
-        // ── Active conversation: append message directly ──────────────────
-        setMessages((prev) => {
-          if (prev.some((m) => m._id && m._id.toString() === msg._id?.toString())) return prev;
-          return [...prev, msg];
-        });
-        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-      } else {
-        // ── Different conversation: find which lead it belongs to and bump unread ──
-        const leadId = leadConvMapRef.current[incomingConv];
-        if (leadId) {
-          setUnreadCounts((prev) => ({ ...prev, [leadId.toString()]: (prev[leadId.toString()] || 0) + 1 }));
-        }
-
-        // If this conversation belongs to the currently selected lead
-        // (conversationId was null because the lead had no prior convo),
-        // set it now so the chat window opens automatically.
-        if (currentLeadId && !currentConvId && payload.assignedAgent?.toString() === user?._id?.toString()) {
-          setConversationId(incomingConv);
-          setLeadConvMap((prev) => ({ ...prev, [incomingConv]: currentLeadId }));
-          setMessages([msg]);
-        }
-      }
-    });
-    return () => socket.disconnect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // empty deps — socket lives for the lifetime of this page
-
-  // ── Load messages once conversationId is resolved ─────────────────────────
-  useEffect(() => {
-    if (!conversationId) return;
+    if (!conversation?._id) return;
     setLoadingMsgs(true);
     axios
-      .get(`${API_URL}/whatsapp/conversations/${conversationId}/messages`, authHeaders)
+      .get(`${API_URL}/whatsapp/conversations/${conversation._id}/messages`, authHeaders)
       .then((res) => {
         const d = res.data;
         setMessages(Array.isArray(d) ? d : d?.messages || []);
+        // Sync fresh conversation meta (sessionExpiresAt) from the messages endpoint
+        if (d?.conversation) {
+          setConversation((prev) => prev ? { ...prev, ...d.conversation } : d.conversation);
+        }
       })
       .catch(() => setMessages([]))
       .finally(() => setLoadingMsgs(false));
-  }, [conversationId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation?._id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // ── Socket — robust handler matching admin panel logic ────────────────────
+  useEffect(() => {
+    const socket = io(SOCKET_URL, { withCredentials: true, auth: { token } });
+    socketRef.current = socket;
+
+    // Join the agent-specific room so the backend can target this employee
+    if (user?._id) {
+      socket.emit("wa_agent_join", { agentId: user._id });
+    }
+
+    // ── Inbound/outbound message handler (same logic as admin Communications) ──
+    socket.on("wa_message", (payload) => {
+      const { conversationId: incomingConvId, message: msg, sessionExpiresAt: newExpiry, waPhone: inboundPhone } = payload;
+      if (!msg) return;
+
+      const currentConv = conversationRef.current;
+      const currentLead = selectedRef.current;
+
+      // ── Case 1: Message is for the currently open conversation ────────────
+      if (currentConv && String(currentConv._id) === String(incomingConvId)) {
+        // Update session expiry on inbound messages
+        if (msg.direction === "inbound" && newExpiry) {
+          setConversation((prev) => prev ? { ...prev, sessionExpiresAt: newExpiry, status: "waiting" } : prev);
+        }
+        setMessages((prev) => {
+          // Deduplicate by _id
+          if (prev.some((m) => m._id && String(m._id) === String(msg._id))) return prev;
+          return [...prev, msg];
+        });
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+        return;
+      }
+
+      // ── Case 2: Inbound for the selected lead but via a different conv ID ──
+      // (duplicate conv edge case — re-fetch the correct conversation)
+      if (
+        msg.direction === "inbound" &&
+        inboundPhone &&
+        currentLead?.mobile &&
+        normalizePhone(currentLead.mobile) === normalizePhone(inboundPhone) &&
+        currentConv &&
+        String(currentConv._id) !== String(incomingConvId)
+      ) {
+        // Reload messages from the correct conversation
+        axios
+          .get(`${API_URL}/whatsapp/conversations/${incomingConvId}/messages`, { headers: { Authorization: `Bearer ${token}` } })
+          .then(({ data }) => {
+            setMessages(data.messages || []);
+            if (data.conversation) {
+              setConversation((prev) => prev ? { ...prev, ...data.conversation, _id: incomingConvId } : data.conversation);
+            }
+            setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+          })
+          .catch(() => {});
+        return;
+      }
+
+      // ── Case 3: Message for a different lead — increment unread badge ──────
+      if (msg.direction === "inbound") {
+        const leadId = convLeadMapRef.current[String(incomingConvId)];
+        if (leadId) {
+          setUnreadCounts((prev) => ({ ...prev, [leadId]: (prev[leadId] || 0) + 1 }));
+        } else if (inboundPhone) {
+          // Try to match by phone number in the leads list
+          setLeads((prevLeads) => {
+            const matchedLead = prevLeads.find(
+              (l) => normalizePhone(l.mobile || l.phone) === normalizePhone(inboundPhone)
+            );
+            if (matchedLead) {
+              // Register the mapping for future messages
+              setConvLeadMap((prev) => ({ ...prev, [String(incomingConvId)]: matchedLead._id }));
+              setUnreadCounts((prev) => ({ ...prev, [matchedLead._id]: (prev[matchedLead._id] || 0) + 1 }));
+            }
+            return prevLeads; // no change to leads array
+          });
+        }
+      }
+    });
+
+    // ── Delivery status ticks ─────────────────────────────────────────────────
+    const handleStatus = ({ waMessageId, status }) => {
+      setMessages((prev) => prev.map((m) => m.waMessageId === waMessageId ? { ...m, status } : m));
+    };
+    socket.on("wa_message_status", handleStatus);
+    socket.on("wa_status_update",  handleStatus); // legacy fallback
+
+    return () => socket.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // empty — socket lives for the lifetime of this page
+
   // ── Send message ───────────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
     const text = msgText.trim();
-    if (!text || !conversationId || sending) return;
+    if (!text || !conversation?._id || sending) return;
     setSending(true);
+    setSendError("");
+    const optimistic = {
+      _id: `opt_${Date.now()}`,
+      direction: "outbound",
+      body: text,
+      messageType: "text",
+      waTimestamp: new Date(),
+      status: "pending",
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setMsgText("");
     try {
       const { data } = await axios.post(
         `${API_URL}/whatsapp/send`,
-        { conversationId, text },
+        { conversationId: conversation._id, text },
         authHeaders
       );
-      // API returns { success, message } — push the message object
-      setMessages((prev) => [...prev, data?.message || data]);
-      setMsgText("");
+      const sentMsg = data?.message || data;
+      setMessages((prev) => prev.map((m) => m._id === optimistic._id ? { ...optimistic, ...sentMsg } : m));
     } catch (e) {
-      const err = e.response?.data?.error || e.response?.data?.message || "Failed to send message";
-      alert(err);
+      setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
+      const code = e.response?.data?.code;
+      setSendError(
+        code === "SESSION_EXPIRED"
+          ? "24-hour session expired. Send a template to re-engage."
+          : e.response?.data?.error || e.response?.data?.message || "Failed to send message"
+      );
     } finally {
       setSending(false);
     }
-  }, [msgText, conversationId, sending]);
+  }, [msgText, conversation, sending]);
 
   const filteredLeads = leads.filter(
     (l) =>
       (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
       (l.mobile || l.phone || "").includes(search)
   );
+
+  const session = conversation?.sessionExpiresAt ? sessionBanner(conversation.sessionExpiresAt) : null;
+  const isClosed = conversation?.status === "closed";
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -608,8 +747,9 @@ export default function UserLeadCommunication() {
       ) : (
         /* ── CHAT TAB ──────────────────────────────────────────────────── */
         <div className="flex flex-1 overflow-hidden">
-          {/* Left panel: leads list */}
-          <div className="w-80 shrink-0 flex flex-col border-r border-[#E4E7EF] dark:border-[#2A3942] bg-white dark:bg-[#111B21]">
+
+          {/* Left panel: leads list — hidden on mobile when chat is open */}
+          <div className={`w-80 shrink-0 flex flex-col border-r border-[#E4E7EF] dark:border-[#2A3942] bg-white dark:bg-[#111B21] ${selected ? "hidden sm:flex" : "flex"}`}>
             <div className="px-4 pt-5 pb-3 border-b border-[#E4E7EF] dark:border-[#2A3942]">
               <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#E9EDEF] mb-3">My Lead Chats</h2>
               <div className="relative">
@@ -640,14 +780,13 @@ export default function UserLeadCommunication() {
                 </div>
               ) : (
                 filteredLeads.map((lead) => {
-                  const isActive  = selected?._id === lead._id;
-                  const unread    = unreadCounts[lead._id?.toString()] || 0;
+                  const isActive = selected?._id === lead._id;
+                  const unread   = unreadCounts[lead._id] || 0;
                   return (
                     <button
                       key={lead._id}
                       onClick={() => {
                         setSelected(lead);
-                        // Clear unread immediately on click
                         if (unread) setUnreadCounts((prev) => { const n = { ...prev }; delete n[lead._id]; return n; });
                       }}
                       className={`w-full flex items-center gap-3 px-4 py-3 text-left transition border-b border-[#F0F2F5] dark:border-[#2A3942] ${
@@ -689,37 +828,69 @@ export default function UserLeadCommunication() {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
             </div>
-          ) : !conversationId ? (
+          ) : !conversation ? (
             <StartConversationPane
               lead={selected}
               authHeaders={authHeaders}
               apiUrl={API_URL}
-              onStarted={(convId) => {
-                setConversationId(convId);
-                // CRITICAL FIX: map this new conversation → lead so that
-                // incoming socket messages for it show the unread badge on
-                // the correct lead row and are appended to the open chat.
-                if (convId && selected?._id) {
-                  setLeadConvMap((prev) => ({ ...prev, [convId]: selected._id.toString() }));
-                }
+              onStarted={(conv) => {
+                if (!conv) return;
+                const convIdStr = String(conv._id);
+                setConversation(conv);
+                setConvLeadMap((prev) => ({ ...prev, [convIdStr]: selected._id }));
+                setMessages([]);
+                // Fetch messages after start
+                axios
+                  .get(`${API_URL}/whatsapp/conversations/${conv._id}/messages`, authHeaders)
+                  .then((res) => setMessages(res.data?.messages || []))
+                  .catch(() => {});
+                setTimeout(() => inputRef.current?.focus(), 100);
               }}
             />
           ) : (
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className={`flex flex-col overflow-hidden ${selected ? "flex-1" : "hidden sm:flex flex-1"}`}>
               {/* Chat header */}
               <div className="bg-[#075E54] dark:bg-[#202C33] px-4 py-3 flex items-center gap-3 shrink-0">
+                {/* Mobile back button */}
+                <button
+                  onClick={() => setSelected(null)}
+                  className="sm:hidden w-8 h-8 flex items-center justify-center rounded-lg text-white/70 hover:text-white transition shrink-0"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                </button>
                 <Avatar name={selected.name} size="sm" />
                 <div className="flex-1 min-w-0">
                   <h3 className="text-[14px] font-semibold text-white leading-none truncate">{selected.name}</h3>
                   <p className="text-[11px] text-[#8FB8A8] mt-0.5">{selected.mobile || selected.phone}</p>
                 </div>
-                <span className="text-[10px] bg-white/10 text-white px-2 py-0.5 rounded-full font-semibold">
+                <span className="text-[10px] bg-white/10 text-white px-2 py-0.5 rounded-full font-semibold shrink-0">
                   {selected.status || "New"}
                 </span>
               </div>
 
+              {/* Session banner (24h expiry warning) */}
+              {session && (
+                <div className={`px-4 py-2 text-[11px] border-b border-[#E4E7EF] dark:border-[#2A3942] ${
+                  session.expired ? "bg-[#FEF2F2] text-[#DC2626]" : "bg-[#FFFBEB] text-[#D97706]"
+                }`}>
+                  ⚠️ {session.text}
+                </div>
+              )}
+
+              {/* Closed conversation banner */}
+              {isClosed && (
+                <div className="px-4 py-2 text-[11px] bg-[#F8F9FC] dark:bg-[#1A1D27] text-[#8B92A9] border-b border-[#E4E7EF] dark:border-[#2A3942] text-center">
+                  This conversation has been marked as resolved.
+                </div>
+              )}
+
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto py-3 bg-[#EFEAE2] dark:bg-[#0B141A]">
+              <div
+                className="flex-1 overflow-y-auto py-3"
+                style={{ background: "linear-gradient(to bottom, #f0fdf4 0%, #fafffe 100%)" }}
+              >
                 {loadingMsgs ? (
                   <div className="flex justify-center items-center h-full">
                     <svg className="w-6 h-6 animate-spin text-[#25D366]" fill="none" viewBox="0 0 24 24">
@@ -746,41 +917,69 @@ export default function UserLeadCommunication() {
                 <div ref={bottomRef} />
               </div>
 
-              {/* Input bar */}
-              <div className="bg-[#F0F2F5] dark:bg-[#202C33] px-3 py-2.5 flex items-end gap-2 shrink-0">
-                <div className="flex-1 bg-white dark:bg-[#2A3942] rounded-2xl px-4 py-2 min-h-[42px] flex items-center">
-                  <textarea
-                    value={msgText}
-                    onChange={(e) => setMsgText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend();
-                      }
+              {/* Send error */}
+              {sendError && (
+                <div className="px-4 py-2 bg-[#FEF2F2] text-[#DC2626] text-[11px] border-t border-[#FECACA] flex items-center justify-between shrink-0">
+                  {sendError}
+                  <button onClick={() => setSendError("")} className="ml-2 text-inherit">✕</button>
+                </div>
+              )}
+
+              {/* Input bar — show Re-engage when session expired, normal input otherwise */}
+              {session?.expired && !isClosed ? (
+                <div className="px-4 py-3 border-t border-[#E4E7EF] dark:border-[#2A3942] bg-white dark:bg-[#111B21] shrink-0">
+                  <p className="text-[11px] text-[#8B92A9] mb-2 text-center">
+                    24-hour session expired. Send a pre-approved template to re-open the conversation.
+                  </p>
+                  <ReEngageWidget
+                    conversationId={conversation._id}
+                    authHeaders={authHeaders}
+                    onSent={(msg) => {
+                      setMessages((prev) => [...prev, msg]);
+                      const newExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                      setConversation((prev) => prev ? { ...prev, sessionExpiresAt: newExpiry, status: "open" } : prev);
+                      setSendError("");
                     }}
-                    rows={1}
-                    placeholder="Type a message…"
-                    className="w-full bg-transparent text-[13px] text-[#111B21] dark:text-[#E9EDEF] placeholder:text-[#8B92A9] resize-none focus:outline-none leading-relaxed"
-                    style={{ maxHeight: "100px", overflowY: "auto" }}
                   />
                 </div>
-                <button
-                  onClick={handleSend}
-                  disabled={sending || !msgText.trim() || !conversationId}
-                  className="w-11 h-11 rounded-full bg-[#25D366] hover:bg-[#20B858] disabled:opacity-40 flex items-center justify-center transition shadow-md shrink-0"
-                >
-                  {sending ? (
-                    <svg className="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
+              ) : (
+                <div className="bg-[#F0F2F5] dark:bg-[#202C33] px-3 py-2.5 flex items-end gap-2 shrink-0">
+                  <div className="flex-1 bg-white dark:bg-[#2A3942] rounded-2xl px-4 py-2 min-h-[42px] flex items-center">
+                    <textarea
+                      ref={inputRef}
+                      value={msgText}
+                      onChange={(e) => setMsgText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      rows={1}
+                      placeholder={isClosed ? "Conversation is resolved" : "Type a message…"}
+                      disabled={isClosed || sending}
+                      className="w-full bg-transparent text-[13px] text-[#111B21] dark:text-[#E9EDEF] placeholder:text-[#8B92A9] resize-none focus:outline-none leading-relaxed disabled:opacity-50"
+                      style={{ maxHeight: "100px", overflowY: "auto" }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleSend}
+                    disabled={sending || !msgText.trim() || !conversation?._id || isClosed}
+                    className="w-11 h-11 rounded-full bg-[#25D366] hover:bg-[#20B858] disabled:opacity-40 flex items-center justify-center transition shadow-md shrink-0"
+                  >
+                    {sending ? (
+                      <svg className="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
