@@ -5,7 +5,7 @@ import { useDailyReport } from '../hooks/useDailyReport';
 import {
   addDays, formatLong, formatMedium, isToday as isTodayFn,
 } from '../utils/dateUtils';
-import { FlameIcon, CheckIcon, LoaderICon, TrendingUpIcon} from "lucide-react";
+import { FlameIcon, CheckIcon, LoaderIcon, TrendingUpIcon} from "lucide-react";
 
 const STATUS_STYLE = {
   'New':            { bg: 'bg-[#EEF3FF] dark:bg-[#1A2540]', text: 'text-[#2563EB] dark:text-[#4F8EF7]', dot: '#2563EB' },
