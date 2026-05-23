@@ -416,12 +416,22 @@ export default function UserLeadCommunication() {
   const [msgText,        setMsgText]        = useState("");
   const [sending,        setSending]        = useState(false);
   const [search,         setSearch]         = useState("");
+  // unread counts per lead._id — incremented on incoming socket messages when that lead isn't selected
+  const [unreadCounts,   setUnreadCounts]   = useState({});
+  // maps conversationId → leadId, built as leads are clicked, for unread badge lookup
+  const [leadConvMap,    setLeadConvMap]    = useState({}); // { convId: leadId }
 
   const socketRef = useRef(null);
   const bottomRef = useRef(null);
   // Ref always holds latest conversationId so socket listener never has stale closure
   const conversationIdRef = useRef(null);
   useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
+  // Ref for the lead linked to the current conversation (to track unreads)
+  const selectedLeadIdRef = useRef(null);
+  useEffect(() => { selectedLeadIdRef.current = selected?._id || null; }, [selected]);
+  // Ref for leadConvMap so socket handler can read it without stale closure
+  const leadConvMapRef = useRef({});
+  useEffect(() => { leadConvMapRef.current = leadConvMap; }, [leadConvMap]);
 
   // ── Fetch assigned leads ───────────────────────────────────────────────────
   useEffect(() => {
@@ -443,7 +453,15 @@ export default function UserLeadCommunication() {
     setMessages([]);
     axios
       .get(`${API_URL}/whatsapp/conversation-by-lead/${selected._id}`, authHeaders)
-      .then((res) => setConversationId(res.data?.conversation?._id || null))
+      .then((res) => {
+        const convId = res.data?.conversation?._id || null;
+        setConversationId(convId);
+        // Clear unread badge for this conversation
+        if (convId) {
+          setLeadConvMap((prev) => ({ ...prev, [convId]: selected._id }));
+          setUnreadCounts((prev) => { const n = { ...prev }; delete n[convId]; return n; });
+        }
+      })
       .catch(() => setConversationId(null))
       .finally(() => setLoadingConv(false));
   }, [selected?._id]);
@@ -453,15 +471,37 @@ export default function UserLeadCommunication() {
     const socket = io(SOCKET_URL, { withCredentials: true, auth: { token } });
     socketRef.current = socket;
     socket.emit("wa_agent_join", { agentId: user?._id });
-    // Use conversationIdRef so listener always checks latest value without reconnecting
+
     socket.on("wa_message", (payload) => {
-      const currentConvId = conversationIdRef.current;
-      if (currentConvId && payload.conversationId === currentConvId) {
-        const msg = payload.message || payload;
+      const msg          = payload.message || payload;
+      const incomingConv = payload.conversationId;
+
+      if (msg.direction !== "inbound") return; // outbound already shown via optimistic update
+
+      const currentConvId    = conversationIdRef.current;
+      const currentLeadId    = selectedLeadIdRef.current;
+
+      if (currentConvId && incomingConv === currentConvId) {
+        // ── Active conversation: append message directly ──────────────────
         setMessages((prev) => {
           if (prev.some((m) => m._id && m._id === msg._id)) return prev;
           return [...prev, msg];
         });
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      } else {
+        // ── Different conversation: find which lead it belongs to and bump unread ──
+        const leadId = leadConvMapRef.current[incomingConv];
+        if (leadId) {
+          setUnreadCounts((prev) => ({ ...prev, [leadId]: (prev[leadId] || 0) + 1 }));
+        }
+
+        // If this conversation belongs to the currently selected lead
+        // (conversationId was null because the lead had no prior convo),
+        // set it now so the chat window opens automatically.
+        if (currentLeadId && !currentConvId && payload.assignedAgent === user?._id) {
+          setConversationId(incomingConv);
+          setMessages([msg]);
+        }
       }
     });
     return () => socket.disconnect();
@@ -598,27 +638,38 @@ export default function UserLeadCommunication() {
                 </div>
               ) : (
                 filteredLeads.map((lead) => {
-                  const isActive = selected?._id === lead._id;
+                  const isActive  = selected?._id === lead._id;
+                  const unread    = unreadCounts[lead._id] || 0;
                   return (
                     <button
                       key={lead._id}
-                      onClick={() => setSelected(lead)}
+                      onClick={() => {
+                        setSelected(lead);
+                        // Clear unread immediately on click
+                        if (unread) setUnreadCounts((prev) => { const n = { ...prev }; delete n[lead._id]; return n; });
+                      }}
                       className={`w-full flex items-center gap-3 px-4 py-3 text-left transition border-b border-[#F0F2F5] dark:border-[#2A3942] ${
                         isActive ? "bg-[#EEF3FF] dark:bg-[#2A3942]" : "hover:bg-[#F8F9FC] dark:hover:bg-[#202C33]"
                       }`}
                     >
                       <Avatar name={lead.name} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#E9EDEF] truncate">{lead.name}</p>
+                        <p className={`text-[13px] truncate ${unread ? "font-bold text-[#0F1117] dark:text-white" : "font-semibold text-[#0F1117] dark:text-[#E9EDEF]"}`}>{lead.name}</p>
                         <p className="text-[11px] text-[#8B92A9] truncate">{lead.mobile || lead.phone}</p>
                       </div>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                        lead.status === "Converted"   ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" :
-                        lead.status === "In Progress" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" :
-                                                        "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-                      }`}>
-                        {lead.status || "New"}
-                      </span>
+                      {unread > 0 ? (
+                        <span className="bg-[#25D366] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shrink-0">
+                          {unread}
+                        </span>
+                      ) : (
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                          lead.status === "Converted"   ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" :
+                          lead.status === "In Progress" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" :
+                                                          "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
+                        }`}>
+                          {lead.status || "New"}
+                        </span>
+                      )}
                     </button>
                   );
                 })
