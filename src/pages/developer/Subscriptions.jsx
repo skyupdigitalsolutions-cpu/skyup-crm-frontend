@@ -1,4 +1,9 @@
-
+// frontend/src/pages/developer/Subscriptions.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// Developer Subscription Management Page
+// Shows all company subscriptions and allows the developer to activate,
+// cancel, or extend trials per company.
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../data/axiosConfig';
@@ -43,6 +48,102 @@ function Skeleton() {
 }
 
 // ── Activate / Change Plan Modal ──────────────────────────────────────────────
+// ── Features Editor Modal ─────────────────────────────────────────────────────
+const ALL_FEATURES = [
+  { key: 'leads',          label: 'Lead Management'      },
+  { key: 'contacts',       label: 'Contacts'             },
+  { key: 'basic-reports',  label: 'Basic Reports'        },
+  { key: 'attendance',     label: 'Attendance'           },
+  { key: 'daily-report',   label: 'Daily Report (Email)' },
+  { key: 'sms-blast',      label: 'SMS Blast'            },
+  { key: 'whatsapp-blast', label: 'WhatsApp Blast'       },
+  { key: 'email-blast',    label: 'Email Blast'          },
+  { key: 'campaigns',      label: 'Campaigns'            },
+  { key: 'google-ads',     label: 'Google Ads'           },
+  { key: 'meta-ads',       label: 'Facebook / Meta Ads'  },
+  { key: 'call-recording', label: 'Call Recordings'      },
+  { key: 'api-access',     label: 'API / Webhooks'       },
+  { key: 'custom-reports', label: 'Custom Reports'       },
+  { key: 'white-label',    label: 'White Label'          },
+];
+
+function FeaturesModal({ company, onClose, onSuccess }) {
+  // Initialise from company's existing planFeatures or plan defaults
+  const planDefaults = {
+    basic:      ['leads','contacts','basic-reports','attendance','daily-report'],
+    pro:        ['leads','contacts','basic-reports','attendance','daily-report','sms-blast','whatsapp-blast','email-blast','campaigns','google-ads','meta-ads','call-recording','api-access'],
+    enterprise: ALL_FEATURES.map(f => f.key),
+  };
+  const defaultEnabled = new Set(planDefaults[company.plan] || planDefaults.basic);
+  const init = ALL_FEATURES.map(f => ({
+    key:     f.key,
+    enabled: company.planFeatures?.find(x => x.key === f.key)?.enabled
+             ?? defaultEnabled.has(f.key),
+  }));
+
+  const [features, setFeatures] = useState(init);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
+
+  const toggle = key => setFeatures(prev => prev.map(f => f.key === key ? { ...f, enabled: !f.enabled } : f));
+
+  const handleSave = async () => {
+    setLoading(true); setError('');
+    try {
+      await api.put(`/subscription/features/${company._id}`, { features });
+      onSuccess('Plan features updated successfully.');
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update features.');
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md shadow-xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h3 className="text-[16px] font-bold text-[#0F1117] dark:text-white">Edit Plan Features</h3>
+            <p className="text-[12px] text-[#8B92A9] mt-0.5">{company.name} · <span className="capitalize">{company.plan}</span> plan</p>
+          </div>
+          <button onClick={onClose} className="text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white transition text-xl">✕</button>
+        </div>
+
+        {error && (
+          <div className="mb-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800">
+            <p className="text-[12px] text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        <div className="overflow-y-auto flex-1 divide-y divide-[#E4E7EF] dark:divide-[#262A38] my-3">
+          {features.map(f => {
+            const meta = ALL_FEATURES.find(x => x.key === f.key);
+            return (
+              <div key={f.key} className="flex items-center justify-between py-3 px-1">
+                <span className="text-[13px] font-medium text-[#0F1117] dark:text-white">{meta?.label}</span>
+                <button
+                  onClick={() => toggle(f.key)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${f.enabled ? 'bg-[#2563EB]' : 'bg-[#E4E7EF] dark:bg-[#262A38]'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${f.enabled ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex gap-3 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#262A38] transition">Cancel</button>
+          <button onClick={handleSave} disabled={loading}
+            className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 disabled:opacity-60 transition">
+            {loading ? 'Saving…' : 'Save Features'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ActivateModal({ company, onClose, onSuccess }) {
   const [plan,     setPlan]     = useState(company.plan || 'basic');
   const [billing,  setBilling]  = useState('monthly');
@@ -207,6 +308,7 @@ export default function Subscriptions() {
 
   // Modals
   const [activateTarget, setActivateTarget] = useState(null);
+  const [editFeatures,   setEditFeatures]   = useState(null);
   const [trialTarget,    setTrialTarget]    = useState(null);
 
   const fetchData = useCallback(async () => {
@@ -269,6 +371,15 @@ expiring: companies.filter(c => c.daysRemaining >= 0 && c.daysRemaining <= 30 &&
         <div className="fixed top-4 right-4 z-50 px-4 py-3 rounded-xl bg-[#059669] text-white text-[13px] font-semibold shadow-lg">
           {toast}
         </div>
+      )}
+
+      {/* Features editor modal */}
+      {editFeatures && (
+        <FeaturesModal
+          company={editFeatures}
+          onClose={() => setEditFeatures(null)}
+          onSuccess={msg => { setToast(msg); setEditFeatures(null); }}
+        />
       )}
 
       {/* Activate modal */}
@@ -410,6 +521,11 @@ expiring: companies.filter(c => c.daysRemaining >= 0 && c.daysRemaining <= 30 &&
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2 flex-wrap">
+                        <button onClick={() => setEditFeatures(c)}
+                          className="px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[11px] font-semibold text-[#7C3AED] hover:border-[#7C3AED] transition"
+                        >
+                          Features
+                        </button>
                         <button onClick={() => setActivateTarget(c)}
                           className="px-3 py-1.5 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] text-[11px] font-semibold hover:bg-blue-100 transition">
                           {c.subscriptionStatus === 'active' ? 'Change Plan' : 'Activate'}
