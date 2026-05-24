@@ -8,10 +8,12 @@ import UpdatePaymentModal from "./UpdatePaymentModal";
 import DowngradeWarningModal from "./DowngradeWarningModal";
 
 const PLAN_ORDER = ["basic", "pro", "enterprise"];
+// These limits must match UserManagement.jsx's PLAN_CONFIG exactly.
+// Super admin is NEVER counted against the admin limit.
 const PLAN_LIMITS = {
-  basic:      { admins: 1, users: 5  },
-  pro:        { admins: 3, users: 20 },
-  enterprise: { admins: 5, users: 999},
+  basic:      { admins: 1, users: 10  },   // "starter" in backend
+  pro:        { admins: 3, users: 30  },   // "growth"  in backend
+  enterprise: { admins: 5, users: 50  },
 };
 // Map frontend plan IDs → backend plan IDs (backend uses starter/growth/enterprise)
 const BACKEND_PLAN_ID = {
