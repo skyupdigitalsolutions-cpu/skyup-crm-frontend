@@ -268,11 +268,15 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
       })
       .catch(() => {}); // keep defaults on failure
 
-    // Also fetch my company's resolved features
+    // Fetch my company's resolved features (plan is set by fetchSubscription)
     api.get("/subscription/my/status")
       .then(({ data }) => {
         if (data?.resolvedFeatures?.features) {
           setMyFeatures(data.resolvedFeatures.features);
+        }
+        // Also set plan here as early as possible (fetchSubscription may still be loading)
+        if (data?.plan) {
+          setCurrentPlanId(data.plan.toLowerCase());
         }
       })
       .catch(() => {});
@@ -283,12 +287,33 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
 
   async function fetchSubscription() {
     try {
-      const { data } = await api.get("/razorpay/subscription");
-      setSubscription(data);
-      const nameToId = { Basic: "basic", Pro: "pro", Enterprise: "enterprise" };
-      setCurrentPlanId(nameToId[data.planName] || "basic");
+      // Primary source of truth: company's own plan field from DB
+      const { data: statusData } = await api.get("/subscription/my/status");
+      if (statusData?.plan) {
+        setCurrentPlanId(statusData.plan.toLowerCase());
+      }
+      // Secondary: razorpay subscription for billing/renewal info
+      try {
+        const { data } = await api.get("/razorpay/subscription");
+        setSubscription(data);
+        // Only use planName from razorpay if status didn't give us a plan
+        if (!statusData?.plan) {
+          const nameToId = { Basic: "basic", Pro: "pro", Enterprise: "enterprise" };
+          setCurrentPlanId(nameToId[data.planName] || "basic");
+        }
+      } catch {
+        // Razorpay call failed — that's fine, we already have the plan from status
+      }
     } catch {
-      setCurrentPlanId("basic");
+      // Fall back to razorpay only
+      try {
+        const { data } = await api.get("/razorpay/subscription");
+        setSubscription(data);
+        const nameToId = { Basic: "basic", Pro: "pro", Enterprise: "enterprise" };
+        setCurrentPlanId(nameToId[data.planName] || "basic");
+      } catch {
+        setCurrentPlanId("basic");
+      }
     }
   }
 
