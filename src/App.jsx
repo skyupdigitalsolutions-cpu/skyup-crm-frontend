@@ -1,5 +1,5 @@
 import { BrowserRouter, Route, Routes, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { useEffect, lazy, Suspense } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import React from "react";
 import { Sidebar } from "./components/Sidebar";
 import ThemeToggle from "./components/ThemeToggle";
@@ -287,6 +287,44 @@ function AppLayout({ children }) {
   );
 }
 
+// Wrapper that fetches the current admin/user lists so UpgradePlan's
+// DowngradeWarningModal knows how many non-super-admin members exist.
+// Super admins are intentionally kept in the array — DowngradeWarningModal
+// already filters them out before counting / showing the removal list.
+function UpgradePlanWithMembers(props) {
+  const [currentAdmins, setCurrentAdmins] = useState([]);
+  const [currentUsers,  setCurrentUsers]  = useState([]);
+
+  useEffect(() => {
+    // Fetch admins (includes super_admin; modal filters them internally)
+    api.get("/admin/")
+      .then(({ data }) => {
+        const list = Array.isArray(data) ? data : (data?.admins ?? []);
+        setCurrentAdmins(list);
+      })
+      .catch(() => {});
+
+    // Fetch employees/users
+    api.get("/admin/company/users")
+      .then(({ data }) => {
+        const list = Array.isArray(data) ? data : (data?.users ?? []);
+        setCurrentUsers(list);
+      })
+      .catch(() => {});
+  }, []);
+
+  const UpgradePlanComponent = lazy(() => import("./components/UpgradePlan"));
+  return (
+    <Suspense fallback={null}>
+      <UpgradePlanComponent
+        {...props}
+        currentAdmins={currentAdmins}
+        currentUsers={currentUsers}
+      />
+    </Suspense>
+  );
+}
+
 export default function App() {
   const { user } = getStoredAuth();
 
@@ -363,7 +401,7 @@ export default function App() {
           {/* ── Upgrade Plan — SuperAdmin only ── */}
           <Route path="/upgrade-plan" element={
             <SuperAdminRoute>
-              <AppLayout><UpgradePlan /></AppLayout>
+              <AppLayout><UpgradePlanWithMembers /></AppLayout>
             </SuperAdminRoute>
           }/>
 
