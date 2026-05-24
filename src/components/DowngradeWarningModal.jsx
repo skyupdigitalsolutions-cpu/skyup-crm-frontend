@@ -143,9 +143,14 @@ export default function DowngradeWarningModal({
   onConfirm,
   onCancel,
 }) {
-  // How many need to be removed
-  const mustRemoveAdmins = Math.max(0, currentAdmins.length - targetAdminLimit);
-  const mustRemoveUsers  = Math.max(0, currentUsers.length  - targetUserLimit);
+  // Super admins are fixed — exclude them from the count and the selectable list
+  const selectableAdmins = currentAdmins.filter(
+    (a) => a.role !== "super_admin" && a.role !== "superadmin"
+  );
+
+  // How many need to be removed (super admin never counts)
+  const mustRemoveAdmins = Math.max(0, selectableAdmins.length - targetAdminLimit);
+  const mustRemoveUsers  = Math.max(0, currentUsers.length      - targetUserLimit);
   const hasAnyRequired   = mustRemoveAdmins > 0 || mustRemoveUsers > 0;
 
   // Selected IDs (Sets)
@@ -182,7 +187,7 @@ export default function DowngradeWarningModal({
 
   // Derived
   const selectedAdmins = useMemo(
-    () => currentAdmins.filter((m) => selectedAdminIds.has(m._id || m.id)),
+    () => selectableAdmins.filter((m) => selectedAdminIds.has(m._id || m.id)),
     [currentAdmins, selectedAdminIds]
   );
   const selectedUsers = useMemo(
@@ -285,13 +290,13 @@ export default function DowngradeWarningModal({
                   selected={selectedAdmins.length}
                   needed={mustRemoveAdmins}
                 />
-                {currentAdmins.map((m, i) => (
+                {selectableAdmins.map((m, i) => (
                   <SelectableRow
                     key={m._id || m.id || m.email}
                     member={m}
                     selected={selectedAdminIds.has(m._id || m.id)}
                     onToggle={toggleAdmin}
-                    isLast={i === currentAdmins.length - 1}
+                    isLast={i === selectableAdmins.length - 1}
                   />
                 ))}
               </div>
