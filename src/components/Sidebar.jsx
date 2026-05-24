@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import usePlanFeatures from "../hooks/usePlanFeatures";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import api from "../data/axiosConfig";
 
@@ -31,6 +32,7 @@ const ADMIN_NAV_ITEMS = [
   {
     to: "/reportpage",
     label: "Report Page",
+    featureKey: "basic-reports",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -44,6 +46,7 @@ const ADMIN_NAV_ITEMS = [
   {
     to: "/campaigns",
     label: "Campaigns",
+    featureKey: "campaigns",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
@@ -53,6 +56,7 @@ const ADMIN_NAV_ITEMS = [
   {
     to: "/communications",
     label: "Communications",
+    featureKey: "sms-blast",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -63,6 +67,7 @@ const ADMIN_NAV_ITEMS = [
   {
     to: "/daily-report",
     label: "Daily Report",
+    featureKey: "daily-report",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -77,6 +82,7 @@ const ADMIN_NAV_ITEMS = [
   {
     to: "/attendance",
     label: "Attendance",
+    featureKey: "attendance",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -217,6 +223,9 @@ export function Sidebar() {
   const companyName = "SKYUP";
   const companyLogo = "/skyup_logo1.svg";
 
+  // ── Plan feature gating ───────────────────────────────────────────────────
+  const { hasFeature } = usePlanFeatures();
+
 
   // ── Poll follow-up alerts every 5 minutes (skip for developer) ────────────
   useEffect(() => {
@@ -249,17 +258,21 @@ export function Sidebar() {
     developer:  { border: "border-emerald-500/30",bg: "bg-emerald-500/10",text: "text-emerald-400" },
   }[role] ?? { border: "border-blue-500/30", bg: "bg-blue-500/10", text: "text-blue-400" };
 
-  // ── Build nav items based on role ─────────────────────────────────────────
-  const NAV_ITEMS =
+  // ── Build nav items based on role, filtered by plan features ──────────────
+  const ALL_NAV_ITEMS =
     isDeveloper  ? DEVELOPER_NAV_ITEMS :
     role === "user" ? USER_NAV_ITEMS :
     isSuperAdmin ? [...ADMIN_NAV_ITEMS, ...SUPERADMIN_EXTRA_ITEMS] :
     ADMIN_NAV_ITEMS;
 
+  // Hide items whose feature is disabled on this company's plan
+  const NAV_ITEMS = ALL_NAV_ITEMS.filter(item =>
+    !item.featureKey || hasFeature(item.featureKey)
+  );
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    localStorage.removeItem("company_brand");
     navigate("/login", { replace: true });
   };
 
