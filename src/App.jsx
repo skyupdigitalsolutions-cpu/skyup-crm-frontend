@@ -48,6 +48,68 @@ function PageLoader() {
   );
 }
 
+// ── Error boundary — catches lazy chunk load failures and auto-retries ────────
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, retrying: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    // Auto-retry on chunk load failures (network hiccups on Render free tier)
+    const isChunkError =
+      error?.name === "ChunkLoadError" ||
+      error?.message?.includes("Loading chunk") ||
+      error?.message?.includes("dynamically imported module") ||
+      error?.message?.includes("Failed to fetch dynamically");
+
+    if (isChunkError && !this.state.retrying) {
+      this.setState({ retrying: true });
+      // Wait 800ms then reset — Suspense will retry the import automatically
+      setTimeout(() => {
+        this.setState({ hasError: false, retrying: false });
+      }, 800);
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center h-full min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
+          <div className="flex flex-col items-center gap-4 text-center px-6">
+            {this.state.retrying ? (
+              <>
+                <svg className="w-8 h-8 animate-spin text-[#2563EB]" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                <p className="text-[13px] text-[#8B92A9] font-medium">Retrying…</p>
+              </>
+            ) : (
+              <>
+                <p className="text-[14px] text-[#4B5168] dark:text-[#9DA3BB] font-medium">
+                  Something went wrong loading this page.
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition"
+                >
+                  Reload page
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function getStoredAuth() {
   const token = localStorage.getItem("token");
   const user  = JSON.parse(localStorage.getItem("user") || "null");
@@ -330,116 +392,118 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
+      <ErrorBoundary>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
 
-          {/* ── Public login routes ── */}
-          <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
-          <Route path="/admin/login"      element={<Navigate to="/login" replace />} />
-          <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
+            {/* ── Public login routes ── */}
+            <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
+            <Route path="/admin/login"      element={<Navigate to="/login" replace />} />
+            <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
 
-          {/* ── Root redirect ── */}
-          <Route path="/" element={
-            <ProtectedRoute><RootRedirect /></ProtectedRoute>
-          }/>
+            {/* ── Root redirect ── */}
+            <Route path="/" element={
+              <ProtectedRoute><RootRedirect /></ProtectedRoute>
+            }/>
 
-          {/* ── Admin Dashboard ── */}
-          <Route path="/dashboard" element={
-            <AdminRoute>
-              <AppLayout><Dashboard /></AppLayout>
-            </AdminRoute>
-          }/>
+            {/* ── Admin Dashboard ── */}
+            <Route path="/dashboard" element={
+              <AdminRoute>
+                <AppLayout><Dashboard /></AppLayout>
+              </AdminRoute>
+            }/>
 
-          {/* ── User Dashboard ── */}
-          <Route path="/user/dashboard" element={
-            <UserRoute>
-              <AppLayout><UserDashboard /></AppLayout>
-            </UserRoute>
-          }/>
+            {/* ── User Dashboard ── */}
+            <Route path="/user/dashboard" element={
+              <UserRoute>
+                <AppLayout><UserDashboard /></AppLayout>
+              </UserRoute>
+            }/>
 
-          {/* ── User Communications (own leads only) ── */}
-          <Route path="/user/communications" element={
-            <UserRoute>
-              <AppLayout><UserLeadCommunication /></AppLayout>
-            </UserRoute>
-          }/>
+            {/* ── User Communications (own leads only) ── */}
+            <Route path="/user/communications" element={
+              <UserRoute>
+                <AppLayout><UserLeadCommunication /></AppLayout>
+              </UserRoute>
+            }/>
 
-          {/* ── Developer pages ── */}
-          <Route path="/developer/dashboard" element={
-            <DeveloperRoute>
-              <AppLayout><DeveloperDashboard /></AppLayout>
-            </DeveloperRoute>
-          }/>
-          <Route path="/developer/companies" element={
-            <DeveloperRoute>
-              <AppLayout><DeveloperCompanies /></AppLayout>
-            </DeveloperRoute>
-          }/>
-          <Route path="/developer/subscriptions" element={
-            <DeveloperRoute>
-              <AppLayout><DeveloperSubscriptions /></AppLayout>
-            </DeveloperRoute>
-          }/>
+            {/* ── Developer pages ── */}
+            <Route path="/developer/dashboard" element={
+              <DeveloperRoute>
+                <AppLayout><DeveloperDashboard /></AppLayout>
+              </DeveloperRoute>
+            }/>
+            <Route path="/developer/companies" element={
+              <DeveloperRoute>
+                <AppLayout><DeveloperCompanies /></AppLayout>
+              </DeveloperRoute>
+            }/>
+            <Route path="/developer/subscriptions" element={
+              <DeveloperRoute>
+                <AppLayout><DeveloperSubscriptions /></AppLayout>
+              </DeveloperRoute>
+            }/>
 
-          {/* ── Admin-only pages ── */}
-          <Route path="/reportpage" element={
-            <AdminRoute>
-              <AppLayout><FeatureGate featureKey="basic-reports"><ReportPage /></FeatureGate></AppLayout>
-            </AdminRoute>
-          }/>
-          <Route path="/campaigns" element={
-            <AdminRoute>
-              <AppLayout><FeatureGate featureKey="campaigns"><Campaigns /></FeatureGate></AppLayout>
-            </AdminRoute>
-          }/>
-          <Route path="/attendance" element={
-            <AdminRoute>
-              <AppLayout><FeatureGate featureKey="attendance"><AttendancePage /></FeatureGate></AppLayout>
-            </AdminRoute>
-          }/>
+            {/* ── Admin-only pages ── */}
+            <Route path="/reportpage" element={
+              <AdminRoute>
+                <AppLayout><FeatureGate featureKey="basic-reports"><ReportPage /></FeatureGate></AppLayout>
+              </AdminRoute>
+            }/>
+            <Route path="/campaigns" element={
+              <AdminRoute>
+                <AppLayout><FeatureGate featureKey="campaigns"><Campaigns /></FeatureGate></AppLayout>
+              </AdminRoute>
+            }/>
+            <Route path="/attendance" element={
+              <AdminRoute>
+                <AppLayout><FeatureGate featureKey="attendance"><AttendancePage /></FeatureGate></AppLayout>
+              </AdminRoute>
+            }/>
 
-          {/* ── Upgrade Plan — SuperAdmin only ── */}
-          <Route path="/upgrade-plan" element={
-            <SuperAdminRoute>
-              <AppLayout><UpgradePlanWithMembers /></AppLayout>
-            </SuperAdminRoute>
-          }/>
+            {/* ── Upgrade Plan — SuperAdmin only ── */}
+            <Route path="/upgrade-plan" element={
+              <SuperAdminRoute>
+                <AppLayout><UpgradePlanWithMembers /></AppLayout>
+              </SuperAdminRoute>
+            }/>
 
-          {/* ── Communications ── */}
-          <Route path="/communications" element={
-            <AdminRoute>
-              <AppLayout>
-                <FeatureGate featureKey="sms-blast"><Communications currentUser={user} /></FeatureGate>
-              </AppLayout>
-            </AdminRoute>
-          }/>
+            {/* ── Communications ── */}
+            <Route path="/communications" element={
+              <AdminRoute>
+                <AppLayout>
+                  <FeatureGate featureKey="sms-blast"><Communications currentUser={user} /></FeatureGate>
+                </AppLayout>
+              </AdminRoute>
+            }/>
 
-          {/* ── Legacy redirects ── */}
-          <Route path="/whatsapp"      element={<Navigate to="/communications" replace />} />
-          <Route path="/email-history" element={<Navigate to="/communications" replace />} />
+            {/* ── Legacy redirects ── */}
+            <Route path="/whatsapp"      element={<Navigate to="/communications" replace />} />
+            <Route path="/email-history" element={<Navigate to="/communications" replace />} />
 
-          {/* ── Call recordings redirect to dashboard (page removed) ── */}
-          <Route path="/call-recordings" element={<Navigate to="/dashboard" replace />} />
+            {/* ── Call recordings redirect to dashboard (page removed) ── */}
+            <Route path="/call-recordings" element={<Navigate to="/dashboard" replace />} />
 
-          {/* ── Leads — role-aware ── */}
-          <Route path="/leads" element={
-            <ProtectedRoute>
-              <AppLayout><LeadsRoleSwitch /></AppLayout>
-            </ProtectedRoute>
-          }/>
+            {/* ── Leads — role-aware ── */}
+            <Route path="/leads" element={
+              <ProtectedRoute>
+                <AppLayout><LeadsRoleSwitch /></AppLayout>
+              </ProtectedRoute>
+            }/>
 
-          {/* ── Daily report — role-aware ── */}
-          <Route path="/daily-report" element={
-            <ProtectedRoute>
-              <AppLayout><FeatureGate featureKey="daily-report"><DailyReportRoleSwitch /></FeatureGate></AppLayout>
-            </ProtectedRoute>
-          }/>
+            {/* ── Daily report — role-aware ── */}
+            <Route path="/daily-report" element={
+              <ProtectedRoute>
+                <AppLayout><FeatureGate featureKey="daily-report"><DailyReportRoleSwitch /></FeatureGate></AppLayout>
+              </ProtectedRoute>
+            }/>
 
-          {/* ── Fallback ── */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* ── Fallback ── */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
 
-        </Routes>
-      </Suspense>
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
