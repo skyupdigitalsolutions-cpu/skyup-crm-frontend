@@ -1,9 +1,20 @@
 import axios from "axios";
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
-  // baseURL: "http://localhost:5000/api",
+// ── Base URL resolution ───────────────────────────────────────────────────────
+// • Local dev  → Vite proxy handles /api → localhost:5000.
+//                No absolute URL needed, so browser never sees a cross-origin
+//                request — CORS is completely bypassed in dev.
+// • Production → VITE_API_URL is set in Render environment variables, e.g.
+//                https://skyup-crm-backend.onrender.com/api
+//
+// If VITE_API_URL is not set (dev), we use "/api" (relative) which the
+// Vite dev-server proxy forwards to localhost:5000 automatically.
+const baseURL =
+  import.meta.env.VITE_API_URL ||   // production: set in Render dashboard
+  "/api";                            // development: proxied by vite.config.js
 
+const api = axios.create({
+  baseURL,
   validateStatus: (status) => status >= 200 && status <= 207,
 });
 
