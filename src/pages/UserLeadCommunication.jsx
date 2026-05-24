@@ -654,8 +654,11 @@ export default function UserLeadCommunication() {
       }
 
       // ── Case 2: Phone matches selected lead (ID mismatch / race condition) ─
+      // NOTE: We intentionally do NOT restrict to direction === "inbound" here.
+      // Outbound messages can also arrive via the company firehose for a
+      // different conv ID (e.g. if two convs exist for the same phone), and
+      // we want those to also update the open chat window.
       const phoneMatchesCurrentLead =
-        msg.direction === "inbound" &&
         inboundPhone &&
         currentLead?.mobile &&
         normalizePhone(currentLead.mobile) === normalizePhone(inboundPhone);
