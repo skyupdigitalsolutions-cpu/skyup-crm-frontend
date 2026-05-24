@@ -10,7 +10,7 @@ import {
   Plus, Pencil, Trash2, ToggleLeft, ToggleRight,
   ChevronDown, ChevronUp, X, Loader2, AlertTriangle,
   DollarSign, Users, Database, Zap, RefreshCw, Check,
-  PackageCheck,
+  PackageCheck, PlusCircle, ShieldCheck, Infinity,
 } from 'lucide-react';
 import api from '../../data/axiosConfig';
 
@@ -44,16 +44,20 @@ const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
 function buildEmptyForm() {
   return {
-    planKey:     '',
-    name:        '',
-    description: '',
-    color:       '#2563EB',
-    priceMonthly: '',
-    priceYearly:  '',
-    maxUsers:    '',
-    maxLeads:    '',
-    sortOrder:   '',
-    isActive:    true,
+    planKey:          '',
+    name:             '',
+    description:      '',
+    color:            '#2563EB',
+    priceMonthly:     '',
+    priceYearly:      '',
+    maxEmployees:     '',
+    unlimitedEmployees: false,
+    maxAdmins:        '',
+    unlimitedAdmins:  false,
+    maxLeads:         '',
+    unlimitedLeads:   false,
+    sortOrder:        '',
+    isActive:         true,
     features: ALL_FEATURES.map(f => ({ key: f.key, label: f.label, enabled: false })),
   };
 }
@@ -68,15 +72,26 @@ function planToForm(plan) {
     color:        plan.color        || '#6B7280',
     priceMonthly: plan.price?.monthly ?? '',
     priceYearly:  plan.price?.yearly  ?? '',
-    maxUsers:     plan.maxUsers ?? '',
-    maxLeads:     plan.maxLeads ?? '',
-    sortOrder:    plan.sortOrder ?? '',
+    maxEmployees:       plan.maxUsers   >= 999    ? '' : (plan.maxUsers   ?? ''),
+    unlimitedEmployees: plan.maxUsers   >= 999,
+    maxAdmins:          plan.maxAdmins  >= 999    ? '' : (plan.maxAdmins  ?? ''),
+    unlimitedAdmins:    plan.maxAdmins  >= 999,
+    maxLeads:           plan.maxLeads   >= 999999 ? '' : (plan.maxLeads   ?? ''),
+    unlimitedLeads:     plan.maxLeads   >= 999999,
+    sortOrder:          plan.sortOrder  ?? '',
     isActive:     plan.isActive !== false,
-    features: ALL_FEATURES.map(f => ({
-      key:     f.key,
-      label:   f.label,
-      enabled: featureMap[f.key] ?? false,
-    })),
+    features: (() => {
+      // Start with ALL_FEATURES defaults
+      const base = ALL_FEATURES.map(f => ({
+        key:     f.key,
+        label:   f.label,
+        enabled: featureMap[f.key] ?? false,
+      }));
+      // Append any custom features saved in DB that aren't in ALL_FEATURES
+      const baseKeys = new Set(ALL_FEATURES.map(f => f.key));
+      const custom = (plan.features || []).filter(f => !baseKeys.has(f.key));
+      return [...base, ...custom];
+    })(),
   };
 }
 
@@ -90,8 +105,9 @@ function formToPayload(form) {
       monthly: Number(form.priceMonthly || 0),
       yearly:  Number(form.priceYearly  || 0),
     },
-    maxUsers:  Number(form.maxUsers  || 5),
-    maxLeads:  Number(form.maxLeads  || 1000),
+    maxUsers:  form.unlimitedEmployees ? 999    : Number(form.maxEmployees || 5),
+    maxAdmins: form.unlimitedAdmins   ? 999    : Number(form.maxAdmins    || 2),
+    maxLeads:  form.unlimitedLeads    ? 999999 : Number(form.maxLeads     || 1000),
     sortOrder: Number(form.sortOrder || 0),
     isActive:  form.isActive,
     features:  form.features,
@@ -114,10 +130,34 @@ function Skeleton() {
 }
 
 // ── Feature toggle grid inside the modal ─────────────────────────────────────
+const DEFAULT_KEYS = new Set([
+  'leads','contacts','basic-reports','attendance','daily-report',
+  'sms-blast','whatsapp-blast','email-blast','campaigns','google-ads',
+  'meta-ads','call-recording','api-access','custom-reports','white-label',
+]);
+
 function FeatureGrid({ features, onChange }) {
-  const toggle = (key) => {
+  const [addKey,   setAddKey]   = useState('');
+  const [addLabel, setAddLabel] = useState('');
+  const [addError, setAddError] = useState('');
+  const [showAdd,  setShowAdd]  = useState(false);
+
+  const toggle = (key) =>
     onChange(features.map(f => f.key === key ? { ...f, enabled: !f.enabled } : f));
+
+  const removeFeature = (key) =>
+    onChange(features.filter(f => f.key !== key));
+
+  const confirmAdd = () => {
+    const k = addKey.trim().toLowerCase().replace(/\s+/g, '-');
+    const l = addLabel.trim();
+    if (!k) return setAddError('Feature key is required.');
+    if (!l) return setAddError('Feature label is required.');
+    if (features.find(f => f.key === k)) return setAddError(`Key "${k}" already exists.`);
+    onChange([...features, { key: k, label: l, enabled: true }]);
+    setAddKey(''); setAddLabel(''); setAddError(''); setShowAdd(false);
   };
+
   const enabledCount = features.filter(f => f.enabled).length;
 
   return (
@@ -130,26 +170,103 @@ function FeatureGrid({ features, onChange }) {
           {enabledCount} / {features.length} enabled
         </span>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-2">
         {features.map(f => (
-          <button
+          <div
             key={f.key}
-            type="button"
-            onClick={() => toggle(f.key)}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all duration-150 ${
+            className={`flex items-center gap-1.5 rounded-xl border transition-all duration-150 ${
               f.enabled
-                ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-300'
-                : 'bg-[#F8F9FC] dark:bg-[#13161E] border-[#E5E7EB] dark:border-[#262A38] text-[#6B7280] dark:text-[#565C75]'
+                ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30'
+                : 'bg-[#F8F9FC] dark:bg-[#13161E] border-[#E5E7EB] dark:border-[#262A38]'
             }`}
           >
-            {f.enabled
-              ? <ToggleRight className="w-4 h-4 shrink-0 text-blue-500" />
-              : <ToggleLeft  className="w-4 h-4 shrink-0 opacity-40" />
-            }
-            <span className="text-[12px] font-medium truncate">{f.label}</span>
-          </button>
+            {/* toggle button takes most of the space */}
+            <button
+              type="button"
+              onClick={() => toggle(f.key)}
+              className={`flex items-center gap-2 flex-1 min-w-0 px-3 py-2 text-left ${
+                f.enabled ? 'text-blue-700 dark:text-blue-300' : 'text-[#6B7280] dark:text-[#565C75]'
+              }`}
+            >
+              {f.enabled
+                ? <ToggleRight className="w-4 h-4 shrink-0 text-blue-500" />
+                : <ToggleLeft  className="w-4 h-4 shrink-0 opacity-40" />
+              }
+              <span className="text-[12px] font-medium truncate">{f.label}</span>
+              {!DEFAULT_KEYS.has(f.key) && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-500/15 text-violet-600 dark:text-violet-400 shrink-0 ml-auto">
+                  CUSTOM
+                </span>
+              )}
+            </button>
+            {/* delete — always shown, but default features get a softer style */}
+            <button
+              type="button"
+              onClick={() => removeFeature(f.key)}
+              title={DEFAULT_KEYS.has(f.key) ? 'Remove from this plan' : 'Delete custom feature'}
+              className="p-1.5 mr-1 rounded-lg text-[#9CA3AF] hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors shrink-0"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
         ))}
       </div>
+
+      {/* ── Add custom feature row ── */}
+      {showAdd ? (
+        <div className="mt-2 p-3 rounded-xl border border-dashed border-blue-300 dark:border-blue-500/40 bg-blue-50/50 dark:bg-blue-500/5 space-y-2">
+          <p className="text-[11px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider">New Feature</p>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              placeholder="Key  e.g. voice-bot"
+              value={addKey}
+              onChange={e => { setAddKey(e.target.value); setAddError(''); }}
+              className="px-2.5 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#262A38]
+                bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA]
+                placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="text"
+              placeholder="Label  e.g. Voice Bot"
+              value={addLabel}
+              onChange={e => { setAddLabel(e.target.value); setAddError(''); }}
+              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), confirmAdd())}
+              className="px-2.5 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#262A38]
+                bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA]
+                placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          {addError && <p className="text-[11px] text-red-500">{addError}</p>}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={confirmAdd}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowAdd(false); setAddKey(''); setAddLabel(''); setAddError(''); }}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-semibold text-[#6B7280] bg-[#F3F4F6] dark:bg-[#262A38] hover:bg-[#E5E7EB] dark:hover:bg-[#2E3347] transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowAdd(true)}
+          className="mt-1 flex items-center gap-1.5 text-[12px] font-semibold text-blue-600 dark:text-blue-400
+            hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+        >
+          <PlusCircle className="w-3.5 h-3.5" />
+          Add custom feature
+        </button>
+      )}
     </div>
   );
 }
@@ -331,42 +448,120 @@ function PlanModal({ mode, plan, onClose, onSuccess }) {
           </div>
 
           {/* Limits row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Field label="Max Users">
-              <div className="relative">
-                <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF]" />
-                <Input
-                  type="number"
-                  min="1"
-                  value={form.maxUsers}
-                  onChange={e => setField('maxUsers', e.target.value)}
-                  placeholder="10"
-                  className="pl-8"
-                />
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider">Limits</p>
+
+            {/* Max Employees */}
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center shrink-0">
+                <Users className="w-3.5 h-3.5 text-purple-500" />
               </div>
-            </Field>
-            <Field label="Max Leads">
-              <div className="relative">
-                <Database className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF]" />
+              <span className="text-[13px] font-medium text-[#4B5563] dark:text-[#9DA3BB] w-36 shrink-0">Max Employees</span>
+              <div className="flex items-center gap-2 flex-1">
                 <Input
                   type="number"
                   min="1"
-                  value={form.maxLeads}
+                  value={form.unlimitedEmployees ? '' : form.maxEmployees}
+                  onChange={e => setField('maxEmployees', e.target.value)}
+                  placeholder="e.g. 10"
+                  disabled={form.unlimitedEmployees}
+                  className={`flex-1 ${form.unlimitedEmployees ? 'opacity-40 cursor-not-allowed' : ''}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setField('unlimitedEmployees', !form.unlimitedEmployees)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[12px] font-semibold shrink-0 transition-all ${
+                    form.unlimitedEmployees
+                      ? 'bg-purple-50 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/30 text-purple-600 dark:text-purple-400'
+                      : 'bg-[#F3F4F6] dark:bg-[#262A38] border-[#E5E7EB] dark:border-[#262A38] text-[#6B7280] dark:text-[#9DA3BB]'
+                  }`}
+                >
+                  <Infinity className="w-3.5 h-3.5" />
+                  Unlimited
+                </button>
+              </div>
+            </div>
+
+            {/* Max Admins */}
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+              </div>
+              <span className="text-[13px] font-medium text-[#4B5563] dark:text-[#9DA3BB] w-36 shrink-0">Max Admins</span>
+              <div className="flex items-center gap-2 flex-1">
+                <Input
+                  type="number"
+                  min="1"
+                  value={form.unlimitedAdmins ? '' : form.maxAdmins}
+                  onChange={e => setField('maxAdmins', e.target.value)}
+                  placeholder="e.g. 2"
+                  disabled={form.unlimitedAdmins}
+                  className={`flex-1 ${form.unlimitedAdmins ? 'opacity-40 cursor-not-allowed' : ''}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setField('unlimitedAdmins', !form.unlimitedAdmins)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[12px] font-semibold shrink-0 transition-all ${
+                    form.unlimitedAdmins
+                      ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400'
+                      : 'bg-[#F3F4F6] dark:bg-[#262A38] border-[#E5E7EB] dark:border-[#262A38] text-[#6B7280] dark:text-[#9DA3BB]'
+                  }`}
+                >
+                  <Infinity className="w-3.5 h-3.5" />
+                  Unlimited
+                </button>
+              </div>
+            </div>
+
+            {/* Max Leads — optional */}
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
+                <Database className="w-3.5 h-3.5 text-blue-500" />
+              </div>
+              <span className="text-[13px] font-medium text-[#4B5563] dark:text-[#9DA3BB] w-36 shrink-0">
+                Max Leads
+                <span className="ml-1 text-[10px] font-normal text-[#9CA3AF]">(optional)</span>
+              </span>
+              <div className="flex items-center gap-2 flex-1">
+                <Input
+                  type="number"
+                  min="1"
+                  value={form.unlimitedLeads ? '' : form.maxLeads}
                   onChange={e => setField('maxLeads', e.target.value)}
-                  placeholder="5000"
-                  className="pl-8"
+                  placeholder="Leave blank for no limit"
+                  disabled={form.unlimitedLeads}
+                  className={`flex-1 ${form.unlimitedLeads ? 'opacity-40 cursor-not-allowed' : ''}`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setField('unlimitedLeads', !form.unlimitedLeads)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[12px] font-semibold shrink-0 transition-all ${
+                    form.unlimitedLeads
+                      ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400'
+                      : 'bg-[#F3F4F6] dark:bg-[#262A38] border-[#E5E7EB] dark:border-[#262A38] text-[#6B7280] dark:text-[#9DA3BB]'
+                  }`}
+                >
+                  <Infinity className="w-3.5 h-3.5" />
+                  Unlimited
+                </button>
               </div>
-            </Field>
-            <Field label="Sort Order" hint="Lower = first on list">
+            </div>
+
+            {/* Sort Order */}
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-[#F3F4F6] dark:bg-[#262A38] flex items-center justify-center shrink-0">
+                <span className="text-[11px] font-bold text-[#6B7280]">#</span>
+              </div>
+              <span className="text-[13px] font-medium text-[#4B5563] dark:text-[#9DA3BB] w-36 shrink-0">Sort Order</span>
               <Input
                 type="number"
                 min="0"
                 value={form.sortOrder}
                 onChange={e => setField('sortOrder', e.target.value)}
-                placeholder="0"
+                placeholder="0  (lower = first)"
+                className="flex-1"
               />
-            </Field>
+            </div>
           </div>
 
           {/* Colour + active */}
@@ -585,17 +780,32 @@ function PlanCard({ plan, onEdit, onDelete }) {
         </div>
 
         {/* Limits row */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="flex items-center gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2">
-            <Users className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-            <span className="text-[12px] font-semibold text-[#4B5563] dark:text-[#9DA3BB]">
-              {plan.maxUsers >= 999 ? 'Unlimited' : plan.maxUsers} users
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="flex flex-col gap-0.5 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2">
+            <div className="flex items-center gap-1.5">
+              <Users className="w-3 h-3 text-purple-500 shrink-0" />
+              <span className="text-[10px] font-semibold text-[#9CA3AF] dark:text-[#565C75] uppercase tracking-wide">Employees</span>
+            </div>
+            <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+              {plan.maxUsers >= 999 ? '∞' : plan.maxUsers}
             </span>
           </div>
-          <div className="flex items-center gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2">
-            <Database className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span className="text-[12px] font-semibold text-[#4B5563] dark:text-[#9DA3BB]">
-              {plan.maxLeads >= 999999 ? 'Unlimited' : Number(plan.maxLeads).toLocaleString('en-IN')} leads
+          <div className="flex flex-col gap-0.5 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="w-3 h-3 text-amber-500 shrink-0" />
+              <span className="text-[10px] font-semibold text-[#9CA3AF] dark:text-[#565C75] uppercase tracking-wide">Admins</span>
+            </div>
+            <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+              {plan.maxAdmins >= 999 ? '∞' : (plan.maxAdmins ?? '∞')}
+            </span>
+          </div>
+          <div className="flex flex-col gap-0.5 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2">
+            <div className="flex items-center gap-1.5">
+              <Database className="w-3 h-3 text-blue-500 shrink-0" />
+              <span className="text-[10px] font-semibold text-[#9CA3AF] dark:text-[#565C75] uppercase tracking-wide">Leads</span>
+            </div>
+            <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+              {!plan.maxLeads || plan.maxLeads >= 999999 ? '∞' : Number(plan.maxLeads).toLocaleString('en-IN')}
             </span>
           </div>
         </div>
