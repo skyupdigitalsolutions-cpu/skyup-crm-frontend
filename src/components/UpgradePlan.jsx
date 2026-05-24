@@ -245,28 +245,10 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
   const [showDowngrade, setShowDowngrade] = useState(false);
   const { openCheckout } = useRazorpay();
 
-  // ── Fetch plan definitions from backend ──────────────────────────────────
+  // ── Plan definitions are hardcoded in PLAN_DEFAULTS — no backend fetch ──
   useEffect(() => {
-    api.get("/subscription/plans")
-      .then(({ data }) => {
-        if (!data?.plans) return;
-        const merged = {};
-        for (const [key, def] of Object.entries(data.plans)) {
-          const base = PLAN_DEFAULTS[key] || {};
-          merged[key] = {
-            ...base,
-            id:    key,
-            name:  def.name  || base.name,
-            color: def.color || base.color,
-            monthlyPrice: def.price?.monthly || base.monthlyPrice,
-            yearlyPrice:  def.price?.yearly  || base.yearlyPrice,
-            maxUsers: def.maxUsers || base.maxUsers,
-            features: def.features || base.features || [],
-          };
-        }
-        setPlanDefs(merged);
-      })
-      .catch(() => {}); // keep defaults on failure
+    // Plans are always driven by PLAN_DEFAULTS (hardcoded).
+    // The developer /plans page has been removed; no API fetch needed here.
 
     // Fetch my company's resolved features (plan is set by fetchSubscription)
     api.get("/subscription/my/status")
