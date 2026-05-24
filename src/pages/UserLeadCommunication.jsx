@@ -567,7 +567,19 @@ export default function UserLeadCommunication() {
     const socket = io(SOCKET_URL, { withCredentials: true, auth: { token } });
     socketRef.current = socket;
 
-    // Join the agent-specific room so the backend can target this employee
+    // Join the company-wide WhatsApp room — the backend emits every inbound
+    // and outbound for this company to `wa_company_<companyId>`, mirroring the
+    // admin's `wa_admin` firehose. The existing wa_message handler below
+    // already filters by whether the message belongs to one of MY leads
+    // (Case 1: conv ID match, Case 2: phone match on selected lead,
+    //  Case 3: phone match on any lead in MY list → unread badge).
+    // This replaces the old per-agent room which broke when
+    // conversation.assignedAgent didn't match the lead's owner.
+    if (user?.company || user?.companyId) {
+      const companyId = user.company || user.companyId;
+      socket.emit("wa_company_join", { companyId });
+    }
+    // Keep the per-agent join too for any legacy emits still using that path
     if (user?._id) {
       socket.emit("wa_agent_join", { agentId: user._id });
     }
