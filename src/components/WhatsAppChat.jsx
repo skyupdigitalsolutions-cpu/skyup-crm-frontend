@@ -146,7 +146,7 @@ export default function WhatsAppChat({ currentUser }) {
     socket.on('wa_message', (payload) => {
       const { conversationId, message: msg } = payload;
       setConversations(prev => {
-        const idx = prev.findIndex(c => c._id === conversationId);
+        const idx = prev.findIndex(c => String(c._id) === String(conversationId));
         if (idx === -1) { loadConversations(); return prev; }
         const updated = [...prev];
         updated[idx] = {
@@ -158,9 +158,9 @@ export default function WhatsAppChat({ currentUser }) {
         return updated;
       });
       setSelected(prev => {
-        if (!prev || prev._id !== conversationId) return prev;
+        if (!prev || String(prev._id) !== String(conversationId)) return prev;
         setMessages(msgs => {
-          if (msgs.find(m => m._id === msg._id)) return msgs;
+          if (msgs.find(m => String(m._id) === String(msg._id))) return msgs;
           return [...msgs, msg];
         });
         return prev;

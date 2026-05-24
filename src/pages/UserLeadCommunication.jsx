@@ -37,9 +37,12 @@ function sessionBanner(sessionExpiresAt) {
   return null;
 }
 
-// Strip non-digits for phone comparison
+// Strip non-digits and return the last 10 digits for phone comparison.
+// This handles the mismatch between 10-digit leads (e.g. "9538281101")
+// and 12-digit waPhone values from the webhook (e.g. "919538281101").
 function normalizePhone(p) {
-  return String(p || "").replace(/\D/g, "").replace(/^0+/, "");
+  const digits = String(p || "").replace(/\D/g, "");
+  return digits.slice(-10); // always compare last 10 digits
 }
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
@@ -569,22 +572,43 @@ export default function UserLeadCommunication() {
       socket.emit("wa_agent_join", { agentId: user._id });
     }
 
-    // ── Inbound/outbound message handler (same logic as admin Communications) ──
+    // ── Inbound/outbound message handler ──────────────────────────────────────
+    // Three cases, in order of priority:
+    //
+    //  1. Conv-ID matches the open conversation → append message directly.
+    //
+    //  2. Conv-ID does NOT match but the phone number matches the selected lead
+    //     (duplicate-conversation edge case: webhook picked a different conv than
+    //     the one the frontend loaded).
+    //       2a. A conversation IS loaded → re-fetch messages from the webhook's
+    //           conv and update the conversation reference so future events match.
+    //       2b. No conversation loaded yet (race: lead just selected, API in flight)
+    //           → append the message directly; the ref will catch up on next render.
+    //
+    //  3. Message is for a different lead entirely → increment its unread badge.
+    //
+    // IMPORTANT: normalizePhone() already compares the last-10 digits so
+    // "9538281101" == "919538281101" and all common storage formats match.
     socket.on("wa_message", (payload) => {
-      const { conversationId: incomingConvId, message: msg, sessionExpiresAt: newExpiry, waPhone: inboundPhone } = payload;
+      const {
+        conversationId: incomingConvId,
+        message: msg,
+        sessionExpiresAt: newExpiry,
+        waPhone: inboundPhone,
+      } = payload;
       if (!msg) return;
 
       const currentConv = conversationRef.current;
       const currentLead = selectedRef.current;
 
-      // ── Case 1: Message is for the currently open conversation ────────────
+      // ── Case 1: Exact conversation ID match ──────────────────────────────
       if (currentConv && String(currentConv._id) === String(incomingConvId)) {
-        // Update session expiry on inbound messages
         if (msg.direction === "inbound" && newExpiry) {
-          setConversation((prev) => prev ? { ...prev, sessionExpiresAt: newExpiry, status: "waiting" } : prev);
+          setConversation((prev) =>
+            prev ? { ...prev, sessionExpiresAt: newExpiry, status: "waiting" } : prev
+          );
         }
         setMessages((prev) => {
-          // Deduplicate by _id
           if (prev.some((m) => m._id && String(m._id) === String(msg._id))) return prev;
           return [...prev, msg];
         });
@@ -592,27 +616,50 @@ export default function UserLeadCommunication() {
         return;
       }
 
-      // ── Case 2: Inbound for the selected lead but via a different conv ID ──
-      // (duplicate conv edge case — re-fetch the correct conversation)
-      if (
+      // ── Case 2: Phone matches selected lead (ID mismatch / race condition) ─
+      const phoneMatchesCurrentLead =
         msg.direction === "inbound" &&
         inboundPhone &&
         currentLead?.mobile &&
-        normalizePhone(currentLead.mobile) === normalizePhone(inboundPhone) &&
-        currentConv &&
-        String(currentConv._id) !== String(incomingConvId)
-      ) {
-        // Reload messages from the correct conversation
-        axios
-          .get(`${API_URL}/whatsapp/conversations/${incomingConvId}/messages`, { headers: { Authorization: `Bearer ${token}` } })
-          .then(({ data }) => {
-            setMessages(data.messages || []);
-            if (data.conversation) {
-              setConversation((prev) => prev ? { ...prev, ...data.conversation, _id: incomingConvId } : data.conversation);
-            }
-            setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-          })
-          .catch(() => {});
+        normalizePhone(currentLead.mobile) === normalizePhone(inboundPhone);
+
+      if (phoneMatchesCurrentLead) {
+        if (currentConv && String(currentConv._id) !== String(incomingConvId)) {
+          // Case 2a: Different conv ID → re-fetch from the authoritative conv
+          axios
+            .get(`${API_URL}/whatsapp/conversations/${incomingConvId}/messages`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            .then(({ data }) => {
+              setMessages(data.messages || []);
+              // Update conversation ref so Case 1 fires correctly going forward
+              const incoming = data.conversation || {};
+              setConversation((prev) =>
+                prev
+                  ? { ...prev, ...incoming, _id: incomingConvId }
+                  : { ...incoming, _id: incomingConvId }
+              );
+              // Register the new conv→lead mapping
+              setConvLeadMap((prev) => ({
+                ...prev,
+                [String(incomingConvId)]: currentLead._id,
+              }));
+              setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+            })
+            .catch(() => {});
+        } else {
+          // Case 2b: No conversation loaded yet → append directly
+          setMessages((prev) => {
+            if (prev.some((m) => m._id && String(m._id) === String(msg._id))) return prev;
+            return [...prev, msg];
+          });
+          if (newExpiry) {
+            setConversation((prev) =>
+              prev ? { ...prev, sessionExpiresAt: newExpiry, status: "waiting" } : prev
+            );
+          }
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+        }
         return;
       }
 
@@ -622,17 +669,21 @@ export default function UserLeadCommunication() {
         if (leadId) {
           setUnreadCounts((prev) => ({ ...prev, [leadId]: (prev[leadId] || 0) + 1 }));
         } else if (inboundPhone) {
-          // Try to match by phone number in the leads list
           setLeads((prevLeads) => {
             const matchedLead = prevLeads.find(
               (l) => normalizePhone(l.mobile || l.phone) === normalizePhone(inboundPhone)
             );
             if (matchedLead) {
-              // Register the mapping for future messages
-              setConvLeadMap((prev) => ({ ...prev, [String(incomingConvId)]: matchedLead._id }));
-              setUnreadCounts((prev) => ({ ...prev, [matchedLead._id]: (prev[matchedLead._id] || 0) + 1 }));
+              setConvLeadMap((prev) => ({
+                ...prev,
+                [String(incomingConvId)]: matchedLead._id,
+              }));
+              setUnreadCounts((prev) => ({
+                ...prev,
+                [matchedLead._id]: (prev[matchedLead._id] || 0) + 1,
+              }));
             }
-            return prevLeads; // no change to leads array
+            return prevLeads;
           });
         }
       }
