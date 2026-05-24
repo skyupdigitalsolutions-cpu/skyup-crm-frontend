@@ -165,8 +165,6 @@ export default function DowngradeWarningModal({
     ? currentUsers
     : currentUsers.slice(0, VISIBLE_LIMIT);
 
-  const [confirming, setConfirming] = useState(false);
-
   // Toggle helpers
   function toggleAdmin(member) {
     const id = member._id || member.id;
@@ -210,13 +208,9 @@ export default function DowngradeWarningModal({
     statusParts.push(`${n} more user${n > 1 ? "s" : ""}`);
   }
 
-  async function handleConfirm() {
-    setConfirming(true);
-    try {
-      await onConfirm(selectedAdmins, selectedUsers);
-    } finally {
-      setConfirming(false);
-    }
+  // Just pass selections up — UpgradePlan handles payment then deletion
+  function handleConfirm() {
+    onConfirm(selectedAdmins, selectedUsers);
   }
 
   return (
@@ -385,8 +379,9 @@ export default function DowngradeWarningModal({
                   />
                 </svg>
                 <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
-                  Removed accounts lose access immediately. Their active leads
-                  will be unassigned. This cannot be undone.
+                  Selected accounts will be removed <strong>only after payment succeeds</strong>.
+                  If you cancel payment, no one is removed. Once removed, their
+                  active leads will be unassigned and access cannot be restored.
                 </p>
               </div>
             )}
@@ -417,65 +412,34 @@ export default function DowngradeWarningModal({
           <div className="flex gap-2.5">
             <button
               onClick={onCancel}
-              disabled={confirming}
               className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
                 text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]
-                hover:bg-[#F1F4FF] dark:hover:bg-[#262A38]
-                disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition-colors"
             >
               Keep current plan
             </button>
             <button
               onClick={handleConfirm}
-              disabled={!canConfirm || confirming}
+              disabled={!canConfirm}
               className="flex-1 py-2.5 rounded-xl text-white text-[13px] font-semibold
                 transition-colors flex items-center justify-center gap-2
                 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                background: canConfirm && !confirming ? "#EF4444" : undefined,
-              }}
+              style={{ background: canConfirm ? "#EF4444" : undefined }}
             >
-              {confirming ? (
-                <>
-                  <svg
-                    className="w-3.5 h-3.5 animate-spin"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8z"
-                    />
-                  </svg>
-                  Preparing checkout…
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                    />
-                  </svg>
-                  {hasAnyRequired ? "Confirm & pay" : "Proceed to pay"}
-                </>
-              )}
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                />
+              </svg>
+              Proceed to pay
             </button>
           </div>
         </div>
