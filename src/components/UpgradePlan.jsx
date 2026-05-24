@@ -343,37 +343,44 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
     initiatePayment(plan, false, [], []);
   }
 
+  // Called when user finishes selecting members and clicks "Proceed to pay".
+  // Members are NOT deleted here — deletion only happens AFTER payment succeeds.
   async function handleDowngradeConfirmed(adminsToRemove, usersToRemove) {
     if (!downgradePlan) return;
-    try {
-      if (adminsToRemove.length) await Promise.all(adminsToRemove.map(a => api.delete(`/admin/${a._id || a.id}`).catch(() => {})));
-      if (usersToRemove.length)  await Promise.all(usersToRemove.map(u => api.delete(`/admin/company/users/${u._id || u.id}`).catch(() => {})));
-    } catch {}
-    if (onDowngrade) onDowngrade(adminsToRemove, usersToRemove);
-    setShowDowngrade(false);
+    const planSnapshot = downgradePlan; // capture before closing modal
+    setShowDowngrade(false);            // close selection modal, Razorpay opens next
+    // If payment is cancelled/failed, selection is simply discarded — no one is deleted.
+    await initiatePayment(planSnapshot, true, adminsToRemove, usersToRemove);
     setDowngradePlan(null);
-    await initiatePayment(downgradePlan, true, adminsToRemove, usersToRemove);
   }
 
-  async function initiatePayment(plan, _isDg = false, adminsR = [], usersR = []) {
+  async function initiatePayment(plan, isDg = false, adminsR = [], usersR = []) {
     setPaying(true); setError(null);
     try {
       const { data: orderData } = await api.post("/razorpay/create-order", {
         planId: BACKEND_PLAN_ID[plan.id] || plan.id, billing,
+        // Send the IDs so the backend can record them, but does NOT delete yet.
         removedAdmins: adminsR.map(a => a._id || a.id),
         removedUsers:  usersR.map(u  => u._id || u.id),
       });
       openCheckout({
         orderData, plan, billing,
-        onSuccess: r => handlePaymentSuccess(plan, r),
-        onFailure: msg => { setPaying(false); if (msg) setError(msg); setSelected(null); },
+        // ✅ Payment succeeded → verify, THEN delete selected members
+        onSuccess: r => handlePaymentSuccess(plan, r, isDg, adminsR, usersR),
+        // ❌ Payment cancelled/failed → clear selection, delete nothing
+        onFailure: msg => {
+          setPaying(false);
+          if (msg) setError(msg);
+          setSelected(null);
+          // Selection is discarded — no one was removed
+        },
       });
     } catch (err) {
       setError(err?.response?.data?.message || "Could not initiate payment.");
     } finally { setPaying(false); }
   }
 
-  async function handlePaymentSuccess(plan, razorpayResponse) {
+  async function handlePaymentSuccess(plan, razorpayResponse, isDg = false, adminsR = [], usersR = []) {
     setError(null);
     try {
       const { data } = await api.post("/razorpay/verify-payment", {
@@ -382,6 +389,22 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
         razorpay_signature:  razorpayResponse.razorpay_signature,
         planId: BACKEND_PLAN_ID[plan.id] || plan.id, billing,
       });
+
+      // ✅ Payment verified — NOW safe to remove the selected members
+      if (isDg) {
+        if (adminsR.length) {
+          await Promise.all(
+            adminsR.map(a => api.delete(`/admin/${a._id || a.id}`).catch(() => {}))
+          );
+        }
+        if (usersR.length) {
+          await Promise.all(
+            usersR.map(u => api.delete(`/admin/company/users/${u._id || u.id}`).catch(() => {}))
+          );
+        }
+        if (onDowngrade) onDowngrade(adminsR, usersR);
+      }
+
       setInvoices(prev => [{ id: data.invoiceId, date: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }), amount: `₹${data.amount.toLocaleString("en-IN")}`, baseAmount: data.amount, status: "Paid", planName: data.planName, billingCycle: data.billing, transactionId: data.transactionId }, ...prev]);
       setCurrentPlanId(plan.id); setSelected(null);
       fetchSubscription();
