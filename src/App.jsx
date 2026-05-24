@@ -28,7 +28,6 @@ const UserLeadCommunication  = lazy(() => import("./pages/UserLeadCommunication"
 const DeveloperDashboard     = lazy(() => import("./pages/developer/DeveloperDashboard"));
 const DeveloperCompanies     = lazy(() => import("./pages/developer/Companies"));
 const DeveloperSubscriptions = lazy(() => import("./pages/developer/Subscriptions"));
-const DeveloperPlans         = lazy(() => import("./pages/developer/Plans"));
 
 // Auth pages
 const AdminLogin      = lazy(() => import("./pages/UserLogin")); // /admin/login now redirects to the unified login
@@ -336,11 +335,6 @@ export default function App() {
           <Route path="/developer/companies" element={
             <DeveloperRoute>
               <AppLayout><DeveloperCompanies /></AppLayout>
-            </DeveloperRoute>
-          }/>
-          <Route path="/developer/plans" element={
-            <DeveloperRoute>
-              <AppLayout><DeveloperPlans /></AppLayout>
             </DeveloperRoute>
           }/>
           <Route path="/developer/subscriptions" element={
