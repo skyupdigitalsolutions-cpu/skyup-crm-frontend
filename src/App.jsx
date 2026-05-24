@@ -4,6 +4,8 @@ import React from "react";
 import { Sidebar } from "./components/Sidebar";
 import ThemeToggle from "./components/ThemeToggle";
 import api from "./data/axiosConfig";
+import ExpiryBanner, { SuspensionScreen } from "./components/ExpiryBanner";
+import FeatureGate from "./components/FeatureGate";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
 const Dashboard      = lazy(() => import("./components/Dashboard"));
@@ -203,11 +205,7 @@ function CompanyHeader() {
   React.useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token || role === "developer") return;
-    // Employees (role="user") cannot access /admin/company/brand (admin-only route).
-    // Use the /public variant which is accessible via the shared protectAny middleware.
-    const brandEndpoint =
-      role === "user" ? "/admin/company/brand/public" : "/admin/company/brand";
-    api.get(brandEndpoint)
+    api.get("/admin/company/brand")
       .then((res) => {
         if (res.data) {
           // Always use a fresh _ts on mount so a page reload always fetches the latest logo
@@ -273,11 +271,15 @@ function CompanyHeader() {
 
 // ── Layout with Sidebar ────────────────────────────────────────────────────────
 function AppLayout({ children }) {
+  const navigate = React.useCallback ? undefined : null; // just to keep hook order stable
+  const goToPlans = () => { window.location.href = "/upgrade-plan"; };
+
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Sidebar is fixed on mobile, sticky on md+ */}
       <Sidebar />
       <main className="flex-1 overflow-y-auto flex flex-col min-w-0">
+        {/* Expiry warning banner + suspension screen */}
+        <ExpiryBanner onGoToPlans={goToPlans} />
         <CompanyHeader />
         <div className="flex-1">{children}</div>
       </main>
@@ -344,17 +346,17 @@ export default function App() {
           {/* ── Admin-only pages ── */}
           <Route path="/reportpage" element={
             <AdminRoute>
-              <AppLayout><ReportPage /></AppLayout>
+              <AppLayout><FeatureGate featureKey="basic-reports"><ReportPage /></FeatureGate></AppLayout>
             </AdminRoute>
           }/>
           <Route path="/campaigns" element={
             <AdminRoute>
-              <AppLayout><Campaigns /></AppLayout>
+              <AppLayout><FeatureGate featureKey="campaigns"><Campaigns /></FeatureGate></AppLayout>
             </AdminRoute>
           }/>
           <Route path="/attendance" element={
             <AdminRoute>
-              <AppLayout><AttendancePage /></AppLayout>
+              <AppLayout><FeatureGate featureKey="attendance"><AttendancePage /></FeatureGate></AppLayout>
             </AdminRoute>
           }/>
 
@@ -369,7 +371,7 @@ export default function App() {
           <Route path="/communications" element={
             <AdminRoute>
               <AppLayout>
-                <Communications currentUser={user} />
+                <FeatureGate featureKey="sms-blast"><Communications currentUser={user} /></FeatureGate>
               </AppLayout>
             </AdminRoute>
           }/>
@@ -391,7 +393,7 @@ export default function App() {
           {/* ── Daily report — role-aware ── */}
           <Route path="/daily-report" element={
             <ProtectedRoute>
-              <AppLayout><DailyReportRoleSwitch /></AppLayout>
+              <AppLayout><FeatureGate featureKey="daily-report"><DailyReportRoleSwitch /></FeatureGate></AppLayout>
             </ProtectedRoute>
           }/>
 
