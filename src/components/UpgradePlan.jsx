@@ -13,6 +13,13 @@ const PLAN_LIMITS = {
   pro:        { admins: 3, users: 20 },
   enterprise: { admins: 5, users: 999},
 };
+// Map frontend plan IDs → backend plan IDs (backend uses starter/growth/enterprise)
+const BACKEND_PLAN_ID = {
+  basic:      "starter",
+  pro:        "growth",
+  enterprise: "enterprise",
+};
+
 function planRank(id) { return PLAN_ORDER.indexOf(id ?? "basic"); }
 function isDowngradeTo(t, c) { return planRank(t) < planRank(c); }
 
@@ -350,7 +357,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
     setPaying(true); setError(null);
     try {
       const { data: orderData } = await api.post("/razorpay/create-order", {
-        planId: plan.id, billing,
+        planId: BACKEND_PLAN_ID[plan.id] || plan.id, billing,
         removedAdmins: adminsR.map(a => a._id || a.id),
         removedUsers:  usersR.map(u  => u._id || u.id),
       });
@@ -371,7 +378,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
         razorpay_order_id:   razorpayResponse.razorpay_order_id,
         razorpay_payment_id: razorpayResponse.razorpay_payment_id,
         razorpay_signature:  razorpayResponse.razorpay_signature,
-        planId: plan.id, billing,
+        planId: BACKEND_PLAN_ID[plan.id] || plan.id, billing,
       });
       setInvoices(prev => [{ id: data.invoiceId, date: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }), amount: `₹${data.amount.toLocaleString("en-IN")}`, baseAmount: data.amount, status: "Paid", planName: data.planName, billingCycle: data.billing, transactionId: data.transactionId }, ...prev]);
       setCurrentPlanId(plan.id); setSelected(null);
