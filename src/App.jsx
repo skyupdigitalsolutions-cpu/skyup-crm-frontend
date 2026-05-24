@@ -60,7 +60,6 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error) {
-    // Auto-retry on chunk load failures (network hiccups on Render free tier)
     const isChunkError =
       error?.name === "ChunkLoadError" ||
       error?.message?.includes("Loading chunk") ||
@@ -69,7 +68,6 @@ class ErrorBoundary extends React.Component {
 
     if (isChunkError && !this.state.retrying) {
       this.setState({ retrying: true });
-      // Wait 800ms then reset — Suspense will retry the import automatically
       setTimeout(() => {
         this.setState({ hasError: false, retrying: false });
       }, 800);
@@ -114,6 +112,37 @@ function getStoredAuth() {
   const token = localStorage.getItem("token");
   const user  = JSON.parse(localStorage.getItem("user") || "null");
   return { token, user };
+}
+
+// ── Auth Navigation Guard ─────────────────────────────────────────────────────
+// When the user is logged in, intercepts the browser back/forward button so
+// they can never leave the app via browser history. Pressing back keeps them
+// on the current page. Pressing forward after logout redirects to /login.
+function useAuthNavGuard() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const { token } = getStoredAuth();
+    if (!token) return;
+
+    // Push an extra state entry so there's always something "behind" the
+    // current page within our app's history stack.
+    window.history.pushState({ appGuard: true }, "", window.location.href);
+
+    const handlePopState = () => {
+      const { token: t } = getStoredAuth();
+      if (t) {
+        // Still logged in — push the current URL back so the browser
+        // stays on the same page (neutralises back AND forward).
+        window.history.pushState({ appGuard: true }, "", window.location.href);
+      }
+      // If token is gone (logged out) we do nothing — React Router's
+      // ProtectedRoute will redirect to /login automatically.
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [location.pathname]); // re-run on every route change so guard stays current
 }
 
 // ── Login Guard ────────────────────────────────────────────────────────────────
@@ -256,30 +285,26 @@ function CompanyHeader() {
   const { user } = getStoredAuth();
   const role = (user?.role || "user").toLowerCase();
 
-  // Developer role has no company header
   if (role === "developer") return null;
 
   const [brand, setBrand] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; }
   });
 
-  // ── Fetch brand from API on mount (skip for developer — no company context) ──
   React.useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token || role === "developer") return;
     api.get("/admin/company/brand")
       .then((res) => {
         if (res.data) {
-          // Always use a fresh _ts on mount so a page reload always fetches the latest logo
           const b = { ...res.data, _ts: Date.now() };
           setBrand(b);
           localStorage.setItem("company_brand", JSON.stringify(b));
         }
       })
-      .catch(() => {}); // silent — branding is optional
+      .catch(() => {});
   }, []);
 
-  // ── Listen for brand updates dispatched by CompanyBrandSettings ──────────
   React.useEffect(() => {
     const handler = () => {
       try { setBrand(JSON.parse(localStorage.getItem("company_brand") || "null")); } catch {}
@@ -288,13 +313,7 @@ function CompanyHeader() {
     return () => window.removeEventListener("company_brand_updated", handler);
   }, []);
 
-  // ── Header bar shows per-company branding (headerName / headerLogoUrl).
-  //    Sidebar always shows SKYUP — the header is the only place that differs per company.
-  //    Falls back to SKYUP if no header branding has been configured yet.
   const headerName = brand?.name || brand?.headerName || "SKYUP";
-  // logoUrl is now a full absolute URL returned by the backend.
-  // The backend includes a timestamp in the filename so each upload is unique —
-  // no manual cache-busting needed here.
   const headerLogo = brand?.logoUrl || brand?.headerLogoUrl || "/skyup_logo1.svg";
 
   const roleLabel =
@@ -333,14 +352,13 @@ function CompanyHeader() {
 
 // ── Layout with Sidebar ────────────────────────────────────────────────────────
 function AppLayout({ children }) {
-  const navigate = React.useCallback ? undefined : null; // just to keep hook order stable
+  const navigate = React.useCallback ? undefined : null;
   const goToPlans = () => { window.location.href = "/upgrade-plan"; };
 
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 overflow-y-auto flex flex-col min-w-0">
-        {/* Expiry warning banner + suspension screen */}
         <ExpiryBanner onGoToPlans={goToPlans} />
         <CompanyHeader />
         <div className="flex-1">{children}</div>
@@ -349,16 +367,11 @@ function AppLayout({ children }) {
   );
 }
 
-// Wrapper that fetches the current admin/user lists so UpgradePlan's
-// DowngradeWarningModal knows how many non-super-admin members exist.
-// Super admins are intentionally kept in the array — DowngradeWarningModal
-// already filters them out before counting / showing the removal list.
 function UpgradePlanWithMembers(props) {
   const [currentAdmins, setCurrentAdmins] = useState([]);
   const [currentUsers,  setCurrentUsers]  = useState([]);
 
   useEffect(() => {
-    // Fetch admins (includes super_admin; modal filters them internally)
     api.get("/admin/")
       .then(({ data }) => {
         const list = Array.isArray(data) ? data : (data?.admins ?? []);
@@ -366,7 +379,6 @@ function UpgradePlanWithMembers(props) {
       })
       .catch(() => {});
 
-    // Fetch employees/users
     api.get("/admin/company/users")
       .then(({ data }) => {
         const list = Array.isArray(data) ? data : (data?.users ?? []);
@@ -387,123 +399,133 @@ function UpgradePlanWithMembers(props) {
   );
 }
 
-export default function App() {
+// ── Inner app — rendered inside BrowserRouter so hooks work ───────────────────
+function AppInner() {
   const { user } = getStoredAuth();
 
+  // Trap logged-in users inside the app — back/forward buttons won't leave.
+  useAuthNavGuard();
+
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+
+          {/* ── Public login routes ── */}
+          <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
+          <Route path="/admin/login"      element={<Navigate to="/login" replace />} />
+          <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
+
+          {/* ── Root redirect ── */}
+          <Route path="/" element={
+            <ProtectedRoute><RootRedirect /></ProtectedRoute>
+          }/>
+
+          {/* ── Admin Dashboard ── */}
+          <Route path="/dashboard" element={
+            <AdminRoute>
+              <AppLayout><Dashboard /></AppLayout>
+            </AdminRoute>
+          }/>
+
+          {/* ── User Dashboard ── */}
+          <Route path="/user/dashboard" element={
+            <UserRoute>
+              <AppLayout><UserDashboard /></AppLayout>
+            </UserRoute>
+          }/>
+
+          {/* ── User Communications (own leads only) ── */}
+          <Route path="/user/communications" element={
+            <UserRoute>
+              <AppLayout><UserLeadCommunication /></AppLayout>
+            </UserRoute>
+          }/>
+
+          {/* ── Developer pages ── */}
+          <Route path="/developer/dashboard" element={
+            <DeveloperRoute>
+              <AppLayout><DeveloperDashboard /></AppLayout>
+            </DeveloperRoute>
+          }/>
+          <Route path="/developer/companies" element={
+            <DeveloperRoute>
+              <AppLayout><DeveloperCompanies /></AppLayout>
+            </DeveloperRoute>
+          }/>
+          <Route path="/developer/subscriptions" element={
+            <DeveloperRoute>
+              <AppLayout><DeveloperSubscriptions /></AppLayout>
+            </DeveloperRoute>
+          }/>
+
+          {/* ── Admin-only pages ── */}
+          <Route path="/reportpage" element={
+            <AdminRoute>
+              <AppLayout><FeatureGate featureKey="basic-reports"><ReportPage /></FeatureGate></AppLayout>
+            </AdminRoute>
+          }/>
+          <Route path="/campaigns" element={
+            <AdminRoute>
+              <AppLayout><FeatureGate featureKey="campaigns"><Campaigns /></FeatureGate></AppLayout>
+            </AdminRoute>
+          }/>
+          <Route path="/attendance" element={
+            <AdminRoute>
+              <AppLayout><FeatureGate featureKey="attendance"><AttendancePage /></FeatureGate></AppLayout>
+            </AdminRoute>
+          }/>
+
+          {/* ── Upgrade Plan — SuperAdmin only ── */}
+          <Route path="/upgrade-plan" element={
+            <SuperAdminRoute>
+              <AppLayout><UpgradePlanWithMembers /></AppLayout>
+            </SuperAdminRoute>
+          }/>
+
+          {/* ── Communications ── */}
+          <Route path="/communications" element={
+            <AdminRoute>
+              <AppLayout>
+                <FeatureGate featureKey="sms-blast"><Communications currentUser={user} /></FeatureGate>
+              </AppLayout>
+            </AdminRoute>
+          }/>
+
+          {/* ── Legacy redirects ── */}
+          <Route path="/whatsapp"      element={<Navigate to="/communications" replace />} />
+          <Route path="/email-history" element={<Navigate to="/communications" replace />} />
+
+          {/* ── Call recordings redirect to dashboard (page removed) ── */}
+          <Route path="/call-recordings" element={<Navigate to="/dashboard" replace />} />
+
+          {/* ── Leads — role-aware ── */}
+          <Route path="/leads" element={
+            <ProtectedRoute>
+              <AppLayout><LeadsRoleSwitch /></AppLayout>
+            </ProtectedRoute>
+          }/>
+
+          {/* ── Daily report — role-aware ── */}
+          <Route path="/daily-report" element={
+            <ProtectedRoute>
+              <AppLayout><FeatureGate featureKey="daily-report"><DailyReportRoleSwitch /></FeatureGate></AppLayout>
+            </ProtectedRoute>
+          }/>
+
+          {/* ── Fallback ── */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
+
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+export default function App() {
   return (
     <BrowserRouter>
-      <ErrorBoundary>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-
-            {/* ── Public login routes ── */}
-            <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
-            <Route path="/admin/login"      element={<Navigate to="/login" replace />} />
-            <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
-
-            {/* ── Root redirect ── */}
-            <Route path="/" element={
-              <ProtectedRoute><RootRedirect /></ProtectedRoute>
-            }/>
-
-            {/* ── Admin Dashboard ── */}
-            <Route path="/dashboard" element={
-              <AdminRoute>
-                <AppLayout><Dashboard /></AppLayout>
-              </AdminRoute>
-            }/>
-
-            {/* ── User Dashboard ── */}
-            <Route path="/user/dashboard" element={
-              <UserRoute>
-                <AppLayout><UserDashboard /></AppLayout>
-              </UserRoute>
-            }/>
-
-            {/* ── User Communications (own leads only) ── */}
-            <Route path="/user/communications" element={
-              <UserRoute>
-                <AppLayout><UserLeadCommunication /></AppLayout>
-              </UserRoute>
-            }/>
-
-            {/* ── Developer pages ── */}
-            <Route path="/developer/dashboard" element={
-              <DeveloperRoute>
-                <AppLayout><DeveloperDashboard /></AppLayout>
-              </DeveloperRoute>
-            }/>
-            <Route path="/developer/companies" element={
-              <DeveloperRoute>
-                <AppLayout><DeveloperCompanies /></AppLayout>
-              </DeveloperRoute>
-            }/>
-            <Route path="/developer/subscriptions" element={
-              <DeveloperRoute>
-                <AppLayout><DeveloperSubscriptions /></AppLayout>
-              </DeveloperRoute>
-            }/>
-
-            {/* ── Admin-only pages ── */}
-            <Route path="/reportpage" element={
-              <AdminRoute>
-                <AppLayout><FeatureGate featureKey="basic-reports"><ReportPage /></FeatureGate></AppLayout>
-              </AdminRoute>
-            }/>
-            <Route path="/campaigns" element={
-              <AdminRoute>
-                <AppLayout><FeatureGate featureKey="campaigns"><Campaigns /></FeatureGate></AppLayout>
-              </AdminRoute>
-            }/>
-            <Route path="/attendance" element={
-              <AdminRoute>
-                <AppLayout><FeatureGate featureKey="attendance"><AttendancePage /></FeatureGate></AppLayout>
-              </AdminRoute>
-            }/>
-
-            {/* ── Upgrade Plan — SuperAdmin only ── */}
-            <Route path="/upgrade-plan" element={
-              <SuperAdminRoute>
-                <AppLayout><UpgradePlanWithMembers /></AppLayout>
-              </SuperAdminRoute>
-            }/>
-
-            {/* ── Communications ── */}
-            <Route path="/communications" element={
-              <AdminRoute>
-                <AppLayout>
-                  <FeatureGate featureKey="sms-blast"><Communications currentUser={user} /></FeatureGate>
-                </AppLayout>
-              </AdminRoute>
-            }/>
-
-            {/* ── Legacy redirects ── */}
-            <Route path="/whatsapp"      element={<Navigate to="/communications" replace />} />
-            <Route path="/email-history" element={<Navigate to="/communications" replace />} />
-
-            {/* ── Call recordings redirect to dashboard (page removed) ── */}
-            <Route path="/call-recordings" element={<Navigate to="/dashboard" replace />} />
-
-            {/* ── Leads — role-aware ── */}
-            <Route path="/leads" element={
-              <ProtectedRoute>
-                <AppLayout><LeadsRoleSwitch /></AppLayout>
-              </ProtectedRoute>
-            }/>
-
-            {/* ── Daily report — role-aware ── */}
-            <Route path="/daily-report" element={
-              <ProtectedRoute>
-                <AppLayout><FeatureGate featureKey="daily-report"><DailyReportRoleSwitch /></FeatureGate></AppLayout>
-              </ProtectedRoute>
-            }/>
-
-            {/* ── Fallback ── */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
-
-          </Routes>
-        </Suspense>
-      </ErrorBoundary>
+      <AppInner />
     </BrowserRouter>
   );
 }
