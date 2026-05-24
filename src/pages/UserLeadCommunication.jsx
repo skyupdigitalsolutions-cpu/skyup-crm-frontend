@@ -567,20 +567,26 @@ export default function UserLeadCommunication() {
     const socket = io(SOCKET_URL, { withCredentials: true, auth: { token } });
     socketRef.current = socket;
 
+    // ── DIAGNOSTIC LOGGING — remove once issue is confirmed fixed ────────────
+    console.log("[WA-DEBUG] Socket initialising", { SOCKET_URL, hasToken: !!token, user });
+    socket.on("connect",    () => console.log("[WA-DEBUG] socket connected, id=", socket.id));
+    socket.on("disconnect", (r) => console.log("[WA-DEBUG] socket disconnected, reason=", r));
+    socket.on("connect_error", (e) => console.error("[WA-DEBUG] socket connect_error:", e.message));
+
     // Join the company-wide WhatsApp room — the backend emits every inbound
     // and outbound for this company to `wa_company_<companyId>`, mirroring the
     // admin's `wa_admin` firehose. The existing wa_message handler below
-    // already filters by whether the message belongs to one of MY leads
-    // (Case 1: conv ID match, Case 2: phone match on selected lead,
-    //  Case 3: phone match on any lead in MY list → unread badge).
-    // This replaces the old per-agent room which broke when
-    // conversation.assignedAgent didn't match the lead's owner.
+    // already filters by whether the message belongs to one of MY leads.
     if (user?.company || user?.companyId) {
       const companyId = user.company || user.companyId;
+      console.log("[WA-DEBUG] emitting wa_company_join", { companyId });
       socket.emit("wa_company_join", { companyId });
+    } else {
+      console.warn("[WA-DEBUG] NO company in user object — wa_company_join SKIPPED. user=", user);
     }
     // Keep the per-agent join too for any legacy emits still using that path
     if (user?._id) {
+      console.log("[WA-DEBUG] emitting wa_agent_join", { agentId: user._id });
       socket.emit("wa_agent_join", { agentId: user._id });
     }
 
@@ -602,26 +608,45 @@ export default function UserLeadCommunication() {
     // IMPORTANT: normalizePhone() already compares the last-10 digits so
     // "9538281101" == "919538281101" and all common storage formats match.
     socket.on("wa_message", (payload) => {
+      // ── DIAGNOSTIC LOGGING ──────────────────────────────────────────────
+      console.log("[WA-DEBUG] wa_message RECEIVED:", payload);
+
       const {
         conversationId: incomingConvId,
         message: msg,
         sessionExpiresAt: newExpiry,
         waPhone: inboundPhone,
       } = payload;
-      if (!msg) return;
+      if (!msg) {
+        console.warn("[WA-DEBUG] payload has no msg — dropping");
+        return;
+      }
 
       const currentConv = conversationRef.current;
       const currentLead = selectedRef.current;
+      console.log("[WA-DEBUG] state at moment of event:", {
+        incomingConvId,
+        currentConvId:   currentConv?._id,
+        currentLeadId:   currentLead?._id,
+        currentLeadName: currentLead?.name,
+        currentLeadPhone: currentLead?.mobile,
+        inboundPhone,
+        msgDirection: msg.direction,
+      });
 
       // ── Case 1: Exact conversation ID match ──────────────────────────────
       if (currentConv && String(currentConv._id) === String(incomingConvId)) {
+        console.log("[WA-DEBUG] Case 1 fired — appending msg to open chat");
         if (msg.direction === "inbound" && newExpiry) {
           setConversation((prev) =>
             prev ? { ...prev, sessionExpiresAt: newExpiry, status: "waiting" } : prev
           );
         }
         setMessages((prev) => {
-          if (prev.some((m) => m._id && String(m._id) === String(msg._id))) return prev;
+          if (prev.some((m) => m._id && String(m._id) === String(msg._id))) {
+            console.log("[WA-DEBUG] msg already in list (dedup) — skip");
+            return prev;
+          }
           return [...prev, msg];
         });
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -636,6 +661,7 @@ export default function UserLeadCommunication() {
         normalizePhone(currentLead.mobile) === normalizePhone(inboundPhone);
 
       if (phoneMatchesCurrentLead) {
+        console.log("[WA-DEBUG] Case 2 fired — phone matches selected lead");
         if (currentConv && String(currentConv._id) !== String(incomingConvId)) {
           // Case 2a: Different conv ID → re-fetch from the authoritative conv
           axios
@@ -677,8 +703,10 @@ export default function UserLeadCommunication() {
 
       // ── Case 3: Message for a different lead — increment unread badge ──────
       if (msg.direction === "inbound") {
+        console.log("[WA-DEBUG] Case 3 path — inbound for non-open conv");
         const leadId = convLeadMapRef.current[String(incomingConvId)];
         if (leadId) {
+          console.log("[WA-DEBUG] Case 3a — convId mapped to lead, bumping badge", leadId);
           setUnreadCounts((prev) => ({ ...prev, [leadId]: (prev[leadId] || 0) + 1 }));
         } else if (inboundPhone) {
           setLeads((prevLeads) => {
@@ -686,6 +714,7 @@ export default function UserLeadCommunication() {
               (l) => normalizePhone(l.mobile || l.phone) === normalizePhone(inboundPhone)
             );
             if (matchedLead) {
+              console.log("[WA-DEBUG] Case 3b — phone matched a lead in MY list:", matchedLead.name, matchedLead._id);
               setConvLeadMap((prev) => ({
                 ...prev,
                 [String(incomingConvId)]: matchedLead._id,
@@ -694,10 +723,14 @@ export default function UserLeadCommunication() {
                 ...prev,
                 [matchedLead._id]: (prev[matchedLead._id] || 0) + 1,
               }));
+            } else {
+              console.warn("[WA-DEBUG] Case 3c — inbound phone", inboundPhone, "matches NO lead in this employee's list. Lead is not assigned to this user.");
             }
             return prevLeads;
           });
         }
+      } else {
+        console.log("[WA-DEBUG] outbound msg for non-open conv — ignored on this screen");
       }
     });
 
