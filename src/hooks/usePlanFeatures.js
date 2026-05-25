@@ -30,7 +30,7 @@ export default function usePlanFeatures() {
   useEffect(() => {
     const role = localStorage.getItem("role");
     // Only admin / super_admin have plan features — skip for developer and user
-    if (role === "developer") { setLoading(false); return; }
+    if (role === "developer" || role === "user") { setLoading(false); return; }
 
     const cached = loadCache();
     if (cached) { setFeatures(cached); setLoading(false); return; }
