@@ -57,7 +57,9 @@ export default function ExpiryBanner({ onGoToPlans }) {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    const role = localStorage.getItem("role");
+    // FIX: read role from the "user" JSON object (standalone "role" key is never set by login pages)
+    let role = null;
+    try { role = JSON.parse(localStorage.getItem("user") || "null")?.role || null; } catch {}
     // Only show for admin / super_admin — not developer or user
     if (role === "developer" || role === "user") return;
 
