@@ -58,8 +58,8 @@ export default function ExpiryBanner({ onGoToPlans }) {
 
   useEffect(() => {
     const role = localStorage.getItem("role");
-    // Only show for admin / super_admin — not developer
-    if (role === "developer") return;
+    // Only show for admin / super_admin — not developer or user
+    if (role === "developer" || role === "user") return;
 
     api.get("/subscription/my/status")
       .then(({ data }) => setStatus(data))
