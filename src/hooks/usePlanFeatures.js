@@ -23,12 +23,22 @@ export function clearFeaturesCache() {
   try { localStorage.removeItem(CACHE_KEY); } catch {}
 }
 
+// FIX: Read role from the "user" JSON object (not a standalone "role" key which is never set)
+function getStoredRole() {
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    return user?.role || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function usePlanFeatures() {
   const [features, setFeatures] = useState(() => loadCache());
   const [loading,  setLoading]  = useState(!loadCache());
 
   useEffect(() => {
-    const role = localStorage.getItem("role");
+    const role = getStoredRole();
     // Only admin / super_admin have plan features — skip for developer and user
     if (role === "developer" || role === "user") { setLoading(false); return; }
 
