@@ -179,10 +179,33 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
                 </svg>
                 Full Transcript
               </summary>
-              <div className="mt-2 max-h-40 overflow-y-auto">
-                <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] leading-relaxed whitespace-pre-wrap font-mono bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-lg px-3 py-2">
-                  {transcript}
-                </p>
+              <div className="mt-2 max-h-52 overflow-y-auto flex flex-col gap-1.5 pr-1">
+                {transcript.includes('Speaker') && transcript.includes(':')
+                  ? transcript.split('\n').filter(Boolean).map((line, i) => {
+                      const colonIdx = line.indexOf(':');
+                      if (colonIdx === -1) return (
+                        <p key={i} className="text-[11px] text-[#64748B] dark:text-[#94A3B8] px-2">{line}</p>
+                      );
+                      const speaker = line.slice(0, colonIdx).trim();
+                      const text    = line.slice(colonIdx + 1).trim();
+                      const isSpk1  = speaker === 'Speaker 1';
+                      return (
+                        <div key={i} className={`flex flex-col ${isSpk1 ? 'items-start' : 'items-end'}`}>
+                          <span className="text-[9px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-0.5 px-1">
+                            {isSpk1 ? '👤 Agent' : '🙋 Customer'}
+                          </span>
+                          <div className={`max-w-[85%] px-2.5 py-1.5 rounded-xl text-[11px] leading-relaxed ${
+                            isSpk1
+                              ? 'bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] rounded-tl-none'
+                              : 'bg-[#F1F5F9] dark:bg-[#1E2130] text-[#334155] dark:text-[#CBD5E1] rounded-tr-none'
+                          }`}>
+                            {text}
+                          </div>
+                        </div>
+                      );
+                    })
+                  : <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] leading-relaxed whitespace-pre-wrap font-mono bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-lg px-3 py-2">{transcript}</p>
+                }
               </div>
             </details>
           )}
