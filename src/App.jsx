@@ -293,7 +293,7 @@ function CompanyHeader() {
 
   React.useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token || role === "developer") return;
+    if (!token || role === "developer" || role === "user") return;
     api.get("/admin/company/brand")
       .then((res) => {
         if (res.data) {
