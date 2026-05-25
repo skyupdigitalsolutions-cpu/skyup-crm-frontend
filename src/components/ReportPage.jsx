@@ -214,6 +214,7 @@ function Skeleton() {
 // ── Edit Lead Modal ───────────────────────────────────────────────────────────
 function EditLeadModal({ lead, agents, onClose, onSave }) {
   const [form, setForm] = useState({ ...lead });
+  const [saving, setSaving] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
@@ -231,14 +232,19 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
             // { label: "Phone",     key: "phone" },
             { label: "Campaign",  key: "campaign" },
             { label: "Remark",    key: "remark" },
-            { label: "Date",      key: "date" },
           ].map(f => (
             <div key={f.key} className="flex flex-col gap-1">
               <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
-              <input type="text" value={form[f.key]} onChange={e => set(f.key, e.target.value)}
+              <input type="text" value={form[f.key] || ""} onChange={e => set(f.key, e.target.value)}
                 className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]" />
             </div>
           ))}
+          {/* Date: read-only display — not editable via this form */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Date</label>
+            <input type="text" value={form.date || "—"} readOnly
+              className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#8B92A9] dark:text-[#565C75] cursor-not-allowed" />
+          </div>
           {[
             { label: "Source", key: "source", options: ALL_SOURCES },
             { label: "Employee",  key: "agent",  options: agents.map(a => a.name) },
@@ -254,8 +260,8 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
           ))}
         </div>
         <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-          <button onClick={async () => {
+          <button onClick={onClose} disabled={saving} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition disabled:opacity-50">Cancel</button>
+          <button disabled={saving} onClick={async () => {
             const role = getRole();
             const leadId = form._id || form.id;
             const endpoint =
@@ -263,6 +269,7 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
               role === "admin"      ? `/lead/admin/${leadId}` :
                                      `/lead/${leadId}`;
             try {
+              setSaving(true);
               const basePayload = {
                 name:     form.name,
                 mobile:   form.phone || form.mobile,
@@ -271,6 +278,15 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
                 status:   form.status,
                 remark:   form.remark,
               };
+
+              // FIX: include user ID for agent reassignment so employee changes
+              // are actually persisted. adminUpdateLead accepts `user` (ObjectId);
+              // updateLead (user role) strips it server-side — safe to always send.
+              if (form.agent) {
+                const selectedAgent = agents.find(a => a.name === form.agent);
+                if (selectedAgent?.id) basePayload.user = selectedAgent.id;
+              }
+
               let payload = basePayload;
               const keyString = crm.getLocalKey();
               if (keyString) {
@@ -282,13 +298,35 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
                   payload = { ...basePayload, encryptedData };
                 } catch { /* send plain */ }
               }
-              await api.put(endpoint, payload);
-              onSave({ ...lead, ...form });
+              const { data: updatedFromServer } = await api.put(endpoint, payload);
+              // FIX: use the server's response to update local state so the table
+              // always reflects what was actually saved (not just what was in the form).
+              // Fall back to form merge if the server returns an unexpected shape.
+              const merged = updatedFromServer?._id
+                ? {
+                    ...lead,
+                    ...form,
+                    // keep server-authoritative fields
+                    name:     updatedFromServer.name     ?? form.name,
+                    mobile:   updatedFromServer.mobile   ?? form.mobile,
+                    phone:    updatedFromServer.mobile   ?? form.phone,
+                    source:   updatedFromServer.source   ?? form.source,
+                    campaign: updatedFromServer.campaign ?? form.campaign,
+                    status:   updatedFromServer.status   ?? form.status,
+                    remark:   updatedFromServer.remark   ?? form.remark,
+                    agent:    updatedFromServer.user?.name ?? form.agent,
+                  }
+                : { ...lead, ...form };
+              onSave(merged);
               onClose();
             } catch (err) {
               alert("Failed to save: " + (err.response?.data?.message || err.message));
+            } finally {
+              setSaving(false);
             }
-          }} className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">Save Changes</button>
+          }} className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allowed">
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
         </div>
       </div>
     </div>
