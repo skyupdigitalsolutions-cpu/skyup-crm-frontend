@@ -260,6 +260,8 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
     // The developer /plans page has been removed; no API fetch needed here.
 
     // Fetch my company's resolved features (plan is set by fetchSubscription)
+    const role = localStorage.getItem("role");
+    if (role === "user") return; // users don't have subscription access
     api.get("/subscription/my/status")
       .then(({ data }) => {
         if (data?.resolvedFeatures?.features) {
