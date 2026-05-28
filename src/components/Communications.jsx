@@ -1498,11 +1498,7 @@ function WhatsAppPanel({ currentUser }) {
                 {isAdmin && selected.assignedAgent?.name ? ` · Employee: ${selected.assignedAgent.name}` : ""}
               </div>
             </div>
-            /* {selected.status !== "closed" && (
-              <button onClick={closeConversation} className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[11px] font-semibold text-[#DC2626] hover:bg-[#FEF2F2] transition">
-                Mark resolved
-              </button>
-            )} */
+          
           </div>
 
           {session && (
@@ -2386,8 +2382,8 @@ function SmsBlastComposer({ onSent }) {
   );
 
   return (
-    <div className="flex-1 flex flex-col bg-[#EFEAE2] dark:bg-[#0B141A] overflow-hidden">
-      {/* Chat wallpaper header */}
+ <div className="flex-1 flex flex-col bg-[#EFEAE2] dark:bg-[#0B141A] overflow-hidden min-h-0">
+   {/* Chat wallpaper header */}
       <div className="bg-[#075E54] dark:bg-[#202C33] px-4 py-3 flex items-center gap-3 shrink-0">
         <div className="w-9 h-9 rounded-full bg-[#EA580C] flex items-center justify-center">
           <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -2660,8 +2656,10 @@ function SmsLeadThread({ lead, onBack, onSend }) {
   const name = lead.recipientName || lead.to;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+return (
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
       {/* Thread header */}
+      <div className="bg-[#075E54]      {/* Thread header */}
       <div className="bg-[#075E54] dark:bg-[#202C33] px-4 py-3 flex items-center gap-3 shrink-0">
         <button onClick={onBack} className="text-white/70 hover:text-white transition mr-1 sm:hidden">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
@@ -2908,8 +2906,7 @@ function SmsPanel() {
   );
 
   return (
-    <div className="flex h-full overflow-hidden rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] shadow-sm">
-
+ <div className="flex h-full min-h-0 overflow-hidden rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] shadow-sm">
       {/* ── LEFT: Lead sidebar ─────────────────────────────────────────────── */}
      <div className={`w-full sm:w-[300px] lg:w-[340px] shrink-0 flex flex-col min-h-0 bg-white dark:bg-[#111B21] border-r border-[#E4E7EF] dark:border-[#2A3942] ${selectedLead || showComposer ? "hidden sm:flex" : "flex"}`}>
 
@@ -3000,8 +2997,8 @@ function SmsPanel() {
       </div>
 
       {/* ── RIGHT: Chat/Composer area ──────────────────────────────────────── */}
-      <div className={`flex-1 flex flex-col overflow-hidden ${!selectedLead && !showComposer ? "hidden sm:flex" : "flex"}`}>
-        {selectedLead ? (
+<div className={`flex-1 flex flex-col overflow-hidden min-h-0 ${!selectedLead && !showComposer ? "hidden sm:flex" : "flex"}`}>
+  {selectedLead ? (
           <SmsLeadThread
             lead={selectedLead}
             onBack={() => setSelectedLead(null)}
@@ -3347,8 +3344,8 @@ export default function Communications({ currentUser }) {
           </div>
         )}
       {tab === "sms" && (
-  <div className="h-full overflow-hidden">
-    <SmsPanel />
+ <div className="h-full overflow-hidden flex flex-col">
+   <SmsPanel />
   </div>
 )}
       </div>
