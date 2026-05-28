@@ -1498,11 +1498,11 @@ function WhatsAppPanel({ currentUser }) {
                 {isAdmin && selected.assignedAgent?.name ? ` · Employee: ${selected.assignedAgent.name}` : ""}
               </div>
             </div>
-            {selected.status !== "closed" && (
+            /* {selected.status !== "closed" && (
               <button onClick={closeConversation} className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[11px] font-semibold text-[#DC2626] hover:bg-[#FEF2F2] transition">
                 Mark resolved
               </button>
-            )}
+            )} */
           </div>
 
           {session && (
