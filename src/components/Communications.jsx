@@ -2655,11 +2655,10 @@ function SmsLeadThread({ lead, onBack, onSend }) {
 
   const name = lead.recipientName || lead.to;
 
-  return (
+  
 return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-      {/* Thread header */}
-      <div className="bg-[#075E54]      {/* Thread header */}
+          {/* Thread header */}
       <div className="bg-[#075E54] dark:bg-[#202C33] px-4 py-3 flex items-center gap-3 shrink-0">
         <button onClick={onBack} className="text-white/70 hover:text-white transition mr-1 sm:hidden">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
