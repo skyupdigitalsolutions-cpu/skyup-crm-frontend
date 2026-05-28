@@ -2911,7 +2911,7 @@ function SmsPanel() {
     <div className="flex h-full overflow-hidden rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] shadow-sm">
 
       {/* ── LEFT: Lead sidebar ─────────────────────────────────────────────── */}
-      <div className={`w-full sm:w-[300px] lg:w-[340px] shrink-0 flex flex-col bg-white dark:bg-[#111B21] border-r border-[#E4E7EF] dark:border-[#2A3942] ${selectedLead || showComposer ? "hidden sm:flex" : "flex"}`}>
+     <div className={`w-full sm:w-[300px] lg:w-[340px] shrink-0 flex flex-col min-h-0 bg-white dark:bg-[#111B21] border-r border-[#E4E7EF] dark:border-[#2A3942] ${selectedLead || showComposer ? "hidden sm:flex" : "flex"}`}>
 
         {/* Sidebar header */}
         <div className="bg-[#075E54] dark:bg-[#202C33] px-4 py-3 flex items-center justify-between shrink-0">
@@ -3346,11 +3346,11 @@ export default function Communications({ currentUser }) {
             <EmailPanel />
           </div>
         )}
-        {tab === "sms" && (
-          <div className="h-full">
-            <SmsPanel />
-          </div>
-        )}
+      {tab === "sms" && (
+  <div className="h-full overflow-hidden">
+    <SmsPanel />
+  </div>
+)}
       </div>
 
       {/* ── Integrations modal ── */}
