@@ -211,6 +211,179 @@ function Skeleton() {
   );
 }
 
+
+// ── Manage Projects Modal (Admin) ─────────────────────────────────────────────
+const PROJECT_COLORS = [
+  "#2563EB","#7C3AED","#0891B2","#059669",
+  "#D97706","#DC2626","#0D9488","#9333EA",
+  "#DB2777","#EA580C","#65A30D","#475569",
+];
+
+function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
+  const [name, setName]           = useState("");
+  const [color, setColor]         = useState("#2563EB");
+  const [isGlobal, setIsGlobal]   = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [deleting, setDeleting]   = useState(null);
+  const [error, setError]         = useState("");
+
+  const handleCreate = async () => {
+    if (!name.trim()) { setError("Project name is required."); return; }
+    setSaving(true); setError("");
+    try {
+      const { data } = await api.post("/project/admin", { name: name.trim(), color, isGlobal });
+      onProjectsChange([data, ...projects]);
+      setName(""); setColor("#2563EB"); setIsGlobal(true);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to create project.");
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this project? It will be removed from all leads.")) return;
+    setDeleting(id);
+    try {
+      await api.delete(`/project/admin/${id}`);
+      onProjectsChange(projects.filter(p => p._id !== id));
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to delete project.");
+    } finally { setDeleting(null); }
+  };
+
+  const handleToggleGlobal = async (project) => {
+    try {
+      const { data } = await api.put(`/project/admin/${project._id}`, { isGlobal: !project.isGlobal });
+      onProjectsChange(projects.map(p => p._id === project._id ? data : p));
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to update project.");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl flex flex-col max-h-[85vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Manage Projects</h2>
+            <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Create colour-coded tags to categorise leads</p>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Create new project */}
+        <div className="bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-4 mb-4 shrink-0">
+          <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-3">New Project</p>
+          <div className="flex gap-2 mb-3">
+            <input
+              type="text"
+              placeholder="Project name"
+              value={name}
+              onChange={e => { setName(e.target.value); setError(""); }}
+              onKeyDown={e => { if (e.key === "Enter") handleCreate(); }}
+              className="flex-1 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition"
+            />
+            <button
+              onClick={handleCreate}
+              disabled={saving || !name.trim()}
+              className="px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
+            >
+              {saving ? "…" : "+ Add"}
+            </button>
+          </div>
+
+          {/* Color picker */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {PROJECT_COLORS.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setColor(c)}
+                className="w-6 h-6 rounded-full border-2 transition shrink-0"
+                style={{
+                  background: c,
+                  borderColor: color === c ? "#0F1117" : "transparent",
+                  transform: color === c ? "scale(1.25)" : "scale(1)",
+                }}
+                title={c}
+              />
+            ))}
+          </div>
+
+          {/* Visibility toggle */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <div
+              onClick={() => setIsGlobal(v => !v)}
+              className={`relative w-8 h-4 rounded-full transition-colors ${isGlobal ? "bg-[#2563EB]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}
+            >
+              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${isGlobal ? "translate-x-4" : "translate-x-0.5"}`} />
+            </div>
+            <span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+              {isGlobal ? "Visible to everyone in company" : "Visible to admins only"}
+            </span>
+          </label>
+
+          {error && <p className="text-[11px] text-red-500 mt-2">{error}</p>}
+        </div>
+
+        {/* Existing projects list */}
+        <div className="overflow-y-auto flex-1 space-y-2 pr-0.5">
+          {projects.length === 0 ? (
+            <div className="flex flex-col items-center py-8 gap-2">
+              <svg className="w-8 h-8 text-[#C4C9D9] dark:text-[#3E4257]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+              </svg>
+              <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No projects yet</p>
+            </div>
+          ) : projects.map(p => (
+            <div key={p._id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] group">
+              {/* Color dot */}
+              <span className="w-3 h-3 rounded-full shrink-0" style={{ background: p.color || "#2563EB" }} />
+
+              {/* Name */}
+              <span className="flex-1 text-[13px] font-medium text-[#0F1117] dark:text-[#F0F2FA] truncate">{p.name}</span>
+
+              {/* Global badge + toggle */}
+              <button
+                onClick={() => handleToggleGlobal(p)}
+                title={p.isGlobal ? "Click to make admin-only" : "Click to make global"}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition shrink-0 ${
+                  p.isGlobal
+                    ? "bg-[#ECFDF5] dark:bg-[#052E1C] text-[#059669] dark:text-[#34D399]"
+                    : "bg-[#F8F9FC] dark:bg-[#1A1D27] text-[#8B92A9] dark:text-[#565C75] border border-[#E4E7EF] dark:border-[#262A38]"
+                }`}
+              >
+                {p.isGlobal ? "Global" : "Admin only"}
+              </button>
+
+              {/* Delete */}
+              <button
+                onClick={() => handleDelete(p._id)}
+                disabled={deleting === p._id}
+                className="w-6 h-6 flex items-center justify-center rounded-lg text-[#C4C9D9] dark:text-[#3E4257] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition disabled:opacity-40 shrink-0"
+                title="Delete project"
+              >
+                {deleting === p._id
+                  ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                  : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                }
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38] shrink-0">
+          <button onClick={onClose} className="w-full py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Edit Lead Modal ───────────────────────────────────────────────────────────
 function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
   const [form, setForm] = useState({ ...lead });
@@ -852,6 +1025,7 @@ export default function ReportPage() {
   const [agents, setAgents]       = useState([]);
   const [projects, setProjects]   = useState([]);
   const [projectFilter, setProjectFilter] = useState("All");
+  const [manageProjects, setManageProjects] = useState(false);
   const [loading, setLoading]     = useState(true);
   const [fetchError, setFetchError] = useState(null);
 
@@ -1054,6 +1228,14 @@ export default function ReportPage() {
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-3 py-4 md:px-6 md:py-8">
 
+      {manageProjects && (
+        <ManageProjectsModal
+          projects={projects}
+          onClose={() => setManageProjects(false)}
+          onProjectsChange={setProjects}
+        />
+      )}
+
       {editLead      && <EditLeadModal lead={editLead} agents={agents} projects={projects} onClose={() => setEditLead(null)} onSave={saveLead} />}
 
       {/* Close Lead (Wrong Entry) modal */}
@@ -1204,6 +1386,12 @@ export default function ReportPage() {
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{leads.length} total leads · {agents.length} agents</p>
         </div>
         <div className="flex items-center gap-2">
+          {(role === "admin" || role === "superadmin") && (
+            <button onClick={() => setManageProjects(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#4B5168] dark:text-[#9DA3BB] text-[13px] font-semibold hover:border-[#7C3AED] hover:text-[#7C3AED] transition">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+              Manage Projects
+            </button>
+          )}
           {role === "superadmin" && (
             <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
