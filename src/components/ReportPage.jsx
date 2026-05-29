@@ -213,11 +213,7 @@ function Skeleton() {
 
 
 // ── Manage Projects Modal (Admin) ─────────────────────────────────────────────
-const PROJECT_COLORS = [
-  "#2563EB","#7C3AED","#0891B2","#059669",
-  "#D97706","#DC2626","#0D9488","#9333EA",
-  "#DB2777","#EA580C","#65A30D","#475569",
-];
+
 
 function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
   const [name, setName]           = useState("");
@@ -295,7 +291,7 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
           </div>
 
           {/* Color picker */}
-          <div className="flex flex-wrap gap-2 mb-3">
+          {/* <div className="flex flex-wrap gap-2 mb-3">
             {PROJECT_COLORS.map(c => (
               <button
                 key={c}
@@ -310,7 +306,7 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
                 title={c}
               />
             ))}
-          </div>
+          </div> */}
 
           {/* Visibility toggle */}
           <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -383,6 +379,106 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
     </div>
   );
 }
+function ProjectDropdown({ projects, selectedProjects, toggleProject }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const selectedNames = projects.filter(p => selectedProjects.includes(String(p._id)));
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
+        Projects
+      </label>
+
+      {/* Trigger button */}
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-left transition focus:outline-none focus:border-[#2563EB] hover:border-[#2563EB]/50"
+      >
+        <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+          {selectedNames.length === 0 ? (
+            <span className="text-[#8B92A9]">Select projects…</span>
+          ) : (
+            selectedNames.map(p => (
+              <span
+                key={p._id}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-white"
+                style={{ background: p.color || "#2563EB" }}
+              >
+                {p.name}
+                <span
+                  role="button"
+                  onClick={e => { e.stopPropagation(); toggleProject(String(p._id)); }}
+                  className="opacity-80 hover:opacity-100 cursor-pointer leading-none"
+                >✕</span>
+              </span>
+            ))
+          )}
+        </div>
+        <svg
+          className={"w-3.5 h-3.5 shrink-0 ml-2 text-[#8B92A9] transition-transform " + (open ? "rotate-180" : "")}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <div className="absolute z-[100] mt-1.5 w-full bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl shadow-xl overflow-hidden">
+          <div className="py-1 max-h-48 overflow-y-auto">
+            {projects.map(p => {
+              const active = selectedProjects.includes(String(p._id));
+              return (
+                <button
+                  key={p._id}
+                  type="button"
+                  onClick={() => toggleProject(String(p._id))}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[12px] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition text-left"
+                >
+                  {/* Color swatch */}
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ background: p.color || "#2563EB" }}
+                  />
+                  <span className="flex-1 font-medium text-[#0F1117] dark:text-white">{p.name}</span>
+                  {/* Checkmark */}
+                  {active && (
+                    <svg className="w-3.5 h-3.5 shrink-0" style={{ color: p.color || "#2563EB" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {selectedNames.length > 0 && (
+            <div className="border-t border-[#E4E7EF] dark:border-[#262A38] px-3 py-2">
+              <button
+                type="button"
+                onClick={() => selectedNames.forEach(p => toggleProject(String(p._id)))}
+                className="text-[11px] text-red-500 hover:text-red-600 font-semibold transition"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Edit Lead Modal ───────────────────────────────────────────────────────────
 function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
@@ -451,33 +547,12 @@ function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
 
         {/* ── Project tag buttons (multi-select) ── */}
         {projects.length > 0 && (
-          <div className="mt-3 flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">
-              Projects
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {projects.map(p => {
-                const active = selectedProjects.includes(String(p._id));
-                return (
-                  <button
-                    key={p._id}
-                    type="button"
-                    onClick={() => toggleProject(String(p._id))}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border-2 transition ${
-                      active ? "text-white border-transparent" : "bg-white dark:bg-[#13161E] border-transparent text-[#4B5168] dark:text-[#9DA3BB]"
-                    }`}
-                    style={{
-                      background: active ? p.color : undefined,
-                      borderColor: active ? p.color : "#E4E7EF",
-                    }}
-                  >
-                    {active ? "✓ " : ""}{p.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+  <ProjectDropdown
+    projects={projects}
+    selectedProjects={selectedProjects}
+    toggleProject={toggleProject}
+  />
+)}
 
         {/* Reassign Reason — visible only when employee is changed */}
         {agentChanged && (
