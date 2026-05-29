@@ -1461,6 +1461,10 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete }) {
             Round-robin · {c._isMeta ? "Page ID: " : c._isWebsite ? "Source: " : "Key: "}
             <span className="font-mono">{c._isMeta ? c.pageId : c._isWebsite ? (c.pageUrl || "Webhook") : (c.googleKey ? "••••••" : "—")}</span>
           </span>
+           <button onClick={() => setShowSync(true)}
+            className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#E1306C] hover:bg-[#FFF0F3] transition flex items-center gap-1.5">
+            🔄 Sync from Meta
+          </button>
         </div>
 
         <div className="flex items-center gap-2 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
@@ -1671,10 +1675,8 @@ export default function Campaigns() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* ── Sync from Meta button ── */}
-          <button onClick={() => setShowSync(true)}
-            className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#E1306C] hover:bg-[#FFF0F3] transition flex items-center gap-1.5">
-            🔄 Sync from Meta
-          </button>
+         
+
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" /></svg>
             Connect Meta
