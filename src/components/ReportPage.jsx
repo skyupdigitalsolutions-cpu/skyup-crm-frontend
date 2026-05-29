@@ -212,10 +212,22 @@ function Skeleton() {
 }
 
 // ── Edit Lead Modal ───────────────────────────────────────────────────────────
-function EditLeadModal({ lead, agents, onClose, onSave }) {
+function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
   const [form, setForm] = useState({ ...lead });
   const [reassignReason, setReassignReason] = useState("");
   const [saving, setSaving] = useState(false);
+  // Multi-select project toggle — initialise from the lead's existing projects
+  const [selectedProjects, setSelectedProjects] = useState(() => {
+    if (!Array.isArray(lead.projects)) return [];
+    return lead.projects.map(p => p?._id || String(p)).filter(Boolean);
+  });
+
+  const toggleProject = (id) => {
+    setSelectedProjects(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   // Detect if the employee has been changed from the original
@@ -264,6 +276,36 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
           ))}
         </div>
 
+        {/* ── Project tag buttons (multi-select) ── */}
+        {projects.length > 0 && (
+          <div className="mt-3 flex flex-col gap-1.5">
+            <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">
+              Projects
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {projects.map(p => {
+                const active = selectedProjects.includes(String(p._id));
+                return (
+                  <button
+                    key={p._id}
+                    type="button"
+                    onClick={() => toggleProject(String(p._id))}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border-2 transition ${
+                      active ? "text-white border-transparent" : "bg-white dark:bg-[#13161E] border-transparent text-[#4B5168] dark:text-[#9DA3BB]"
+                    }`}
+                    style={{
+                      background: active ? p.color : undefined,
+                      borderColor: active ? p.color : "#E4E7EF",
+                    }}
+                  >
+                    {active ? "✓ " : ""}{p.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Reassign Reason — visible only when employee is changed */}
         {agentChanged && (
           <div className="mt-3 flex flex-col gap-1">
@@ -303,6 +345,7 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
                 campaign: form.campaign === "—" ? "" : form.campaign,
                 status:   form.status,
                 remark:   form.remark,
+                projects: selectedProjects,
               };
 
               // FIX: include user ID for agent reassignment so employee changes
@@ -805,9 +848,11 @@ function CloseLeadModal({ lead, onClose, onClosed }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ReportPage() {
-  const [leads, setLeads]     = useState([]);
-  const [agents, setAgents]   = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [leads, setLeads]         = useState([]);
+  const [agents, setAgents]       = useState([]);
+  const [projects, setProjects]   = useState([]);
+  const [projectFilter, setProjectFilter] = useState("All");
+  const [loading, setLoading]     = useState(true);
   const [fetchError, setFetchError] = useState(null);
 
   // FIX: role is read once at the top level and passed down to modals
@@ -821,6 +866,11 @@ export default function ReportPage() {
       })
       .catch(err => setFetchError(err.message))
       .finally(() => setLoading(false));
+
+    // Fetch projects visible to admin
+    api.get("/project/admin")
+      .then(res => setProjects(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setProjects([]));
   }, []);
 
   const [search, setSearch]               = useState("");
@@ -877,14 +927,21 @@ export default function ReportPage() {
     .filter(l => {
       if (!isWithinRange(l.date)) return false;
       const q = search.toLowerCase();
+      // Project filter: check if any of the lead's project IDs match the selected project
+      const matchProject = projectFilter === "All" || (
+        Array.isArray(l.projects) && l.projects.some(p =>
+          (p?._id || p) === projectFilter
+        )
+      );
       return (
+        matchProject &&
         (!q || l.name?.toLowerCase().includes(q) || l.phone?.includes(q) || l.campaign?.toLowerCase().includes(q)) &&
         (statusFilter === "All" || l.status === statusFilter) &&
         (agentFilter  === "All" || l.agent  === agentFilter)
       );
     })
     .sort((a, b) => sortBy === "name" ? (a.name || "").localeCompare(b.name || "") : new Date(b.createdAt || 0) - new Date(a.createdAt || 0)),
-  [leads, search, statusFilter, agentFilter, sortBy, isWithinRange]);
+  [leads, search, statusFilter, agentFilter, projectFilter, sortBy, isWithinRange]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const paged      = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -997,7 +1054,7 @@ export default function ReportPage() {
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-3 py-4 md:px-6 md:py-8">
 
-      {editLead      && <EditLeadModal lead={editLead} agents={agents} onClose={() => setEditLead(null)} onSave={saveLead} />}
+      {editLead      && <EditLeadModal lead={editLead} agents={agents} projects={projects} onClose={() => setEditLead(null)} onSave={saveLead} />}
 
       {/* Close Lead (Wrong Entry) modal */}
       {closeLead && (
@@ -1252,14 +1309,31 @@ export default function ReportPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-1.5">{filterBtn(statusFilter, setStatus, statuses)}</div>
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] self-center">Employee:</span>
-            <AgentSelect
-              value={agentFilter}
-              onChange={(val) => { setAgent(val); setPage(1); }}
-              agents={agents.map(a => a.name)}
-              className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] transition"
-            />
+          <div className="flex flex-wrap items-center gap-3 mt-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] self-center">Employee:</span>
+              <AgentSelect
+                value={agentFilter}
+                onChange={(val) => { setAgent(val); setPage(1); }}
+                agents={agents.map(a => a.name)}
+                className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] transition"
+              />
+            </div>
+            {projects.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75] self-center">Project:</span>
+                <select
+                  value={projectFilter}
+                  onChange={e => { setProjectFilter(e.target.value); setPage(1); }}
+                  className="px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none hover:border-[#2563EB] transition"
+                >
+                  <option value="All">All Projects</option>
+                  {projects.map(p => (
+                    <option key={p._id} value={p._id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
         
