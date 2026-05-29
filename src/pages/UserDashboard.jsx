@@ -970,6 +970,7 @@ function mapLead(l) {
     scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
     previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
     reassignCount:  l.reassignCount  || 0,
+    projects:       Array.isArray(l.projects) ? l.projects : [],
   };
 }
 
@@ -992,6 +993,10 @@ export default function UserDashboard() {
   const [csvImporting,  setCsvImporting]  = useState(false);
   const [csvResult,     setCsvResult]     = useState(null);
 
+  // ── Projects ─────────────────────────────────────────────────────────────
+  const [projects,     setProjects]     = useState([]);
+  const [projectFilter, setProjectFilter] = useState("All");
+
   // Note: company branding (logo + name) is now rendered in the sticky CompanyHeader
   // inside AppLayout — no need to fetch or display it here.
 
@@ -1010,6 +1015,13 @@ export default function UserDashboard() {
   }, []);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+  // Fetch projects visible to this employee
+  useEffect(() => {
+    api.get("/project")
+      .then(res => setProjects(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setProjects([]));
+  }, []);
 
   const kpi = useMemo(() => {
     const total        = leads.length;
@@ -1040,7 +1052,8 @@ export default function UserDashboard() {
       const matchSearch = !q || l.name.toLowerCase().includes(q) || (l.phone||"").includes(q) || (l.campaign||"").toLowerCase().includes(q);
       const matchSt     = filterSt   === "All" || l.status  === filterSt;
       const matchTemp   = filterTemp === "All" || l.Quality === filterTemp;
-      return matchSearch && matchSt && matchTemp;
+      const matchProject = projectFilter === "All" || (Array.isArray(l.projects) && l.projects.some(p => (p?._id || p) === projectFilter));
+      return matchSearch && matchSt && matchTemp && matchProject;
     });
     return res.slice().sort((a, b) => {
       if (sortBy === "date_desc") return new Date(b._raw_date||0) - new Date(a._raw_date||0);
@@ -1049,7 +1062,7 @@ export default function UserDashboard() {
       if (sortBy === "status")    return a.status.localeCompare(b.status);
       return 0;
     });
-  }, [leads, search, filterSt, filterTemp, sortBy]);
+  }, [leads, search, filterSt, filterTemp, projectFilter, sortBy]);
 
   const totalPages     = Math.ceil(displayed.length / PER_PAGE);
   const paged          = displayed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -1060,6 +1073,27 @@ export default function UserDashboard() {
     const norm = { ...updated, id: updated.id || String(updated._id), Quality: updated.temperature || updated.Quality || null, temperature: updated.temperature || updated.Quality || null };
     setLeads(prev => prev.map(l => l.id === norm.id ? { ...l, ...norm } : l));
     if (selected?.id === norm.id) setSelected(s => ({ ...s, ...norm }));
+  };
+
+
+  // ── Toggle a project on/off for a lead (PATCH) ───────────────────────────
+  const handleToggleLeadProject = async (leadId, projectId) => {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) return;
+    const current = Array.isArray(lead.projects)
+      ? lead.projects.map(p => p?._id || String(p))
+      : [];
+    const updated = current.includes(projectId)
+      ? current.filter(id => id !== projectId)
+      : [...current, projectId];
+    try {
+      await api.patch(`/lead/${leadId}`, { projects: updated });
+      setLeads(prev => prev.map(l =>
+        l.id === leadId ? { ...l, projects: updated } : l
+      ));
+    } catch (err) {
+      alert("Failed to update projects: " + (err.response?.data?.message || err.message));
+    }
   };
 
   const handleAddLead  = newLead => { setLeads(prev => [newLead, ...prev]); setPage(1); };
@@ -1372,8 +1406,15 @@ const downloadCSVTemplate = () => {
                 <select value={sortBy} onChange={e => { setSortBy(e.target.value); setPage(1); }} className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none">
                   <option value="date_desc">Newest</option><option value="date_asc">Oldest</option><option value="name_asc">Name A–Z</option><option value="status">By Status</option>
                 </select>
-                {(search || filterSt !== "All" || filterTemp !== "All") && (
-                  <button onClick={() => { setSearch(""); setFilterSt("All"); setFilterTemp("All"); setPage(1); }} className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[14px] text-[#8B92A9] hover:text-red-500 hover:border-red-300 transition font-semibold">✕ Clear</button>
+                {projects.length > 0 && (
+                  <select value={projectFilter} onChange={e => { setProjectFilter(e.target.value); setPage(1); }}
+                    className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none">
+                    <option value="All">All Projects</option>
+                    {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+                  </select>
+                )}
+                {(search || filterSt !== "All" || filterTemp !== "All" || projectFilter !== "All") && (
+                  <button onClick={() => { setSearch(""); setFilterSt("All"); setFilterTemp("All"); setProjectFilter("All"); setPage(1); }} className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[14px] text-[#8B92A9] hover:text-red-500 hover:border-red-300 transition font-semibold">✕ Clear</button>
                 )}
               </div>
             )}
@@ -1397,7 +1438,7 @@ const downloadCSVTemplate = () => {
                   <table className="w-full text-[14px]">
                     <thead>
                       <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                        {["Lead","Phone","Campaign / Source","Date","Status","Lead Quality",""].map(h => (
+                        {["Lead","Phone","Campaign / Source","Date","Status","Lead Quality","Projects",""].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-[14px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-widest whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -1430,10 +1471,63 @@ const downloadCSVTemplate = () => {
                             <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
                             <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
                             <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {Array.isArray(l.projects) && l.projects.length > 0
+                                  ? l.projects.map(p => {
+                                      const proj = projects.find(pr => String(pr._id) === String(p?._id || p));
+                                      if (!proj) return null;
+                                      return (
+                                        <span key={String(proj._id)}
+                                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-white whitespace-nowrap"
+                                          style={{ background: proj.color || "#2563EB" }}>
+                                          {proj.name}
+                                        </span>
+                                      );
+                                    })
+                                  : <span className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257]">—</span>
+                                }
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
                               <div className="flex items-center gap-1">
                                 <button onClick={e => { e.stopPropagation(); setSelected(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition" title="View details">
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
                                 </button>
+                                {/* Tag / project assign button */}
+                                {projects.length > 0 && (
+                                  <div className="relative group/tag">
+                                    <button
+                                      onClick={e => e.stopPropagation()}
+                                      className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#7C3AED] hover:border-[#7C3AED] hover:bg-[#F3EEFF] dark:hover:bg-[#2A1F40] transition"
+                                      title="Assign / unassign projects"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+                                      </svg>
+                                    </button>
+                                    {/* Hover dropdown */}
+                                    <div className="absolute right-0 top-8 z-50 hidden group-hover/tag:block w-44 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl shadow-xl overflow-hidden">
+                                      <p className="px-3 py-2 text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest border-b border-[#E4E7EF] dark:border-[#262A38]">Projects</p>
+                                      {projects.map(p => {
+                                        const assigned = Array.isArray(l.projects) && l.projects.some(x => String(x?._id || x) === String(p._id));
+                                        return (
+                                          <button key={p._id} type="button"
+                                            onClick={e => { e.stopPropagation(); handleToggleLeadProject(l.id, String(p._id)); }}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-[12px] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A] transition text-left"
+                                          >
+                                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color || "#2563EB" }} />
+                                            <span className="flex-1 truncate text-[#0F1117] dark:text-[#F0F2FA]">{p.name}</span>
+                                            {assigned && (
+                                              <svg className="w-3.5 h-3.5 text-[#7C3AED] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                                              </svg>
+                                            )}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                                 <button onClick={e => { e.stopPropagation(); setDeleteConfirm(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition" title="Delete lead">
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                 </button>
