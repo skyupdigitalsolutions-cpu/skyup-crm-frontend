@@ -395,8 +395,8 @@ function ProjectDropdown({ projects, selectedProjects, toggleProject }) {
   const selectedNames = projects.filter(p => selectedProjects.includes(String(p._id)));
 
   return (
-    <div ref={ref} className="relative">
-      <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
+    <div ref={ref} className="relative pt-3 mt-2">
+      <label className="block text-[11px] font-medium text-[#8B92A9] mb-1 uppercase tracking-wide">
         Projects
       </label>
 
@@ -552,7 +552,7 @@ function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
     selectedProjects={selectedProjects}
     toggleProject={toggleProject}
   />
-)}
+     )}
 
         {/* Reassign Reason — visible only when employee is changed */}
         {agentChanged && (
