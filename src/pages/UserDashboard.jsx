@@ -1071,9 +1071,9 @@ function UserChatWidget() {
                             <button onClick={() => startEdit(m)} className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] transition shadow-sm">
                               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </button>
-                            {/* <button onClick={() => deleteMsg(m._id)} className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-red-500 transition shadow-sm">
+                            <button onClick={() => deleteMsg(m._id)} className="w-5 h-5 rounded-full bg-white dark:bg-[#262A38] border border-[#E4E7EF] dark:border-[#3A3F52] flex items-center justify-center text-[#8B92A9] hover:text-red-500 transition shadow-sm">
                               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            </button> */}
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1628,9 +1628,9 @@ export default function UserDashboard() {
                                 <button onClick={e => { e.stopPropagation(); setSelected(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition" title="View details">
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
                                 </button>
-                                <button onClick={e => { e.stopPropagation(); setDeleteConfirm(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition" title="Delete lead">
+                                {/* <button onClick={e => { e.stopPropagation(); setDeleteConfirm(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition" title="Delete lead">
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                </button>
+                                </button> */}
                               </div>
                             </td>
                           </tr>
@@ -1706,7 +1706,7 @@ export default function UserDashboard() {
       {/* Pass projects so LeadDrawer → UpdateStatusModal can show project pills */}
       {selected      && <LeadDrawer lead={selected} onClose={() => setSelected(null)} onUpdate={handleUpdate} projects={projects} />}
       {showAddModal  && <AddLeadModal onClose={() => setShowAddModal(false)} onAdd={handleAddLead} />}
-      {deleteConfirm && (
+      {/* {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
             <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center mx-auto mb-4">
@@ -1720,7 +1720,7 @@ export default function UserDashboard() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       <UserChatWidget />
     </div>
