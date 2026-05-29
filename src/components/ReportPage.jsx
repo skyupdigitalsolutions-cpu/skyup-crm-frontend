@@ -448,10 +448,7 @@ function ProjectDropdown({ projects, selectedProjects, toggleProject }) {
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[12px] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition text-left"
                 >
                   {/* Color swatch */}
-                  <span
-                    className="w-3 h-3 rounded-full shrink-0"
-                    style={{ background: p.color || "#2563EB" }}
-                  />
+                  
                   <span className="flex-1 font-medium text-[#0F1117] dark:text-white">{p.name}</span>
                   {/* Checkmark */}
                   {active && (
