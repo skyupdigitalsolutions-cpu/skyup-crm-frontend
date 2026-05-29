@@ -16,7 +16,6 @@ const CHANNEL_STYLE = {
 const STATUS_STYLE = {
   Active: { bg: "bg-[#ECFDF5] dark:bg-[#052E1C]", text: "text-[#059669] dark:text-[#34D399]", dot: "#059669" },
   Completed: { bg: "bg-[#EEF3FF] dark:bg-[#1A2540]", text: "text-[#2563EB] dark:text-[#4F8EF7]", dot: "#2563EB" },
-  Paused: { bg: "bg-[#FFFBEB] dark:bg-[#2D1F00]", text: "text-[#D97706] dark:text-[#FCD34D]", dot: "#D97706" },
   Draft: { bg: "bg-[#F1F5F9] dark:bg-[#1A1D27]", text: "text-[#8B92A9] dark:text-[#565C75]", dot: "#8B92A9" },
 };
 
@@ -1469,9 +1468,7 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete }) {
             View leads ({c.leads})
           </button>
           <button onClick={(e) => { e.stopPropagation(); onEdit(c); }} className={`px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] transition ${editHoverCls}`} title="Edit campaign"><EditIcon /></button>
-          <button onClick={(e) => onToggle(e, c)} className={`px-3 py-2 rounded-xl border text-[12px] font-semibold transition ${c.isActive ? "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-[#D97706] hover:text-[#D97706]" : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-[#059669] hover:text-[#059669]"}`}>
-            {c.isActive ? "Pause" : "Resume"}
-          </button>
+          
           <button onClick={(e) => onDelete(e, c)} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] hover:border-[#DC2626] hover:text-[#DC2626] transition" title="Disconnect">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
           </button>
@@ -1514,7 +1511,7 @@ export default function Campaigns() {
         id: cfg._id,
         name: cfg.campaignName,
         channel: "Meta",
-        status: cfg.isActive ? "Active" : "Paused",
+      
         sent: cfg.sent ?? 0,
         leads: cfg.leads ?? 0,
         converted: cfg.converted ?? 0,
@@ -1547,7 +1544,6 @@ export default function Campaigns() {
         id: cfg._id,
         name: cfg.campaignName,
         channel: "Google",
-        status: cfg.isActive ? "Active" : "Paused",
         sent: cfg.sent ?? 0,
         leads: googleLeadCounts[idx]?.status === "fulfilled" ? googleLeadCounts[idx].value : cfg.leads ?? 0,
         converted: cfg.converted ?? 0,
@@ -1577,7 +1573,6 @@ export default function Campaigns() {
         id: cfg._id,
         name: cfg.sourceName,
         channel: "Website",
-        status: cfg.isActive ? "Active" : "Paused",
         sent: 0,
         leads: websiteLeadCounts[idx]?.status === "fulfilled" ? websiteLeadCounts[idx].value : 0,
         converted: 0,
@@ -1627,7 +1622,7 @@ export default function Campaigns() {
     } catch (err) { console.error("Delete failed:", err); }
   };
 
-  const filters = ["All", "Active", "Paused", "Meta", "Google", "Website"];
+  const filters = ["All", "Active",  "Meta", "Google", "Website"];
   const filtered = campaigns.filter((c) => {
     const matchFilter = filter === "All" || c.status === filter || c.channel === filter;
     const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase());
