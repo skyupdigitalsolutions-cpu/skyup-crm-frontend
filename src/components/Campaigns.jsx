@@ -90,11 +90,12 @@ function SummaryCard({ label, value, sub, color }) {
 }
 
 // ── Sync Meta Modal ───────────────────────────────────────────────────────────
-function SyncMetaModal({ onClose, onSynced, prefillPageId }) {
+function SyncMetaModal({ onClose, onSynced, prefillPageId, parentName = "" }) {
   const [form, setForm] = useState({
     pageId: prefillPageId || "",
     pageAccessToken: "",
     graphApiVersion: "v25.0",
+    parentCampaignName: parentName || "",
   });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -110,6 +111,7 @@ function SyncMetaModal({ onClose, onSynced, prefillPageId }) {
         pageId: form.pageId.trim(),
         pageAccessToken: form.pageAccessToken.trim(),
         graphApiVersion: form.graphApiVersion.trim() || "v25.0",
+        parentCampaignName: form.parentCampaignName.trim() || undefined,
       });
       setResult(res.data);
       onSynced && onSynced();
@@ -130,16 +132,37 @@ function SyncMetaModal({ onClose, onSynced, prefillPageId }) {
 
         <div className="space-y-3 mb-5">
           <div>
-            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Page ID</label>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+              Campaign Group <span className="text-[#DC2626]">*</span>
+              <span className="ml-1 text-[10px] font-normal text-[#8B92A9]">— the main campaign these ad sets belong to</span>
+            </label>
+            <input
+              value={form.parentCampaignName}
+              onChange={set("parentCampaignName")}
+              placeholder="e.g. Skyup Ads"
+              className={FIELD_CLS}
+            />
+            <p className="text-[10px] text-[#8B92A9] mt-1">
+              All synced ad sets will be grouped under this campaign on the Campaigns page.
+            </p>
+          </div>
+          <div>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+              Page ID <span className="text-[#DC2626]">*</span>
+            </label>
             <input value={form.pageId} onChange={set("pageId")} placeholder="e.g. 123456789012345" className={FIELD_CLS} />
           </div>
           <div>
-            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Page Access Token</label>
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+              Page Access Token <span className="text-[#DC2626]">*</span>
+            </label>
             <input type="password" value={form.pageAccessToken} onChange={set("pageAccessToken")} placeholder="EAAxxxxxx…" className={FIELD_CLS} />
           </div>
           <div>
-            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Graph API Version</label>
-            <input value={form.graphApiVersion} onChange={set("graphApiVersion")} placeholder="v21.0" className={FIELD_CLS} />
+            <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+              Graph API Version
+            </label>
+            <input value={form.graphApiVersion} onChange={set("graphApiVersion")} placeholder="v25.0" className={FIELD_CLS} />
           </div>
         </div>
 
@@ -170,7 +193,7 @@ function SyncMetaModal({ onClose, onSynced, prefillPageId }) {
           </button>
           <button
             onClick={handleSync}
-            disabled={!form.pageId.trim() || !form.pageAccessToken.trim() || loading}
+            disabled={!form.pageId.trim() || !form.pageAccessToken.trim() || !form.parentCampaignName.trim() || loading}
             className="flex-1 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             {loading ? "Syncing…" : "Sync All Campaigns & Ad Sets"}
@@ -1605,8 +1628,8 @@ const [selectedParent, setSelectedParent] = useState(null); // null = top-level 
         {(groupedMeta[selectedParent] || []).length} ad set{(groupedMeta[selectedParent] || []).length !== 1 ? "s" : ""}
       </span>
       <button
-        onClick={() => setSyncTarget({ pageId: groupPageIds[selectedParent] || "" })}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-pink-200 dark:border-pink-900/50 bg-[#FFF0F3] dark:bg-[#2D0A14] text-[#E1306C] text-[11px] font-semibold hover:bg-pink-100 dark:hover:bg-pink-900/40 transition"
+        onClick={() => setSyncTarget({ pageId: groupPageIds[selectedParent] || "", parentName: selectedParent })}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-pink-200 dark:border-pink-900/50 bg-[#FFF0F3] dark:bg-[#2D0A14] text-[#E1306C] text-[11px] font-semibold hover:bg-pink-100 dark:hover:bg-pink-900/40 transition"
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -1718,13 +1741,14 @@ const [selectedParent, setSelectedParent] = useState(null); // null = top-level 
       {editCampaign && editCampaign._isWebsite && <EditWebsiteModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
 
       {/* ── Sync Meta modal — opened from a group header ── */}
-      {syncTarget !== null && (
-        <SyncMetaModal
-          prefillPageId={syncTarget.pageId}
-          onClose={() => setSyncTarget(null)}
-          onSynced={() => { setSyncTarget(null); fetchCampaigns(); }}
-        />
-      )}
+     {syncTarget !== null && (
+  <SyncMetaModal
+    prefillPageId={syncTarget.pageId}
+    parentName={syncTarget.parentName || ""}
+    onClose={() => setSyncTarget(null)}
+    onSynced={() => { setSyncTarget(null); fetchCampaigns(); }}
+  />
+)}
     </div>
   );
 }
