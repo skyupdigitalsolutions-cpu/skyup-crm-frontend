@@ -368,11 +368,17 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
 // ── Remarks History Panel ─────────────────────────────────────────────────────
 // FIX: accepts `role` prop and uses displayPhone() instead of maskPhone()
 function RemarksHistoryModal({ lead, role, onClose }) {
-  const callHistory = Array.isArray(lead.callHistory) ? lead.callHistory : [];
+  const callHistory      = Array.isArray(lead.callHistory)      ? lead.callHistory      : [];
+  const activityTimeline = Array.isArray(lead.activityTimeline) ? lead.activityTimeline : [];
 
-  const sorted = [...callHistory].sort(
-    (a, b) => new Date(b.calledAt) - new Date(a.calledAt)
-  );
+  // Merge call-history entries and reassign activity-timeline events into one
+  // chronological list so the admin can see the full story in one place.
+  const callEntries = callHistory.map(e => ({ _type: "call", ...e, _ts: new Date(e.calledAt) }));
+  const reassignEntries = activityTimeline
+    .filter(e => e.action === "reassigned" || e.action === "merged")
+    .map(e => ({ _type: e.action === "merged" ? "merge" : "reassign", ...e, _ts: new Date(e.timestamp) }));
+
+  const merged = [...callEntries, ...reassignEntries].sort((a, b) => b._ts - a._ts);
 
   const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
 
@@ -388,7 +394,6 @@ function RemarksHistoryModal({ lead, role, onClose }) {
             </div>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
-              {/* FIX: use displayPhone() so superadmin sees full number */}
               <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
                 {displayPhone(lead.phone, role)} · {lead.source}
               </p>
@@ -416,13 +421,13 @@ function RemarksHistoryModal({ lead, role, onClose }) {
             Call History & Remarks
           </span>
           <span className="ml-auto text-[11px] text-[#8B92A9] dark:text-[#565C75] bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-full">
-            {sorted.length} {sorted.length === 1 ? "entry" : "entries"}
+            {merged.length} {merged.length === 1 ? "entry" : "entries"}
           </span>
         </div>
 
-        {/* History list */}
+        {/* Merged timeline list */}
         <div className="overflow-y-auto flex-1 pr-1 space-y-2">
-          {sorted.length === 0 ? (
+          {merged.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-2">
               <svg className="w-8 h-8 text-[#C4C9D9] dark:text-[#3E4257]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
@@ -430,15 +435,86 @@ function RemarksHistoryModal({ lead, role, onClose }) {
               <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No call history yet</p>
               <p className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257]">Remarks appear here after employee interactions</p>
             </div>
-          ) : sorted.map((entry, i) => {
+          ) : merged.map((entry, i) => {
+
+            // ── Reassign event card ───────────────────────────────────────────
+            if (entry._type === "reassign") {
+              return (
+                <div key={`reassign-${i}`} className="bg-[#FFFBEB] dark:bg-[#2D1F00] border border-[#FDE68A] dark:border-[#92400E] rounded-xl p-3">
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-[#FEF3C7] dark:bg-[#3D2800] flex items-center justify-center shrink-0">
+                        <svg className="w-3.5 h-3.5 text-[#D97706]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-[12px] font-semibold text-[#D97706] dark:text-[#FCD34D] leading-none">
+                          Lead Reassigned
+                        </p>
+                        <p className="text-[10px] text-[#8B92A9] mt-0.5">{fmtDateTime(entry.timestamp)}</p>
+                      </div>
+                    </div>
+                    <span className="text-[9px] text-[#D97706] bg-[#FEF3C7] dark:bg-[#3D2800] px-1.5 py-0.5 rounded-md font-semibold uppercase shrink-0">
+                      {entry.role || "admin"}
+                    </span>
+                  </div>
+                  {entry.note ? (
+                    <div className="ml-8">
+                      <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] font-medium mb-0.5">Reason:</p>
+                      <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic leading-relaxed">
+                        "{entry.note}"
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="ml-8 text-[11px] text-[#C4C9D9] dark:text-[#3E4257] italic">No reason recorded</p>
+                  )}
+                </div>
+              );
+            }
+
+            // ── Merge event card ──────────────────────────────────────────────
+            if (entry._type === "merge") {
+              return (
+                <div key={`merge-${i}`} className="bg-[#ECFDF5] dark:bg-[#052E1C] border border-[#6EE7B7] dark:border-[#065F46] rounded-xl p-3">
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-[#D1FAE5] dark:bg-[#064E3B] flex items-center justify-center shrink-0">
+                        <svg className="w-3.5 h-3.5 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-[12px] font-semibold text-[#059669] dark:text-[#34D399] leading-none">
+                          Duplicate Lead Merged
+                        </p>
+                        <p className="text-[10px] text-[#8B92A9] mt-0.5">{fmtDateTime(entry.timestamp)}</p>
+                      </div>
+                    </div>
+                    <span className="text-[9px] text-[#059669] bg-[#D1FAE5] dark:bg-[#064E3B] px-1.5 py-0.5 rounded-md font-semibold uppercase shrink-0">
+                      system
+                    </span>
+                  </div>
+                  {entry.note && (
+                    <div className="ml-8">
+                      <p className="text-[11px] text-[#065F46] dark:text-[#6EE7B7] italic leading-relaxed">
+                        {entry.note}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            // ── Call history card (default) ───────────────────────────────────
             const outcome = entry.outcome || "No Answer";
             const os = OUTCOME_STYLE[outcome] || OUTCOME_STYLE["No Answer"];
             return (
-              <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-3">
+              <div key={`call-${i}`} className="bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-3">
                 <div className="flex items-start justify-between gap-2 mb-1.5">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[9px] font-bold text-[#2563EB] dark:text-[#4F8EF7] shrink-0">
-                      {sorted.length - i}
+                      {callEntries.length - callEntries.findIndex(c => c === entry)}
                     </div>
                     <div>
                       <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
@@ -761,6 +837,7 @@ export default function ReportPage() {
   const [newNumber, setNewNumber]           = useState("");
   const [newLabel, setNewLabel]             = useState("");
   const [addNumLoading, setAddNumLoading]   = useState(false);
+  const [mergeToast, setMergeToast]         = useState(null);  // { name, id } of merged lead
   const [closeLead, setCloseLead]           = useState(null);  // lead to close as wrong entry
   const PER_PAGE = 8;
 
@@ -828,11 +905,30 @@ export default function ReportPage() {
     setAddNumLoading(true);
     try {
       const { data } = await api.post(endpoint, { number: newNumber.trim(), label: newLabel.trim() });
-      // Update leads list with new additionalNumbers
-      setLeads(ls => ls.map(l =>
-        l.id === addNumberLead.id ? { ...l, additionalNumbers: data.additionalNumbers } : l
-      ));
-      setAddNumberLead(prev => ({ ...prev, additionalNumbers: data.additionalNumbers }));
+
+      if (data.merged) {
+        // Auto-merge happened: remove the duplicate from the active list,
+        // update the primary lead with the new merged data, show a toast.
+        setLeads(ls => ls
+          .filter(l => l.id !== data.mergedLeadId && l._id !== data.mergedLeadId)
+          .map(l => l.id === addNumberLead.id || l._id === addNumberLead.id
+            ? { ...l, additionalNumbers: data.additionalNumbers, callHistory: data.lead?.callHistory ?? l.callHistory }
+            : l
+          )
+        );
+        setAddNumberLead(prev => ({
+          ...prev,
+          additionalNumbers: data.additionalNumbers,
+          callHistory: data.lead?.callHistory ?? prev.callHistory,
+        }));
+        setMergeToast({ name: data.mergedLeadName, id: data.mergedLeadId });
+        setTimeout(() => setMergeToast(null), 6000);
+      } else {
+        setLeads(ls => ls.map(l =>
+          l.id === addNumberLead.id ? { ...l, additionalNumbers: data.additionalNumbers } : l
+        ));
+        setAddNumberLead(prev => ({ ...prev, additionalNumbers: data.additionalNumbers }));
+      }
       setNewNumber("");
       setNewLabel("");
     } catch (err) {
@@ -938,7 +1034,7 @@ export default function ReportPage() {
               <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
                 Linked Numbers — {addNumberLead.name}
               </h2>
-              <button onClick={() => { setAddNumberLead(null); setNewNumber(""); setNewLabel(""); }}
+              <button onClick={() => { setAddNumberLead(null); setNewNumber(""); setNewLabel(""); setMergeToast(null); }}
                 className="text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#F0F2FA] transition">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
@@ -946,12 +1042,40 @@ export default function ReportPage() {
               </button>
             </div>
 
+            {/* Merge success banner */}
+            {mergeToast && (
+              <div className="mb-3 flex items-start gap-2 bg-[#ECFDF5] dark:bg-[#052E1C] border border-[#6EE7B7] dark:border-[#065F46] rounded-xl px-3 py-2.5">
+                <svg className="w-4 h-4 text-[#059669] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <div>
+                  <p className="text-[12px] font-semibold text-[#065F46] dark:text-[#34D399]">Leads merged successfully</p>
+                  <p className="text-[11px] text-[#059669] dark:text-[#6EE7B7] mt-0.5">
+                    "{mergeToast.name}" was a duplicate — its call history, remarks and numbers have been combined into this lead.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Primary number */}
             <div className="mb-3">
               <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">Primary</p>
-              <span className="text-[13px] font-medium text-[#0F1117] dark:text-[#F0F2FA]">
-                {displayPhone(addNumberLead.phone, role)}
-              </span>
+              <div className="flex items-center gap-2">
+                {addNumberLead.isClosed && (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D]"
+                    title={addNumberLead.closeReason ? `Closed: ${addNumberLead.closeReason}` : "Closed — wrong entry"}
+                  >
+                    <svg className="w-2.5 h-2.5 text-[#DC2626] shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <circle cx="10" cy="10" r="10"/>
+                    </svg>
+                    <span className="text-[9px] font-bold text-[#DC2626] uppercase tracking-wide">Closed</span>
+                  </span>
+                )}
+                <span className={`text-[13px] font-medium font-mono ${addNumberLead.isClosed ? "text-[#DC2626] dark:text-[#F87171]" : "text-[#0F1117] dark:text-[#F0F2FA]"}`}>
+                  {displayPhone(addNumberLead.phone, role)}
+                </span>
+              </div>
             </div>
 
             {/* Existing additional numbers */}
@@ -961,12 +1085,22 @@ export default function ReportPage() {
                 <ul className="space-y-1.5">
                   {addNumberLead.additionalNumbers.map((n, i) => (
                     <li key={i} className="flex items-center justify-between gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-lg px-3 py-1.5">
-                      <div>
-                        <span className="text-[13px] font-medium text-[#0F1117] dark:text-[#F0F2FA]">{n.number}</span>
-                        {n.label && <span className="ml-2 text-[11px] text-[#8B92A9]">({n.label})</span>}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {n.label === "Merged primary" && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#ECFDF5] dark:bg-[#052E1C] border border-[#6EE7B7] dark:border-[#065F46] shrink-0">
+                            <svg className="w-2.5 h-2.5 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                            </svg>
+                            <span className="text-[9px] font-bold text-[#059669] uppercase">Merged</span>
+                          </span>
+                        )}
+                        <span className="text-[13px] font-medium text-[#0F1117] dark:text-[#F0F2FA] truncate">{n.number}</span>
+                        {n.label && n.label !== "Merged primary" && (
+                          <span className="ml-1 text-[11px] text-[#8B92A9] shrink-0">({n.label})</span>
+                        )}
                       </div>
                       <button onClick={() => handleRemoveNumber(addNumberLead.id, i)}
-                        className="text-red-400 hover:text-red-600 transition" title="Remove">
+                        className="text-red-400 hover:text-red-600 transition shrink-0" title="Remove">
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
@@ -1158,8 +1292,23 @@ export default function ReportPage() {
                     </td>
 
                     {/* FIX: use displayPhone() — superadmin sees full number, others see masked */}
-                    <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap font-mono">
-                      {displayPhone(lead.phone, role)}
+                    <td className="px-4 py-3 whitespace-nowrap font-mono">
+                      <div className="flex items-center gap-1.5">
+                        {lead.isClosed && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D]"
+                            title={lead.closeReason ? `Closed: ${lead.closeReason}` : "Closed — wrong entry"}
+                          >
+                            <svg className="w-2.5 h-2.5 text-[#DC2626] shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                              <circle cx="10" cy="10" r="10"/>
+                            </svg>
+                            <span className="text-[9px] font-bold text-[#DC2626] uppercase tracking-wide">Closed</span>
+                          </span>
+                        )}
+                        <span className={lead.isClosed ? "text-[#DC2626] dark:text-[#F87171]" : "text-[#4B5168] dark:text-[#9DA3BB]"}>
+                          {displayPhone(lead.phone, role)}
+                        </span>
+                      </div>
                     </td>
 
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.source}</td>
