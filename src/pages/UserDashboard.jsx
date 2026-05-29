@@ -39,17 +39,10 @@ function timeAgo(iso) {
 }
 
 // ── Phone normalisation ───────────────────────────────────────────────────────
-/**
- * Strips all non-digits, then removes leading country code (91 for India, 1 for US)
- * when the result would be 12+ digits, leaving a 10-digit local number.
- * Returns the cleaned string so two numbers can be compared with ===.
- */
 function normalizeForDupCheck(raw) {
   if (!raw) return "";
   let digits = String(raw).replace(/\D/g, "");
-  // Strip leading 91 (India) if the total is 12 digits
   if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
-  // Strip leading 1 (US/Canada) if the total is 11 digits
   if (digits.length === 11 && digits.startsWith("1")) digits = digits.slice(1);
   return digits;
 }
@@ -421,17 +414,13 @@ function AttendanceMiniWidget() {
   );
 }
 
-// KPI / Chart / Activity helpers (unchanged)
+// KPI / Chart / Activity helpers
 function KpiCard({ label, value, sub, color, icon, trend, trendUp }) {
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <span className="text-[12px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-widest">{label}</span>
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: color + "18" }}
-        >
-          {/* ✅ renders the Lucide icon component passed as a prop */}
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: color + "18" }}>
           {icon}
         </div>
       </div>
@@ -728,8 +717,8 @@ function AddLeadModal({ onClose, onAdd }) {
     if (!form.name.trim() || form.name.trim().length < 2) e.name = "Name must be at least 2 characters.";
     if (!form.phone.trim()) e.phone = "Phone is required.";
     else if (!/^\d{10}$/.test(form.phone.trim())) e.phone = "Phone must be exactly 10 digits.";
-     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
-    e.email = "Enter a valid email address."
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+      e.email = "Enter a valid email address.";
     return e;
   };
   const handleSubmit = async () => {
@@ -739,7 +728,7 @@ function AddLeadModal({ onClose, onAdd }) {
     try {
       const res = await api.post("/lead", { name:form.name.trim(), mobile:form.phone.trim(), email:form.email.trim() || null, source:form.source, campaign:form.campaign.trim()||null, status:form.status, date:new Date(), remark:form.remark.trim()||"Manually added" });
       const saved = res.data;
-      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", email:saved.email  || "", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, temperature:saved.temperature||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
+      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", email:saved.email || "", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, temperature:saved.temperature||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
       onClose();
     } catch (err) {
       setErrors({ submit:(err.response?.data?.message)||"Failed to save lead." });
@@ -762,7 +751,7 @@ function AddLeadModal({ onClose, onAdd }) {
           </button>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {[{label:"Lead Name *",key:"name",placeholder:"Full name"},{label:"Phone *",key:"phone",placeholder:"10-digit number"}, {label:"Email", key:"email", placeholder:"email@example.com"},{label:"Campaign",key:"campaign",placeholder:"Campaign name"},{label:"Remark",key:"remark",placeholder:"Notes"}].map(f => (
+          {[{label:"Lead Name *",key:"name",placeholder:"Full name"},{label:"Phone *",key:"phone",placeholder:"10-digit number"},{label:"Email",key:"email",placeholder:"email@example.com"},{label:"Campaign",key:"campaign",placeholder:"Campaign name"},{label:"Remark",key:"remark",placeholder:"Notes"}].map(f => (
             <div key={f.key} className="flex flex-col gap-1">
               <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">{f.label}</label>
               <input type="text" placeholder={f.placeholder} value={form[f.key]} onChange={e => set(f.key, e.target.value)} className={CLS(f.key)} />
@@ -802,19 +791,16 @@ function UserChatWidget() {
   const [unread, setUnread]           = useState(0);
   const [editingId, setEditingId]     = useState(null);
   const [editingText, setEditingText] = useState("");
- const bottomRef = useRef(null);
+  const bottomRef = useRef(null);
   const user        = JSON.parse(localStorage.getItem("user") || "null");
   const username    = (user && user.name) || "user";
-  // Pass company and assigned adminId so the server can scope this employee's chat
-  // Employee login response stores company as "companyId" (not "company")
   const companyId   = user?.companyId || user?.company?._id || user?.company || null;
-  const adminId     = user?.createdBy || null; // the admin who created/assigned this employee
+  const adminId     = user?.createdBy || null;
 
   useEffect(() => {
     const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, "") : "https://skyup-crm-backend.onrender.com");
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
-    // Send user_join AFTER socket connects to avoid losing the event
     const joinPayload = { username, userId: user?._id, company: companyId, adminId, displayName: user?.name };
     socket.on("connect", () => {
       sharedSocket.current = socket;
@@ -825,7 +811,6 @@ function UserChatWidget() {
       socket.emit("user_join", joinPayload);
     }
     socket.on("chat_history", history => {
-      // from can be 'admin:<id>', 'superadmin:<id>', or the employee's username
       const isAdminMsg = (from) => from === "admin" || from?.startsWith("admin:") || from?.startsWith("superadmin:");
       setMessages(history.map(m => ({ _id: m._id, from: isAdminMsg(m.from) ? "Admin" : "You", message: m.message, ts: m.timestamp, isDeleted: m.isDeleted || false, editedAt: m.editedAt || null })));
     });
@@ -993,12 +978,9 @@ export default function UserDashboard() {
   const [csvImporting,  setCsvImporting]  = useState(false);
   const [csvResult,     setCsvResult]     = useState(null);
 
-  // ── Projects ─────────────────────────────────────────────────────────────
-  const [projects,     setProjects]     = useState([]);
+  // ── Projects (read-only — admin-created, used for filtering only) ─────────
+  const [projects,      setProjects]      = useState([]);
   const [projectFilter, setProjectFilter] = useState("All");
-
-  // Note: company branding (logo + name) is now rendered in the sticky CompanyHeader
-  // inside AppLayout — no need to fetch or display it here.
 
   const PER_PAGE = 10;
 
@@ -1016,7 +998,7 @@ export default function UserDashboard() {
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
-  // Fetch projects visible to this employee
+  // Fetch admin-created projects for filter use only
   useEffect(() => {
     api.get("/project")
       .then(res => setProjects(Array.isArray(res.data) ? res.data : []))
@@ -1048,10 +1030,10 @@ export default function UserDashboard() {
 
   const displayed = useMemo(() => {
     let res = leads.filter(l => {
-      const q           = search.toLowerCase();
-      const matchSearch = !q || l.name.toLowerCase().includes(q) || (l.phone||"").includes(q) || (l.campaign||"").toLowerCase().includes(q);
-      const matchSt     = filterSt   === "All" || l.status  === filterSt;
-      const matchTemp   = filterTemp === "All" || l.Quality === filterTemp;
+      const q            = search.toLowerCase();
+      const matchSearch  = !q || l.name.toLowerCase().includes(q) || (l.phone||"").includes(q) || (l.campaign||"").toLowerCase().includes(q);
+      const matchSt      = filterSt   === "All" || l.status  === filterSt;
+      const matchTemp    = filterTemp === "All" || l.Quality === filterTemp;
       const matchProject = projectFilter === "All" || (Array.isArray(l.projects) && l.projects.some(p => (p?._id || p) === projectFilter));
       return matchSearch && matchSt && matchTemp && matchProject;
     });
@@ -1075,27 +1057,6 @@ export default function UserDashboard() {
     if (selected?.id === norm.id) setSelected(s => ({ ...s, ...norm }));
   };
 
-
-  // ── Toggle a project on/off for a lead (PATCH) ───────────────────────────
-  const handleToggleLeadProject = async (leadId, projectId) => {
-    const lead = leads.find(l => l.id === leadId);
-    if (!lead) return;
-    const current = Array.isArray(lead.projects)
-      ? lead.projects.map(p => p?._id || String(p))
-      : [];
-    const updated = current.includes(projectId)
-      ? current.filter(id => id !== projectId)
-      : [...current, projectId];
-    try {
-      await api.patch(`/lead/${leadId}`, { projects: updated });
-      setLeads(prev => prev.map(l =>
-        l.id === leadId ? { ...l, projects: updated } : l
-      ));
-    } catch (err) {
-      alert("Failed to update projects: " + (err.response?.data?.message || err.message));
-    }
-  };
-
   const handleAddLead  = newLead => { setLeads(prev => [newLead, ...prev]); setPage(1); };
   const handleDeleteLead = async id => {
     try { await api.delete("/lead/" + id); setLeads(prev => prev.filter(l => l.id !== id)); if (selected?.id === id) setSelected(null); }
@@ -1103,18 +1064,18 @@ export default function UserDashboard() {
   };
 
   // ── CSV template download ─────────────────────────────────────────────────
-const downloadCSVTemplate = () => {
-  const headers = ["name", "mobile", "email", "source", "campaign", "status", "remark"];
-  const blob = new Blob([headers.join(",")], { type: "text/csv" });
-  const a = Object.assign(document.createElement("a"), {
-    href: URL.createObjectURL(blob),
-    download: "leads_import_template.csv",
-  });
-  a.click();
-  URL.revokeObjectURL(a.href);
-};
+  const downloadCSVTemplate = () => {
+    const headers = ["name", "mobile", "email", "source", "campaign", "status", "remark"];
+    const blob = new Blob([headers.join(",")], { type: "text/csv" });
+    const a = Object.assign(document.createElement("a"), {
+      href: URL.createObjectURL(blob),
+      download: "leads_import_template.csv",
+    });
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
 
-  // ── CSV import with FULL duplicate checking ───────────────────────────────
+  // ── CSV import ────────────────────────────────────────────────────────────
   const handleImportCSV = async e => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1133,14 +1094,11 @@ const downloadCSVTemplate = () => {
 
       const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().trim());
 
-      // ── Step 1: Build a normalised set of ALL phone numbers the user already has
-      //    so we can check duplicates without hitting the server per-row.
       const existingNormalized = new Set(
         leads.map(l => normalizeForDupCheck(l.phone || l.mobile)).filter(Boolean)
       );
 
-      // ── Step 2: Parse CSV rows and apply three layers of dedup ───────────
-      const seenInFile    = new Set();   // dedup within the CSV itself
+      const seenInFile    = new Set();
       const leadsToImport = [];
       const clientErrors  = [];
 
@@ -1162,14 +1120,12 @@ const downloadCSVTemplate = () => {
 
         const normMobile = normalizeForDupCheck(cleanMobile);
 
-        // Layer A — duplicate within the CSV itself
         if (seenInFile.has(normMobile)) {
           clientErrors.push({ index: i, row: rawName || `Row ${i}`, message: `Duplicate in CSV: ${rawMobile} appears more than once.` });
           continue;
         }
         seenInFile.add(normMobile);
 
-        // Layer B — already exists in the user's current lead list
         if (existingNormalized.has(normMobile)) {
           clientErrors.push({ index: i, row: rawName || `Row ${i}`, message: `${rawMobile} already exists in your leads — skipped.` });
           continue;
@@ -1187,7 +1143,6 @@ const downloadCSVTemplate = () => {
         });
       }
 
-      // Nothing to send
       if (!leadsToImport.length) {
         setCsvResult({
           error:        "No new leads to import — all rows were either invalid or already exist in your CRM.",
@@ -1197,15 +1152,12 @@ const downloadCSVTemplate = () => {
         return;
       }
 
-      // ── Step 3: Send to server (server applies its own dedup as a safety net)
       const res = await api.post("/lead/import-csv", { leads: leadsToImport });
       const imported = res.data.saved || [];
 
-      // Prepend freshly imported leads to state
       setLeads(prev => [...imported.map(mapLead), ...prev]);
       setPage(1);
 
-      // ── Step 4: Merge client + server errors for the result panel
       const serverErrors = (res.data.errors || []).map(e => ({
         index:   e.index,
         row:     e.row    || e.name || "Unknown",
@@ -1231,11 +1183,10 @@ const downloadCSVTemplate = () => {
 
   return (
     <div className="min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
-      {/* ── Sub-header (sticky, sits below the CompanyHeader sticky bar) ── */}
+      {/* ── Sub-header ── */}
       <div className="sticky top-[49px] z-20 px-6 py-4 bg-white/95 dark:bg-[#1A1D27]/95 backdrop-blur-md border-b border-[#E4E7EF] dark:border-[#262A38] shadow-sm">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            {/* Greeting + employee name — brand/logo shown in the sticky CompanyHeader above */}
             <div>
               <p className="text-[#8B92A9] dark:text-[#D1D5DB] text-[12px] font-medium">{greeting.emoji} {greeting.text}</p>
               <h1 className="text-[22px] font-black text-[#0F1117] dark:text-white mt-0.5">
@@ -1280,7 +1231,6 @@ const downloadCSVTemplate = () => {
                     : `${csvResult.saved > 0 ? "✓ " : ""}${csvResult.saved}/${csvResult.total} imported${csvResult.errors > 0 ? ` · ${csvResult.errors} skipped` : ""}`}
                   <button onClick={() => setCsvResult(null)} className="ml-1 opacity-70 hover:opacity-100 shrink-0">✕</button>
                 </div>
-                {/* Show the first 5 skip reasons inline */}
                 {csvResult.errorDetails?.length > 0 && (
                   <ul className="mt-0.5 space-y-0.5 text-[10px] font-normal opacity-90">
                     {csvResult.errorDetails.slice(0, 5).map((e, i) => (
@@ -1330,7 +1280,7 @@ const downloadCSVTemplate = () => {
           <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon={<UsersIcon className="w-5 h-5"/>} />
           <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon={<CheckIcon className="w-5 h-5"/>} trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
           <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon={<LoaderIcon className="w-5 h-5"/>} />
-          <KpiCard label="Hot Leads "   value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon={<FlameIcon className="w-5 h-5"/>} />
+          <KpiCard label="Hot Leads"      value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon={<FlameIcon className="w-5 h-5"/>} />
         </div>
 
         {/* Targets + Quality */}
@@ -1406,6 +1356,7 @@ const downloadCSVTemplate = () => {
                 <select value={sortBy} onChange={e => { setSortBy(e.target.value); setPage(1); }} className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none">
                   <option value="date_desc">Newest</option><option value="date_asc">Oldest</option><option value="name_asc">Name A–Z</option><option value="status">By Status</option>
                 </select>
+                {/* Project filter — read-only, admin-created projects only */}
                 {projects.length > 0 && (
                   <select value={projectFilter} onChange={e => { setProjectFilter(e.target.value); setPage(1); }}
                     className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none">
@@ -1471,6 +1422,7 @@ const downloadCSVTemplate = () => {
                             <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
                             <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
                             <td className="px-4 py-3">
+                              {/* Read-only project tags — assigned by admin */}
                               <div className="flex flex-wrap gap-1">
                                 {Array.isArray(l.projects) && l.projects.length > 0
                                   ? l.projects.map(p => {
@@ -1493,41 +1445,6 @@ const downloadCSVTemplate = () => {
                                 <button onClick={e => { e.stopPropagation(); setSelected(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition" title="View details">
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
                                 </button>
-                                {/* Tag / project assign button */}
-                                {projects.length > 0 && (
-                                  <div className="relative group/tag">
-                                    <button
-                                      onClick={e => e.stopPropagation()}
-                                      className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#7C3AED] hover:border-[#7C3AED] hover:bg-[#F3EEFF] dark:hover:bg-[#2A1F40] transition"
-                                      title="Assign / unassign projects"
-                                    >
-                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
-                                      </svg>
-                                    </button>
-                                    {/* Hover dropdown */}
-                                    <div className="absolute right-0 top-8 z-50 hidden group-hover/tag:block w-44 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl shadow-xl overflow-hidden">
-                                      <p className="px-3 py-2 text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest border-b border-[#E4E7EF] dark:border-[#262A38]">Projects</p>
-                                      {projects.map(p => {
-                                        const assigned = Array.isArray(l.projects) && l.projects.some(x => String(x?._id || x) === String(p._id));
-                                        return (
-                                          <button key={p._id} type="button"
-                                            onClick={e => { e.stopPropagation(); handleToggleLeadProject(l.id, String(p._id)); }}
-                                            className="w-full flex items-center gap-2 px-3 py-2 text-[12px] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A] transition text-left"
-                                          >
-                                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color || "#2563EB" }} />
-                                            <span className="flex-1 truncate text-[#0F1117] dark:text-[#F0F2FA]">{p.name}</span>
-                                            {assigned && (
-                                              <svg className="w-3.5 h-3.5 text-[#7C3AED] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
-                                              </svg>
-                                            )}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
                                 <button onClick={e => { e.stopPropagation(); setDeleteConfirm(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition" title="Delete lead">
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                 </button>
