@@ -498,7 +498,9 @@ function getTodayStr()    { return new Date().toISOString().split("T")[0]; }
 
 const OUTCOME_OPTIONS = ["Call Back","Interested","Not Reachable","Meeting Scheduled","Demo Done","Converted","Not Interested"];
 
-function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
+// ── UpdateStatusModal ─────────────────────────────────────────────────────────
+// Now accepts `projects` prop so users can assign/remove project tags while updating a lead.
+function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects = [] }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
   const [temp,         setTemp]         = useState(lead.temperature || lead.Quality || "");
   const [outcome,      setOutcome]      = useState("Call Back");
@@ -506,6 +508,17 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const [followUpDate, setFollowUpDate] = useState(getTomorrowStr());
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
+
+  // ── Project multi-select state ────────────────────────────────────────────
+  const [selectedProjects, setSelectedProjects] = useState(() => {
+    if (!Array.isArray(lead.projects)) return [];
+    return lead.projects.map(p => String(p?._id || p)).filter(Boolean);
+  });
+
+  const toggleProject = (id) =>
+    setSelectedProjects(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
 
   const CLS = "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition";
 
@@ -517,11 +530,22 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   const handleSave = async () => {
     setLoading(true); setError("");
     try {
-      const body = { status, remark, outcome };
+      const body = { status, remark, outcome, projects: selectedProjects };
       if (temp) { body.temperature = temp; body.Quality = temp; }
       if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
       const res = await api.patch(`/lead/${lead.id || lead._id}`, body);
-      onSaved({ ...lead, ...(res.data || {}), id: lead.id || String(lead._id), status, remark, outcome, temperature: temp || res.data?.temperature || null, Quality: temp || res.data?.temperature || null, _newEntry: { outcome, remark, calledAt: new Date().toISOString(), userName: "You" } });
+      onSaved({
+        ...lead,
+        ...(res.data || {}),
+        id: lead.id || String(lead._id),
+        status,
+        remark,
+        outcome,
+        temperature: temp || res.data?.temperature || null,
+        Quality: temp || res.data?.temperature || null,
+        projects: selectedProjects,
+        _newEntry: { outcome, remark, calledAt: new Date().toISOString(), userName: "You" },
+      });
       onClose();
     } catch (e) {
       setError((e.response?.data?.message) || "Failed to update. Please try again.");
@@ -540,7 +564,9 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             <p className="text-[11px] text-[#8B92A9] truncate">{lead.name}</p>
           </div>
         </div>
+
         <div className="space-y-3 mb-4">
+          {/* Status */}
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Status</label>
             <select value={status} onChange={handleStatusChange} className={CLS}>
@@ -548,39 +574,82 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
             </select>
             <p className="text-[10px] text-amber-500 mt-1">Selecting "Not Interested" opens the reassignment workflow.</p>
           </div>
+
+          {/* Call Outcome */}
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Call Outcome</label>
             <select value={outcome} onChange={e => setOutcome(e.target.value)} className={CLS}>
               {OUTCOME_OPTIONS.map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
+
+          {/* Lead Quality */}
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Lead Quality</label>
             <div className="grid grid-cols-4 gap-2">
-              {[{val:"",label:"None",color:"#8B92A9",bg:"bg-gray-50 dark:bg-gray-900/30"},{val:"Hot",label:" Hot",color:"#DC2626",bg:"bg-red-50 dark:bg-red-950/30"},{val:"Warm",label:"🌤 Warm",color:"#D97706",bg:"bg-amber-50 dark:bg-amber-950/30"},{val:"Cold",label:"❄️ Cold",color:"#2563EB",bg:"bg-blue-50 dark:bg-blue-950/30"}].map(q => (
+              {[
+                {val:"",    label:"None",    color:"#8B92A9", bg:"bg-gray-50 dark:bg-gray-900/30"},
+                {val:"Hot", label:" Hot",   color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30"},
+                {val:"Warm",label:"🌤 Warm", color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30"},
+                {val:"Cold",label:"❄️ Cold", color:"#2563EB", bg:"bg-blue-50 dark:bg-blue-950/30"},
+              ].map(q => (
                 <button key={q.val} type="button" onClick={() => setTemp(q.val)}
                   className={`py-2 px-1 rounded-xl border-2 text-[11px] font-semibold transition ${q.bg} ${temp === q.val ? "border-current scale-[1.03]" : "border-transparent opacity-60 hover:opacity-100"}`}
-                  style={{ color: q.color, borderColor: temp === q.val ? q.color : undefined }}>{q.label}</button>
+                  style={{ color: q.color, borderColor: temp === q.val ? q.color : undefined }}>{q.label}
+                </button>
               ))}
             </div>
           </div>
+
+          {/* Remark */}
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Remark</label>
             <textarea value={remark} onChange={e => setRemark(e.target.value)} rows={2} className={CLS + " resize-none"} placeholder="Add a note…" />
           </div>
+
+          {/* ── Project Tags (admin-created, read from props) ── */}
+          {projects.length > 0 && (
+            <div>
+              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1.5 uppercase tracking-wide">Projects</label>
+              <div className="flex flex-wrap gap-1.5">
+                {projects.map(p => {
+                  const active = selectedProjects.includes(String(p._id));
+                  return (
+                    <button
+                      key={p._id}
+                      type="button"
+                      onClick={() => toggleProject(String(p._id))}
+                      className="px-2.5 py-1 rounded-full text-[11px] font-semibold border-2 transition select-none"
+                      style={{
+                        background:  active ? p.color || "#2563EB" : "transparent",
+                        borderColor: active ? p.color || "#2563EB" : "#E4E7EF",
+                        color:       active ? "#fff" : "#8B92A9",
+                      }}
+                    >
+                      {active ? "✓ " : ""}{p.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Follow-up Date */}
           {status !== "Not Interested" && (
             <div>
-              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide"> Follow-up Date</label>
+              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Follow-up Date</label>
               <input type="date" value={followUpDate} min={getTodayStr()} onChange={e => setFollowUpDate(e.target.value)} className={CLS} />
             </div>
           )}
         </div>
+
         {error && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 mb-3">
             <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>
           </div>
         )}
+
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
           <button onClick={handleSave} disabled={loading} className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 flex items-center justify-center gap-2">
@@ -592,7 +661,9 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested }) {
   );
 }
 
-function LeadDrawer({ lead, onClose, onUpdate }) {
+// ── LeadDrawer ────────────────────────────────────────────────────────────────
+// Now accepts `projects` prop and passes it through to UpdateStatusModal.
+function LeadDrawer({ lead, onClose, onUpdate, projects = [] }) {
   const [showUpdate,  setShowUpdate]  = useState(false);
   const [showNIModal, setShowNIModal] = useState(false);
   const name  = lead.name || "Unknown";
@@ -624,13 +695,26 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={lead.status} />
             <TempBadge temp={lead.Quality || lead.temperature} />
+            {/* Project tags — read-only display in drawer header */}
+            {Array.isArray(lead.projects) && lead.projects.length > 0 && lead.projects.map(p => {
+              const proj = projects.find(pr => String(pr._id) === String(p?._id || p));
+              if (!proj) return null;
+              return (
+                <span key={String(proj._id)}
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-white"
+                  style={{ background: proj.color || "#2563EB" }}>
+                  {proj.name}
+                </span>
+              );
+            })}
             {lead.reassignCount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
-                 Reassigned {lead.reassignCount}
+                Reassigned {lead.reassignCount}
               </span>
             )}
           </div>
         </div>
+
         <div className="px-6 py-4 grid grid-cols-2 gap-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[{label:"Source",value:lead.source||"—"},{label:"Campaign",value:lead.campaign||"—"},{label:"Date",value:lead.date||"—"},{label:"Remark",value:lead.remark||"No remark"}].map(item => (
             <div key={item.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3">
@@ -639,6 +723,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
             </div>
           ))}
         </div>
+
         {callHistory.length > 0 && (
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3"> Call History ({callHistory.length})</p>
@@ -656,6 +741,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
             </div>
           </div>
         )}
+
         {pendingCalls.length > 0 && (
           <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide mb-3"> Scheduled Follow-ups ({pendingCalls.length} pending)</p>
@@ -679,6 +765,7 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
             </div>
           </div>
         )}
+
         <div className="px-6 py-4 space-y-2">
           <button onClick={() => setShowUpdate(true)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -693,9 +780,13 @@ function LeadDrawer({ lead, onClose, onUpdate }) {
       </div>
 
       {showUpdate && createPortal(
-        <UpdateStatusModal lead={lead} onClose={() => setShowUpdate(false)}
+        <UpdateStatusModal
+          lead={lead}
+          onClose={() => setShowUpdate(false)}
           onNotInterested={() => { setShowUpdate(false); setShowNIModal(true); }}
-          onSaved={updated => { onUpdate(updated); setShowUpdate(false); }} />,
+          projects={projects}
+          onSaved={updated => { onUpdate(updated); setShowUpdate(false); }}
+        />,
         document.body
       )}
       {showNIModal && createPortal(
@@ -728,7 +819,7 @@ function AddLeadModal({ onClose, onAdd }) {
     try {
       const res = await api.post("/lead", { name:form.name.trim(), mobile:form.phone.trim(), email:form.email.trim() || null, source:form.source, campaign:form.campaign.trim()||null, status:form.status, date:new Date(), remark:form.remark.trim()||"Manually added" });
       const saved = res.data;
-      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", email:saved.email || "", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, temperature:saved.temperature||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0 });
+      onAdd({ id:String(saved._id), name:saved.name, phone:saved.mobile||"", mobile:saved.mobile||"", email:saved.email || "", source:saved.source||"Web Form", campaign:saved.campaign||"—", status:saved.status, Quality:saved.Quality||null, temperature:saved.temperature||null, remark:saved.remark||"", date:new Date(saved.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}), _raw_date:saved.date||saved.createdAt||null, callHistory:[], scheduledCalls:[], reassignCount:0, projects:[] });
       onClose();
     } catch (err) {
       setErrors({ submit:(err.response?.data?.message)||"Failed to save lead." });
@@ -978,7 +1069,7 @@ export default function UserDashboard() {
   const [csvImporting,  setCsvImporting]  = useState(false);
   const [csvResult,     setCsvResult]     = useState(null);
 
-  // ── Projects (read-only — admin-created, used for filtering only) ─────────
+  // ── Projects (read-only — admin-created, used for filtering + tagging) ────
   const [projects,      setProjects]      = useState([]);
   const [projectFilter, setProjectFilter] = useState("All");
 
@@ -998,7 +1089,7 @@ export default function UserDashboard() {
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
-  // Fetch admin-created projects for filter use only
+  // Fetch admin-created projects (global ones visible to users)
   useEffect(() => {
     api.get("/project")
       .then(res => setProjects(Array.isArray(res.data) ? res.data : []))
@@ -1052,7 +1143,14 @@ export default function UserDashboard() {
 
   const handleUpdate = updated => {
     if (updated._reassigned) { setLeads(prev => prev.filter(l => l.id !== (updated.id || String(updated._id)))); setSelected(null); return; }
-    const norm = { ...updated, id: updated.id || String(updated._id), Quality: updated.temperature || updated.Quality || null, temperature: updated.temperature || updated.Quality || null };
+    const norm = {
+      ...updated,
+      id: updated.id || String(updated._id),
+      Quality: updated.temperature || updated.Quality || null,
+      temperature: updated.temperature || updated.Quality || null,
+      // Preserve updated projects array so table tags refresh immediately
+      projects: Array.isArray(updated.projects) ? updated.projects : (updated.projects || []),
+    };
     setLeads(prev => prev.map(l => l.id === norm.id ? { ...l, ...norm } : l));
     if (selected?.id === norm.id) setSelected(s => ({ ...s, ...norm }));
   };
@@ -1356,7 +1454,7 @@ export default function UserDashboard() {
                 <select value={sortBy} onChange={e => { setSortBy(e.target.value); setPage(1); }} className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none">
                   <option value="date_desc">Newest</option><option value="date_asc">Oldest</option><option value="name_asc">Name A–Z</option><option value="status">By Status</option>
                 </select>
-                {/* Project filter — read-only, admin-created projects only */}
+                {/* Project filter */}
                 {projects.length > 0 && (
                   <select value={projectFilter} onChange={e => { setProjectFilter(e.target.value); setPage(1); }}
                     className="px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none">
@@ -1422,7 +1520,7 @@ export default function UserDashboard() {
                             <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
                             <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
                             <td className="px-4 py-3">
-                              {/* Read-only project tags — assigned by admin */}
+                              {/* Read-only project tags — assigned by admin or updated by user */}
                               <div className="flex flex-wrap gap-1">
                                 {Array.isArray(l.projects) && l.projects.length > 0
                                   ? l.projects.map(p => {
@@ -1516,7 +1614,8 @@ export default function UserDashboard() {
       </div>
 
       {/* ── Modals / Drawers ── */}
-      {selected      && <LeadDrawer lead={selected} onClose={() => setSelected(null)} onUpdate={handleUpdate} />}
+      {/* Pass projects so LeadDrawer → UpdateStatusModal can show project pills */}
+      {selected      && <LeadDrawer lead={selected} onClose={() => setSelected(null)} onUpdate={handleUpdate} projects={projects} />}
       {showAddModal  && <AddLeadModal onClose={() => setShowAddModal(false)} onAdd={handleAddLead} />}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
