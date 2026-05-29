@@ -214,8 +214,12 @@ function Skeleton() {
 // ── Edit Lead Modal ───────────────────────────────────────────────────────────
 function EditLeadModal({ lead, agents, onClose, onSave }) {
   const [form, setForm] = useState({ ...lead });
+  const [reassignReason, setReassignReason] = useState("");
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // Detect if the employee has been changed from the original
+  const agentChanged = form.agent && form.agent !== lead.agent;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -259,9 +263,31 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
             </div>
           ))}
         </div>
+
+        {/* Reassign Reason — visible only when employee is changed */}
+        {agentChanged && (
+          <div className="mt-3 flex flex-col gap-1">
+            <label className="text-[11px] font-medium text-[#D97706] dark:text-[#FCD34D] uppercase tracking-wide flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Reassign Reason <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              rows={2}
+              value={reassignReason}
+              onChange={e => setReassignReason(e.target.value)}
+              placeholder="Why is this lead being reassigned? (required)"
+              className="px-3 py-2 rounded-xl border border-[#D97706] dark:border-[#92400E] bg-[#FFFBEB] dark:bg-[#2D1F00] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#D97706] resize-none"
+            />
+          </div>
+        )}
         <div className="flex gap-2 mt-5">
           <button onClick={onClose} disabled={saving} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition disabled:opacity-50">Cancel</button>
           <button disabled={saving} onClick={async () => {
+            // Validate: reassign reason is required when employee changes
+            if (agentChanged && !reassignReason.trim()) {
+              alert("Please enter a reason for reassigning this lead.");
+              return;
+            }
             const role = getRole();
             const leadId = form._id || form.id;
             const endpoint =
@@ -285,6 +311,12 @@ function EditLeadModal({ lead, agents, onClose, onSave }) {
               if (form.agent) {
                 const selectedAgent = agents.find(a => a.name === form.agent);
                 if (selectedAgent?.id) basePayload.user = selectedAgent.id;
+              }
+
+              // Include reassign reason if employee changed — backend stores it
+              // in activityTimeline for a full audit trail.
+              if (agentChanged && reassignReason.trim()) {
+                basePayload.reassignReason = reassignReason.trim();
               }
 
               let payload = basePayload;
@@ -543,7 +575,7 @@ function RecordingModal({ lead, role, onClose }) {
                   )}
                   {h.recordingUrl && (
                     <div className="mt-2">
-                      <audio controls src={`https://skyup-crm-backend.onrender.com${h.recordingUrl}`} className="w-full h-7 rounded-lg accent-[#2563EB]" />
+                      <audio controls controlsList="nodownload" src={`https://skyup-crm-backend.onrender.com${h.recordingUrl}`} className="w-full h-7 rounded-lg accent-[#2563EB]" />
                     </div>
                   )}
                 </div>
@@ -598,7 +630,7 @@ function RecordingModal({ lead, role, onClose }) {
                     <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic mb-1.5">"{log.remark}"</p>
                   )}
                   {(log.recordings || []).map((rec, ri) => (
-                    <audio key={ri} controls
+                    <audio key={ri} controls controlsList="nodownload"
                       src={rec.url?.startsWith("http") ? rec.url : `https://skyup-crm-backend.onrender.com${rec.url}`}
                       preload="none"
                       onError={(e) => { e.target.style.display = "none"; }}
@@ -608,6 +640,87 @@ function RecordingModal({ lead, role, onClose }) {
               ))}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Close Lead (Wrong Entry) Modal ────────────────────────────────────────────
+function CloseLeadModal({ lead, onClose, onClosed }) {
+  const [reason, setReason]   = useState("");
+  const [saving, setSaving]   = useState(false);
+
+  const handleSubmit = async () => {
+    if (!reason.trim()) {
+      alert("Please enter a remark/reason before closing this lead.");
+      return;
+    }
+    const role   = getRole();
+    const leadId = lead._id || lead.id;
+    // Only admins can close a lead — users don't have this button
+    const endpoint = `/lead/admin/${leadId}/close-wrong-entry`;
+    try {
+      setSaving(true);
+      await api.patch(endpoint, { reason: reason.trim() });
+      onClosed(leadId);
+      onClose();
+    } catch (err) {
+      alert("Failed to close lead: " + (err.response?.data?.message || err.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-[#FEF2F2] dark:bg-[#2D0A0A] flex items-center justify-center shrink-0">
+              <svg className="w-4.5 h-4.5 text-[#DC2626]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Close Lead — Wrong Entry</h2>
+              <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{lead.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 mb-4">
+          <p className="text-[12px] text-[#991B1B] dark:text-[#F87171] font-medium">
+            This will mark the lead as closed (wrong entry). The record is kept for audit purposes and will be hidden from active views.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1 mb-4">
+          <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">
+            Reason / Remark <span className="text-red-500">*</span>
+          </label>
+          <textarea
+            rows={3}
+            autoFocus
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="e.g. Duplicate entry, wrong phone number, test lead…"
+            className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#DC2626] resize-none"
+          />
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={onClose} disabled={saving}
+            className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition disabled:opacity-50">
+            Cancel
+          </button>
+          <button onClick={handleSubmit} disabled={saving || !reason.trim()}
+            className="flex-1 py-2 rounded-xl bg-[#DC2626] text-white text-[13px] font-semibold hover:bg-red-700 transition disabled:opacity-60 disabled:cursor-not-allowed">
+            {saving ? "Closing…" : "Close Lead"}
+          </button>
         </div>
       </div>
     </div>
@@ -640,10 +753,15 @@ export default function ReportPage() {
   const [sortBy, setSortBy]               = useState("date");
   const [page, setPage]                   = useState(1);
   const [editLead, setEditLead]           = useState(null);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [recordingLead, setRecordingLead] = useState(null);
   const [remarksLead, setRemarksLead]     = useState(null);
   const [timeFilter, setTimeFilter]       = useState("All");
+  // Additional numbers modal state
+  const [addNumberLead, setAddNumberLead]   = useState(null);  // lead being edited
+  const [newNumber, setNewNumber]           = useState("");
+  const [newLabel, setNewLabel]             = useState("");
+  const [addNumLoading, setAddNumLoading]   = useState(false);
+  const [closeLead, setCloseLead]           = useState(null);  // lead to close as wrong entry
   const PER_PAGE = 8;
 
   const isWithinRange = useDateFilter(timeFilter);
@@ -696,18 +814,48 @@ export default function ReportPage() {
 
   const saveLead = updated => setLeads(ls => ls.map(l => l.id === updated.id ? { ...l, ...updated } : l));
 
-  const deleteLead = async (id) => {
+  // Remove closed lead from active list (it still exists in DB but is marked isClosed)
+  const handleLeadClosed = (leadId) => setLeads(ls => ls.filter(l => l.id !== leadId && l._id !== leadId));
+
+  // ── Additional numbers ────────────────────────────────────────────────────
+  const handleAddNumber = async () => {
+    if (!newNumber.trim() || !addNumberLead) return;
     const role = getRole();
     const endpoint =
-      role === "superadmin" ? `/lead/superadmin/${id}` :
-      role === "admin"      ? `/lead/admin/${id}` :
-                              `/lead/${id}`;
+      role === "superadmin" ? `/lead/admin/${addNumberLead.id}/additional-numbers` :
+      role === "admin"      ? `/lead/admin/${addNumberLead.id}/additional-numbers` :
+                              `/lead/${addNumberLead.id}/additional-numbers`;
+    setAddNumLoading(true);
     try {
-      await api.delete(endpoint);
-      setLeads(ls => ls.filter(l => l.id !== id));
-      setDeleteConfirm(null);
+      const { data } = await api.post(endpoint, { number: newNumber.trim(), label: newLabel.trim() });
+      // Update leads list with new additionalNumbers
+      setLeads(ls => ls.map(l =>
+        l.id === addNumberLead.id ? { ...l, additionalNumbers: data.additionalNumbers } : l
+      ));
+      setAddNumberLead(prev => ({ ...prev, additionalNumbers: data.additionalNumbers }));
+      setNewNumber("");
+      setNewLabel("");
     } catch (err) {
-      alert("Failed to delete: " + (err.response?.data?.message || err.message));
+      alert("Failed to add number: " + (err.response?.data?.message || err.message));
+    } finally {
+      setAddNumLoading(false);
+    }
+  };
+
+  const handleRemoveNumber = async (leadId, idx) => {
+    const role = getRole();
+    const endpoint =
+      role === "superadmin" ? `/lead/admin/${leadId}/additional-numbers/${idx}` :
+      role === "admin"      ? `/lead/admin/${leadId}/additional-numbers/${idx}` :
+                              `/lead/${leadId}/additional-numbers/${idx}`;
+    try {
+      const { data } = await api.delete(endpoint);
+      setLeads(ls => ls.map(l =>
+        l.id === leadId ? { ...l, additionalNumbers: data.additionalNumbers } : l
+      ));
+      setAddNumberLead(prev => prev?.id === leadId ? { ...prev, additionalNumbers: data.additionalNumbers } : prev);
+    } catch (err) {
+      alert("Failed to remove number: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -755,6 +903,15 @@ export default function ReportPage() {
 
       {editLead      && <EditLeadModal lead={editLead} agents={agents} onClose={() => setEditLead(null)} onSave={saveLead} />}
 
+      {/* Close Lead (Wrong Entry) modal */}
+      {closeLead && (
+        <CloseLeadModal
+          lead={closeLead}
+          onClose={() => setCloseLead(null)}
+          onClosed={handleLeadClosed}
+        />
+      )}
+
       {/* FIX: pass role to RecordingModal so superadmin sees unmasked phone */}
       {recordingLead && (
         <RecordingModal
@@ -773,16 +930,77 @@ export default function ReportPage() {
         />
       )}
 
-      {deleteConfirm && (
+      {/* ── Additional Numbers Modal ── */}
+      {addNumberLead && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
-            <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2">Delete Lead?</h2>
-            <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mb-5">
-              This will permanently remove <strong className="text-[#0F1117] dark:text-[#F0F2FA]">{deleteConfirm.name}</strong> from the list.
-            </p>
-            <div className="flex gap-2">
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-              <button onClick={() => deleteLead(deleteConfirm.id)} className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition">Delete</button>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+                Linked Numbers — {addNumberLead.name}
+              </h2>
+              <button onClick={() => { setAddNumberLead(null); setNewNumber(""); setNewLabel(""); }}
+                className="text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#F0F2FA] transition">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Primary number */}
+            <div className="mb-3">
+              <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">Primary</p>
+              <span className="text-[13px] font-medium text-[#0F1117] dark:text-[#F0F2FA]">
+                {displayPhone(addNumberLead.phone, role)}
+              </span>
+            </div>
+
+            {/* Existing additional numbers */}
+            {(addNumberLead.additionalNumbers?.length > 0) && (
+              <div className="mb-3">
+                <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">Additional</p>
+                <ul className="space-y-1.5">
+                  {addNumberLead.additionalNumbers.map((n, i) => (
+                    <li key={i} className="flex items-center justify-between gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-lg px-3 py-1.5">
+                      <div>
+                        <span className="text-[13px] font-medium text-[#0F1117] dark:text-[#F0F2FA]">{n.number}</span>
+                        {n.label && <span className="ml-2 text-[11px] text-[#8B92A9]">({n.label})</span>}
+                      </div>
+                      <button onClick={() => handleRemoveNumber(addNumberLead.id, i)}
+                        className="text-red-400 hover:text-red-600 transition" title="Remove">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Add new number */}
+            <div className="border-t border-[#E4E7EF] dark:border-[#262A38] pt-3 mt-3">
+              <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-2">Add Number</p>
+              <input
+                type="tel"
+                placeholder="Phone number"
+                value={newNumber}
+                onChange={e => setNewNumber(e.target.value)}
+                className="w-full mb-2 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder-[#8B92A9] focus:outline-none focus:border-[#2563EB]"
+              />
+              <input
+                type="text"
+                placeholder="Label (e.g. WhatsApp, Office) — optional"
+                value={newLabel}
+                onChange={e => setNewLabel(e.target.value)}
+                className="w-full mb-3 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder-[#8B92A9] focus:outline-none focus:border-[#2563EB]"
+              />
+              <button
+                onClick={handleAddNumber}
+                disabled={!newNumber.trim() || addNumLoading}
+                className="w-full py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
+              >
+                {addNumLoading ? "Saving…" : "Add Number"}
+              </button>
             </div>
           </div>
         </div>
@@ -975,10 +1193,17 @@ export default function ReportPage() {
                           className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#2563EB] hover:text-[#2563EB] text-[#8B92A9] transition" title="Edit">
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                         </button>
-                        {/* Delete */}
-                        <button onClick={() => setDeleteConfirm(lead)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-red-400 hover:text-red-500 text-[#8B92A9] transition" title="Delete">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        {/* Add / view additional numbers */}
+                        <button onClick={() => setAddNumberLead(lead)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#059669] hover:text-[#059669] text-[#8B92A9] transition" title="Linked Numbers">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
+                          </svg>
+                          {lead.additionalNumbers?.length > 0 && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#059669] text-white text-[9px] flex items-center justify-center font-bold">
+                              {lead.additionalNumbers.length}
+                            </span>
+                          )}
                         </button>
                         {/* Remarks history */}
                         <button onClick={() => setRemarksLead(lead)}
@@ -994,6 +1219,18 @@ export default function ReportPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
                           </svg>
                         </button>
+                        {/* Close Lead (Wrong Entry) — admin/superadmin only */}
+                        {(role === "admin" || role === "superadmin") && (
+                          <button
+                            onClick={() => setCloseLead(lead)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#DC2626] hover:text-[#DC2626] text-[#8B92A9] transition"
+                            title="Close Lead (Wrong Entry)"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
