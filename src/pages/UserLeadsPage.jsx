@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import api from "../data/axiosConfig";
+import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
 
 const BACKEND_ROOT = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace(/\/api$/, "")
@@ -12,12 +13,7 @@ function maskPhone(phone) {
   return digits.slice(0, 2) + "•••••" + digits.slice(-2);
 }
 
-const STATUS_CONFIG = {
-  "New":            { bg: "bg-blue-100 dark:bg-blue-950/40",       text: "text-blue-600 dark:text-blue-400",       dot: "#2563EB" },
-  "In Progress":    { bg: "bg-amber-100 dark:bg-amber-950/40",     text: "text-amber-600 dark:text-amber-400",     dot: "#D97706" },
-  "Converted":      { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-600 dark:text-emerald-400", dot: "#059669" },
-  "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",         text: "text-red-600 dark:text-red-400",         dot: "#DC2626" },
-};
+// STATUS_CONFIG imported from ../utils/statusConfig (Merged=Yellow, Closed=Red)
 const TEMP_CONFIG = {
   Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400",    icon: "" },
   Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400",icon: "" },
@@ -57,6 +53,7 @@ function mapLead(l) {
   const hasAiSummary = recs.some(r => r.transcribeStatus === "done" && r.summary);
   return {
     id:             String(l._id),
+    _id:            l._id,
     name:           l.name           || "Unknown",
     phone:          l.mobile         || l.phone || "",
     email:          l.email          || "",
@@ -76,16 +73,28 @@ function mapLead(l) {
     recordings:     recs,
     hasRecording,
     hasAiSummary,
+    // ── Status-resolution fields (required by getLeadDisplayStatus) ───────────
+    isClosed:       l.isClosed      || false,
+    mergedInto:     l.mergedInto    || null,
+    closeReason:    l.closeReason   || "",
+    // ── Project membership ─────────────────────────────────────────────────────
+    projects:       Array.isArray(l.projects) ? l.projects : [],
   };
 }
 
 // ── Badges ────────────────────────────────────────────────────────────────────
-function StatusBadge({ status }) {
-  const s = STATUS_CONFIG[status] || STATUS_CONFIG["New"];
+function StatusBadge({ lead, status }) {
+  let label, config;
+  if (lead) {
+    ({ label, config } = getLeadDisplayStatus(lead));
+  } else {
+    config = STATUS_CONFIG[status] || STATUS_CONFIG["New"];
+    label  = status || "New";
+  }
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${s.bg} ${s.text}`}>
-      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.dot }} />
-      {status}
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${config.bg} ${config.text}`}>
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: config.dot }} />
+      {label}
     </span>
   );
 }
@@ -709,7 +718,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
     }
   };
 
-  const sc = STATUS_CONFIG[status] || STATUS_CONFIG["New"];
+  const { label: currentDisplayLabel, config: sc } = getLeadDisplayStatus({ ...lead, status });
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -730,7 +739,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
               </div>
             </div>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <StatusBadge status={lead.status} />
+              <StatusBadge lead={lead} />
               {lead.temperature && <TempBadge temp={lead.temperature} />}
               <span className="text-[10px] text-[#8B92A9]">{lead.source}</span>
             </div>
@@ -817,7 +826,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                   <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Status</label>
                   <div className="grid grid-cols-2 gap-2">
                     {STATUS_OPTIONS.map(s => {
-                      const sc2   = STATUS_CONFIG[s];
+                      const sc2   = STATUS_CONFIG[s] || STATUS_CONFIG["New"];
                       const active = status === s;
                       return (
                         <button key={s} onClick={() => setStatus(s)}
@@ -981,18 +990,21 @@ export default function UserLeadsPage() {
 
   const kpi = useMemo(() => ({
     total:      leads.length,
-    newLeads:   leads.filter(l => l.status === "New").length,
-    inProgress: leads.filter(l => l.status === "In Progress").length,
-    converted:  leads.filter(l => l.status === "Converted").length,
-    notInt:     leads.filter(l => l.status === "Not Interested").length,
+    newLeads:   leads.filter(l => l.status === "New" && !l.isClosed && !l.mergedInto).length,
+    inProgress: leads.filter(l => l.status === "In Progress" && !l.isClosed && !l.mergedInto).length,
+    converted:  leads.filter(l => l.status === "Converted" && !l.isClosed && !l.mergedInto).length,
+    notInt:     leads.filter(l => l.status === "Not Interested" && !l.isClosed && !l.mergedInto).length,
     hot:        leads.filter(l => l.temperature === "Hot").length,
+    merged:     leads.filter(l => !!l.mergedInto).length,
+    closed:     leads.filter(l => l.isClosed && !l.mergedInto).length,
   }), [leads]);
 
   const displayed = useMemo(() => {
     let res = leads.filter(l => {
       const q           = search.toLowerCase();
       const matchSearch = !q || l.name.toLowerCase().includes(q) || l.source.toLowerCase().includes(q) || l.campaign.toLowerCase().includes(q);
-      const matchSt     = filterSt   === "All" || l.status     === filterSt;
+      const { label: displayLabel } = getLeadDisplayStatus(l);
+      const matchSt     = filterSt   === "All" || displayLabel === filterSt;
       const matchTemp   = filterTemp === "All" || l.temperature === filterTemp;
       const matchSrc    = filterSrc  === "All" || l.source      === filterSrc;
       return matchSearch && matchSt && matchTemp && matchSrc;
