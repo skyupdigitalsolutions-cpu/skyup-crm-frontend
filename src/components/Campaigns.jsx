@@ -1363,6 +1363,7 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete }) {
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
+// ── Main Campaigns page ───────────────────────────────────────────────────────
 export default function Campaigns() {
   const [campaigns, setCampaigns] = useState([]);
   const [pageLoading, setPageLoading] = useState(true);
@@ -1372,11 +1373,17 @@ export default function Campaigns() {
   const [showCreateWebsite, setShowCreateWebsite] = useState(false);
   const [editCampaign, setEditCampaign] = useState(null);
   const [showEmailCampaign, setShowEmailCampaign] = useState(false);
-  // syncTarget stores { pageId } of the group being synced, or null for a fresh sync
   const [syncTarget, setSyncTarget] = useState(null);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
-const [selectedParent, setSelectedParent] = useState(null); // null = top-level view
+
+  // ── Navigation state: null = Campaigns root, string = ad-sets drill-down ──
+  const [selectedParent, setSelectedParent] = useState(null);
+
+  // ── Derived: is Meta connected? (at least one Meta config exists) ──────────
+  // This is the ONLY variable that controls the Sync Meta button visibility.
+  // It must be computed AFTER campaigns are loaded.
+  const isMetaConnected = campaigns.some((c) => c._isMeta);
 
   const fetchCampaigns = useCallback(async () => {
     setPageLoading(true);
@@ -1529,7 +1536,6 @@ const [selectedParent, setSelectedParent] = useState(null); // null = top-level 
     }
   });
 
-  // Build a pageId lookup per parent group (for pre-filling the sync modal)
   const groupPageIds = {};
   Object.entries(groupedMeta).forEach(([parentName, adSets]) => {
     const withPageId = adSets.find((c) => c.pageId);
@@ -1550,187 +1556,321 @@ const [selectedParent, setSelectedParent] = useState(null); // null = top-level 
 
   const isEmpty = Object.keys(groupedMeta).length === 0 && ungrouped.length === 0;
 
+  // ── Breadcrumb computation ──────────────────────────────────────────────────
+  // Level 0 (null): "Campaigns"
+  // Level 1 (string): "Campaigns > {parentName}"
+  const breadcrumbs = selectedParent
+    ? [
+        { label: "Campaigns", onClick: () => setSelectedParent(null) },
+        { label: selectedParent, onClick: null },
+      ]
+    : [{ label: "Campaigns", onClick: null }];
+
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-8">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Campaigns</h1>
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-1.5 mb-1">
+            {breadcrumbs.map((crumb, i) => (
+              <span key={i} className="flex items-center gap-1.5">
+                {i > 0 && (
+                  <svg className="w-3 h-3 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                )}
+                {crumb.onClick ? (
+                  <button
+                    onClick={crumb.onClick}
+                    className="text-[13px] font-semibold text-[#2563EB] dark:text-[#4F8EF7] hover:underline"
+                  >
+                    {crumb.label}
+                  </button>
+                ) : (
+                  <span className={`text-[13px] font-semibold ${i === breadcrumbs.length - 1 ? "text-[#0F1117] dark:text-[#F0F2FA]" : "text-[#8B92A9]"}`}>
+                    {crumb.label}
+                  </span>
+                )}
+              </span>
+            ))}
+          </nav>
+
+          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+            {selectedParent ? selectedParent : "Campaigns"}
+          </h1>
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
-            {pageLoading ? "Loading…" : `${metaCount} Meta · ${googleCount} Google Ads · ${websiteCount} Website`}
+            {pageLoading
+              ? "Loading…"
+              : selectedParent
+              ? `${(groupedMeta[selectedParent] || []).length} ad set${(groupedMeta[selectedParent] || []).length !== 1 ? "s" : ""}`
+              : `${metaCount} Meta · ${googleCount} Google Ads · ${websiteCount} Website`}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" /></svg>
-            Connect Meta
-          </button>
-          <button onClick={() => setShowCreateGoogle(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#EA4335] text-white text-[13px] font-semibold hover:bg-red-600 transition">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#fff"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#fff"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff"/></svg>
-            Connect Google Ads
-          </button>
-          <button onClick={() => setShowCreateWebsite(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 transition">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>
-            Connect Website
-          </button>
-        </div>
-      </div>
 
-      {/* Filters + search */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div className="flex flex-wrap gap-1.5">
-          {filters.map((f) => (
-            <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-full text-[12px] font-semibold transition ${filter === f ? "bg-[#2563EB] text-white" : "bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB]"}`}>{f}</button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={fetchCampaigns} className="w-8 h-8 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] transition" title="Refresh">
-            <svg className={`w-3.5 h-3.5 ${pageLoading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          </button>
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" /></svg>
-            <input type="text" placeholder="Search campaigns…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 pr-4 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] w-48" />
-          </div>
-        </div>
-      </div>
+        {/* ── Action buttons — ONLY shown at root (Campaigns) level ─────────
+            BUG FIX: Previously there was NO "Sync Meta" button in the header.
+            The sync button only appeared deep inside the ad-set drill-down view
+            (at selectedParent level) as "Sync ad sets" — which violated the spec
+            that says Sync Meta must ONLY appear on the Campaigns root page.
 
-      {/* Campaign cards */}
-    {pageLoading ? (
-  <div className="flex items-center justify-center py-24 text-[#8B92A9] gap-3">
-    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-    </svg>
-    <span className="text-[14px]">Loading campaigns…</span>
-  </div>
-) : selectedParent ? (
-  // ── Ad Sets drill-down view ──────────────────────────────────────────────
-  <div>
-    {/* Back + header */}
-    <div className="flex items-center gap-3 mb-6">
-      <button
-        onClick={() => setSelectedParent(null)}
-        className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#E1306C] hover:text-[#E1306C] transition"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-        </svg>
-        Back to campaigns
-      </button>
-      <div className="flex items-center gap-2">
-        <svg className="w-4 h-4 text-[#E1306C]" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
-        </svg>
-        <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{selectedParent}</h2>
-      </div>
-      <div className="flex-1 h-px bg-pink-200 dark:bg-pink-900/40" />
-      <span className="text-[12px] text-[#8B92A9] font-medium">
-        {(groupedMeta[selectedParent] || []).length} ad set{(groupedMeta[selectedParent] || []).length !== 1 ? "s" : ""}
-      </span>
-      <button
-        onClick={() => setSyncTarget({ pageId: groupPageIds[selectedParent] || "", parentName: selectedParent })}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-pink-200 dark:border-pink-900/50 bg-[#FFF0F3] dark:bg-[#2D0A14] text-[#E1306C] text-[11px] font-semibold hover:bg-pink-100 dark:hover:bg-pink-900/40 transition"
-      >
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        Sync ad sets
-      </button>
-    </div>
-
-    {/* Ad set cards */}
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      {(groupedMeta[selectedParent] || []).map((c) => (
-        <CampaignCard key={c._id} {...cardProps(c)} />
-      ))}
-    </div>
-  </div>
-) : (
-  // ── Top-level view ───────────────────────────────────────────────────────
-  <div className="space-y-4">
-    {/* ── Parent Meta campaign rows ── */}
-    {Object.entries(groupedMeta).map(([parentName, adSets]) => {
-      const totalLeads = adSets.reduce((sum, c) => sum + (c.leads || 0), 0);
-      const activeCount = adSets.filter((c) => c.isActive).length;
-      return (
-        <button
-          key={parentName}
-          onClick={() => setSelectedParent(parentName)}
-          className="w-full text-left bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] hover:border-[#E1306C]/40 transition-all group"
-        >
-          <div className="h-1 w-full bg-[#E1306C]" />
-          <div className="p-5 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-[#FFF0F3] dark:bg-[#2D0A14] flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5 text-[#E1306C]" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
+            Root logic:
+              - selectedParent === null → we are at the Campaigns root page
+              - isMetaConnected === true  → show "Sync Meta" (+ connect buttons)
+              - isMetaConnected === false → show only connect buttons
+            ─────────────────────────────────────────────────────────────── */}
+        {!selectedParent && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Sync Meta button — ONLY here, ONLY when Meta is connected */}
+            {isMetaConnected && (
+              <button
+                onClick={() => setSyncTarget({ pageId: "", parentName: "" })}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E1306C]/40 bg-[#FFF0F3] dark:bg-[#2D0A14] text-[#E1306C] text-[13px] font-semibold hover:bg-pink-100 dark:hover:bg-pink-900/30 transition"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF0F3] dark:bg-[#2D0A14] text-[#E1306C]">Meta</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#ECFDF5] dark:bg-[#052E1C] text-[#059669] dark:text-[#34D399]">
-                    {activeCount}/{adSets.length} active
-                  </span>
-                </div>
-                <h3 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">{parentName}</h3>
-                <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
-                  {adSets.length} ad set{adSets.length !== 1 ? "s" : ""} · Page ID: <span className="font-mono">{adSets[0]?.pageId || "—"}</span>
-                </p>
-              </div>
-            </div>
+                Sync Meta
+              </button>
+            )}
 
-            <div className="flex items-center gap-6 shrink-0">
-              <div className="text-center">
-                <div className="text-[22px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{totalLeads > 0 ? totalLeads.toLocaleString() : "—"}</div>
-                <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-0.5 uppercase tracking-wide">Total Leads</div>
-              </div>
-              <div className="text-center">
-                <div className="text-[22px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{adSets.length}</div>
-                <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-0.5 uppercase tracking-wide">Ad Sets</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold text-[#8B92A9] dark:text-[#565C75] group-hover:text-[#E1306C] transition">
-                  View ad sets
-                </span>
-                <svg className="w-4 h-4 text-[#8B92A9] dark:text-[#565C75] group-hover:text-[#E1306C] group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </button>
-      );
-    })}
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
+              </svg>
+              Connect Meta
+            </button>
 
-    {/* ── Ungrouped campaigns (Google, Website, standalone Meta) ── */}
-    {ungrouped.length > 0 && (
-      <>
-        {Object.keys(groupedMeta).length > 0 && ungrouped.length > 0 && (
-          <div className="flex items-center gap-3 pt-2">
-            <span className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Other campaigns</span>
-            <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
+            <button
+              onClick={() => setShowCreateGoogle(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#EA4335] text-white text-[13px] font-semibold hover:bg-red-600 transition"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#fff"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#fff"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff"/>
+              </svg>
+              Connect Google Ads
+            </button>
+
+            <button
+              onClick={() => setShowCreateWebsite(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 transition"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+              </svg>
+              Connect Website
+            </button>
+
+            <button
+              onClick={() => setShowEmailCampaign(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#7C3AED] text-[13px] font-semibold hover:border-[#7C3AED] transition"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Send Email
+            </button>
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {ungrouped.map((c) => (
-            <CampaignCard key={c._id} {...cardProps(c)} />
-          ))}
-        </div>
-      </>
-    )}
 
-    {/* Empty state */}
-    {Object.keys(groupedMeta).length === 0 && ungrouped.length === 0 && (
-      <div className="text-center py-20 text-[#8B92A9] dark:text-[#565C75]">
-        <div className="text-[40px] mb-3">📡</div>
-        <p className="text-[15px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No campaigns connected</p>
-        <p className="text-[13px] mt-1">Connect a Meta, Google Ads, or Website campaign to start receiving leads automatically.</p>
+        {/* Ad-set drill-down header — NO Sync Meta, only back nav */}
+        {selectedParent && (
+          <button
+            onClick={() => setSelectedParent(null)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#E1306C] hover:text-[#E1306C] transition"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Campaigns
+          </button>
+        )}
       </div>
-    )}
-  </div>
-)}
-      {/* Drawers / modals */}
+
+      {/* ── Filters + search — only shown at root level ────────────────────── */}
+      {!selectedParent && (
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <div className="flex flex-wrap gap-1.5">
+            {filters.map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-1.5 rounded-full text-[12px] font-semibold transition ${
+                  filter === f
+                    ? "bg-[#2563EB] text-white"
+                    : "bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB]"
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchCampaigns}
+              className="w-8 h-8 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] transition"
+              title="Refresh"
+            >
+              <svg className={`w-3.5 h-3.5 ${pageLoading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search campaigns…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 pr-4 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] w-48"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Campaign cards area ─────────────────────────────────────────────── */}
+      {pageLoading ? (
+        <div className="flex items-center justify-center py-24 text-[#8B92A9] gap-3">
+          <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          <span className="text-[14px]">Loading campaigns…</span>
+        </div>
+
+      ) : selectedParent ? (
+        // ── Level 1: Ad Sets for selected parent campaign ──────────────────
+        <div>
+          {/* Ad set info bar */}
+          <div className="flex items-center gap-3 mb-5 p-4 bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38]">
+            <div className="w-9 h-9 rounded-xl bg-[#FFF0F3] dark:bg-[#2D0A14] flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-[#E1306C]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">{selectedParent}</h2>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
+                {(groupedMeta[selectedParent] || []).length} ad set{(groupedMeta[selectedParent] || []).length !== 1 ? "s" : ""} ·
+                Page ID: <span className="font-mono">{(groupedMeta[selectedParent] || [])[0]?.pageId || "—"}</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="text-center">
+                <div className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
+                  {(groupedMeta[selectedParent] || []).reduce((s, c) => s + (c.leads || 0), 0).toLocaleString() || "—"}
+                </div>
+                <div className="text-[10px] text-[#8B92A9] uppercase tracking-wide">Total Leads</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Ad set cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {(groupedMeta[selectedParent] || []).map((c) => (
+              <CampaignCard key={c._id} {...cardProps(c)} />
+            ))}
+          </div>
+        </div>
+
+      ) : (
+        // ── Level 0: Campaigns root view ─────────────────────────────────────
+        <div className="space-y-4">
+          {/* Grouped Meta campaigns — each row is a parent campaign */}
+          {Object.entries(groupedMeta).map(([parentName, adSets]) => {
+            const totalLeads = adSets.reduce((sum, c) => sum + (c.leads || 0), 0);
+            const activeCount = adSets.filter((c) => c.isActive).length;
+            return (
+              <button
+                key={parentName}
+                onClick={() => setSelectedParent(parentName)}
+                className="w-full text-left bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] hover:border-[#E1306C]/40 transition-all group"
+              >
+                <div className="h-1 w-full bg-[#E1306C]" />
+                <div className="p-5 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#FFF0F3] dark:bg-[#2D0A14] flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-[#E1306C]" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF0F3] dark:bg-[#2D0A14] text-[#E1306C]">Meta</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#ECFDF5] dark:bg-[#052E1C] text-[#059669] dark:text-[#34D399]">
+                          {activeCount}/{adSets.length} active
+                        </span>
+                      </div>
+                      <h3 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">{parentName}</h3>
+                      <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
+                        {adSets.length} ad set{adSets.length !== 1 ? "s" : ""} · Page ID: <span className="font-mono">{adSets[0]?.pageId || "—"}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-6 shrink-0">
+                    <div className="text-center">
+                      <div className="text-[22px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
+                        {totalLeads > 0 ? totalLeads.toLocaleString() : "—"}
+                      </div>
+                      <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-0.5 uppercase tracking-wide">Total Leads</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[22px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{adSets.length}</div>
+                      <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-0.5 uppercase tracking-wide">Ad Sets</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] font-semibold text-[#8B92A9] dark:text-[#565C75] group-hover:text-[#E1306C] transition">
+                        View ad sets
+                      </span>
+                      <svg className="w-4 h-4 text-[#8B92A9] dark:text-[#565C75] group-hover:text-[#E1306C] group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+
+          {/* Ungrouped campaigns (Google, Website, standalone Meta) */}
+          {ungrouped.length > 0 && (
+            <>
+              {Object.keys(groupedMeta).length > 0 && (
+                <div className="flex items-center gap-3 pt-2">
+                  <span className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Other campaigns</span>
+                  <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {ungrouped.map((c) => (
+                  <CampaignCard key={c._id} {...cardProps(c)} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Empty state */}
+          {Object.keys(groupedMeta).length === 0 && ungrouped.length === 0 && (
+            <div className="text-center py-20 text-[#8B92A9] dark:text-[#565C75]">
+              <div className="text-[40px] mb-3">📡</div>
+              <p className="text-[15px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No campaigns connected</p>
+              <p className="text-[13px] mt-1">Connect a Meta, Google Ads, or Website campaign to start receiving leads automatically.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Drawers / modals ─────────────────────────────────────────────────── */}
       {selected && <LeadDrawer campaign={selected} onClose={() => setSelected(null)} />}
       {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={fetchCampaigns} />}
       {showCreateGoogle && <CreateGoogleModal onClose={() => setShowCreateGoogle(false)} onCreated={fetchCampaigns} />}
@@ -1740,15 +1880,22 @@ const [selectedParent, setSelectedParent] = useState(null); // null = top-level 
       {editCampaign && editCampaign._isGoogle && <EditGoogleModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
       {editCampaign && editCampaign._isWebsite && <EditWebsiteModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
 
-      {/* ── Sync Meta modal — opened from a group header ── */}
-     {syncTarget !== null && (
-  <SyncMetaModal
-    prefillPageId={syncTarget.pageId}
-    parentName={syncTarget.parentName || ""}
-    onClose={() => setSyncTarget(null)}
-    onSynced={() => { setSyncTarget(null); fetchCampaigns(); }}
-  />
-)}
+      {/* ── Sync Meta modal ───────────────────────────────────────────────────
+          BUG FIX: This modal is now triggered ONLY from the top-level Campaigns
+          header "Sync Meta" button (which itself only renders when selectedParent
+          === null AND isMetaConnected === true).
+          Previously the only way to open the sync modal was from the ad-set
+          drill-down header ("Sync ad sets" button), which meant the button was
+          NEVER visible on the root Campaigns page.
+          ──────────────────────────────────────────────────────────────────── */}
+      {syncTarget !== null && (
+        <SyncMetaModal
+          prefillPageId={syncTarget.pageId}
+          parentName={syncTarget.parentName || ""}
+          onClose={() => setSyncTarget(null)}
+          onSynced={() => { setSyncTarget(null); fetchCampaigns(); }}
+        />
+      )}
     </div>
   );
 }
