@@ -1181,13 +1181,37 @@ export default function UserLeadsPage() {
                         </td>
 
                         <td className="px-4 py-3">
-                          <p className="text-[#0F1117] dark:text-white truncate max-w-[120px]">{l.source}</p>
-                         {l.campaign !== "—" && (
-  <p className="text-[14px] text-[#8B92A9] truncate max-w-[120px]">{l.campaign}</p>
-)}
-{l.adSetName && (
-  <p className="text-[11px] text-[#E1306C] truncate max-w-[120px]"> {l.adSetName}</p>
-)}
+                          <p className="text-[#0F1117] dark:text-white truncate max-w-[130px]">{l.source}</p>
+                          {l.campaign !== "—" && (
+                            <p className="text-[14px] text-[#8B92A9] truncate max-w-[130px]">{l.campaign}</p>
+                          )}
+                          {l.adSetName && (
+                            <p className="text-[11px] text-[#E1306C] truncate max-w-[130px]"> {l.adSetName}</p>
+                          )}
+                          {l.projects && l.projects.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {l.projects.slice(0, 2).map((p, pi) => {
+                                const pName  = p?.name  || "Project";
+                                const pColor = p?.color || "#2563EB";
+                                return (
+                                  <span
+                                    key={pi}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold truncate max-w-[100px]"
+                                    style={{ background: pColor + "18", color: pColor }}
+                                    title={pName}
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: pColor }} />
+                                    {pName}
+                                  </span>
+                                );
+                              })}
+                              {l.projects.length > 2 && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7]">
+                                  +{l.projects.length - 2}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
 
                         <td className="px-4 py-3 whitespace-nowrap">
