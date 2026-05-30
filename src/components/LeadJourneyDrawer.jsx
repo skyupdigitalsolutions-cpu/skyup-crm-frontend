@@ -364,6 +364,30 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                   </span>
                 </div>
               ))}
+
+              {/* Projects row */}
+              {lead.projects && lead.projects.length > 0 && (
+                <div className="border-t border-[#F0F2FA] dark:border-[#1E2130] px-4 py-2.5">
+                  <span className="text-[11px] text-[#8B92A9] block mb-1.5">Projects</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {lead.projects.map((p, i) => {
+                      const pName  = p?.name  || "Project";
+                      const pColor = p?.color || "#2563EB";
+                      return (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold"
+                          style={{ background: pColor + "18", color: pColor }}
+                        >
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: pColor }} />
+                          {pName}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {lead.remark && (
                 <div className="border-t border-[#F0F2FA] dark:border-[#1E2130] px-4 py-2.5">
                   <span className="text-[11px] text-[#8B92A9] block mb-1">Latest Remark</span>
