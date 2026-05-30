@@ -4,6 +4,7 @@ import LeadJourneyDrawer from "./LeadJourneyDrawer";
 import CRMEncryption from "../utils/CRMEncryption";
 import { getRole } from "../data/dataService";
 import { normalizePhone, isSamePhone } from "../utils/normalizePhone";
+import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
 import {
   RefreshCw,
   Plus,
@@ -42,12 +43,8 @@ function maskPhone(phone, isSuperAdmin) {
   return "•".repeat(str.length - 2) + str.slice(-2);
 }
 
-const STATUS_CONFIG = {
-  "New":            { bg: "bg-blue-100 dark:bg-blue-950/40",       text: "text-blue-600 dark:text-blue-400",       dot: "#2563EB" },
-  "In Progress":    { bg: "bg-amber-100 dark:bg-amber-950/40",     text: "text-amber-600 dark:text-amber-400",     dot: "#D97706" },
-  "Converted":      { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-600 dark:text-emerald-400", dot: "#059669" },
-  "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",         text: "text-red-600 dark:text-red-400",         dot: "#DC2626" },
-};
+// STATUS_CONFIG and ALL_STATUSES are imported from ../utils/statusConfig
+// (includes virtual statuses: Merged=Yellow, Closed=Red)
 const TEMP_CONFIG = {
   Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400" },
   Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400" },
@@ -65,7 +62,7 @@ const TEMP_STYLE = {
 };
 
 const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral", "CSV Import", "Channel Partner", "Other"];
-const ALL_STATUSES = ["New", "In Progress", "Converted", "Not Interested"];
+// ALL_STATUSES imported from statusConfig (includes Merged + Closed)
 
 function normalizeMobile(val) {
   return normalizePhone(val) || (val || "").replace(/\D/g, "");
@@ -90,12 +87,27 @@ function daysSince(iso) {
 }
 
 // ── Badges ────────────────────────────────────────────────────────────────────
-function StatusBadge({ status }) {
-  const s = STATUS_CONFIG[status] || STATUS_CONFIG["New"];
+/**
+ * StatusBadge — renders a coloured pill badge for a lead's display status.
+ *
+ * Pass the full `lead` object (preferred) so that virtual statuses
+ * Merged (Yellow) and Closed (Red) are correctly resolved via getLeadDisplayStatus.
+ * Legacy: pass just `status` string if no lead object is available.
+ */
+function StatusBadge({ lead, status }) {
+  let label, config;
+  if (lead) {
+    ({ label, config } = getLeadDisplayStatus(lead));
+  } else {
+    config = STATUS_CONFIG[status] || STATUS_CONFIG["New"];
+    label  = status || "New";
+  }
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${s.bg} ${s.text}`}>
-      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.dot }} />
-      {status}
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${config.bg} ${config.text}`}
+    >
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: config.dot }} />
+      {label}
     </span>
   );
 }
@@ -620,7 +632,7 @@ function RecordingsTab({ lead }) {
 
 // ── RecordingsDrawer — standalone side panel for admin ────────────────────────
 function RecordingsDrawer({ lead, onClose }) {
-  const sc = STATUS_CONFIG[lead.status] || STATUS_CONFIG["New"];
+  const { config: sc } = getLeadDisplayStatus(lead);
 
   return (
     <div className="fixed inset-0 z-[60] flex justify-end" onClick={onClose}>
@@ -644,7 +656,7 @@ function RecordingsDrawer({ lead, onClose }) {
               </div>
             </div>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <StatusBadge status={lead.status} />
+              <StatusBadge lead={lead} />
               {lead.Quality && <TempBadge temp={lead.Quality} />}
               <span className="text-[10px] text-[#8B92A9]">{lead.source}</span>
             </div>
@@ -1247,6 +1259,7 @@ function mapLead(l) {
   const lastCall    = sortedCalls[0] || null;
   return {
     id:             String(l._id),
+    _id:            l._id,                // raw ObjectId — needed by getLeadDisplayStatus
     name:           l.name           || "Unknown",
     phone:          l.mobile         || l.phone || "",
     email:          l.email          || "",
@@ -1269,6 +1282,12 @@ function mapLead(l) {
     lastOutcome:    lastCall?.outcome  || null,
     lastCalledAt:   lastCall?.calledAt || null,
     lastRemark:     lastCall?.remark   || null,
+    // ── Status-resolution fields (required by getLeadDisplayStatus) ───────────
+    isClosed:       l.isClosed      || false,
+    mergedInto:     l.mergedInto    || null,
+    closeReason:    l.closeReason   || "",
+    // ── Project membership ─────────────────────────────────────────────────────
+    projects:       Array.isArray(l.projects) ? l.projects : [],
   };
 }
 
@@ -1291,6 +1310,8 @@ export default function AdminLeadsPage() {
   const [filterAgent, setFilterAgent] = useState("All");
   const [filterSrc,   setFilterSrc]   = useState("All");
   const [filterTemp,  setFilterTemp]  = useState("All");
+  const [filterProject, setFilterProject] = useState("All"); // Project filter
+  const [projects,      setProjects]      = useState([]);    // Project list for dropdown
   const [dateFrom,    setDateFrom]    = useState("");
   const [dateTo,      setDateTo]      = useState("");
   const [sortBy,      setSortBy]      = useState("date_desc");
@@ -1351,6 +1372,13 @@ export default function AdminLeadsPage() {
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
+  // ── Fetch project list for the project filter dropdown ──────────────────────
+  useEffect(() => {
+    api.get("/project/admin")
+      .then(res => setProjects(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setProjects([]));
+  }, []);
+
   const handleAdd = useCallback((newLead) => {
     setAllLeads(prev => [mapLead({ ...newLead, _id: newLead.id || newLead._id }), ...prev]);
     setPage(1);
@@ -1366,20 +1394,36 @@ export default function AdminLeadsPage() {
     inProgress: allLeads.filter(l => l.status === "In Progress").length,
     notInt:     allLeads.filter(l => l.status === "Not Interested").length,
     newLeads:   allLeads.filter(l => l.status === "New").length,
+    merged:     allLeads.filter(l => !!l.mergedInto).length,
+    closed:     allLeads.filter(l => l.isClosed && !l.mergedInto).length,
   }), [allLeads]);
 
   const displayed = useMemo(() => {
     let res = allLeads.filter(l => {
       const q           = search.toLowerCase();
       const matchSearch = !q || l.name.toLowerCase().includes(q) || l.phone.includes(q);
-      const matchSt     = filterSt    === "All" || l.status  === filterSt;
+
+      // Use getLeadDisplayStatus so "Merged" and "Closed" virtual statuses
+      // are correctly matched — l.status alone won't catch them.
+      const { label: displayLabel } = getLeadDisplayStatus(l);
+      const matchSt     = filterSt    === "All" || displayLabel === filterSt;
+
       const matchAgent  = filterAgent === "All" || l.agent   === filterAgent;
       const matchSrc    = filterSrc   === "All" || l.source  === filterSrc;
       const matchTemp   = filterTemp  === "All" || l.Quality === filterTemp;
+
+      // Project filter — a lead belongs to a project if its projects array
+      // contains the selected projectId (populated object or raw ObjectId string).
+      const matchProject = filterProject === "All" ||
+        (l.projects || []).some(p =>
+          (p?._id ? String(p._id) : String(p)) === filterProject
+        );
+
       let matchDate = true;
       if (dateFrom) matchDate = matchDate && new Date(l._raw_date) >= new Date(dateFrom);
       if (dateTo)   matchDate = matchDate && new Date(l._raw_date) <= new Date(dateTo + "T23:59:59");
-      return matchSearch && matchSt && matchAgent && matchSrc && matchTemp && matchDate;
+
+      return matchSearch && matchSt && matchAgent && matchSrc && matchTemp && matchDate && matchProject;
     });
     return res.slice().sort((a, b) => {
       if (sortBy === "date_desc") return new Date(b._raw_date || 0) - new Date(a._raw_date || 0);
@@ -1388,14 +1432,14 @@ export default function AdminLeadsPage() {
       if (sortBy === "status")    return a.status.localeCompare(b.status);
       return 0;
     });
-  }, [allLeads, search, filterSt, filterAgent, filterSrc, filterTemp, dateFrom, dateTo, sortBy]);
+  }, [allLeads, search, filterSt, filterAgent, filterSrc, filterTemp, dateFrom, dateTo, sortBy, filterProject]);
 
   const totalPages = Math.ceil(displayed.length / PER_PAGE);
   const paged      = displayed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const clearFilters = () => {
     setSearch(""); setFilterSt("All"); setFilterAgent("All"); setFilterSrc("All");
-    setFilterTemp("All"); setDateFrom(""); setDateTo(""); setPage(1);
+    setFilterTemp("All"); setFilterProject("All"); setDateFrom(""); setDateTo(""); setPage(1);
   };
 
   const exportToCSV = useCallback(() => {
@@ -1469,6 +1513,8 @@ export default function AdminLeadsPage() {
           { label: "In Progress",    value: kpi.inProgress, color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30",     text: "text-amber-600 dark:text-amber-400",     filter: "In Progress" },
           { label: "Converted",      value: kpi.converted,  color: "#059669", bg: "bg-emerald-50 dark:bg-emerald-950/30", text: "text-emerald-600 dark:text-emerald-400", filter: "Converted" },
           { label: "Not Interested", value: kpi.notInt,     color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30",         text: "text-red-600 dark:text-red-400",         filter: "Not Interested" },
+          { label: "Merged",         value: kpi.merged,     color: "#D97706", bg: "bg-yellow-50 dark:bg-yellow-950/30",   text: "text-yellow-700 dark:text-yellow-400",   filter: "Merged" },
+          { label: "Closed",         value: kpi.closed,     color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30",         text: "text-red-700 dark:text-red-400",         filter: "Closed" },
         ].map(s => (
           <button key={s.label}
             onClick={() => { setFilterSt(filterSt === s.filter ? "All" : s.filter); setPage(1); }}
@@ -1497,6 +1543,15 @@ export default function AdminLeadsPage() {
             <option value="All">All qualities</option>
             <option>Hot</option><option>Warm</option><option>Cold</option>
           </select>
+          {/* Project filter */}
+          {projects.length > 0 && (
+            <select value={filterProject} onChange={e => { setFilterProject(e.target.value); setPage(1); }} className={INP}>
+              <option value="All">All Projects</option>
+              {projects.map(p => (
+                <option key={String(p._id)} value={String(p._id)}>{p.name}</option>
+              ))}
+            </select>
+          )}
           <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className={INP} title="From date" />
           <input type="date" value={dateTo}   onChange={e => { setDateTo(e.target.value);   setPage(1); }} className={INP} title="To date" />
           <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={INP}>
@@ -1505,7 +1560,7 @@ export default function AdminLeadsPage() {
             <option value="name_asc">Name A–Z</option>
             <option value="status">By status</option>
           </select>
-          {(search || filterSt !== "All" || filterAgent !== "All" || filterSrc !== "All" || filterTemp !== "All" || dateFrom || dateTo) && (
+          {(search || filterSt !== "All" || filterAgent !== "All" || filterSrc !== "All" || filterTemp !== "All" || filterProject !== "All" || dateFrom || dateTo) && (
             <button onClick={clearFilters}
               className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[12px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition">
               <span className="flex items-center gap-1"><X className="w-3 h-3" /> Clear</span>
@@ -1565,7 +1620,7 @@ export default function AdminLeadsPage() {
                 </thead>
                 <tbody className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
                   {paged.map(l => {
-                    const sc        = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
+                    const { config: sc } = getLeadDisplayStatus(l);
                     const isRevealed = revealedPhone === l.id;
                     const viewCount  = viewCounts[l.id] || 0;
                     // Use shared maskPhone for consistency
@@ -1663,7 +1718,7 @@ export default function AdminLeadsPage() {
                         <td className="px-4 py-3 whitespace-nowrap text-[#0F1117] dark:text-[#F0F2FA]">{l.date}</td>
 
                         {/* Status */}
-                        <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
+                        <td className="px-4 py-3"><StatusBadge lead={l} /></td>
 
                         {/* Quality */}
                         <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
