@@ -1280,16 +1280,16 @@ function WhatsAppPanel({ currentUser }) {
   };
 
   // FIX: Delete zombie conversations (created when template send failed — "No messages yet")
-  const deleteConversation = async (convId) => {
-    if (!window.confirm("Delete this conversation and all its messages? This cannot be undone.")) return;
-    try {
-      await axios.delete(`${API_URL}/whatsapp/conversations/${convId}`, authHeaders);
-      setConversations((prev) => prev.filter((c) => c._id !== convId));
-      if (selected?._id === convId) { setSelected(null); setMessages([]); }
-    } catch (err) {
-      alert(err.response?.data?.error || "Failed to delete conversation");
-    }
-  };
+  // const deleteConversation = async (convId) => {
+  //   if (!window.confirm("Delete this conversation and all its messages? This cannot be undone.")) return;
+  //   try {
+  //     await axios.delete(`${API_URL}/whatsapp/conversations/${convId}`, authHeaders);
+  //     setConversations((prev) => prev.filter((c) => c._id !== convId));
+  //     if (selected?._id === convId) { setSelected(null); setMessages([]); }
+  //   } catch (err) {
+  //     alert(err.response?.data?.error || "Failed to delete conversation");
+  //   }
+  // };
 
   const filtered = conversations.filter((c) => {
     const matchSearch = !search || c.contactName?.toLowerCase().includes(search.toLowerCase()) || c.waPhone?.includes(search) || c.lead?.name?.toLowerCase().includes(search.toLowerCase());
@@ -2115,9 +2115,9 @@ function EmailPanel() {
                 <td className="px-4 py-3"><StatusBadge status={log.status} /></td>
                 <td className="px-4 py-3"><span className="text-[12px] text-[#8B92A9] whitespace-nowrap">{fmtDate(log.sentAt)}</span></td>
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => handleDelete(log._id)} disabled={deletingId === log._id} className="p-1.5 rounded-lg text-[#8B92A9] hover:text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#2D0A0A] transition disabled:opacity-40" title="Delete log">
+                  {/* <button onClick={() => handleDelete(log._id)} disabled={deletingId === log._id} className="p-1.5 rounded-lg text-[#8B92A9] hover:text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#2D0A0A] transition disabled:opacity-40" title="Delete log">
                     {deletingId === log._id ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg> : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>}
-                  </button>
+                  </button> */}
                 </td>
               </tr>
             ))}
