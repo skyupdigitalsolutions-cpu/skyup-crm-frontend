@@ -4,6 +4,7 @@ import { fetchAll, getRole, getStoredUser } from "../data/dataService";
 import api from "../data/axiosConfig";
 import { useDateFilter } from "../components/dataFilter";
 import CRMEncryption from "../utils/CRMEncryption";
+import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES as ALL_STATUSES_SHARED } from "../utils/statusConfig";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
 function maskPhone(phone) {
@@ -33,12 +34,13 @@ const SOURCE_COLORS = {
   "Referral":     "#D97706",
 };
 
-const STATUS_STYLE = {
-  "Converted":      { bg: "bg-[#ECFDF5] dark:bg-[#052E1C]", text: "text-[#065F46] dark:text-[#34D399]" },
-  "In Progress":    { bg: "bg-[#FFFBEB] dark:bg-[#2D1F00]", text: "text-[#92400E] dark:text-[#FCD34D]" },
-  "Not Interested": { bg: "bg-[#FEF2F2] dark:bg-[#2D0A0A]", text: "text-[#991B1B] dark:text-[#F87171]" },
-  "New":            { bg: "bg-[#EEF3FF] dark:bg-[#1A2540]", text: "text-[#1D4ED8] dark:text-[#4F8EF7]" },
-};
+// STATUS_STYLE and ALL_STATUSES are now sourced from ../utils/statusConfig
+// for consistency with AdminLeadsPage. The alias below preserves all existing
+// references (st.bg, st.text) without changing them.
+const STATUS_STYLE = Object.fromEntries(
+  Object.entries(STATUS_CONFIG).map(([k, v]) => [k, { bg: v.bg, text: v.text }])
+);
+const ALL_STATUSES = ALL_STATUSES_SHARED; // ["New","In Progress","Converted","Not Interested","Merged","Closed"]
 
 const OUTCOME_STYLE = {
   "Not Interested": { bg: "bg-red-50 dark:bg-red-950/40",        text: "text-red-600 dark:text-red-400" },
@@ -48,7 +50,7 @@ const OUTCOME_STYLE = {
 };
 
 const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral"];
-const ALL_STATUSES = ["Converted", "In Progress", "Not Interested", "New"];
+// ALL_STATUSES is now sourced from statusConfig (see import above)
 
 function fmtDateTime(iso) {
   if (!iso) return "—";
@@ -668,7 +670,8 @@ function RemarksHistoryModal({ lead, role, onClose }) {
 
   const merged = [...callEntries, ...reassignEntries].sort((a, b) => b._ts - a._ts);
 
-  const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
+  const { label: stLabel, config: stConfig } = getLeadDisplayStatus(lead);
+  const st = stConfig;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -861,7 +864,8 @@ function RecordingModal({ lead, role, onClose }) {
       .finally(() => setLoading(false));
   }, [lead]);
 
-  const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
+  const { label: stLabel2, config: stConfig2 } = getLeadDisplayStatus(lead);
+  const st = stConfig2;
 
   const allCallHistory = Array.isArray(lead.callHistory) ? [...lead.callHistory] : [];
   const recordingsFromMobile = mobileLogs.filter(l => l.recordings?.length > 0);
@@ -1182,7 +1186,10 @@ export default function ReportPage() {
       return (
         matchProject &&
         (!q || l.name?.toLowerCase().includes(q) || l.phone?.includes(q) || l.campaign?.toLowerCase().includes(q)) &&
-        (statusFilter === "All" || l.status === statusFilter) &&
+        (statusFilter === "All" || (() => {
+          const { label } = getLeadDisplayStatus(l);
+          return label === statusFilter;
+        })()) &&
         (agentFilter  === "All" || l.agent  === agentFilter)
       );
     })
@@ -1372,18 +1379,40 @@ export default function ReportPage() {
             <div className="mb-3">
               <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">Primary</p>
               <div className="flex items-center gap-2">
-                {addNumberLead.isClosed && (
-                  <span
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D]"
-                    title={addNumberLead.closeReason ? `Closed: ${addNumberLead.closeReason}` : "Closed — wrong entry"}
-                  >
-                    <svg className="w-2.5 h-2.5 text-[#DC2626] shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <circle cx="10" cy="10" r="10"/>
-                    </svg>
-                    <span className="text-[9px] font-bold text-[#DC2626] uppercase tracking-wide">Closed</span>
-                  </span>
-                )}
-                <span className={`text-[13px] font-medium font-mono ${addNumberLead.isClosed ? "text-[#DC2626] dark:text-[#F87171]" : "text-[#0F1117] dark:text-[#F0F2FA]"}`}>
+                {(addNumberLead.isClosed || addNumberLead.mergedInto) && (() => {
+                  const isMerged = !!addNumberLead.mergedInto;
+                  return (
+                    <span
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${
+                        isMerged
+                          ? "bg-yellow-50 dark:bg-yellow-950/40 border-yellow-300 dark:border-yellow-800"
+                          : "bg-[#FEF2F2] dark:bg-[#2D0A0A] border-[#FECACA] dark:border-[#7F1D1D]"
+                      }`}
+                      title={isMerged
+                        ? "Merged into another lead"
+                        : (addNumberLead.closeReason ? `Closed: ${addNumberLead.closeReason}` : "Closed — wrong entry")}
+                    >
+                      <svg
+                        className={`w-2.5 h-2.5 shrink-0 ${isMerged ? "text-yellow-600 dark:text-yellow-400" : "text-[#DC2626]"}`}
+                        fill="currentColor" viewBox="0 0 20 20"
+                      >
+                        <circle cx="10" cy="10" r="10"/>
+                      </svg>
+                      <span className={`text-[9px] font-bold uppercase tracking-wide ${
+                        isMerged ? "text-yellow-700 dark:text-yellow-400" : "text-[#DC2626]"
+                      }`}>
+                        {isMerged ? "Merged" : "Closed"}
+                      </span>
+                    </span>
+                  );
+                })()}
+                <span className={`text-[13px] font-medium font-mono ${
+                  addNumberLead.mergedInto
+                    ? "text-yellow-600 dark:text-yellow-400"
+                    : addNumberLead.isClosed
+                      ? "text-[#DC2626] dark:text-[#F87171]"
+                      : "text-[#0F1117] dark:text-[#F0F2FA]"
+                }`}>
                   {displayPhone(addNumberLead.phone, role)}
                 </span>
               </div>
@@ -1523,8 +1552,9 @@ export default function ReportPage() {
             <h3 className="text-[12px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-3">Pipeline status</h3>
             <div className="grid grid-cols-2 gap-2">
               {ALL_STATUSES.map(s => {
-                const count = leads.filter(l => l.status === s).length;
-                const st = STATUS_STYLE[s] ?? STATUS_STYLE["New"];
+                // For virtual statuses (Merged/Closed) count using getLeadDisplayStatus
+                const count = leads.filter(l => getLeadDisplayStatus(l).label === s).length;
+                const st = STATUS_CONFIG[s] ?? STATUS_CONFIG["New"];
                 return (
                   <div key={s} className={`rounded-xl px-3 py-2.5 ${st.bg}`}>
                     <div className={`text-[18px] font-bold ${st.text}`}>{count}</div>
@@ -1611,7 +1641,7 @@ export default function ReportPage() {
               {paged.length === 0 ? (
                 <tr><td colSpan={11} className="px-4 py-12 text-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads match your filters.</td></tr>
               ) : paged.map((lead, i) => {
-                const st = STATUS_STYLE[lead.status] ?? STATUS_STYLE["New"];
+                const { label: displayLabel, config: st } = getLeadDisplayStatus(lead);
                 const callCount = (lead.callHistory || []).length;
                 return (
                   <tr key={lead.id} className={`border-b border-[#E4E7EF] dark:border-[#262A38] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A] transition ${i % 2 === 0 ? "" : "bg-[#FAFBFF] dark:bg-[#1E2130]"}`}>
@@ -1628,18 +1658,41 @@ export default function ReportPage() {
                     {/* FIX: use displayPhone() — superadmin sees full number, others see masked */}
                     <td className="px-4 py-3 whitespace-nowrap font-mono">
                       <div className="flex items-center gap-1.5">
-                        {lead.isClosed && (
-                          <span
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D]"
-                            title={lead.closeReason ? `Closed: ${lead.closeReason}` : "Closed — wrong entry"}
-                          >
-                            <svg className="w-2.5 h-2.5 text-[#DC2626] shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                              <circle cx="10" cy="10" r="10"/>
-                            </svg>
-                            <span className="text-[9px] font-bold text-[#DC2626] uppercase tracking-wide">Closed</span>
-                          </span>
-                        )}
-                        <span className={lead.isClosed ? "text-[#DC2626] dark:text-[#F87171]" : "text-[#4B5168] dark:text-[#9DA3BB]"}>
+                        {/* Merged (Yellow) or Closed (Red) inline badge next to the phone */}
+                        {(lead.isClosed || lead.mergedInto) && (() => {
+                          const isMerged = !!lead.mergedInto;
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${
+                                isMerged
+                                  ? "bg-yellow-50 dark:bg-yellow-950/40 border-yellow-300 dark:border-yellow-800"
+                                  : "bg-[#FEF2F2] dark:bg-[#2D0A0A] border-[#FECACA] dark:border-[#7F1D1D]"
+                              }`}
+                              title={isMerged
+                                ? "Merged into another lead"
+                                : (lead.closeReason ? `Closed: ${lead.closeReason}` : "Closed — wrong entry")}
+                            >
+                              <svg
+                                className={`w-2.5 h-2.5 shrink-0 ${isMerged ? "text-yellow-600 dark:text-yellow-400" : "text-[#DC2626]"}`}
+                                fill="currentColor" viewBox="0 0 20 20"
+                              >
+                                <circle cx="10" cy="10" r="10"/>
+                              </svg>
+                              <span className={`text-[9px] font-bold uppercase tracking-wide ${
+                                isMerged ? "text-yellow-700 dark:text-yellow-400" : "text-[#DC2626]"
+                              }`}>
+                                {isMerged ? "Merged" : "Closed"}
+                              </span>
+                            </span>
+                          );
+                        })()}
+                        <span className={
+                          lead.mergedInto
+                            ? "text-yellow-600 dark:text-yellow-400"
+                            : lead.isClosed
+                              ? "text-[#DC2626] dark:text-[#F87171]"
+                              : "text-[#4B5168] dark:text-[#9DA3BB]"
+                        }>
                           {displayPhone(lead.phone, role)}
                         </span>
                       </div>
@@ -1649,7 +1702,7 @@ export default function ReportPage() {
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB]">{lead.campaign}</td>
                     <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.agent}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${st.bg} ${st.text}`}>{lead.status}</span>
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${st.bg} ${st.text}`}>{displayLabel}</span>
                     </td>
                     <td className="px-4 py-3 text-[#8B92A9] dark:text-[#565C75] whitespace-nowrap">{displayDate(lead.date)}</td>
                     <td className="px-4 py-3">
