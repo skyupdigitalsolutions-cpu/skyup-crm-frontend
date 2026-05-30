@@ -1298,6 +1298,81 @@ function EmailCampaignModal({ campaigns, onClose }) {
   );
 }
 
+// ── Ad Set Leads Panel (Level 2 inline leads view) ────────────────────────────
+function AdSetLeadsPanel({ adSet }) {
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!adSet) return;
+    setLoading(true);
+    api.get(`/lead/by-campaign?campaign=${encodeURIComponent(adSet.name)}`)
+      .then((res) => setLeads(Array.isArray(res.data) ? res.data : res.data?.data || []))
+      .catch(() => setLeads([]))
+      .finally(() => setLoading(false));
+  }, [adSet]);
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-16 text-[#8B92A9] gap-2">
+      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
+      Loading leads…
+    </div>
+  );
+
+  if (!leads.length) return (
+    <div className="text-center py-14 text-[#8B92A9] dark:text-[#565C75]">
+      <div className="text-[36px] mb-2">📭</div>
+      <p className="text-[13px] font-medium">No leads yet for this ad set.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">
+        {leads.length} lead{leads.length !== 1 ? "s" : ""} from this ad set
+      </p>
+      {leads.map((l, i) => {
+        const name = l.name || "Unknown";
+        const phone = l.phone || l.mobile || "—";
+        const agent = l.agent || (l.user && (l.user.name || "Assigned")) || "Unassigned";
+        const status = l.status || "New";
+        const ls = LEAD_STATUS_STYLE[status] || LEAD_STATUS_STYLE["New"];
+        const temp = l.temperature || null;
+        const lt = temp ? LEAD_TEMP_STYLE[temp] || null : null;
+        return (
+          <div key={i} className="bg-white dark:bg-[#1A1D27] rounded-xl p-3.5 border border-[#E4E7EF] dark:border-[#262A38] hover:shadow-sm transition">
+            <div className="flex items-start justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[11px] font-bold text-[#2563EB] dark:text-[#4F8EF7] shrink-0">
+                  {name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{name}</div>
+                  <div className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5 font-mono">{maskPhone(phone)}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {lt && <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${lt.bg} ${lt.text}`}>{lt.icon} {temp}</span>}
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${ls.bg} ${ls.text}`}>{status}</span>
+              </div>
+            </div>
+            {l.email && l.email.trim() && (
+              <div className="flex items-center gap-1 mb-1">
+                <svg className="w-3 h-3 text-[#059669] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                <span className="text-[11px] text-[#059669] truncate">{l.email}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-[#8B92A9]">Assigned: <span className="text-[#4B5168] dark:text-[#9DA3BB] font-medium">{agent}</span></span>
+              <span className="text-[#8B92A9] italic">{l.remark || "—"}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Campaign Card ─────────────────────────────────────────────────────────────
 // NOTE: No "Sync from Meta" button here — sync lives only on the group header
 function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete }) {
@@ -1377,8 +1452,11 @@ export default function Campaigns() {
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
 
-  // ── Navigation state: null = Campaigns root, string = ad-sets drill-down ──
+  // ── Navigation state ────────────────────────────────────────────────────────
+  // selectedParent: null = Campaigns root, string = Ad Sets page (Level 1)
+  // selectedAdSet:  null = no ad set selected, object = Ads page (Level 2)
   const [selectedParent, setSelectedParent] = useState(null);
+  const [selectedAdSet, setSelectedAdSet] = useState(null);
 
   // ── Derived: is Meta connected? (at least one Meta config exists) ──────────
   // This is the ONLY variable that controls the Sync Meta button visibility.
@@ -1557,9 +1635,16 @@ export default function Campaigns() {
   const isEmpty = Object.keys(groupedMeta).length === 0 && ungrouped.length === 0;
 
   // ── Breadcrumb computation ──────────────────────────────────────────────────
-  // Level 0 (null): "Campaigns"
-  // Level 1 (string): "Campaigns > {parentName}"
-  const breadcrumbs = selectedParent
+  // Level 0 (null/null):       "Campaigns"
+  // Level 1 (string/null):     "Campaigns > {parentName}"
+  // Level 2 (string/object):   "Campaigns > {parentName} > {adSetName}"
+  const breadcrumbs = selectedAdSet
+    ? [
+        { label: "Campaigns", onClick: () => { setSelectedParent(null); setSelectedAdSet(null); } },
+        { label: selectedParent, onClick: () => setSelectedAdSet(null) },
+        { label: selectedAdSet.adSetName || selectedAdSet.name, onClick: null },
+      ]
+    : selectedParent
     ? [
         { label: "Campaigns", onClick: () => setSelectedParent(null) },
         { label: selectedParent, onClick: null },
@@ -1598,31 +1683,23 @@ export default function Campaigns() {
           </nav>
 
           <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-            {selectedParent ? selectedParent : "Campaigns"}
+            {selectedAdSet ? (selectedAdSet.adSetName || selectedAdSet.name) : selectedParent ? selectedParent : "Campaigns"}
           </h1>
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
             {pageLoading
               ? "Loading…"
+              : selectedAdSet
+              ? `Ads · ${selectedAdSet.leads ?? 0} lead${(selectedAdSet.leads ?? 0) !== 1 ? "s" : ""}`
               : selectedParent
               ? `${(groupedMeta[selectedParent] || []).length} ad set${(groupedMeta[selectedParent] || []).length !== 1 ? "s" : ""}`
               : `${metaCount} Meta · ${googleCount} Google Ads · ${websiteCount} Website`}
           </p>
         </div>
 
-        {/* ── Action buttons — ONLY shown at root (Campaigns) level ─────────
-            BUG FIX: Previously there was NO "Sync Meta" button in the header.
-            The sync button only appeared deep inside the ad-set drill-down view
-            (at selectedParent level) as "Sync ad sets" — which violated the spec
-            that says Sync Meta must ONLY appear on the Campaigns root page.
-
-            Root logic:
-              - selectedParent === null → we are at the Campaigns root page
-              - isMetaConnected === true  → show "Sync Meta" (+ connect buttons)
-              - isMetaConnected === false → show only connect buttons
-            ─────────────────────────────────────────────────────────────── */}
-        {!selectedParent && (
+        {/* ── Action buttons — ONLY shown at root (Campaigns) level ──────── */}
+        {!selectedParent && !selectedAdSet && (
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Sync Meta button — ONLY here, ONLY when Meta is connected */}
+            {/* Sync Meta — only when Meta is connected (mutually exclusive with Connect Meta) */}
             {isMetaConnected && (
               <button
                 onClick={() => setSyncTarget({ pageId: "", parentName: "" })}
@@ -1635,15 +1712,18 @@ export default function Campaigns() {
               </button>
             )}
 
-            <button
-              onClick={() => setShowCreate(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
-              </svg>
-              Connect Meta
-            </button>
+            {/* Connect Meta — only when Meta is NOT connected (mutually exclusive with Sync Meta) */}
+            {!isMetaConnected && (
+              <button
+                onClick={() => setShowCreate(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
+                </svg>
+                Connect Meta
+              </button>
+            )}
 
             <button
               onClick={() => setShowCreateGoogle(true)}
@@ -1667,35 +1747,31 @@ export default function Campaigns() {
               </svg>
               Connect Website
             </button>
-
-            <button
-              onClick={() => setShowEmailCampaign(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#7C3AED] text-[13px] font-semibold hover:border-[#7C3AED] transition"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              Send Email
-            </button>
           </div>
         )}
 
-        {/* Ad-set drill-down header — NO Sync Meta, only back nav */}
-        {selectedParent && (
+        {/* Back button — shown on Level 1 (Ad Sets) and Level 2 (Ads detail) */}
+        {(selectedParent || selectedAdSet) && (
           <button
-            onClick={() => setSelectedParent(null)}
+            onClick={() => {
+              if (selectedAdSet) {
+                setSelectedAdSet(null);
+              } else {
+                setSelectedParent(null);
+              }
+            }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#E1306C] hover:text-[#E1306C] transition"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
-            Back to Campaigns
+            {selectedAdSet ? `Back to ${selectedParent}` : "Back to Campaigns"}
           </button>
         )}
       </div>
 
-      {/* ── Filters + search — only shown at root level ────────────────────── */}
-      {!selectedParent && (
+      {/* ── Filters + search — only shown at Campaigns root level ───────────── */}
+      {!selectedParent && !selectedAdSet && (
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex flex-wrap gap-1.5">
             {filters.map((f) => (
@@ -1748,10 +1824,46 @@ export default function Campaigns() {
           <span className="text-[14px]">Loading campaigns…</span>
         </div>
 
+      ) : selectedAdSet ? (
+        // ── Level 2: Leads / Ads for a specific Ad Set ──────────────────────
+        <div>
+          {/* Ad set info bar */}
+          <div className="flex items-center gap-3 mb-5 p-4 bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38]">
+            <div className="w-9 h-9 rounded-xl bg-[#FFF0F3] dark:bg-[#2D0A14] flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-[#E1306C]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">
+                {selectedAdSet.adSetName || selectedAdSet.name}
+              </h2>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
+                Ad Set · Parent: {selectedParent} · Page ID: <span className="font-mono">{selectedAdSet.pageId || "—"}</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="text-center">
+                <div className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{selectedAdSet.leads ?? "—"}</div>
+                <div className="text-[10px] text-[#8B92A9] uppercase tracking-wide">Leads</div>
+              </div>
+              <button
+                onClick={() => setSelected(selectedAdSet)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] text-[12px] font-semibold hover:bg-[#dce7ff] transition"
+              >
+                View All Leads
+              </button>
+            </div>
+          </div>
+
+          {/* Inline leads list for this ad set */}
+          <AdSetLeadsPanel adSet={selectedAdSet} />
+        </div>
+
       ) : selectedParent ? (
         // ── Level 1: Ad Sets for selected parent campaign ──────────────────
         <div>
-          {/* Ad set info bar */}
+          {/* Campaign info bar */}
           <div className="flex items-center gap-3 mb-5 p-4 bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38]">
             <div className="w-9 h-9 rounded-xl bg-[#FFF0F3] dark:bg-[#2D0A14] flex items-center justify-center shrink-0">
               <svg className="w-5 h-5 text-[#E1306C]" viewBox="0 0 24 24" fill="currentColor">
@@ -1775,11 +1887,54 @@ export default function Campaigns() {
             </div>
           </div>
 
-          {/* Ad set cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {(groupedMeta[selectedParent] || []).map((c) => (
-              <CampaignCard key={c._id} {...cardProps(c)} />
-            ))}
+          {/* Ad Set rows — clickable, navigate to Level 2 */}
+          <div className="space-y-3">
+            {(groupedMeta[selectedParent] || []).map((adSet) => {
+              const st = STATUS_STYLE[adSet.status] || STATUS_STYLE.Active;
+              return (
+                <button
+                  key={adSet._id}
+                  onClick={() => setSelectedAdSet(adSet)}
+                  className="w-full text-left bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden hover:shadow-[0_4px_20px_rgba(0,0,0,0.07)] dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.25)] hover:border-[#E1306C]/40 transition-all group"
+                >
+                  <div className="h-0.5 w-full" style={{ background: adSet.color }} />
+                  <div className="px-5 py-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-[#FFF0F3] dark:bg-[#2D0A14] flex items-center justify-center shrink-0">
+                        <svg className="w-4 h-4 text-[#E1306C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${st.bg} ${st.text}`}>
+                            {adSet.status}
+                          </span>
+                        </div>
+                        <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">
+                          {adSet.adSetName || adSet.name}
+                        </h3>
+                        <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{adSet.date}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6 shrink-0">
+                      <div className="text-center">
+                        <div className="text-[20px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{fmt(adSet.leads)}</div>
+                        <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-0.5 uppercase tracking-wide">Leads</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[12px] font-semibold text-[#8B92A9] dark:text-[#565C75] group-hover:text-[#E1306C] transition">
+                          View ads
+                        </span>
+                        <svg className="w-4 h-4 text-[#8B92A9] group-hover:text-[#E1306C] group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
