@@ -3,7 +3,7 @@ import { CalendarDays, Users, Eye, EyeOff } from "lucide-react";
 import { updateAttendance, removeAttendance } from "../services/attendanceService";
 import { getRole } from "../data/dataService";
 import axios from "axios";
-import { maskPhone } from "../utils/maskPhone";
+import { maskPhone, maskEmail } from "../utils/maskPhone";
 
 // ─── PhoneText ─────────────────────────────────────────────────────────────────
 // Renders a phone number masked for admins with a toggle eye-button.
@@ -521,7 +521,7 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
                 <Avatar name={user.name} size="lg" />
                 <div>
                   <h2 className="text-[17px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{user.name || "Unknown"}</h2>
-                  <p className="text-[11px] text-[#8B92A9] mt-0.5">{user.email || "—"}</p>
+                  <p className="text-[11px] text-[#8B92A9] mt-0.5 font-mono">{isSuperAdmin ? (user.email || "—") : (maskEmail(user.email) || "—")}</p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {user.role && (
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
@@ -905,7 +905,7 @@ function UsersTab({ records, onUserClick, isSuperAdmin }) {
                 <Avatar name={user.name} size="md" />
                 <div className="min-w-0">
                   <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition line-clamp-1">{user.name || "Unknown"}</p>
-                  <p className="text-[10px] text-[#8B92A9] truncate">{user.email || "—"}</p>
+                  <p className="text-[10px] text-[#8B92A9] font-mono truncate">{isSuperAdmin ? (user.email || "—") : (maskEmail(user.email) || "—")}</p>
                   {/* ── Phone on user card: masked for admin ── */}
                   {user.phone && (
                     <PhoneText

@@ -43,6 +43,29 @@ function maskPhone(phone, isSuperAdmin) {
   return "•".repeat(str.length - 2) + str.slice(-2);
 }
 
+// ── Email masking utility ──────────────────────────────────────────────────────
+// Superadmin always sees the full email; admin sees masked version.
+function maskEmail(email, isSuperAdmin) {
+  if (!email) return null;
+  if (isSuperAdmin) return email;
+  const atIdx = email.indexOf("@");
+  if (atIdx < 0) return "•".repeat(8);
+  const local  = email.slice(0, atIdx);
+  const domain = email.slice(atIdx + 1);
+  let maskedLocal;
+  if (local.length <= 2) {
+    maskedLocal = "•".repeat(local.length);
+  } else {
+    const mid = Math.max(1, local.length - 4);
+    maskedLocal = local.slice(0, 2) + "•".repeat(mid) + local.slice(-2);
+  }
+  const dotIdx = domain.lastIndexOf(".");
+  const maskedDomain = dotIdx > 0
+    ? "•".repeat(dotIdx) + domain.slice(dotIdx)
+    : "•".repeat(domain.length);
+  return `${maskedLocal}@${maskedDomain}`;
+}
+
 // STATUS_CONFIG and ALL_STATUSES are imported from ../utils/statusConfig
 // (includes virtual statuses: Merged=Yellow, Closed=Red)
 const TEMP_CONFIG = {
@@ -1688,8 +1711,8 @@ export default function AdminLeadsPage() {
                               </span>
                             )}
                           </div>
-                          {l.email && (
-                            <p className="text-[10px] text-[#8B92A9] truncate max-w-[130px] mt-0.5">{l.email}</p>
+                          {maskEmail(l.email, isSuperAdmin) && (
+                            <p className="text-[10px] text-[#8B92A9] truncate max-w-[130px] mt-0.5 font-mono">{maskEmail(l.email, isSuperAdmin)}</p>
                           )}
                         </td>
 
@@ -1846,6 +1869,7 @@ export default function AdminLeadsPage() {
     onClose={() => setSelected(null)}
     isSuperAdmin={isSuperAdmin}
     maskPhone={maskPhone}
+    maskEmail={maskEmail}
   />
 )}
       {/* Recordings & AI drawer */}

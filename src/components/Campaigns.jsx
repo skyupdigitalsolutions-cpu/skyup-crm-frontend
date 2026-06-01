@@ -47,6 +47,26 @@ function maskPhone(phone) {
   return str.slice(0, 2) + "•".repeat(Math.max(str.length - 4, 3)) + str.slice(-2);
 }
 
+function maskEmail(email) {
+  if (!email) return null;
+  const atIdx = email.indexOf("@");
+  if (atIdx < 0) return "•".repeat(8);
+  const local  = email.slice(0, atIdx);
+  const domain = email.slice(atIdx + 1);
+  let maskedLocal;
+  if (local.length <= 2) {
+    maskedLocal = "•".repeat(local.length);
+  } else {
+    const mid = Math.max(1, local.length - 4);
+    maskedLocal = local.slice(0, 2) + "•".repeat(mid) + local.slice(-2);
+  }
+  const dotIdx = domain.lastIndexOf(".");
+  const maskedDomain = dotIdx > 0
+    ? "•".repeat(dotIdx) + domain.slice(dotIdx)
+    : "•".repeat(domain.length);
+  return `${maskedLocal}@${maskedDomain}`;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => (n != null && n > 0 ? Number(n).toLocaleString() : "—");
 const fmtDate = (iso) => {
@@ -364,10 +384,10 @@ function LeadDrawer({ campaign, onClose }) {
                         </span>
                       </div>
                     )}
-                    {l.email && l.email.trim() && (
+                    {maskEmail(l.email) && (
                       <div className="flex items-center gap-1 mt-1 mb-1">
                         <svg className="w-3 h-3 text-[#059669] dark:text-[#34D399] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                        <span className="text-[11px] text-[#059669] dark:text-[#34D399] truncate">{l.email}</span>
+                        <span className="text-[11px] text-[#059669] dark:text-[#34D399] font-mono truncate">{maskEmail(l.email)}</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between text-[11px]">
@@ -1803,10 +1823,10 @@ function AdSetLeadsPanel({ adSet }) {
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${ls.bg} ${ls.text}`}>{status}</span>
               </div>
             </div>
-            {l.email && l.email.trim() && (
+            {maskEmail(l.email) && (
               <div className="flex items-center gap-1 mb-1">
-                <svg className="w-3 h-3 text-[#059669] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                <span className="text-[11px] text-[#059669] truncate">{l.email}</span>
+                <svg className="w-3 h-3 text-[#059669] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z" /></svg>
+                <span className="text-[11px] text-[#059669] font-mono truncate">{maskEmail(l.email)}</span>
               </div>
             )}
             <div className="flex items-center justify-between text-[11px]">

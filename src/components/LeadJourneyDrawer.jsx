@@ -223,16 +223,40 @@ function defaultMaskPhone(phone, isSuperAdmin) {
   return "•".repeat(str.length - 2) + str.slice(-2);
 }
 
+// ── Default email masker ───────────────────────────────────────────────────────
+function defaultMaskEmail(email, isSuperAdmin) {
+  if (!email) return null;
+  if (isSuperAdmin) return email;
+  const atIdx = email.indexOf("@");
+  if (atIdx < 0) return "•".repeat(8);
+  const local  = email.slice(0, atIdx);
+  const domain = email.slice(atIdx + 1);
+  let maskedLocal;
+  if (local.length <= 2) {
+    maskedLocal = "•".repeat(local.length);
+  } else {
+    const mid = Math.max(1, local.length - 4);
+    maskedLocal = local.slice(0, 2) + "•".repeat(mid) + local.slice(-2);
+  }
+  const dotIdx = domain.lastIndexOf(".");
+  const maskedDomain = dotIdx > 0
+    ? "•".repeat(dotIdx) + domain.slice(dotIdx)
+    : "•".repeat(domain.length);
+  return `${maskedLocal}@${maskedDomain}`;
+}
+
 // ── Main drawer ──────────────────────────────────────────────────────────────
 // NEW: accepts isSuperAdmin + maskPhone props for phone number masking.
 // Falls back to defaultMaskPhone if not provided (safe for standalone use).
-export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false, maskPhone }) {
+export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false, maskPhone, maskEmail }) {
   if (!lead) return null;
 
-  const masker = maskPhone || defaultMaskPhone;
+  const masker      = maskPhone  || defaultMaskPhone;
+  const emailMasker  = maskEmail || defaultMaskEmail;
 
   // ── MASKED phone — used everywhere in this drawer instead of lead.phone ──
   const displayPhone = masker(lead.phone || lead.mobile, isSuperAdmin);
+  const displayEmail = emailMasker(lead.email, isSuperAdmin);
 
   const sc = STATUS_COLOR[lead.status] || STATUS_COLOR["New"];
   const name = lead.name || "Unknown";
@@ -287,7 +311,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                   {(lead.phone || lead.mobile) && (
                     <span className="text-[11px] font-mono text-[#8B92A9]">{displayPhone}</span>
                   )}
-                  {lead.email && <span className="text-[11px] text-[#8B92A9]">{lead.email}</span>}
+                  {displayEmail && <span className="text-[11px] text-[#8B92A9] font-mono">{displayEmail}</span>}
                 </div>
               </div>
             </div>
