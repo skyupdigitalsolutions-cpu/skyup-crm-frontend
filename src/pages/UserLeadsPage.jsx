@@ -723,6 +723,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
   const { label: currentDisplayLabel, config: sc } = getLeadDisplayStatus({ ...lead, status });
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] h-full shadow-2xl overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}>
@@ -953,6 +954,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
         }}
       />
     )}
+    </>
   );
 }
 
