@@ -1543,15 +1543,13 @@ export default function AdminLeadsPage() {
             <option value="All">All qualities</option>
             <option>Hot</option><option>Warm</option><option>Cold</option>
           </select>
-          {/* Project filter */}
-          {projects.length > 0 && (
-            <select value={filterProject} onChange={e => { setFilterProject(e.target.value); setPage(1); }} className={INP}>
-              <option value="All">All Projects</option>
-              {projects.map(p => (
-                <option key={String(p._id)} value={String(p._id)}>{p.name}</option>
-              ))}
-            </select>
-          )}
+          {/* Project filter — always shown */}
+          <select value={filterProject} onChange={e => { setFilterProject(e.target.value); setPage(1); }} className={INP}>
+            <option value="All">All Projects</option>
+            {projects.map(p => (
+              <option key={String(p._id)} value={String(p._id)}>{p.name}</option>
+            ))}
+          </select>
           <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className={INP} title="From date" />
           <input type="date" value={dateTo}   onChange={e => { setDateTo(e.target.value);   setPage(1); }} className={INP} title="To date" />
           <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={INP}>
@@ -1613,7 +1611,7 @@ export default function AdminLeadsPage() {
               <table className="w-full text-[12px]">
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Lead", "Contact", "Employee", "Source / Campaign", "Date", "Status", "Quality", "Last Outcome", ""].map(h => (
+                    {["Lead", "Contact", "Employee", "Source / Campaign", "Project", "Date", "Status", "Quality", "Last Outcome", ""].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -1704,7 +1702,7 @@ export default function AdminLeadsPage() {
                           )}
                         </td>
 
-                        {/* Source / Campaign / Projects */}
+                        {/* Source / Campaign */}
                         <td className="px-4 py-3">
                           <p className="text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[130px]">{l.source}</p>
                           {l.campaign !== "—" && (
@@ -1713,8 +1711,12 @@ export default function AdminLeadsPage() {
                           {l.adSetName && (
                             <p className="text-[10px] text-[#E1306C] truncate max-w-[130px]">📢 {l.adSetName}</p>
                           )}
-                          {l.projects && l.projects.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
+                        </td>
+
+                        {/* Project */}
+                        <td className="px-4 py-3">
+                          {l.projects && l.projects.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
                               {l.projects.slice(0, 2).map((p, pi) => {
                                 const pName  = p?.name  || "Project";
                                 const pColor = p?.color || "#2563EB";
@@ -1736,6 +1738,8 @@ export default function AdminLeadsPage() {
                                 </span>
                               )}
                             </div>
+                          ) : (
+                            <span className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257]">—</span>
                           )}
                         </td>
 
