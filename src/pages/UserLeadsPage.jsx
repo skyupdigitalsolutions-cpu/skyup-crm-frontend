@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import api from "../data/axiosConfig";
+import ColdReassignModal from "../components/ColdReassignModal";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
 
 const BACKEND_ROOT = import.meta.env.VITE_API_URL
@@ -671,7 +672,8 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
   const [followUpDate, setFollowUpDate] = useState("");
   const [saving,       setSaving]       = useState(false);
   const [error,        setError]        = useState("");
-  const [activeTab,    setActiveTab]    = useState("update");
+  const [activeTab,     setActiveTab]    = useState("update");
+  const [showColdModal, setShowColdModal] = useState(false);
 
   const isNI = status === "Not Interested";
 
@@ -858,8 +860,13 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                       const colors = { Hot: "#DC2626", Warm: "#D97706", Cold: "#2563EB", "": "#8B92A9" };
                       const labels = { Hot: "Hot", Warm: " Warm", Cold: " Cold", "": "— None" };
                       const active = temperature === q;
+                      // Cold quality triggers the ColdReassignModal (same flow as Not Interested)
+                      const handleQualityClick = () => {
+                        if (q === "Cold") { setShowColdModal(true); return; }
+                        setTemperature(q);
+                      };
                       return (
-                        <button key={q} type="button" onClick={() => setTemperature(q)}
+                        <button key={q} type="button" onClick={handleQualityClick}
                           className={`px-2 py-2 rounded-xl border-2 text-[14px] font-semibold transition ${
                             active
                               ? "border-current"
@@ -931,6 +938,21 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
         )}
       </div>
     </div>
+
+    {/* Cold Reassign Modal — opens when employee selects Cold quality */}
+    {showColdModal && (
+      <ColdReassignModal
+        lead={lead}
+        onClose={() => setShowColdModal(false)}
+        onSuccess={(updatedLead) => {
+          // Mark temperature as Cold locally and close the drawer
+          setTemperature("Cold");
+          onSaved({ ...lead, ...updatedLead, temperature: "Cold" });
+          setShowColdModal(false);
+          onClose();
+        }}
+      />
+    )}
   );
 }
 
