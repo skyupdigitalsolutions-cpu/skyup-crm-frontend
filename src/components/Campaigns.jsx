@@ -1842,10 +1842,12 @@ function AdSetLeadsPanel({ adSet }) {
 
 // ── Campaign Card ─────────────────────────────────────────────────────────────
 // NOTE: No "Sync from Meta" button here — sync lives only on the group header
-function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete }) {
+function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification }) {
   const st = STATUS_STYLE[c.status] || STATUS_STYLE.Active;
   const ch = CHANNEL_STYLE[c.channel] || CHANNEL_STYLE.Meta;
   const editHoverCls = c._isMeta ? "hover:border-[#E1306C] hover:text-[#E1306C]" : c._isWebsite ? "hover:border-[#16A34A] hover:text-[#16A34A]" : "hover:border-[#EA4335] hover:text-[#EA4335]";
+  // Meta Ad Sets (have adSetName) get Qualification instead of Pause + Delete
+  const isMetaAdSet = c._isMeta && !!c.adSetName;
 
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] transition-shadow">
@@ -1892,11 +1894,15 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete }) {
             View leads ({c.leads})
           </button>
           <button onClick={(e) => { e.stopPropagation(); onEdit(c); }} className={`px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] transition ${editHoverCls}`} title="Edit campaign"><EditIcon /></button>
-          <button onClick={(e) => onToggle(e, c)} className={`px-3 py-2 rounded-xl border text-[12px] font-semibold transition ${c.isActive ? "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-[#D97706] hover:text-[#D97706]" : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-[#059669] hover:text-[#059669]"}`}>
-            {c.isActive ? "Pause" : "Resume"}
-          </button>
-          <button onClick={(e) => onDelete(e, c)} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] hover:border-[#DC2626] hover:text-[#DC2626] transition" title="Disconnect">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+          <button
+            onClick={(e) => { e.stopPropagation(); onQualification && onQualification(c); }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] hover:border-[#E1306C] hover:text-[#E1306C] transition"
+            title="Qualification rules"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Qualification
           </button>
         </div>
       </div>
@@ -2098,6 +2104,7 @@ export default function Campaigns() {
     onEdit: setEditCampaign,
     onToggle: handleToggle,
     onDelete: handleDelete,
+    onQualification: setQualificationAdSet,
   });
 
   const isEmpty = Object.keys(groupedMeta).length === 0 && ungrouped.length === 0;
