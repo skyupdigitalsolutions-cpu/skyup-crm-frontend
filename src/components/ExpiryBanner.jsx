@@ -55,13 +55,15 @@ export function SuspensionScreen({ onGoToPlans }) {
 export default function ExpiryBanner({ onGoToPlans }) {
   const [status,    setStatus]    = useState(null); // null | { daysRemaining, expiringSoon, suspended, status }
   const [dismissed, setDismissed] = useState(false);
+  const [role,      setRole]      = useState(null);
 
   useEffect(() => {
     // FIX: read role from the "user" JSON object (standalone "role" key is never set by login pages)
-    let role = null;
-    try { role = JSON.parse(localStorage.getItem("user") || "null")?.role || null; } catch {}
+    let r = null;
+    try { r = JSON.parse(localStorage.getItem("user") || "null")?.role || null; } catch {}
+    setRole(r);
     // Only show for admin / super_admin — not developer or user
-    if (role === "developer" || role === "user") return;
+    if (r === "developer" || r === "user") return;
 
     api.get("/subscription/my/status")
       .then(({ data }) => setStatus(data))
@@ -72,9 +74,10 @@ export default function ExpiryBanner({ onGoToPlans }) {
   if (status.suspended) return <SuspensionScreen onGoToPlans={onGoToPlans} />;
   if (!status.expiringSoon || dismissed) return null;
 
+  const isSuperAdmin = role === "super_admin";
   const days = status.daysRemaining;
   const isUrgent = days <= 2;
-  const bgColor  = isUrgent ? "bg-red-600"    : "bg-amber-500";
+  const bgColor  = isUrgent ? "bg-red-600" : "bg-amber-500";
   const msg      = days === 0
     ? "Your subscription expires today!"
     : days === 1
@@ -85,15 +88,22 @@ export default function ExpiryBanner({ onGoToPlans }) {
     <div className={`${bgColor} text-white px-4 py-2.5 flex items-center justify-between gap-3 text-[12px] font-semibold z-50`}>
       <div className="flex items-center gap-2">
         <AlertIcon />
-        <span>{msg} Renew now to avoid interruption.</span>
+        {isSuperAdmin ? (
+          <span>{msg} Renew now to avoid interruption.</span>
+        ) : (
+          <span>{msg} Please contact your Super Admin to renew.</span>
+        )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={onGoToPlans}
-          className="px-3 py-1 rounded-lg bg-white/20 hover:bg-white/30 transition text-white text-[11px] font-bold"
-        >
-          Renew Now
-        </button>
+        {/* Renew Now button — only for super_admin */}
+        {isSuperAdmin && (
+          <button
+            onClick={onGoToPlans}
+            className="px-3 py-1 rounded-lg bg-white/20 hover:bg-white/30 transition text-white text-[11px] font-bold"
+          >
+            Renew Now
+          </button>
+        )}
         <button
           onClick={() => setDismissed(true)}
           className="w-5 h-5 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition"
