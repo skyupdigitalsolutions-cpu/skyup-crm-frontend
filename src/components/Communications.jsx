@@ -3,6 +3,7 @@
 // Sidebar label: "Communications"  |  Icon suggestion: ChatBubbleLeftRightIcon
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { maskPhone } from "../utils/maskPhone";
 import { io } from "socket.io-client";
 import axios from "axios";
 import api from "../data/axiosConfig";
@@ -1077,7 +1078,8 @@ function WhatsAppPanel({ currentUser }) {
   const [starting,      setStarting]      = useState(false);
   const [startErr,      setStartErr]      = useState("");
 
-  const isAdmin     = currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
+  const isAdmin       = currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
+  const isSuperAdmin  = currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
   const token       = localStorage.getItem("token");
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
@@ -1402,7 +1404,7 @@ function WhatsAppPanel({ currentUser }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[12px] font-medium text-[#0F1117] dark:text-[#F0F2FA] truncate">{lead.name}</div>
-                  <div className="text-[11px] text-[#8B92A9]">{lead.mobile}</div>
+                  <div className="text-[11px] text-[#8B92A9] font-mono">{maskPhone(lead.mobile, isSuperAdmin)}</div>
                   <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{background: lead.status==="Converted"?"#dcfce7":lead.status==="In Progress"?"#fef9c3":lead.status==="Not Interested"?"#fee2e2":"#dbeafe", color: lead.status==="Converted"?"#166534":lead.status==="In Progress"?"#854d0e":lead.status==="Not Interested"?"#991b1b":"#1e40af"}}>{lead.status}</span>
                 </div>
                 {hasConv ? (
@@ -1428,7 +1430,7 @@ function WhatsAppPanel({ currentUser }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={()=>setStartModal(null)}>
           <div className="bg-white dark:bg-[#1A1D27] rounded-2xl p-6 w-full max-w-[360px] mx-4 shadow-2xl" onClick={e=>e.stopPropagation()}>
             <h3 className="text-[15px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Start WhatsApp Chat</h3>
-            <p className="text-[12px] text-[#8B92A9] mb-4">{startModal.name} · {startModal.mobile}</p>
+            <p className="text-[12px] text-[#8B92A9] mb-4 font-mono">{startModal.name} · {maskPhone(startModal.mobile, isSuperAdmin)}</p>
             <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Template Name <span className="text-[#DC2626]">*</span></label>
             <input value={tmplName} onChange={e=>setTmplName(e.target.value)} placeholder="crm_followup_leads" className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#25D366] mb-1 transition" />
             <p className="text-[10px] text-[#8B92A9] mb-3">Must match exactly the approved template name in MSG91</p>
@@ -1492,8 +1494,8 @@ function WhatsAppPanel({ currentUser }) {
               <div className="font-semibold text-[14px] text-[#0F1117] dark:text-[#F0F2FA]">
                 {selected.contactName || selected.lead?.name || `+${selected.waPhone}`}
               </div>
-              <div className="text-[11px] text-[#8B92A9]">
-                +{selected.waPhone}
+              <div className="text-[11px] text-[#8B92A9] font-mono">
+                {isSuperAdmin ? `+${selected.waPhone}` : maskPhone(selected.waPhone, false)}
                 {selected.lead?.status ? ` · ${selected.lead.status}` : ""}
                 {isAdmin && selected.assignedAgent?.name ? ` · Employee: ${selected.assignedAgent.name}` : ""}
               </div>
