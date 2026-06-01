@@ -796,7 +796,7 @@ export default function UserLeadCommunication() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-[#111B21]">
+    <div className="flex flex-col h-full overflow-hidden bg-white dark:bg-[#111B21]">
 
       {/* ── Top tab bar ──────────────────────────────────────────────────── */}
       <div className="flex items-center gap-0 border-b border-[#E4E7EF] dark:border-[#2A3942] shrink-0 bg-white dark:bg-[#111B21] px-4 pt-3">
