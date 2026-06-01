@@ -981,6 +981,8 @@ export default function UserLeadsPage() {
   const [filterSt,   setFilterSt]   = useState("All");
   const [filterTemp, setFilterTemp] = useState("All");
   const [filterSrc,  setFilterSrc]  = useState("All");
+  const [filterProject, setFilterProject] = useState("All");
+  const [projects,      setProjects]      = useState([]);
   const [sortBy,     setSortBy]     = useState("date_desc");
   const [page,       setPage]       = useState(1);
 
@@ -1001,6 +1003,13 @@ export default function UserLeadsPage() {
   }, []);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+  // ── Fetch project list for the project filter dropdown ──────────────────────
+  useEffect(() => {
+    api.get("/project/admin")
+      .then(res => setProjects(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setProjects([]));
+  }, []);
 
   const handleSaved = useCallback((updated) => {
     setLeads(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l));
@@ -1029,7 +1038,11 @@ export default function UserLeadsPage() {
       const matchSt     = filterSt   === "All" || displayLabel === filterSt;
       const matchTemp   = filterTemp === "All" || l.temperature === filterTemp;
       const matchSrc    = filterSrc  === "All" || l.source      === filterSrc;
-      return matchSearch && matchSt && matchTemp && matchSrc;
+      const matchProject = filterProject === "All" ||
+        (l.projects || []).some(p =>
+          (p?._id ? String(p._id) : String(p)) === filterProject
+        );
+      return matchSearch && matchSt && matchTemp && matchSrc && matchProject;
     });
     return res.slice().sort((a, b) => {
       if (sortBy === "date_desc") return new Date(b._raw_date || 0) - new Date(a._raw_date || 0);
@@ -1038,15 +1051,15 @@ export default function UserLeadsPage() {
       if (sortBy === "status")    return a.status.localeCompare(b.status);
       return 0;
     });
-  }, [leads, search, filterSt, filterTemp, filterSrc, sortBy]);
+  }, [leads, search, filterSt, filterTemp, filterSrc, filterProject, sortBy]);
 
   const totalPages = Math.ceil(displayed.length / PER_PAGE);
   const paged      = displayed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const clearFilters = () => {
-    setSearch(""); setFilterSt("All"); setFilterTemp("All"); setFilterSrc("All"); setPage(1);
+    setSearch(""); setFilterSt("All"); setFilterTemp("All"); setFilterSrc("All"); setFilterProject("All"); setPage(1);
   };
-  const hasFilter = search || filterSt !== "All" || filterTemp !== "All" || filterSrc !== "All";
+  const hasFilter = search || filterSt !== "All" || filterTemp !== "All" || filterSrc !== "All" || filterProject !== "All";
 
   const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition";
 
@@ -1104,6 +1117,12 @@ export default function UserLeadsPage() {
           <select value={filterSrc} onChange={e => { setFilterSrc(e.target.value); setPage(1); }} className={INP}>
             <option value="All">All sources</option>
             {sources.map(s => <option key={s}>{s}</option>)}
+          </select>
+          <select value={filterProject} onChange={e => { setFilterProject(e.target.value); setPage(1); }} className={INP}>
+            <option value="All">All Projects</option>
+            {projects.map(p => (
+              <option key={String(p._id)} value={String(p._id)}>{p.name}</option>
+            ))}
           </select>
           <select value={filterTemp} onChange={e => { setFilterTemp(e.target.value); setPage(1); }} className={INP}>
             <option value="All">All quality</option>
@@ -1165,7 +1184,7 @@ export default function UserLeadsPage() {
               <table className="w-full text-[14px]">
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Lead", "Phone", "Source / Campaign", "Date", "Status", "Quality", "Calls", ""].map((h, i) => (
+                    {["Lead", "Phone", "Source / Campaign", "Project", "Date", "Status", "Quality", "Calls", ""].map((h, i) => (
                       <th key={i} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -1210,8 +1229,12 @@ export default function UserLeadsPage() {
                           {l.adSetName && (
                             <p className="text-[11px] text-[#E1306C] truncate max-w-[130px]"> {l.adSetName}</p>
                           )}
-                          {l.projects && l.projects.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
+                        </td>
+
+                        {/* Project */}
+                        <td className="px-4 py-3">
+                          {l.projects && l.projects.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
                               {l.projects.slice(0, 2).map((p, pi) => {
                                 const pName  = p?.name  || "Project";
                                 const pColor = p?.color || "#2563EB";
@@ -1233,6 +1256,8 @@ export default function UserLeadsPage() {
                                 </span>
                               )}
                             </div>
+                          ) : (
+                            <span className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257]">—</span>
                           )}
                         </td>
 
