@@ -1355,15 +1355,19 @@ export default function AdminLeadsPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get("/lead/admin/all?page=1&limit=500");
-      const raw = res.data?.leads || (Array.isArray(res.data) ? res.data : []);
+      const [leadsRes, usersRes] = await Promise.all([
+        api.get("/lead/admin/all?page=1&limit=500"),
+        api.get("/admin/company/users"),
+      ]);
+      const raw = leadsRes.data?.leads || (Array.isArray(leadsRes.data) ? leadsRes.data : []);
       setAllLeads(raw.map(mapLead));
-      const agentSet = new Set();
-      raw.forEach(l => {
-        const n = l.user?.name || l.assignedTo?.name || l.agent;
-        if (n) agentSet.add(n);
-      });
-      setAgents([...agentSet]);
+
+      // Populate agents from the admin's own employees (respects createdBy scoping),
+      // not from lead data which may contain employees of other admins.
+      const userList = Array.isArray(usersRes.data)
+        ? usersRes.data
+        : (usersRes.data?.users || []);
+      setAgents(userList.map(u => u.name).filter(Boolean));
     } catch {
       setError("Failed to load leads. Please refresh.");
     }
