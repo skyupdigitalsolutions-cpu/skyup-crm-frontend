@@ -208,6 +208,7 @@ function SyncMetaModal({ onClose, onSynced, prefillPageId, parentName = "" }) {
 function LeadDrawer({ campaign, onClose }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tempFilter, setTempFilter] = useState("All");
 
   const fetchLeads = () => {
     if (!campaign) return;
@@ -227,10 +228,22 @@ function LeadDrawer({ campaign, onClose }) {
 
   if (!campaign) return null;
 
-  const normalizedLeads = leads.map((l) => ({ ...l, id: l._id || l.id, phone: l.mobile || l.phone }));
+  const isMetaAdSet = campaign._isMeta && !!campaign.adSetName;
+
+  // Filter leads by temperature when this is a Meta ad set
+  const filteredLeads = isMetaAdSet && tempFilter !== "All"
+    ? leads.filter((l) => l.temperature === tempFilter || l.leadCategory === tempFilter)
+    : leads;
+
+  const normalizedLeads = filteredLeads.map((l) => ({ ...l, id: l._id || l.id, phone: l.mobile || l.phone }));
   const channel = campaign.channel || "Meta";
   const ch = CHANNEL_STYLE[channel] || CHANNEL_STYLE.Meta;
   const st = STATUS_STYLE[campaign.status] || STATUS_STYLE.Active;
+
+  // Counts for filter pills
+  const hotCount  = leads.filter((l) => l.temperature === "Hot"  || l.leadCategory === "Hot").length;
+  const warmCount = leads.filter((l) => l.temperature === "Warm" || l.leadCategory === "Warm").length;
+  const coldCount = leads.filter((l) => l.temperature === "Cold" || l.leadCategory === "Cold").length;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -272,11 +285,37 @@ function LeadDrawer({ campaign, onClose }) {
           ))}
         </div>
 
+        {/* Temperature filter pills — only for Meta ad sets */}
+        {isMetaAdSet && (
+          <div className="px-6 pt-4 pb-0">
+            <div className="flex gap-1.5 flex-wrap">
+              {[
+                { key: "All",  label: `All (${leads.length})`,  color: "text-[#4B5168] dark:text-[#9DA3BB]", activeBg: "bg-[#EEF3FF] dark:bg-[#1A2540]", activeText: "text-[#2563EB]" },
+                { key: "Hot",  label: `🔥 Hot (${hotCount})`,   color: "text-[#DC2626]", activeBg: "bg-[#FEF2F2]", activeText: "text-[#DC2626]" },
+                { key: "Warm", label: `🌡 Warm (${warmCount})`, color: "text-[#D97706]", activeBg: "bg-[#FFFBEB]", activeText: "text-[#D97706]" },
+                { key: "Cold", label: `❄️ Cold (${coldCount})`, color: "text-[#2563EB]", activeBg: "bg-[#EEF3FF]", activeText: "text-[#2563EB]" },
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setTempFilter(f.key)}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition ${
+                    tempFilter === f.key
+                      ? `${f.activeBg} ${f.activeText} border-current`
+                      : "bg-white dark:bg-[#1A1D27] border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-[#CBD5E1]"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Leads list */}
         <div className="px-6 py-4">
           <h3 className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-3">
             Leads from this campaign
-            <span className="ml-2 text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75]">{leads.length} shown</span>
+            <span className="ml-2 text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75]">{filteredLeads.length} shown</span>
           </h3>
 
           {loading ? (
@@ -284,19 +323,21 @@ function LeadDrawer({ campaign, onClose }) {
               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
               Loading leads…
             </div>
-          ) : leads.length === 0 ? (
-            <div className="text-center py-10 text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads yet.</div>
+          ) : filteredLeads.length === 0 ? (
+            <div className="text-center py-10 text-[13px] text-[#8B92A9] dark:text-[#565C75]">
+              {tempFilter !== "All" ? `No ${tempFilter} leads yet.` : "No leads yet."}
+            </div>
           ) : (
             <div className="space-y-2">
-              {leads.map((l, i) => {
-                const name = l.name || "Unknown";
-                const phone = l.phone || l.mobile || "—";
-                const agent = l.agent || (l.user && (l.user.name || "Assigned")) || "Unassigned";
+              {filteredLeads.map((l, i) => {
+                const name   = l.name || "Unknown";
+                const phone  = l.phone || l.mobile || "—";
+                const agent  = l.agent || (l.user && (l.user.name || "Assigned")) || "Unassigned";
                 const status = l.status || "New";
                 const remark = l.remark || "—";
-                const temp = l.temperature || null;
-                const ls = LEAD_STATUS_STYLE[status] || LEAD_STATUS_STYLE["New"];
-                const lt = temp ? LEAD_TEMP_STYLE[temp] || null : null;
+                const temp   = l.temperature || l.leadCategory || null;
+                const ls     = LEAD_STATUS_STYLE[status] || LEAD_STATUS_STYLE["New"];
+                const lt     = temp ? LEAD_TEMP_STYLE[temp] || null : null;
                 return (
                   <div key={i} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3 border border-[#E4E7EF] dark:border-[#262A38]">
                     <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -314,6 +355,15 @@ function LeadDrawer({ campaign, onClose }) {
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${ls.bg} ${ls.text}`}>{status}</span>
                       </div>
                     </div>
+                    {/* Lead score badge — shown for Meta ad-set leads that have been scored */}
+                    {l.leadScore != null && (
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="text-[10px] text-[#8B92A9]">Score:</span>
+                        <span className="text-[11px] font-bold" style={{ color: temp === "Hot" ? "#DC2626" : temp === "Warm" ? "#D97706" : "#2563EB" }}>
+                          {l.leadScore} pts
+                        </span>
+                      </div>
+                    )}
                     {l.email && l.email.trim() && (
                       <div className="flex items-center gap-1 mt-1 mb-1">
                         <svg className="w-3 h-3 text-[#059669] dark:text-[#34D399] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
