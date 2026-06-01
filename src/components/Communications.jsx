@@ -3277,7 +3277,7 @@ export default function Communications({ currentUser }) {
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
 
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-3 sm:px-6 py-3 sm:py-6 flex flex-col">
+    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] h-full font-poppins px-3 sm:px-6 py-3 sm:py-6 flex flex-col">
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2 sm:gap-4 mb-3 sm:mb-5 shrink-0">
         <div>
