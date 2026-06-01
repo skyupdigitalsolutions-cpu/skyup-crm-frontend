@@ -1298,6 +1298,403 @@ function EmailCampaignModal({ campaigns, onClose }) {
   );
 }
 
+// ── Qualification Modal (Meta Ad Set only) ────────────────────────────────────
+function QualificationModal({ adSet, onClose, onSaved }) {
+  const [questions, setQuestions] = useState([]);
+  const [rules, setRules] = useState([]);
+  const [thresholds, setThresholds] = useState({ hot: 70, warm: 40 });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [existingRules, setExistingRules] = useState(null);
+
+  // Fetch form questions + existing rules on open
+  useEffect(() => {
+    if (!adSet) return;
+    setLoading(true);
+    setError("");
+
+    const fetchData = async () => {
+      try {
+        // Try to fetch existing qualification rules for this ad set
+        let existing = null;
+        try {
+          const rulesRes = await api.get(`/meta-qualification/${adSet._id}`);
+          existing = rulesRes.data?.data || rulesRes.data || null;
+        } catch (_) {
+          // No rules yet — that's fine
+        }
+
+        // Fetch lead form questions via the formId saved on the ad set
+        let formQuestions = [];
+        if (adSet.formId) {
+          try {
+            const formRes = await api.get(`/meta-config/${adSet._id}/form-questions`);
+            formQuestions = formRes.data?.questions || formRes.data || [];
+          } catch (_) {
+            // formId present but questions not fetchable (token issues etc.)
+            formQuestions = [];
+          }
+        }
+
+        setQuestions(formQuestions);
+        setExistingRules(existing);
+
+        if (existing) {
+          // Restore saved state
+          setRules(existing.rules || []);
+          setThresholds(existing.thresholds || { hot: 70, warm: 40 });
+        } else if (formQuestions.length > 0) {
+          // Build a blank rule entry per question
+          setRules(
+            formQuestions.map((q) => ({
+              questionKey: q.key || q.label,
+              questionLabel: q.label,
+              answers: (q.options || []).map((opt) => ({ value: opt, score: 0 })),
+            }))
+          );
+        }
+      } catch (err) {
+        setError("Failed to load qualification data. You can still configure rules manually.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [adSet]);
+
+  const handleScoreChange = (rIdx, aIdx, val) => {
+    setRules((prev) => {
+      const next = prev.map((r, ri) => {
+        if (ri !== rIdx) return r;
+        return {
+          ...r,
+          answers: r.answers.map((a, ai) =>
+            ai === aIdx ? { ...a, score: Number(val) || 0 } : a
+          ),
+        };
+      });
+      return next;
+    });
+  };
+
+  const handleAddQuestion = () => {
+    setRules((prev) => [
+      ...prev,
+      { questionKey: "", questionLabel: "", answers: [{ value: "", score: 0 }] },
+    ]);
+  };
+
+  const handleAddAnswer = (rIdx) => {
+    setRules((prev) =>
+      prev.map((r, ri) =>
+        ri === rIdx ? { ...r, answers: [...r.answers, { value: "", score: 0 }] } : r
+      )
+    );
+  };
+
+  const handleRemoveAnswer = (rIdx, aIdx) => {
+    setRules((prev) =>
+      prev.map((r, ri) =>
+        ri === rIdx
+          ? { ...r, answers: r.answers.filter((_, ai) => ai !== aIdx) }
+          : r
+      )
+    );
+  };
+
+  const handleRemoveQuestion = (rIdx) => {
+    setRules((prev) => prev.filter((_, ri) => ri !== rIdx));
+  };
+
+  const handleLabelChange = (rIdx, val) => {
+    setRules((prev) =>
+      prev.map((r, ri) =>
+        ri === rIdx ? { ...r, questionLabel: val, questionKey: val } : r
+      )
+    );
+  };
+
+  const handleAnswerValueChange = (rIdx, aIdx, val) => {
+    setRules((prev) =>
+      prev.map((r, ri) =>
+        ri === rIdx
+          ? { ...r, answers: r.answers.map((a, ai) => (ai === aIdx ? { ...a, value: val } : a)) }
+          : r
+      )
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      await api.post(`/meta-qualification/${adSet._id}`, {
+        rules,
+        thresholds,
+        adSetId: adSet._id,
+        adSetName: adSet.adSetName || adSet.name,
+        formId: adSet.formId || "",
+      });
+      setSuccess(true);
+      onSaved && onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Failed to save qualification rules");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const maxPossibleScore = rules.reduce((sum, r) => {
+    const best = Math.max(...r.answers.map((a) => a.score || 0), 0);
+    return sum + best;
+  }, 0);
+
+  const hotMin = Math.round((thresholds.hot / 100) * maxPossibleScore);
+  const warmMin = Math.round((thresholds.warm / 100) * maxPossibleScore);
+
+  if (success) return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4">
+          <svg className="w-7 h-7 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+        </div>
+        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Qualification rules saved!</h2>
+        <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mb-6">
+          New leads from <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{adSet.adSetName || adSet.name}</span> will be automatically scored and categorised as Hot, Warm, or Cold.
+        </p>
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {[
+            { label: "Hot", color: "#DC2626", bg: "bg-[#FEF2F2]", score: `≥ ${hotMin} pts` },
+            { label: "Warm", color: "#D97706", bg: "bg-[#FFFBEB]", score: `≥ ${warmMin} pts` },
+            { label: "Cold", color: "#2563EB", bg: "bg-[#EEF3FF]", score: `< ${warmMin} pts` },
+          ].map((t) => (
+            <div key={t.label} className={`${t.bg} rounded-xl px-3 py-3 text-center`}>
+              <div className="text-[15px] font-bold" style={{ color: t.color }}>{t.label}</div>
+              <div className="text-[10px] text-[#8B92A9] mt-0.5">{t.score}</div>
+            </div>
+          ))}
+        </div>
+        <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition">Done</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[94vh]" onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#FFF0F3] dark:bg-[#2D0A14] flex items-center justify-center">
+              <svg className="w-5 h-5 text-[#E1306C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Qualification Rules</h2>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{adSet.adSetName || adSet.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-6 py-5 space-y-6 flex-1">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-[#8B92A9] gap-2">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
+              Loading form questions…
+            </div>
+          ) : (
+            <>
+              {/* Explainer */}
+              <div className="bg-[#EEF3FF] dark:bg-[#1A2540] rounded-xl px-4 py-3 flex gap-3">
+                <svg className="w-4 h-4 text-[#2563EB] dark:text-[#4F8EF7] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div>
+                  <p className="text-[12px] font-semibold text-[#2563EB] dark:text-[#4F8EF7]">How qualification works</p>
+                  <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-0.5">
+                    Assign scores to each answer option. When a lead arrives, their answers are matched and scores summed.
+                    Set Hot/Warm thresholds below to auto-categorise each lead.
+                  </p>
+                </div>
+              </div>
+
+              {/* Thresholds */}
+              <div>
+                <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Score Thresholds (%)</p>
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { key: "hot", label: "Hot threshold", color: "#DC2626", bg: "bg-[#FEF2F2]", desc: "Min % score to be Hot" },
+                    { key: "warm", label: "Warm threshold", color: "#D97706", bg: "bg-[#FFFBEB]", desc: "Min % score to be Warm" },
+                  ].map((t) => (
+                    <div key={t.key} className={`${t.bg} rounded-xl px-4 py-3`}>
+                      <label className="block text-[12px] font-semibold mb-1" style={{ color: t.color }}>{t.label}</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={thresholds[t.key]}
+                          onChange={(e) => setThresholds((p) => ({ ...p, [t.key]: Math.min(100, Math.max(0, Number(e.target.value) || 0)) }))}
+                          className="w-20 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none"
+                          style={{ borderColor: t.color + "60" }}
+                        />
+                        <span className="text-[13px] font-bold" style={{ color: t.color }}>%</span>
+                      </div>
+                      <p className="text-[10px] text-[#8B92A9] mt-1">{t.desc}</p>
+                      {maxPossibleScore > 0 && (
+                        <p className="text-[10px] font-semibold mt-0.5" style={{ color: t.color }}>
+                          = {Math.round((thresholds[t.key] / 100) * maxPossibleScore)} pts of {maxPossibleScore} max
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {[
+                    { label: "🔥 Hot", color: "#DC2626", bg: "bg-[#FEF2F2]", desc: `Score ≥ ${thresholds.hot}%` },
+                    { label: "🌡 Warm", color: "#D97706", bg: "bg-[#FFFBEB]", desc: `Score ≥ ${thresholds.warm}% and < ${thresholds.hot}%` },
+                    { label: "❄️ Cold", color: "#2563EB", bg: "bg-[#EEF3FF]", desc: `Score < ${thresholds.warm}%` },
+                  ].map((t) => (
+                    <div key={t.label} className={`${t.bg} rounded-xl px-3 py-2 text-center`}>
+                      <div className="text-[12px] font-bold" style={{ color: t.color }}>{t.label}</div>
+                      <div className="text-[10px] text-[#8B92A9] mt-0.5">{t.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Questions & Scores */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">
+                    Questions & Answer Scores
+                    {questions.length > 0 && (
+                      <span className="ml-2 normal-case font-normal text-[#059669]">— loaded from lead form</span>
+                    )}
+                  </p>
+                  <button
+                    onClick={handleAddQuestion}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] text-[11px] font-semibold hover:bg-[#dce7ff] transition"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                    Add question
+                  </button>
+                </div>
+
+                {rules.length === 0 && (
+                  <div className="text-center py-10 rounded-2xl border-2 border-dashed border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] dark:text-[#565C75]">
+                    <div className="text-[32px] mb-2">📋</div>
+                    <p className="text-[13px] font-medium">No questions yet</p>
+                    <p className="text-[11px] mt-1">
+                      {adSet.formId
+                        ? "Questions will auto-load if the form has options. You can also add manually."
+                        : "Add a Form ID to the ad set to auto-load questions, or add manually."}
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {rules.map((rule, rIdx) => (
+                    <div key={rIdx} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+                      {/* Question header */}
+                      <div className="flex items-center gap-2 px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
+                        <span className="w-5 h-5 rounded-full bg-[#E1306C]/10 text-[#E1306C] text-[10px] font-bold flex items-center justify-center shrink-0">
+                          {rIdx + 1}
+                        </span>
+                        <input
+                          value={rule.questionLabel}
+                          onChange={(e) => handleLabelChange(rIdx, e.target.value)}
+                          placeholder="Question label (e.g. What is your budget?)"
+                          className="flex-1 bg-transparent text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none"
+                        />
+                        <button
+                          onClick={() => handleRemoveQuestion(rIdx)}
+                          className="p-1 rounded-lg text-[#8B92A9] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+
+                      {/* Answer options */}
+                      <div className="px-4 py-3 space-y-2">
+                        {rule.answers.map((ans, aIdx) => (
+                          <div key={aIdx} className="flex items-center gap-2">
+                            <div className="flex-1 flex items-center gap-2 bg-white dark:bg-[#1A1D27] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-3 py-2">
+                              <input
+                                value={ans.value}
+                                onChange={(e) => handleAnswerValueChange(rIdx, aIdx, e.target.value)}
+                                placeholder={`Answer option ${aIdx + 1}`}
+                                className="flex-1 bg-transparent text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1 bg-white dark:bg-[#1A1D27] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-3 py-2 w-24 shrink-0">
+                              <input
+                                type="number"
+                                min="0"
+                                value={ans.score}
+                                onChange={(e) => handleScoreChange(rIdx, aIdx, e.target.value)}
+                                className="w-12 bg-transparent text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none text-right"
+                              />
+                              <span className="text-[10px] text-[#8B92A9]">pts</span>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveAnswer(rIdx, aIdx)}
+                              className="p-1.5 rounded-lg text-[#8B92A9] hover:text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#2D0A0A] transition shrink-0"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => handleAddAnswer(rIdx)}
+                          className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-[#8B92A9] hover:text-[#2563EB] transition"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                          Add answer
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">
+                  {error}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || loading || rules.length === 0}
+            className="flex-1 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+          >
+            {saving ? (
+              <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Saving…</>
+            ) : (
+              <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Save Qualification Rules</>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Ad Set Leads Panel (Level 2 inline leads view) ────────────────────────────
 function AdSetLeadsPanel({ adSet }) {
   const [leads, setLeads] = useState([]);
@@ -1457,6 +1854,7 @@ export default function Campaigns() {
   // selectedAdSet:  null = no ad set selected, object = Ads page (Level 2)
   const [selectedParent, setSelectedParent] = useState(null);
   const [selectedAdSet, setSelectedAdSet] = useState(null);
+  const [qualificationAdSet, setQualificationAdSet] = useState(null); // Meta Ad Set qualification modal
 
   // ── Derived: is Meta connected? (at least one Meta config exists) ──────────
   // This is the ONLY variable that controls the Sync Meta button visibility.
@@ -1851,6 +2249,15 @@ export default function Campaigns() {
               >
                 View All Leads
               </button>
+              <button
+                onClick={() => setQualificationAdSet(selectedAdSet)}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] hover:border-[#E1306C] hover:text-[#E1306C] transition"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Qualification
+              </button>
             </div>
           </div>
 
@@ -1885,52 +2292,76 @@ export default function Campaigns() {
             </div>
           </div>
 
-          {/* Ad Set rows — clickable, navigate to Level 2 */}
+          {/* Ad Set rows — [ View Leads ] [ Edit ] [ Qualification ] */}
           <div className="space-y-3">
             {(groupedMeta[selectedParent] || []).map((adSet) => {
               const st = STATUS_STYLE[adSet.status] || STATUS_STYLE.Active;
               return (
-                <button
+                <div
                   key={adSet._id}
-                  onClick={() => setSelectedAdSet(adSet)}
-                  className="w-full text-left bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden hover:shadow-[0_4px_20px_rgba(0,0,0,0.07)] dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.25)] hover:border-[#E1306C]/40 transition-all group"
+                  className="w-full bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden hover:shadow-[0_4px_20px_rgba(0,0,0,0.07)] dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.25)] transition-all"
                 >
                   <div className="h-0.5 w-full" style={{ background: adSet.color }} />
-                  <div className="px-5 py-4 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-[#FFF0F3] dark:bg-[#2D0A14] flex items-center justify-center shrink-0">
-                        <svg className="w-4 h-4 text-[#E1306C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                        </svg>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${st.bg} ${st.text}`}>
-                            {adSet.status}
-                          </span>
+                  <div className="px-5 py-4">
+                    {/* Top row: icon + info + lead count */}
+                    <div className="flex items-center justify-between gap-4 mb-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-[#FFF0F3] dark:bg-[#2D0A14] flex items-center justify-center shrink-0">
+                          <svg className="w-4 h-4 text-[#E1306C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
                         </div>
-                        <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">
-                          {adSet.adSetName || adSet.name}
-                        </h3>
-                        <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{adSet.date}</p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${st.bg} ${st.text}`}>
+                              {adSet.status}
+                            </span>
+                          </div>
+                          <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">
+                            {adSet.adSetName || adSet.name}
+                          </h3>
+                          <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{adSet.date}</p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-6 shrink-0">
-                      <div className="text-center">
+                      <div className="text-center shrink-0">
                         <div className="text-[20px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{fmt(adSet.leads)}</div>
                         <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-0.5 uppercase tracking-wide">Leads</div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[12px] font-semibold text-[#8B92A9] dark:text-[#565C75] group-hover:text-[#E1306C] transition">
-                          View ads
-                        </span>
-                        <svg className="w-4 h-4 text-[#8B92A9] group-hover:text-[#E1306C] group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </div>
+
+                    {/* Action buttons: [ View Leads ] [ Edit ] [ Qualification ] */}
+                    <div className="flex items-center gap-2 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
+                      {/* View Leads */}
+                      <button
+                        onClick={() => setSelectedAdSet(adSet)}
+                        className="flex-1 py-2 rounded-xl bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] text-[12px] font-semibold hover:bg-[#dce7ff] dark:hover:bg-[#1e2d52] transition"
+                      >
+                        View Leads ({adSet.leads || 0})
+                      </button>
+
+                      {/* Edit */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditCampaign(adSet); }}
+                        className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] hover:border-[#E1306C] hover:text-[#E1306C] transition"
+                        title="Edit ad set"
+                      >
+                        <EditIcon />
+                      </button>
+
+                      {/* Qualification */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setQualificationAdSet(adSet); }}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] hover:border-[#E1306C] hover:text-[#E1306C] transition"
+                        title="Qualification rules"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
-                      </div>
+                        Qualification
+                      </button>
                     </div>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -2032,6 +2463,15 @@ export default function Campaigns() {
       {editCampaign && editCampaign._isMeta && <EditMetaModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
       {editCampaign && editCampaign._isGoogle && <EditGoogleModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
       {editCampaign && editCampaign._isWebsite && <EditWebsiteModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
+
+      {/* ── Qualification Modal — Meta Ad Sets only ───────────────────────── */}
+      {qualificationAdSet && (
+        <QualificationModal
+          adSet={qualificationAdSet}
+          onClose={() => setQualificationAdSet(null)}
+          onSaved={() => setQualificationAdSet(null)}
+        />
+      )}
 
       {/* ── Sync Meta modal ───────────────────────────────────────────────────
           BUG FIX: This modal is now triggered ONLY from the top-level Campaigns
