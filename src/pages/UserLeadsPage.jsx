@@ -1008,7 +1008,7 @@ export default function UserLeadsPage() {
 
   // ── Fetch project list for the project filter dropdown ──────────────────────
   useEffect(() => {
-    api.get("/project/admin")
+    api.get("/project")
       .then(res => setProjects(Array.isArray(res.data) ? res.data : []))
       .catch(() => setProjects([]));
   }, []);
