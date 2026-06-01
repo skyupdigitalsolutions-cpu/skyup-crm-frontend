@@ -132,8 +132,16 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
         </div>
 
         {plan.current ? (
-          <button disabled className="w-full py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] text-[13px] font-semibold text-[#8B92A9] cursor-not-allowed">
-            Current plan
+          // Current plan — show Renew button so admin can extend before expiry
+          <button
+            onClick={() => onUpgrade(plan)}
+            className="w-full py-2.5 rounded-xl text-[13px] font-semibold transition-all"
+            style={{
+              background: isSel ? plan.color : hovered ? plan.color + "25" : plan.color + "15",
+              color: isSel ? "#fff" : plan.color,
+            }}
+          >
+            {isSel ? `Proceed to Pay ₹${price.toLocaleString()}` : `Renew ${plan.name}`}
           </button>
         ) : (
           <button
@@ -339,7 +347,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
   })();
 
   function handleUpgrade(plan) {
-    if (plan.current) return;
+    // Allow renewing the current plan (plan.current) — same flow as upgrade
     if (plan.isDowngrade) { setDowngradePlan(plan); setShowDowngrade(true); return; }
     if (selected !== plan.id) { setSelected(plan.id); return; }
     initiatePayment(plan, false, [], []);
