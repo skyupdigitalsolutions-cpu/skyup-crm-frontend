@@ -1699,7 +1699,7 @@ export default function Campaigns() {
         {/* ── Action buttons — ONLY shown at root (Campaigns) level ──────── */}
         {!selectedParent && !selectedAdSet && (
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Sync Meta — only when Meta is connected (mutually exclusive with Connect Meta) */}
+            {/* Sync Meta — only when Meta is already connected */}
             {isMetaConnected && (
               <button
                 onClick={() => setSyncTarget({ pageId: "", parentName: "" })}
@@ -1712,18 +1712,16 @@ export default function Campaigns() {
               </button>
             )}
 
-            {/* Connect Meta — only when Meta is NOT connected (mutually exclusive with Sync Meta) */}
-            {!isMetaConnected && (
-              <button
-                onClick={() => setShowCreate(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
-                </svg>
-                Connect Meta
-              </button>
-            )}
+            {/* Connect Meta — always visible so admins can add new Meta campaigns */}
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] transition"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
+              </svg>
+              Connect Meta
+            </button>
 
             <button
               onClick={() => setShowCreateGoogle(true)}
