@@ -134,6 +134,20 @@ function CallCard({ call, displayIndex }) {
           </div>
         </div>
       )}
+      {call.numberType && (
+        <div className="ml-8 mt-1 flex items-center gap-1.5">
+          <span
+            className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+              call.numberType === "Primary"
+                ? "bg-emerald-500/15 text-emerald-500"
+                : "bg-blue-500/15 text-blue-500"
+            }`}
+          >
+            {call.numberType}
+            {call.calledNumber ? ` · ${call.calledNumber.slice(-4).padStart(call.calledNumber.length, "•")}` : ""}
+          </span>
+        </div>
+      )}
       {call.duration && (
         <div className="ml-8 mt-1">
           <span className="text-[9px] text-[#8B92A9]">Duration: {call.duration}</span>
@@ -254,8 +268,11 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
   const masker      = maskPhone  || defaultMaskPhone;
   const emailMasker  = maskEmail || defaultMaskEmail;
 
-  // ── MASKED phone — used everywhere in this drawer instead of lead.phone ──
-  const displayPhone = masker(lead.phone || lead.mobile, isSuperAdmin);
+  // ── MASKED phones — used everywhere in this drawer ────────────────────────
+  const displayPhone          = masker(lead.primaryPhone || lead.phone || lead.mobile, isSuperAdmin);
+  const displaySecondaryPhone = lead.secondaryPhone
+    ? masker(lead.secondaryPhone, isSuperAdmin)
+    : null;
   const displayEmail = emailMasker(lead.email, isSuperAdmin);
 
   const sc = STATUS_COLOR[lead.status] || STATUS_COLOR["New"];
@@ -306,10 +323,18 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
               </div>
               <div>
                 <h2 className="text-[17px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{name}</h2>
-                <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                  {/* FIX: use displayPhone instead of lead.phone */}
-                  {(lead.phone || lead.mobile) && (
-                    <span className="text-[11px] font-mono text-[#8B92A9]">{displayPhone}</span>
+                <div className="flex flex-col gap-0.5 mt-0.5">
+                  {(lead.primaryPhone || lead.phone || lead.mobile) && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500">PRIMARY</span>
+                      <span className="text-[11px] font-mono text-[#8B92A9]">{displayPhone}</span>
+                    </span>
+                  )}
+                  {displaySecondaryPhone && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500">SECONDARY</span>
+                      <span className="text-[11px] font-mono text-[#8B92A9]">{displaySecondaryPhone}</span>
+                    </span>
                   )}
                   {displayEmail && <span className="text-[11px] text-[#8B92A9] font-mono">{displayEmail}</span>}
                 </div>
@@ -375,6 +400,8 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                 { label: "Source",    value: lead.source || "—" },
                 { label: "Campaign",  value: lead.campaign && lead.campaign !== "—" ? lead.campaign : "—" },
                 { label: "Ad Set",    value: lead.adSetName || "—" },
+                { label: "Primary Phone",   value: displayPhone },
+                ...(displaySecondaryPhone ? [{ label: "Secondary Phone", value: displaySecondaryPhone }] : []),
                 { label: "Created",   value: fmtDateTime(lead._raw_date || lead.createdAt) },
                 { label: "Lead Date", value: lead.date || "—" },
               ].map((row, i) => (
