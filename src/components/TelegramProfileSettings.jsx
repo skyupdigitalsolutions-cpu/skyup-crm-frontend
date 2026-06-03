@@ -1,21 +1,6 @@
 // src/components/TelegramProfileSettings.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// A Telegram icon button that opens a compact popover for the employee to
-// enter their personal Telegram Chat ID.
-//
-// Usage (e.g. next to the user avatar in Sidebar or UserDashboard header):
-//   <TelegramProfileSettings />
-//
-// The popover closes on outside click or Escape.
-// A green dot on the icon indicates the Chat ID is already saved.
-//
-// Backend expected:
-//   GET  /user/profile   (or /admin/profile)  → { telegramChatId }
-//   PUT  /user/profile   (or /admin/profile)  → { telegramChatId }
-//   POST /user/telegram/test                  → sends a test message
-// ─────────────────────────────────────────────────────────────────────────────
-
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
 import { getRole } from "../data/dataService";
 
@@ -37,8 +22,13 @@ export default function TelegramProfileSettings() {
   const [testing, setTesting] = useState(false);
   const [msg,     setMsg]     = useState({ type: "", text: "" });
 
+  // Refs for the trigger button and the popover panel
+  const btnRef     = useRef(null);
   const popoverRef = useRef(null);
   const inputRef   = useRef(null);
+
+  // Position state for the portal-rendered popover
+  const [popoverStyle, setPopoverStyle] = useState({});
 
   // Load saved Chat ID once
   useEffect(() => {
@@ -51,11 +41,40 @@ export default function TelegramProfileSettings() {
       .catch(() => {});
   }, [baseRoute]);
 
+  // Compute popover position relative to viewport each time it opens
+  const updatePosition = useCallback(() => {
+    if (!btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    setPopoverStyle({
+      position: "fixed",
+      // Anchor bottom of popover just above the button
+      bottom: window.innerHeight - rect.top + 8,
+      right: window.innerWidth - rect.right,
+      zIndex: 9999,
+      width: 288,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    // Reposition on scroll / resize
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [open, updatePosition]);
+
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target) &&
+        btnRef.current    && !btnRef.current.contains(e.target)
+      ) {
         setOpen(false);
       }
     };
@@ -106,10 +125,126 @@ export default function TelegramProfileSettings() {
   const isConfigured = !!chatId;
   const isDirty      = draft.trim() !== chatId;
 
+  const popoverContent = (
+    <div
+      ref={popoverRef}
+      style={{ ...popoverStyle, animation: "tgSlideUp 0.15s ease both" }}
+      className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-xl overflow-hidden"
+    >
+      <style>{`
+        @keyframes tgSlideUp {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* Header */}
+      <div className="flex items-center gap-2.5 px-4 pt-4 pb-3 border-b border-[#F3F4F6] dark:border-[#262A38]">
+        <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-500/10 flex items-center justify-center shrink-0">
+          <TelegramIcon className="w-3.5 h-3.5 text-sky-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Telegram Alerts</p>
+          <p className="text-[10px] text-[#8B92A9]">Get notified when a lead is assigned to you</p>
+        </div>
+        <button
+          onClick={() => setOpen(false)}
+          className="w-5 h-5 flex items-center justify-center rounded-lg text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] hover:bg-gray-100 dark:hover:bg-[#262A38] transition"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div className="px-4 py-3 space-y-3">
+        {/* Hint */}
+        <div className="px-2.5 py-2 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-800/30">
+          <p className="text-[10px] text-sky-700 dark:text-sky-300 leading-relaxed">
+            Message <span className="font-mono font-bold">@userinfobot</span> on Telegram to get your personal Chat ID, then paste it below.
+          </p>
+        </div>
+
+        {/* Input */}
+        <div>
+          <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
+            Your Chat ID
+            {isConfigured && !isDirty && (
+              <span className="ml-1.5 text-[10px] font-normal text-emerald-500">● connected</span>
+            )}
+          </label>
+          <input
+            ref={inputRef}
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
+            placeholder="e.g. 987654321"
+            className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
+              bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA]
+              placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] font-mono transition"
+          />
+        </div>
+
+        {/* Feedback */}
+        {msg.text && (
+          <p className={`text-[11px] font-medium ${msg.type === "ok" ? "text-emerald-500" : "text-red-500"}`}>
+            {msg.text}
+          </p>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2 pt-0.5">
+          <button
+            onClick={handleSave}
+            disabled={saving || !draft.trim()}
+            className="flex-1 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50
+              text-white text-[12px] font-semibold transition flex items-center justify-center gap-1.5"
+          >
+            {saving ? (
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+            ) : (
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+            )}
+            {saving ? "Saving…" : "Save"}
+          </button>
+
+          <button
+            onClick={handleTest}
+            disabled={testing || !chatId}
+            title={!chatId ? "Save your Chat ID first" : "Send a test message"}
+            className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
+              text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]
+              hover:border-sky-400 hover:text-sky-600 dark:hover:text-sky-400
+              disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+          >
+            {testing ? (
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+            ) : (
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+              </svg>
+            )}
+            Test
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="relative" ref={popoverRef}>
+    <div className="relative">
       {/* ── Trigger icon button ── */}
       <button
+        ref={btnRef}
         onClick={() => setOpen((v) => !v)}
         title="Telegram Notifications"
         className={`relative w-8 h-8 rounded-xl flex items-center justify-center transition-all
@@ -125,122 +260,8 @@ export default function TelegramProfileSettings() {
         )}
       </button>
 
-      {/* ── Popover ── */}
-      {open && (
-        <div
-          className="absolute bottom-full right-0 mb-2 w-72 bg-white dark:bg-[#1A1D27]
-            border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-xl z-50
-            overflow-hidden"
-          style={{ animation: "slideUpFade 0.15s ease both" }}
-        >
-          <style>{`
-            @keyframes slideUpFade {
-              from { opacity: 0; transform: translateY(6px); }
-              to   { opacity: 1; transform: translateY(0); }
-            }
-          `}</style>
-
-          {/* Header */}
-          <div className="flex items-center gap-2.5 px-4 pt-4 pb-3 border-b border-[#F3F4F6] dark:border-[#262A38]">
-            <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-500/10 flex items-center justify-center shrink-0">
-              <TelegramIcon className="w-3.5 h-3.5 text-sky-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Telegram Alerts</p>
-              <p className="text-[10px] text-[#8B92A9]">Get notified when a lead is assigned to you</p>
-            </div>
-            <button
-              onClick={() => setOpen(false)}
-              className="w-5 h-5 flex items-center justify-center rounded-lg text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] hover:bg-gray-100 dark:hover:bg-[#262A38] transition"
-            >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
-
-          <div className="px-4 py-3 space-y-3">
-            {/* Hint */}
-            <div className="px-2.5 py-2 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-800/30">
-              <p className="text-[10px] text-sky-700 dark:text-sky-300 leading-relaxed">
-                Message <span className="font-mono font-bold">@userinfobot</span> on Telegram to get your personal Chat ID, then paste it below.
-              </p>
-            </div>
-
-            {/* Input */}
-            <div>
-              <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
-                Your Chat ID
-                {isConfigured && !isDirty && (
-                  <span className="ml-1.5 text-[10px] font-normal text-emerald-500">● connected</span>
-                )}
-              </label>
-              <input
-                ref={inputRef}
-                type="text"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-                placeholder="e.g. 987654321"
-                className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
-                  bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA]
-                  placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] font-mono transition"
-              />
-            </div>
-
-            {/* Feedback */}
-            {msg.text && (
-              <p className={`text-[11px] font-medium ${msg.type === "ok" ? "text-emerald-500" : "text-red-500"}`}>
-                {msg.text}
-              </p>
-            )}
-
-            {/* Actions */}
-            <div className="flex gap-2 pt-0.5">
-              <button
-                onClick={handleSave}
-                disabled={saving || !draft.trim()}
-                className="flex-1 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50
-                  text-white text-[12px] font-semibold transition flex items-center justify-center gap-1.5"
-              >
-                {saving ? (
-                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
-                ) : (
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
-                  </svg>
-                )}
-                {saving ? "Saving…" : "Save"}
-              </button>
-
-              <button
-                onClick={handleTest}
-                disabled={testing || !chatId}
-                title={!chatId ? "Save your Chat ID first" : "Send a test message"}
-                className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
-                  text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]
-                  hover:border-sky-400 hover:text-sky-600 dark:hover:text-sky-400
-                  disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
-              >
-                {testing ? (
-                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
-                ) : (
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                  </svg>
-                )}
-                Test
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Popover rendered into document.body via portal ── */}
+      {open && createPortal(popoverContent, document.body)}
     </div>
   );
 }
