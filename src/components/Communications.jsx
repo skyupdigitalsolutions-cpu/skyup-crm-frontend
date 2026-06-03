@@ -3,7 +3,7 @@
 // Sidebar label: "Communications"  |  Icon suggestion: ChatBubbleLeftRightIcon
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { maskPhone } from "../utils/maskPhone";
+import { maskPhone, maskEmail } from "../utils/maskPhone";
 import { io } from "socket.io-client";
 import axios from "axios";
 import api from "../data/axiosConfig";
@@ -840,7 +840,7 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
         {result.results?.filter(r => r.status === "failed").length > 0 && (
           <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] rounded-xl px-4 py-3 text-left text-[11px] text-[#DC2626] mb-4 max-h-28 overflow-y-auto">
             {result.results.filter(r => r.status === "failed").slice(0, 5).map((r, i) => (
-              <div key={i}>{r.name} ({r.phone}): {r.reason}</div>
+              <div key={i}>{r.name} ({maskPhone(r.phone)}): {r.reason}</div>
             ))}
           </div>
         )}
@@ -1667,7 +1667,7 @@ function LogDetailModal({ logId, onClose }) {
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
-                  { label: "To", value: log.to },
+                  { label: "To", value: maskEmail(log.to) },
                   { label: "Campaign", value: log.campaignId || "—" },
                   { label: "Status", value: <StatusBadge status={log.status} /> },
                   { label: "Sent At", value: fmtDate(log.sentAt) },
@@ -1800,7 +1800,7 @@ function EmailBlastModal({ onClose }) {
         </div>
         {result.errors?.length > 0 && (
           <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] rounded-xl px-4 py-3 text-left text-[11px] text-[#DC2626] mb-4 max-h-28 overflow-y-auto">
-            {result.errors.slice(0, 5).map((e, i) => <div key={i}>{e.email}: {e.error}</div>)}
+            {result.errors.slice(0, 5).map((e, i) => <div key={i}>{maskEmail(e.email)}: {e.error}</div>)}
           </div>
         )}
         <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#7C3AED] text-white text-[13px] font-semibold hover:bg-purple-700 transition">Done</button>
@@ -2107,7 +2107,7 @@ function EmailPanel() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-full bg-[#F5F3FF] dark:bg-[#1E1040] flex items-center justify-center text-[10px] font-bold text-[#7C3AED] shrink-0">{log.to?.charAt(0)?.toUpperCase() || "?"}</div>
-                    <span className="text-[12px] font-medium text-[#0F1117] dark:text-[#F0F2FA] max-w-[160px] truncate">{log.to}</span>
+                    <span className="text-[12px] font-medium text-[#0F1117] dark:text-[#F0F2FA] max-w-[160px] truncate">{maskEmail(log.to)}</span>
                   </div>
                 </td>
                 <td className="px-4 py-3"><span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] max-w-[200px] truncate block">{log.subject}</span></td>
@@ -2236,7 +2236,7 @@ function SmsLeadRow({ lead, isActive, onClick }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-1">
           <span className="text-[13px] font-semibold text-[#111B21] dark:text-[#E9EDEF] truncate">
-            {lead.recipientName || lead.to}
+            {lead.recipientName || maskPhone(lead.to)}
           </span>
           {lastTime && (
             <span className={`text-[11px] shrink-0 ${failedCount > 0 ? "text-[#DC2626]" : "text-[#8B92A9] dark:text-[#565C75]"}`}>
@@ -2247,8 +2247,8 @@ function SmsLeadRow({ lead, isActive, onClick }) {
         <div className="flex items-center justify-between gap-1 mt-0.5">
           <p className="text-[12px] text-[#667781] dark:text-[#8696A0] truncate flex-1">
             {hasSms
-              ? (lastMsg || lead.to)
-              : <span className="italic opacity-60">{lead.to}</span>
+              ? (lastMsg || maskPhone(lead.to))
+              : <span className="italic opacity-60">{maskPhone(lead.to)}</span>
             }
           </p>
           {failedCount > 0 && (
@@ -2655,7 +2655,7 @@ function SmsLeadThread({ lead, onBack, onSend }) {
     } finally { setSending(false); }
   };
 
-  const name = lead.recipientName || lead.to;
+  const name = lead.recipientName || maskPhone(lead.to);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -2667,7 +2667,7 @@ function SmsLeadThread({ lead, onBack, onSend }) {
         <SmsAvatar name={name} size="sm" />
         <div className="flex-1 min-w-0">
           <h3 className="text-[14px] font-semibold text-white leading-none truncate">{name}</h3>
-          <p className="text-[11px] text-[#8FB8A8] mt-0.5">{lead.to} {lead.campaignId ? `· ${lead.campaignId}` : ""}</p>
+          <p className="text-[11px] text-[#8FB8A8] mt-0.5">{maskPhone(lead.to)} {lead.campaignId ? `· ${lead.campaignId}` : ""}</p>
         </div>
         <button
           onClick={() => setShowConfig((s) => !s)}
