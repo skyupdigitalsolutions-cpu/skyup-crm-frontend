@@ -5,6 +5,7 @@ import { maskPhone } from "../utils/maskPhone";
 import { io } from "socket.io-client";
 import { FlameIcon, UsersIcon, LoaderIcon, CheckIcon } from "lucide-react";
 import NotInterestedModal from "../components/Notinterestedmodal";
+import TelegramProfileSettings from "../components/TelegramProfileSettings";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function parseDate(s) {
@@ -1723,6 +1724,11 @@ export default function UserDashboard() {
       )} */}
 
       <UserChatWidget />
+
+      {/* ── Personal Telegram Notification Settings ── */}
+      <div className="mt-6 px-1">
+        <TelegramProfileSettings />
+      </div>
     </div>
   );
 }
