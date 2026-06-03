@@ -1367,8 +1367,8 @@ export default function UserDashboard() {
   return (
     <div className="min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
       {/* ── Sub-header ── */}
-      <div className="sticky top-[49px] z-20 px-6 py-4 bg-white/95 dark:bg-[#1A1D27]/95 backdrop-blur-md border-b border-[#E4E7EF] dark:border-[#262A38] shadow-sm">
-        <div className="flex items-center justify-between flex-wrap gap-3">
+<div className="relative px-6 py-4 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38] shadow-sm">
+  <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <div>
               <p className="text-[#8B92A9] dark:text-[#D1D5DB] text-[12px] font-medium">{greeting.emoji} {greeting.text}</p>
