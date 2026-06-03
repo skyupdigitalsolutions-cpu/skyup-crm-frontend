@@ -13,6 +13,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import axios from "axios";
 import api from "../data/axiosConfig";
+import { maskPhone } from "../utils/maskPhone";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://skyup-crm-backend.onrender.com/api";
 const SOCKET_URL =
@@ -342,7 +343,7 @@ function BlastTab({ leads, authHeaders }) {
                   <Avatar name={lead.name} size="sm" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#E9EDEF] truncate">{lead.name}</p>
-                    <p className="text-[11px] text-[#8B92A9] truncate">{lead.mobile || lead.phone}</p>
+                    <p className="text-[11px] text-[#8B92A9] truncate">{maskPhone(lead.mobile || lead.phone)}</p>
                   </div>
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
                     lead.status === "Converted"   ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" :
@@ -895,7 +896,7 @@ export default function UserLeadCommunication() {
                       <Avatar name={lead.name} />
                       <div className="flex-1 min-w-0">
                         <p className={`text-[13px] truncate ${unread ? "font-bold text-[#0F1117] dark:text-white" : "font-semibold text-[#0F1117] dark:text-[#E9EDEF]"}`}>{lead.name}</p>
-                        <p className="text-[11px] text-[#8B92A9] truncate">{lead.mobile || lead.phone}</p>
+                        <p className="text-[11px] text-[#8B92A9] truncate">{maskPhone(lead.mobile || lead.phone)}</p>
                       </div>
                       {unread > 0 ? (
                         <span className="bg-[#25D366] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shrink-0">
@@ -962,7 +963,7 @@ export default function UserLeadCommunication() {
                 <Avatar name={selected.name} size="sm" />
                 <div className="flex-1 min-w-0">
                   <h3 className="text-[14px] font-semibold text-white leading-none truncate">{selected.name}</h3>
-                  <p className="text-[11px] text-[#8FB8A8] mt-0.5">{selected.mobile || selected.phone}</p>
+                  <p className="text-[11px] text-[#8FB8A8] mt-0.5">{maskPhone(selected.mobile || selected.phone)}</p>
                 </div>
                 <span className="text-[10px] bg-white/10 text-white px-2 py-0.5 rounded-full font-semibold shrink-0">
                   {selected.status || "New"}
