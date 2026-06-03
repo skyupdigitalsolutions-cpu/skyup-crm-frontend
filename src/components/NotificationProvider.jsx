@@ -53,6 +53,22 @@ export function NotificationProvider({ children }) {
   const [unreadCount,   setUnreadCount]   = useState(0);
   const socketRef = useRef(null);
 
+  // Read user from localStorage; re-read whenever another component writes it
+  // (e.g. after login, localStorage.setItem('user', ...) fires a 'storage' event)
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
+  });
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'user') {
+        try { setUser(JSON.parse(e.newValue)); } catch { setUser(null); }
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   const addNotification = useCallback((notif) => {
     setNotifications(prev => {
       const next = [notif, ...prev].slice(0, MAX_NOTIFS);
@@ -71,19 +87,16 @@ export function NotificationProvider({ children }) {
 
   useEffect(() => {
     // Only run for admin / superadmin roles
-    const raw = localStorage.getItem('user');
-    if (!raw) return;
-    let user;
-    try { user = JSON.parse(raw); } catch { return; }
+    if (!user) return;
     const role = (user?.role || '').toLowerCase();
     if (role !== 'admin' && role !== 'superadmin' && role !== 'super_admin') return;
 
-    const adminId   = user._id || user.id || '';
-    const companyId = user.companyId || user.company?._id || user.company || '';
+    const adminId     = user._id || user.id || '';
+    const companyId   = user.companyId || user.company?._id || user.company || '';
     const displayName = user.name || 'Admin';
     const isSuperAdmin = role === 'superadmin' || role === 'super_admin';
 
-    if (!adminId) return;
+    if (!adminId || !companyId) return;
 
     // Request browser notification permission once
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
@@ -164,7 +177,7 @@ export function NotificationProvider({ children }) {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, addNotification]); // re-runs when user logs in/out
 
   return (
     <NotificationContext.Provider value={{ notifications, unreadCount, markAllRead, clearAll }}>
