@@ -12,6 +12,7 @@ import AdminChat from "./Adminchat";
 import LeadTimeline from "./LeadTimeLine";
 import AdminAttendanceView from "./AdminAttendanceView";
 import CompanyBrandSettings from "./CompanyBrandSettings";
+import TelegramSettings from "./TelegramSettings";
 import SuperAdminFilter from "./SuperAdminFilter";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
@@ -1403,6 +1404,13 @@ export default function Dashboard() {
           existingAdmins={dbAdmins}
           existingUsers={dbUsers}
         />
+      )}
+
+      {/* ── Telegram Notification Settings (SuperAdmin + Admin) ── */}
+      {(isSuperAdmin || role === "admin") && (
+        <div className="mt-2 p-2">
+          <TelegramSettings />
+        </div>
       )}
 
       {/* ── Modals ── */}
