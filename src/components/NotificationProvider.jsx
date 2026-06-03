@@ -138,10 +138,12 @@ export function NotificationProvider({ children }) {
     });
 
     // ── follow_up_alert ───────────────────────────────────────────────────────
+    // Upsert by subType — replaces any existing overdue/due notification of
+    // the same type so reconnects or the initial on-join push don't stack duplicates.
     socket.on('follow_up_alert', ({ type, count, leads, timestamp }) => {
       const isOverdue = type === 'overdue';
-      addNotification({
-        id:        `fu-${Date.now()}`,
+      const notif = {
+        id:        `fu-${type}`,           // stable id — same type always replaces
         type:      'follow_up',
         title:     isOverdue
           ? `🔴 ${count} Overdue Follow-Up${count > 1 ? 's' : ''}`
@@ -153,7 +155,19 @@ export function NotificationProvider({ children }) {
         subType:   type,
         timestamp: timestamp || new Date().toISOString(),
         urgent:    isOverdue,
+      };
+      setNotifications(prev => {
+        const exists = prev.some(n => n.id === notif.id);
+        if (exists) {
+          // Replace in-place — count may have changed, don't re-bump unread
+          return prev.map(n => n.id === notif.id ? notif : n);
+        }
+        setUnreadCount(c => c + 1);
+        return [notif, ...prev].slice(0, MAX_NOTIFS);
       });
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
+      }
     });
 
     // ── lead_reassigned_notify (super_admin only) ─────────────────────────────
