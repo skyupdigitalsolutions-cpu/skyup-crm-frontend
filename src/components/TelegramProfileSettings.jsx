@@ -22,12 +22,10 @@ export default function TelegramProfileSettings() {
   const [testing, setTesting] = useState(false);
   const [msg,     setMsg]     = useState({ type: "", text: "" });
 
-  // Refs for the trigger button and the popover panel
   const btnRef     = useRef(null);
   const popoverRef = useRef(null);
   const inputRef   = useRef(null);
 
-  // Position state for the portal-rendered popover
   const [popoverStyle, setPopoverStyle] = useState({});
 
   // Load saved Chat ID once
@@ -41,14 +39,13 @@ export default function TelegramProfileSettings() {
       .catch(() => {});
   }, [baseRoute]);
 
-  // Compute popover position relative to viewport each time it opens
+  // ✅ FIXED: Opens BELOW the button using top instead of bottom
   const updatePosition = useCallback(() => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
     setPopoverStyle({
       position: "fixed",
-      // Anchor bottom of popover just above the button
-      bottom: window.innerHeight - rect.top + 8,
+      top: rect.bottom + 8,              // ← below the button
       right: window.innerWidth - rect.right,
       zIndex: 9999,
       width: 288,
@@ -58,7 +55,6 @@ export default function TelegramProfileSettings() {
   useEffect(() => {
     if (!open) return;
     updatePosition();
-    // Reposition on scroll / resize
     window.addEventListener("scroll", updatePosition, true);
     window.addEventListener("resize", updatePosition);
     return () => {
@@ -128,12 +124,13 @@ export default function TelegramProfileSettings() {
   const popoverContent = (
     <div
       ref={popoverRef}
-      style={{ ...popoverStyle, animation: "tgSlideUp 0.15s ease both" }}
+      style={{ ...popoverStyle, animation: "tgSlideDown 0.15s ease both" }}
       className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-xl overflow-hidden"
     >
+      {/* ✅ FIXED: slide down animation instead of slide up */}
       <style>{`
-        @keyframes tgSlideUp {
-          from { opacity: 0; transform: translateY(6px); }
+        @keyframes tgSlideDown {
+          from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
@@ -242,7 +239,7 @@ export default function TelegramProfileSettings() {
 
   return (
     <div className="relative">
-      {/* ── Trigger icon button ── */}
+      {/* Trigger icon button */}
       <button
         ref={btnRef}
         onClick={() => setOpen((v) => !v)}
@@ -260,7 +257,7 @@ export default function TelegramProfileSettings() {
         )}
       </button>
 
-      {/* ── Popover rendered into document.body via portal ── */}
+      {/* Popover rendered into document.body via portal */}
       {open && createPortal(popoverContent, document.body)}
     </div>
   );
