@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../data/axiosConfig";
+import toast from "react-hot-toast";
 
 // ── 6-box OTP input ────────────────────────────────────────────────────────────
 function OtpInput({ value, onChange, disabled }) {
@@ -122,6 +123,7 @@ export default function SuperAdminLogin() {
         companyId:   res.data.companyId,
         companyName: res.data.companyName,
       }));
+      toast.success("👑 Super Admin login successful! Welcome back.");
       navigate("/superadmin/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "OTP verification failed.");

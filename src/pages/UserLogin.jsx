@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../data/axiosConfig";
 import CRMEncryption from "../utils/CRMEncryption";
+import toast from "react-hot-toast";
 
 const crm = new CRMEncryption();
 
@@ -55,12 +56,14 @@ export default function UserLogin() {
 
       // ── Developer → straight to developer dashboard, no encryption needed ──
       if (role === "developer") {
+        toast.success("🛠️ Developer login successful! Welcome back.");
         navigate("/developer/dashboard");
         return;
       }
 
       // ── Employee → straight to user dashboard ─────────────────────────────
       if (role === "employee" || role === "user") {
+        toast.success("🎉 Employee login successful! Welcome back.");
         navigate("/user/dashboard");
         return;
       }
@@ -89,15 +92,18 @@ export default function UserLogin() {
               return;
             }
           } catch {
+            toast.success("🔐 Admin login successful! Welcome back.");
             navigate("/dashboard");
           }
         } else {
+          toast.success("🔐 Admin login successful! Welcome back.");
           navigate("/dashboard");
         }
         return;
       }
 
       // ── Fallback ──────────────────────────────────────────────────────────
+      toast.success("✅ Login successful! Welcome back.");
       navigate("/dashboard");
     } catch (err) {
       const msg = err.response?.data?.message || "Login failed. Please try again.";
@@ -115,6 +121,7 @@ export default function UserLogin() {
   const handleMnemonicConfirmed = () => {
     setShowMnemonicModal(false);
     setGeneratedMnemonic("");
+    toast.success("🔐 Admin login successful! Welcome back.");
     navigate("/dashboard");
   };
 
@@ -129,6 +136,7 @@ export default function UserLogin() {
         pendingToken
       );
       setShowRestoreModal(false);
+      toast.success("🔐 Admin login successful! Welcome back.");
       navigate("/dashboard");
     } catch (err) {
       setRestoreError(err.message || "Could not restore key. Check your phrase.");
