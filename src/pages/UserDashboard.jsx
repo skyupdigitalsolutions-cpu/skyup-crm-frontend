@@ -1402,6 +1402,7 @@ export default function UserDashboard() {
             </div>
 
             <AttendanceMiniWidget />
+            <TelegramProfileSettings />
 
             {/* CSV result toast */}
             {csvResult && (
@@ -1724,11 +1725,6 @@ export default function UserDashboard() {
       )} */}
 
       <UserChatWidget />
-
-      {/* ── Personal Telegram Notification Settings ── */}
-      <div className="mt-6 px-1">
-        <TelegramProfileSettings />
-      </div>
     </div>
   );
 }
