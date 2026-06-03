@@ -2386,7 +2386,7 @@ function SmsBlastComposer({ onSent }) {
       setResult({ success: true, message: res.data.message, total: res.data.total });
       if (onSent) onSent();
     } catch (err) {
-      setError(err.response?.data?.message || err.response?.data?.error || "Failed to send SMS");
+      setError(err.response?.data?.error || err.response?.data?.message || "Failed to send SMS");
     } finally { setLoading(false); }
   };
 
@@ -2721,7 +2721,7 @@ function SmsLeadThread({ lead, onBack, onSend }) {
       setMessage("");
       if (onSend) onSend();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to send SMS");
+      alert(err.response?.data?.error || err.response?.data?.message || "Failed to send SMS");
     } finally { setSending(false); }
   };
 
