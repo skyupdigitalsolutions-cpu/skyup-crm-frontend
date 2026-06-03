@@ -6,6 +6,7 @@ import ThemeToggle from "./components/ThemeToggle";
 import api from "./data/axiosConfig";
 import ExpiryBanner, { SuspensionScreen } from "./components/ExpiryBanner";
 import FeatureGate from "./components/FeatureGate";
+import { NotificationProvider, NotificationBell } from "./components/NotificationProvider";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
 const Dashboard      = lazy(() => import("./components/Dashboard"));
@@ -342,6 +343,10 @@ function CompanyHeader() {
       </div>
       <div className="flex items-center gap-2.5">
         <ThemeToggle />
+        {/* Notification bell — visible for admin and superadmin only */}
+        {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
+          <NotificationBell />
+        )}
         <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${roleColor}`}>
           {roleLabel}
         </span>
@@ -352,18 +357,19 @@ function CompanyHeader() {
 
 // ── Layout with Sidebar ────────────────────────────────────────────────────────
 function AppLayout({ children }) {
-  const navigate = React.useCallback ? undefined : null;
   const goToPlans = () => { window.location.href = "/upgrade-plan"; };
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-hidden flex flex-col min-w-0">
-        <ExpiryBanner onGoToPlans={goToPlans} />
-        <CompanyHeader />
-        <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
-      </main>
-    </div>
+    <NotificationProvider>
+      <div className="flex h-screen overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 overflow-hidden flex flex-col min-w-0">
+          <ExpiryBanner onGoToPlans={goToPlans} />
+          <CompanyHeader />
+          <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+        </main>
+      </div>
+    </NotificationProvider>
   );
 }
 
