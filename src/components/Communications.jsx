@@ -312,6 +312,37 @@ function IntegrationsModal({ onClose }) {
                 </p>
               </div>
 
+              {/* ── Skyup_greetings approved DLT template reference ── */}
+              {activeTab === "sms" && (
+                <div className="rounded-xl border border-[#FED7AA] dark:border-[#7c3a00] bg-[#FFF7ED] dark:bg-[#1c0a00] p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[11px] font-bold text-[#EA580C] uppercase tracking-widest">
+                      📋 Approved DLT Template
+                    </p>
+                    <span className="px-2 py-0.5 rounded-full bg-[#DCFCE7] dark:bg-[#052e16] text-[#15803D] text-[10px] font-bold">
+                      Active
+                    </span>
+                  </div>
+                  <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mb-1">
+                    Skyup_greetings
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="bg-white dark:bg-[#111B21] rounded-lg p-2">
+                      <p className="text-[10px] text-[#8B92A9] mb-0.5">Sender ID</p>
+                      <code className="font-mono font-bold text-[#EA580C] text-[12px]">695382</code>
+                    </div>
+                    <div className="bg-white dark:bg-[#111B21] rounded-lg p-2">
+                      <p className="text-[10px] text-[#8B92A9] mb-0.5">DLT Template ID</p>
+                      <code className="font-mono font-bold text-[#EA580C] text-[10px]">1007503933418344595</code>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-[#9A3412] dark:text-[#FED7AA] leading-relaxed">
+                    These values are pre-filled in the SMS Blast composer automatically.
+                    Use the <strong>"Use Skyup_greetings"</strong> button to also fill the message body.
+                  </p>
+                </div>
+              )}
+
               {msg91Err && <div className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-[12px] text-red-600 dark:text-red-400">{msg91Err}</div>}
               {msg91Ok  && <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-[12px] text-emerald-700 dark:text-emerald-400">{msg91Ok}</div>}
 
@@ -2273,6 +2304,16 @@ function SmsLeadRow({ lead, isActive, onClick }) {
   );
 }
 
+// ── Skyup_greetings approved DLT template constants ──────────────────────────
+const SKYUP_GREETINGS_TEMPLATE_ID = "1007503933418344595";
+const SKYUP_GREETINGS_SENDER_ID   = "695382";
+const SKYUP_GREETINGS_MESSAGE =
+  "Hi {{name}}, thank you for contacting SKYUP Digital Solutions LLP!" +
+  "Our Services:SEO ServicesSocial Media & GBP ManagementGoogle & Meta Ads" +
+  "Website Design & DevelopmentAI Automation & Machine LearningChatbot & " +
+  "WhatsApp AutomationOne of our team members will connect with you shortly." +
+  "Phone: +91 88678 67775Website: SKYUP Digital Solutions LLP";
+
 // ── New SMS Blast Composer (right panel when no lead selected) ────────────────
 function SmsBlastComposer({ onSent }) {
   const [mode,       setMode]       = useState("campaign");
@@ -2282,8 +2323,9 @@ function SmsBlastComposer({ onSent }) {
   const [csvParsed,  setCsvParsed]  = useState(null);
   const [csvError,   setCsvError]   = useState("");
   const [message,    setMessage]    = useState("");
-  const [templateId, setTemplateId] = useState("");
-  const [senderId,   setSenderId]   = useState("");
+  // Pre-filled with Skyup_greetings approved DLT template
+  const [templateId, setTemplateId] = useState(SKYUP_GREETINGS_TEMPLATE_ID);
+  const [senderId,   setSenderId]   = useState(SKYUP_GREETINGS_SENDER_ID);
   const [leadCount,  setLeadCount]  = useState(null);
   const [campaigns,  setCampaigns]  = useState([]);
   const [loading,    setLoading]    = useState(false);
@@ -2493,6 +2535,28 @@ function SmsBlastComposer({ onSent }) {
 
         {/* Message body */}
         <div className="bg-white dark:bg-[#202C33] rounded-2xl p-4 shadow-sm">
+
+          {/* ── Skyup_greetings quick-fill banner ── */}
+          <div className="mb-3 p-3 bg-[#FFF7ED] dark:bg-[#1c0a00] border border-[#FED7AA] dark:border-[#7c3a00] rounded-xl flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-[#EA580C] mb-0.5">📋 Approved Template</p>
+              <p className="text-[10px] text-[#9A3412] dark:text-[#FED7AA] font-mono truncate">
+                Sender: <strong>695382</strong> · DLT: <strong>1007503933418344595</strong>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTemplateId(SKYUP_GREETINGS_TEMPLATE_ID);
+                setSenderId(SKYUP_GREETINGS_SENDER_ID);
+                setMessage(SKYUP_GREETINGS_MESSAGE);
+              }}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-[#EA580C] text-white text-[11px] font-bold hover:bg-orange-700 transition whitespace-nowrap"
+            >
+              Use Skyup_greetings
+            </button>
+          </div>
+
           <div className="flex items-center justify-between mb-2">
             <label className="text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] uppercase tracking-wide">
               Message <span className="text-[#DC2626]">*</span>
@@ -2586,13 +2650,17 @@ function SmsLeadThread({ lead, onBack, onSend }) {
   const [configSaving, setConfigSaving] = useState(false);
   const bottomRef = useRef(null);
 
-  // ── Load saved SMS config (auth key + sender id) on mount ────────────────
+  // ── Load saved SMS config (auth key + sender id + greetings template) on mount ──
   useEffect(() => {
     api.get("/sms-config")
       .then((r) => {
         if (r.data?.data) {
           setAuthKey(r.data.data.msg91AuthKey   || "");
           setSenderId(r.data.data.msg91SenderId || "");
+          // Pre-fill with greetingsTemplateId from DB, fallback to known default
+          setTemplateId(
+            r.data.data.greetingsTemplateId || "1007503933418344595"
+          );
         }
       })
       .catch(() => {});
@@ -2616,8 +2684,10 @@ function SmsLeadThread({ lead, onBack, onSend }) {
     setConfigSaving(true);
     try {
       await api.put("/sms-config", {
-        msg91AuthKey:  authKey.trim(),
-        msg91SenderId: senderId.trim() || "SKYCRM",
+        msg91AuthKey:        authKey.trim(),
+        msg91SenderId:       senderId.trim() || "SKYCRM",
+        greetingsTemplateId: templateId.trim() || "1007503933418344595",
+        greetingsSenderId:   "695382",
       });
       setConfigSaved(true);
       setTimeout(() => setConfigSaved(false), 2500);
@@ -2722,7 +2792,19 @@ function SmsLeadThread({ lead, onBack, onSend }) {
                 placeholder="1234567890123456789"
                 className={FIELD_CLS}
               />
-              <p className="text-[9px] text-[#8B92A9] mt-0.5">Per-message (optional)</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-[9px] text-[#8B92A9]">Skyup_greetings: <code className="font-mono">1007503933418344595</code></p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTemplateId("1007503933418344595");
+                    setSenderId("695382");
+                  }}
+                  className="text-[9px] font-bold text-[#EA580C] hover:underline whitespace-nowrap"
+                >
+                  Use default
+                </button>
+              </div>
             </div>
             {/* Save button */}
             <div className="flex items-end pb-[18px]">
