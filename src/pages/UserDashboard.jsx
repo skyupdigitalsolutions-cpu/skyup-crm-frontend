@@ -1368,7 +1368,7 @@ export default function UserDashboard() {
   return (
     <div className="min-h-screen bg-[#F0F4FF] dark:bg-[#0D0F14]">
       {/* ── Sub-header ── */}
-<div className="relative px-6 py-4 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38] shadow-sm">
+<div className="relative px-6 py-4 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38] shadow-sm overflow-visible">
   <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <div>
