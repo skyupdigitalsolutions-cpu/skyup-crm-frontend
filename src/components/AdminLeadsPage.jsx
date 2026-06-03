@@ -804,7 +804,7 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
   const [loading, setLoading] = useState(true);
   const [customSource, setCustomSource] = useState("");
   const [form, setForm] = useState({
-    name: "", mobile: "", email: "", source: "Google Ads", campaign: "",
+    name: "", mobile: "", secondaryPhone: "", email: "", source: "Google Ads", campaign: "",
     userId: "", status: "New", remark: "",
   });
   const [errors,     setErrors]     = useState({});
@@ -877,6 +877,11 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
     if (!mob) e.mobile = "Mobile number is required.";
     else if (mob.length < 7 || mob.length > 15) e.mobile = "Enter a valid mobile number (7–15 digits).";
     else if (currentDupState === "duplicate") e.mobile = "This number already exists. Search for the existing lead to update it.";
+    if (form.secondaryPhone) {
+      const secMob = normalizeMobile(form.secondaryPhone);
+      if (secMob.length > 0 && secMob.length < 7) e.secondaryPhone = "Enter a valid secondary number.";
+      else if (secMob === mob) e.secondaryPhone = "Secondary phone cannot be the same as primary.";
+    }
     if (!form.userId) e.userId = "Please select an employee to assign this lead.";
     if (form.source === "Other" && !customSource.trim()) e.source = "Please enter custom source.";
     return e;
@@ -903,8 +908,10 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
     }
     setSubmitting(true);
     const basePayload = {
-      name:     form.name.trim(),
-      mobile:   mob,
+      name:           form.name.trim(),
+      mobile:         mob,
+      primaryPhone:   mob,
+      secondaryPhone: form.secondaryPhone ? normalizeMobile(form.secondaryPhone) || null : null,
       email:    form.email.trim() || "",
       source:   form.source === "Other" ? customSource : form.source,
       campaign: form.campaign.trim() || null,
@@ -933,8 +940,10 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
         ...saved,
         id:             String(saved._id),
         name:           saved.name,
-        phone:          saved.mobile,
-        mobile:         saved.mobile,
+        phone:          saved.primaryPhone || saved.mobile,
+        mobile:         saved.primaryPhone || saved.mobile,
+        primaryPhone:   saved.primaryPhone || saved.mobile,
+        secondaryPhone: saved.secondaryPhone || null,
         source:         saved.source   || "Manual",
         campaign:       saved.campaign || "—",
         status:         saved.status,
@@ -1031,9 +1040,15 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
                   <p><span className="font-semibold">Name:</span> {dupCheck.lead.name}</p>
                   {/* Superadmin sees plain number; admin sees masked number */}
                   <p>
-                    <span className="font-semibold">Mobile:</span>{" "}
-                    <span className="font-mono">{maskPhone(dupCheck.lead.mobile, isSuperAdmin)}</span>
+                    <span className="font-semibold">Primary:</span>{" "}
+                    <span className="font-mono">{maskPhone(dupCheck.lead.primaryPhone || dupCheck.lead.mobile, isSuperAdmin)}</span>
                   </p>
+                  {dupCheck.lead.secondaryPhone && (
+                    <p>
+                      <span className="font-semibold">Secondary:</span>{" "}
+                      <span className="font-mono">{maskPhone(dupCheck.lead.secondaryPhone, isSuperAdmin)}</span>
+                    </p>
+                  )}
                   <p><span className="font-semibold">Status:</span> {dupCheck.lead.status}</p>
                   <p><span className="font-semibold">Source:</span> {dupCheck.lead.source}</p>
                   {dupCheck.lead.createdAt && <p><span className="font-semibold">Added:</span> {new Date(dupCheck.lead.createdAt).toLocaleDateString()}</p>}
@@ -1053,6 +1068,20 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
                 </p>
               </div>
             )}
+          </div>
+          {/* ── Secondary Phone (optional) ───────────────────────────────── */}
+          <div>
+            <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">
+              Secondary Phone <span className="normal-case font-normal text-[10px]">(optional)</span>
+            </label>
+            <input
+              type="tel"
+              placeholder="Alternate number (optional)"
+              value={form.secondaryPhone || ""}
+              onChange={e => set("secondaryPhone", e.target.value)}
+              className={inp("secondaryPhone")}
+            />
+            <ErrMsg k="secondaryPhone" />
           </div>
           <div>
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Assign to Employee <span className="text-red-500">*</span></label>
@@ -1133,8 +1162,8 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
   const [result,    setResult]    = useState(null);
 
   const downloadTemplate = () => {
-    const headers = "name,mobile,email,source,campaign,status,remark";
-    const example = "Rahul Sharma,9876543210,rahul@example.com,Manual,Summer 2026,New,Interested in demo";
+    const headers = "Name,Primary Number,Secondary Number,Email,Source,Campaign,Status,Remark";
+    const example = "Rahul Sharma,9876543210,9123456780,rahul@example.com,Google Ads,Summer2025,New,Imported";
     const blob = new Blob([[headers, example].join("\n")], { type: "text/csv;charset=utf-8;" });
     const a = Object.assign(document.createElement("a"), {
       href: URL.createObjectURL(blob), download: "leads_import_template.csv",
@@ -1173,15 +1202,28 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
         const values = parseCSVLine(lines[i]);
         const row    = {};
         headers.forEach((h, idx) => { row[h] = (values[idx] || "").trim(); });
-        const rawName    = row.name || row["full name"] || row["fullname"] || "";
-        const rawMobile  = row.mobile || row.phone || row["phone number"] || row["mobile number"] || "";
-        const normalized = normalizeMobile(rawMobile);
+        const rawName      = row.name || row["full name"] || row["fullname"] || "";
+        const rawMobile    = row["primary number"] || row.mobile || row.phone || row["phone number"] || row["mobile number"] || "";
+        const rawSecondary = row["secondary number"] || row["secondaryphone"] || row["secondary phone"] || "";
+        const normalized   = normalizeMobile(rawMobile);
         if (!normalized) { clientErrors.push({ index: i, row: rawName || i, message: "Missing mobile number — row skipped." }); continue; }
+        const normSecondary = rawSecondary ? normalizeMobile(rawSecondary) : null;
+        if (normSecondary && normSecondary === normalized) { clientErrors.push({ index: i, row: rawName || i, message: `Secondary phone same as primary — row skipped.` }); continue; }
         const dupKey = canonicalPhone(normalized);
         if (existingPhoneSet.has(dupKey)) { clientErrors.push({ index: i, row: rawName || i, message: `Already exists in CRM: ${rawMobile} is already a lead. Skipped.` }); continue; }
         if (seenInFile.has(dupKey)) { clientErrors.push({ index: i, row: rawName || i, message: `Duplicate in CSV: ${rawMobile} appears more than once.` }); continue; }
         seenInFile.add(dupKey);
-        leadsToImport.push({ name: rawName || "Unknown", mobile: normalized, email: row.email || "", source: row.source || "CSV Import", campaign: row.campaign || "", status: row.status || "New", remark: row.remark || row.notes || "Imported via CSV" });
+        leadsToImport.push({
+          name:           rawName || "Unknown",
+          mobile:         normalized,
+          primaryPhone:   normalized,
+          secondaryPhone: normSecondary || null,
+          email:          row.email || "",
+          source:         row.source || "Excel Import",
+          campaign:       row.campaign || "",
+          status:         row.status || "New",
+          remark:         row.remark || row.notes || "Imported via CSV",
+        });
       }
       if (!leadsToImport.length && clientErrors.length > 0) {
         setResult({ savedCount: 0, errorCount: clientErrors.length, errors: clientErrors, message: "No valid rows found." });
@@ -1212,12 +1254,14 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
             <div className="bg-[#EFF6FF] dark:bg-[#1A2540] border border-blue-100 dark:border-blue-900/40 rounded-xl p-4 mb-5">
               <p className="text-[12px] font-semibold text-[#1D4ED8] dark:text-[#4F8EF7] mb-2">CSV Format</p>
               <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] mb-1">
-                Required columns: <code className="font-mono bg-white dark:bg-[#0D0F14] px-1 rounded">name</code>,{" "}
-                <code className="font-mono bg-white dark:bg-[#0D0F14] px-1 rounded">mobile</code>
+                Required: <code className="font-mono bg-white dark:bg-[#0D0F14] px-1 rounded">Name</code>,{" "}
+                <code className="font-mono bg-white dark:bg-[#0D0F14] px-1 rounded">Primary Number</code>
               </p>
-              <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">Optional: email, source, campaign, status, remark</p>
+              <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+                Optional: <code className="font-mono bg-white dark:bg-[#0D0F14] px-1 rounded">Secondary Number</code>, Email, Source, Campaign, Status, Remark
+              </p>
               <p className="text-[11px] text-[#8B92A9] mt-2">
-                Duplicate numbers (with or without +91) are automatically skipped. Leads round-robin assigned to your team.
+                Duplicate numbers (primary or secondary, with or without +91) are automatically skipped. Leads round-robin assigned to your team.
               </p>
             </div>
             <div className="flex gap-2">
@@ -1280,11 +1324,19 @@ function mapLead(l) {
   const callHistory = Array.isArray(l.callHistory) ? l.callHistory : [];
   const sortedCalls = [...callHistory].sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt));
   const lastCall    = sortedCalls[0] || null;
+
+  // Prefer explicit primaryPhone; fall back to mobile for backward compat
+  const primaryPhone   = l.primaryPhone   || l.mobile || l.phone || "";
+  const secondaryPhone = l.secondaryPhone || null;
+
   return {
     id:             String(l._id),
     _id:            l._id,                // raw ObjectId — needed by getLeadDisplayStatus
     name:           l.name           || "Unknown",
-    phone:          l.mobile         || l.phone || "",
+    phone:          primaryPhone,
+    mobile:         primaryPhone,         // keep alias
+    primaryPhone,
+    secondaryPhone,
     email:          l.email          || "",
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
@@ -1708,6 +1760,15 @@ export default function AdminLeadsPage() {
                                   : "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7]"}`}
                               >
                                 <Eye className="w-2 h-2" /> {viewCount}
+                              </span>
+                            )}
+                            {/* Secondary phone indicator */}
+                            {l.secondaryPhone && (
+                              <span
+                                title="Has secondary phone number"
+                                className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 leading-none bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                              >
+                                +1 alt
                               </span>
                             )}
                           </div>
