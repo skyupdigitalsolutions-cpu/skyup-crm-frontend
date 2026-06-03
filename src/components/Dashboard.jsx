@@ -1130,7 +1130,9 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <button
+        <div className="flex items-center gap-2">
+          <TelegramSettings />
+          <button
           onClick={() => { loadData(true); fetchDashStats(); }}
           disabled={refreshing}
           className={`p-2 sm:p-2 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]
@@ -1143,6 +1145,7 @@ export default function Dashboard() {
         >
           <RefreshCw className={`w-4 h-4 transition-transform ${refreshing ? "animate-spin" : ""}`} />
         </button>
+        </div>
       </div>
 
       {/* ── Error banner ── */}
@@ -1404,13 +1407,6 @@ export default function Dashboard() {
           existingAdmins={dbAdmins}
           existingUsers={dbUsers}
         />
-      )}
-
-      {/* ── Telegram Notification Settings (SuperAdmin + Admin) ── */}
-      {(isSuperAdmin || role === "admin") && (
-        <div className="mt-2 p-2">
-          <TelegramSettings />
-        </div>
       )}
 
       {/* ── Modals ── */}
