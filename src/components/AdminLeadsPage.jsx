@@ -654,7 +654,7 @@ function RecordingsTab({ lead }) {
 }
 
 // ── RecordingsDrawer — standalone side panel for admin ────────────────────────
-function RecordingsDrawer({ lead, onClose }) {
+function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast }) {
   const { config: sc } = getLeadDisplayStatus(lead);
 
   return (
@@ -701,7 +701,16 @@ function RecordingsDrawer({ lead, onClose }) {
         </div>
 
         {/* Content */}
+{/* Content */}
         <div className="flex-1 overflow-y-auto">
+          <div className="px-6 py-4">
+            <PhoneActionsPanel
+              lead={lead}
+              isSuperAdmin={isSuperAdmin}
+              onLeadUpdated={onLeadUpdated}
+              onToast={onToast}
+            />
+          </div>
           <RecordingsTab lead={lead} />
         </div>
       </div>
@@ -794,6 +803,228 @@ function AgentSelect({ value, onChange, agents, className }) {
 // ── Spinner ───────────────────────────────────────────────────────────────────
 function Spinner() {
   return <Loader2 className="w-3.5 h-3.5 animate-spin" />;
+}
+
+// ── Toast Notification ────────────────────────────────────────────────────────
+function Toast({ message, type = "success", onDismiss }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 3500);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
+  return (
+    <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-[13px] font-semibold animate-fade-in
+      ${type === "success"
+        ? "bg-emerald-50 dark:bg-emerald-950/80 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
+        : "bg-red-50 dark:bg-red-950/80 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"}`}>
+      {type === "success"
+        ? <Check className="w-4 h-4 shrink-0" />
+        : <AlertCircle className="w-4 h-4 shrink-0" />}
+      {message}
+      <button onClick={onDismiss} className="ml-2 opacity-60 hover:opacity-100 transition">
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+// ── PhoneActionsPanel ─────────────────────────────────────────────────────────
+function PhoneActionsPanel({ lead, isSuperAdmin, onLeadUpdated, onToast }) {
+  const [mode, setMode]         = useState(null); // "add" | "remove" | "swap" | null
+  const [secInput, setSecInput] = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const [swapConfirm, setSwapConfirm] = useState(false);
+
+  const primaryPhone   = lead.primaryPhone   || lead.phone || "";
+  const secondaryPhone = lead.secondaryPhone || null;
+
+  const reset = () => { setMode(null); setSecInput(""); setError(""); setSwapConfirm(false); };
+
+  // ── Add / Update secondary phone ───────────────────────────────────────────
+  const handleAddSecondary = async () => {
+    const norm = normalizeMobile(secInput);
+    if (!norm || norm.length < 7) { setError("Enter a valid phone number (min 7 digits)."); return; }
+    if (norm === normalizeMobile(primaryPhone)) { setError("Secondary cannot match the primary number."); return; }
+    setLoading(true); setError("");
+    try {
+      const res = await api.put(`/lead/${lead.id}/secondary-phone`, { secondaryPhone: norm });
+      onLeadUpdated({ ...lead, secondaryPhone: norm, _raw: res.data });
+      onToast("Secondary number saved successfully.");
+      reset();
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to save secondary number.");
+    } finally { setLoading(false); }
+  };
+
+  // ── Remove secondary phone ─────────────────────────────────────────────────
+  const handleRemoveSecondary = async () => {
+    setLoading(true); setError("");
+    try {
+      await api.delete(`/lead/${lead.id}/secondary-phone`);
+      onLeadUpdated({ ...lead, secondaryPhone: null });
+      onToast("Secondary number removed.");
+      reset();
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to remove secondary number.");
+    } finally { setLoading(false); }
+  };
+
+  // ── Swap primary ↔ secondary ───────────────────────────────────────────────
+  const handleSwap = async () => {
+    setLoading(true); setError("");
+    try {
+      const res = await api.put(`/lead/${lead.id}/swap-phones`);
+      const updated = res.data?.lead || res.data;
+      onLeadUpdated({
+        ...lead,
+        primaryPhone:   updated.primaryPhone   || secondaryPhone,
+        phone:          updated.primaryPhone   || secondaryPhone,
+        mobile:         updated.primaryPhone   || secondaryPhone,
+        secondaryPhone: updated.secondaryPhone || primaryPhone,
+      });
+      onToast("Phone numbers swapped successfully.");
+      reset();
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to swap numbers.");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+      {/* Phone numbers display */}
+      <div className="px-4 py-3 bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
+        <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">Phone Numbers</p>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">Primary</span>
+            <span className="font-mono text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+              {maskPhone(primaryPhone, isSuperAdmin)}
+            </span>
+          </div>
+          {secondaryPhone ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">Secondary</span>
+              <span className="font-mono text-[13px] text-[#4B5168] dark:text-[#9DA3BB]">
+                {maskPhone(secondaryPhone, isSuperAdmin)}
+              </span>
+            </div>
+          ) : (
+            <p className="text-[11px] text-[#8B92A9] italic">No secondary number</p>
+          )}
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      <div className="px-4 py-3 bg-white dark:bg-[#1A1D27] flex flex-wrap gap-2">
+        <button
+          onClick={() => setMode(mode === "add" ? null : "add")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-blue-100 dark:hover:bg-[#1E2D4D] transition"
+        >
+          <Plus className="w-3 h-3" />
+          {secondaryPhone ? "Update Secondary" : "Add Secondary"}
+        </button>
+        {secondaryPhone && (
+          <>
+            <button
+              onClick={() => setMode(mode === "remove" ? null : "remove")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 transition"
+            >
+              <X className="w-3 h-3" />
+              Remove Secondary
+            </button>
+            <button
+              onClick={() => { setMode("swap"); setSwapConfirm(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Swap Numbers
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Add/Update form */}
+      {mode === "add" && (
+        <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
+          <label className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">
+            {secondaryPhone ? "New Secondary Number" : "Secondary Number"}
+          </label>
+          <input
+            type="tel"
+            placeholder="9876543210 or +91..."
+            value={secInput}
+            onChange={e => { setSecInput(e.target.value); setError(""); }}
+            className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition"
+          />
+          {error && (
+            <p className="text-[11px] text-red-500 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3 shrink-0" />{error}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+            <button onClick={handleAddSecondary} disabled={loading}
+              className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+              {loading ? <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</> : "Save"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Remove confirm */}
+      {mode === "remove" && (
+        <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
+          <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+            Remove <span className="font-mono font-semibold">{maskPhone(secondaryPhone, isSuperAdmin)}</span> as secondary number?
+          </p>
+          {error && (
+            <p className="text-[11px] text-red-500 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3 shrink-0" />{error}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+            <button onClick={handleRemoveSecondary} disabled={loading}
+              className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[12px] font-semibold hover:bg-red-700 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+              {loading ? <><Loader2 className="w-3 h-3 animate-spin" /> Removing…</> : "Remove"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Swap confirmation dialog */}
+      {mode === "swap" && swapConfirm && (
+        <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-3">
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <p className="text-[12px] text-amber-700 dark:text-amber-300 font-semibold">Confirm phone swap</p>
+          </div>
+          <div className="space-y-1 px-1">
+            <p className="text-[11px] text-[#8B92A9]">After swap:</p>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 shrink-0">New Primary</span>
+              <span className="font-mono text-[12px] text-[#0F1117] dark:text-[#F0F2FA]">{maskPhone(secondaryPhone, isSuperAdmin)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 shrink-0">New Secondary</span>
+              <span className="font-mono text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{maskPhone(primaryPhone, isSuperAdmin)}</span>
+            </div>
+          </div>
+          {error && (
+            <p className="text-[11px] text-red-500 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3 shrink-0" />{error}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+            <button onClick={handleSwap} disabled={loading}
+              className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+              {loading ? <><Loader2 className="w-3 h-3 animate-spin" /> Swapping…</> : "Confirm Swap"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Add Lead Modal ────────────────────────────────────────────────────────────
@@ -1380,6 +1611,11 @@ export default function AdminLeadsPage() {
 
   const [recordingsLead, setRecordingsLead] = useState(null);
 
+  const [toast, setToast] = useState(null); // { message, type }
+const showToast = useCallback((message, type = "success") => {
+  setToast({ message, type });
+}, []);
+
   const [search,      setSearch]      = useState("");
   const [filterSt,    setFilterSt]    = useState("All");
   const [filterAgent, setFilterAgent] = useState("All");
@@ -1425,6 +1661,16 @@ export default function AdminLeadsPage() {
   };
 
   useEffect(() => () => clearTimeout(revealTimerRef.current), []);
+
+  const handleLeadUpdated = useCallback((updatedLead) => {
+  setAllLeads(prev =>
+    prev.map(l => l.id === updatedLead.id ? { ...l, ...updatedLead } : l)
+  );
+    
+  // Also refresh selected / recordingsLead if open
+  setSelected(prev => prev && prev.id === updatedLead.id ? { ...prev, ...updatedLead } : prev);
+  setRecordingsLead(prev => prev && prev.id === updatedLead.id ? { ...prev, ...updatedLead } : prev);
+}, []);
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -1885,11 +2131,16 @@ export default function AdminLeadsPage() {
               </table>
             </div>
 
-            <style>{`
+        <style>{`
               @keyframes shrink {
                 from { width: 100%; }
                 to   { width: 0%; }
               }
+              @keyframes fade-in {
+                from { opacity: 0; transform: translateY(8px); }
+                to   { opacity: 1; transform: translateY(0); }
+              }
+              .animate-fade-in { animation: fade-in 0.2s ease forwards; }
             `}</style>
 
             {/* Pagination */}
@@ -1925,17 +2176,34 @@ export default function AdminLeadsPage() {
 
       {/* Journey drawer */}
 {selected && (
-  <LeadJourneyDrawer
-    lead={selected}
-    onClose={() => setSelected(null)}
-    isSuperAdmin={isSuperAdmin}
-    maskPhone={maskPhone}
-    maskEmail={maskEmail}
-  />
+<LeadJourneyDrawer
+        lead={selected}
+        onClose={() => setSelected(null)}
+        isSuperAdmin={isSuperAdmin}
+        maskPhone={maskPhone}
+        maskEmail={maskEmail}
+        onLeadUpdated={handleLeadUpdated}
+        onToast={showToast}
+      />
 )}
-      {/* Recordings & AI drawer */}
-      {recordingsLead && (
-        <RecordingsDrawer lead={recordingsLead} onClose={() => setRecordingsLead(null)} />
+    {/* Recordings & AI drawer */}
+    {recordingsLead && (
+        <RecordingsDrawer
+          lead={recordingsLead}
+          onClose={() => setRecordingsLead(null)}
+          isSuperAdmin={isSuperAdmin}
+          onLeadUpdated={handleLeadUpdated}
+          onToast={showToast}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onDismiss={() => setToast(null)}
+        />
       )}
     </div>
   );
