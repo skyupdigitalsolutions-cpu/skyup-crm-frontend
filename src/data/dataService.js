@@ -173,8 +173,10 @@ async function formatLead(lead) {
     // ── Normalised / derived UI fields (override raw where needed) ────────
     id:       String(lead._id),   // stringify so === comparisons work reliably
     name,
-    mobile,
-    phone:    mobile,             // table reads lead.phone — keep both in sync
+mobile,
+    phone:          mobile,                                    // backward compat
+    primaryPhone:   lead.primaryPhone   || mobile || "",       // canonical primary
+    secondaryPhone: lead.secondaryPhone || null,               // optional secondary
     email,
     source:   lead.source   || "Web Form",
     campaign: lead.campaign || "—",
