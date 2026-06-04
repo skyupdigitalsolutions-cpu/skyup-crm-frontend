@@ -5,6 +5,7 @@ import { useDateFilter } from "../components/dataFilter";
 import CRMEncryption from "../utils/CRMEncryption";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES as ALL_STATUSES_SHARED } from "../utils/statusConfig";
 import { normalizePhone } from "../utils/normalizePhone";
+import { AlertTriangle } from "lucide-react";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
 function maskPhone(phone) {
@@ -983,6 +984,7 @@ const [merging,   setMerging]   = useState(false);
     setErrorMsg(data?.message || "Failed to save secondary number.");
   }
 } finally { setBusy(false); setBusyOp(null); }
+  };
 
   const handleRemoveSecondary = async () => {
     setBusy(true); setBusyOp("remove"); setErrorMsg("");
@@ -1159,6 +1161,39 @@ const [merging,   setMerging]   = useState(false);
           <p className="mt-2 text-[11px] text-red-500">{errorMsg}</p>
         )}
 
+
+        {/* Merge offer */}
+{mergeLead && (
+  <div className="mt-3 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 overflow-hidden">
+    <div className="px-3 py-2 border-b border-amber-200 dark:border-amber-800">
+      <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+        <AlertTriangle className="w-3.5 h-3.5" />
+        Number belongs to &quot;{mergeLead.name}&quot;
+      </p>
+    </div>
+    <div className="px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+      <p>Primary: <span className="font-mono">{mergeLead.primaryPhone || mergeLead.mobile}</span></p>
+      {mergeLead.secondaryPhone && <p>Secondary: <span className="font-mono">{mergeLead.secondaryPhone}</span></p>}
+    </div>
+    {mergeLead.secondaryPhone ? (
+      <p className="px-3 pb-2 text-[11px] text-red-500">Cannot merge — that lead already has two numbers.</p>
+    ) : (
+      <div className="px-3 pb-3 space-y-2">
+        {errorMsg && <p className="text-[11px] text-red-500">{errorMsg}</p>}
+        <div className="flex gap-2">
+          <button onClick={() => { setMergeLead(null); setErrorMsg(""); }}
+            className="flex-1 py-1.5 rounded-lg border border-amber-300 text-[12px] font-semibold text-amber-700 hover:bg-amber-100 transition">
+            Cancel
+          </button>
+          <button onClick={handleMergeReport} disabled={merging}
+            className="flex-1 py-1.5 rounded-lg bg-amber-500 text-white text-[12px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+            {merging ? "Merging…" : "Add as Secondary & Merge"}
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
+)}
         <div className="mt-5 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38]">
           <button onClick={onClose} className="w-full py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
             Close
