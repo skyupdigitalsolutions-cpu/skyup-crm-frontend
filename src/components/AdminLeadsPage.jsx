@@ -828,32 +828,43 @@ function Toast({ message, type = "success", onDismiss }) {
 }
 // ── PhoneActionsPanel ─────────────────────────────────────────────────────────
 function PhoneActionsPanel({ lead, isSuperAdmin, onLeadUpdated, onToast }) {
-  const [mode, setMode]         = useState(null); // "add" | "remove" | "swap" | null
-  const [secInput, setSecInput] = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
-  const [swapConfirm, setSwapConfirm] = useState(false);
+ const [mode, setMode]         = useState(null); // "add" | "remove" | "swap" | "merge" | null
+const [secInput, setSecInput] = useState("");
+const [loading, setLoading]   = useState(false);
+const [error, setError]       = useState("");
+const [swapConfirm, setSwapConfirm] = useState(false);
+const [mergeLead,  setMergeLead]    = useState(null);  // existing lead returned in 409
+const [merging,    setMerging]      = useState(false);
 
   const primaryPhone   = lead.primaryPhone   || lead.phone || "";
   const secondaryPhone = lead.secondaryPhone || null;
 
-  const reset = () => { setMode(null); setSecInput(""); setError(""); setSwapConfirm(false); };
+  const reset = () => { setMode(null); setSecInput(""); setError(""); setSwapConfirm(false); setMergeLead(null); setMerging(false); };
 
   // ── Add / Update secondary phone ───────────────────────────────────────────
-  const handleAddSecondary = async () => {
-    const norm = normalizeMobile(secInput);
-    if (!norm || norm.length < 7) { setError("Enter a valid phone number (min 7 digits)."); return; }
-    if (norm === normalizeMobile(primaryPhone)) { setError("Secondary cannot match the primary number."); return; }
-    setLoading(true); setError("");
-    try {
-      const res = await api.put(`/lead/${lead.id}/secondary-phone`, { secondaryPhone: norm });
-      onLeadUpdated({ ...lead, secondaryPhone: norm, _raw: res.data });
-      onToast("Secondary number saved successfully.");
-      reset();
-    } catch (e) {
-      setError(e.response?.data?.message || "Failed to save secondary number.");
-    } finally { setLoading(false); }
-  };
+const handleAddSecondary = async () => {
+  const norm = normalizeMobile(secInput);
+  if (!norm || norm.length < 7) { setError("Enter a valid phone number (min 7 digits)."); return; }
+  if (norm === normalizeMobile(primaryPhone)) { setError("Secondary cannot match the primary number."); return; }
+  setLoading(true); setError("");
+  try {
+    const res = await api.put(`/lead/${lead.id}/secondary-phone`, { secondaryPhone: norm });
+    onLeadUpdated({ ...lead, secondaryPhone: norm, _raw: res.data });
+    onToast("Secondary number saved successfully.");
+    reset();
+  } catch (e) {
+    const status = e.response?.status;
+    const data   = e.response?.data;
+    // 409 → number belongs to another lead → offer merge
+    if (status === 409 && data?.existingLead) {
+      setMergeLead(data.existingLead);
+      setMode("merge");
+      setError("");
+    } else {
+      setError(data?.message || "Failed to save secondary number.");
+    }
+  } finally { setLoading(false); }
+};
 
   // ── Remove secondary phone ─────────────────────────────────────────────────
   const handleRemoveSecondary = async () => {
@@ -887,6 +898,33 @@ function PhoneActionsPanel({ lead, isSuperAdmin, onLeadUpdated, onToast }) {
       setError(e.response?.data?.message || "Failed to swap numbers.");
     } finally { setLoading(false); }
   };
+
+  // ── Merge from PhoneActionsPanel ─────────────────────────────────────────────
+const handleMergeFromPanel = async () => {
+  if (!mergeLead) return;
+  const targetId = mergeLead._id || mergeLead.id;
+  const norm     = normalizeMobile(secInput);
+  setMerging(true); setError("");
+  try {
+    const role     = getRole();
+    const endpoint = role === "superadmin"
+      ? `/lead/superadmin/${targetId}/merge`
+      : `/lead/admin/${targetId}/merge`;
+    await api.post(endpoint, {
+      secondaryPhone: norm,
+      sourceName:     lead.name,
+      sourceMobile:   norm,
+    });
+    // The current lead (lead.id) is now archived; we close the panel and
+    // let the parent refresh the list.
+    onToast("Leads merged successfully.");
+    reset();
+    // Optional: signal parent to remove the current lead from list
+    onLeadUpdated({ ...lead, _merged: true });
+  } catch (e) {
+    setError(e.response?.data?.message || "Merge failed. Please try again.");
+  } finally { setMerging(false); }
+};
 
   return (
     <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
@@ -970,6 +1008,31 @@ function PhoneActionsPanel({ lead, isSuperAdmin, onLeadUpdated, onToast }) {
         </div>
       )}
 
+      {/* Merge confirmation */}
+{mode === "merge" && mergeLead && (
+  <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
+    <p className="text-[12px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+      Number belongs to &quot;{mergeLead.name}&quot;
+    </p>
+    <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
+      Add <span className="font-mono font-semibold">{normalizeMobile(secInput)}</span> as secondary of &quot;{mergeLead.name}&quot; and merge all data?
+    </p>
+    {error && (
+      <p className="text-[11px] text-red-500 flex items-center gap-1">
+        <AlertCircle className="w-3 h-3 shrink-0" />{error}
+      </p>
+    )}
+    <div className="flex gap-2">
+      <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+      <button onClick={handleMergeFromPanel} disabled={merging}
+        className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+        {merging ? <><Loader2 className="w-3 h-3 animate-spin" /> Merging…</> : "Merge Leads"}
+      </button>
+    </div>
+  </div>
+)}
+
       {/* Remove confirm */}
       {mode === "remove" && (
         <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
@@ -1040,8 +1103,10 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
   });
   const [errors,     setErrors]     = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [dupCheck,   setDupCheck]   = useState({ state: "idle", lead: null });
-  const dupTimerRef = useRef(null);
+ const [dupCheck,   setDupCheck]   = useState({ state: "idle", lead: null });
+const [merging,    setMerging]    = useState(false);   // true while merge API call is in-flight
+const [mergeError, setMergeError] = useState("");      // error message for merge dialog
+const dupTimerRef = useRef(null);
 
   const checkDuplicate = useCallback((mobile) => {
     const norm = normalizePhone(mobile);
@@ -1107,7 +1172,7 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
     if (!name || name.length < 2) e.name = "Name must be at least 2 characters.";
     if (!mob) e.mobile = "Mobile number is required.";
     else if (mob.length < 7 || mob.length > 15) e.mobile = "Enter a valid mobile number (7–15 digits).";
-    else if (currentDupState === "duplicate") e.mobile = "This number already exists. Search for the existing lead to update it.";
+else if (currentDupState === "duplicate") e.mobile = "This number belongs to an existing lead. Use the merge option above.";
     if (form.secondaryPhone) {
       const secMob = normalizeMobile(form.secondaryPhone);
       if (secMob.length > 0 && secMob.length < 7) e.secondaryPhone = "Enter a valid secondary number.";
@@ -1129,12 +1194,12 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
       clearTimeout(dupTimerRef.current);
       const isDup = await runSyncDupCheck(mob);
       resolvedDupState = isDup ? "duplicate" : "ok";
-      if (isDup) { setErrors({ mobile: "This number already exists. Search for the existing lead to update it." }); return; }
+if (isDup) { setErrors({ mobile: "This number belongs to an existing lead. Use the merge option above." }); return; }
     }
     const newErrors = validate(resolvedDupState);
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
     if (resolvedDupState === "duplicate") {
-      setErrors({ mobile: "This number already exists. Search for the existing lead to update it." });
+setErrors({ mobile: "This number belongs to an existing lead. Use the merge option above." });
       return;
     }
     setSubmitting(true);
@@ -1206,11 +1271,64 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
       setSubmitting(false);
     }
   };
-
-  const canSubmit =
-    !submitting && !loading && users.length > 0 &&
-    dupCheck.state !== "duplicate" && dupCheck.state !== "checking";
-
+// ── Merge: add current form's number as secondary of existing lead ───────────
+const handleMerge = async () => {
+  if (!dupCheck.lead) return;
+  const existingId   = dupCheck.lead._id || dupCheck.lead.id;
+  const currentMob   = normalizeMobile(form.mobile);   // this becomes secondary on the existing lead
+  setMerging(true);
+  setMergeError("");
+  try {
+    const role     = getRole();
+    const endpoint = role === "superadmin"
+      ? `/lead/superadmin/${existingId}/merge`
+      : `/lead/admin/${existingId}/merge`;
+    const res = await api.post(endpoint, {
+      secondaryPhone: currentMob,
+      // The "source" lead whose data should be absorbed is the current (new) form.
+      // We pass its basic fields so the backend can build a timeline entry.
+      sourceName:   form.name.trim(),
+      sourceMobile: currentMob,
+    });
+    const merged = res.data?.lead || res.data;
+    // Notify parent so the leads list refreshes / shows the updated lead
+    onAdd({
+      ...merged,
+      id:             String(merged._id),
+      name:           merged.name,
+      phone:          merged.primaryPhone || merged.mobile,
+      mobile:         merged.primaryPhone || merged.mobile,
+      primaryPhone:   merged.primaryPhone || merged.mobile,
+      secondaryPhone: merged.secondaryPhone || null,
+      source:         merged.source   || "Manual",
+      campaign:       merged.campaign || "—",
+      status:         merged.status,
+      date:           merged.date
+        ? new Date(merged.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+        : "—",
+      remark:         merged.remark,
+      agent:          merged.user?.name || "—",
+      callHistory:    merged.callHistory    || [],
+      scheduledCalls: merged.scheduledCalls || [],
+      previousAgents: merged.previousAgents || [],
+      reassignCount:  merged.reassignCount  || 0,
+      _raw_date:      merged.date,
+      Quality:        merged.temperature ?? null,
+      temperature:    merged.temperature ?? null,
+      createdAt:      merged.createdAt,
+    });
+    onClose();
+  } catch (e) {
+    setMergeError(e.response?.data?.message || "Merge failed. Please try again.");
+  } finally {
+    setMerging(false);
+  }
+};
+  
+const canSubmit =
+  !submitting && !loading && !merging && users.length > 0 &&
+  dupCheck.state !== "duplicate" && dupCheck.state !== "checking";
+  
   const inp = (key) =>
     `w-full px-3 py-2.5 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
     ${errors[key] ? "border-red-400 dark:border-red-500 focus:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`;
@@ -1262,43 +1380,86 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
             )}
 
             {/* ── Duplicate card with phone masking ── */}
-            {dupCheck.state === "duplicate" && dupCheck.lead && (
-              <div className="mt-2 p-3 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600">
-                <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400 mb-2 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Duplicate — this number already exists
-                </p>
-                <div className="text-[11px] text-amber-700 dark:text-amber-300 space-y-0.5">
-                  <p><span className="font-semibold">Name:</span> {dupCheck.lead.name}</p>
-                  {/* Superadmin sees plain number; admin sees masked number */}
-                  <p>
-                    <span className="font-semibold">Primary:</span>{" "}
-                    <span className="font-mono">{maskPhone(dupCheck.lead.primaryPhone || dupCheck.lead.mobile, isSuperAdmin)}</span>
-                  </p>
-                  {dupCheck.lead.secondaryPhone && (
-                    <p>
-                      <span className="font-semibold">Secondary:</span>{" "}
-                      <span className="font-mono">{maskPhone(dupCheck.lead.secondaryPhone, isSuperAdmin)}</span>
-                    </p>
-                  )}
-                  <p><span className="font-semibold">Status:</span> {dupCheck.lead.status}</p>
-                  <p><span className="font-semibold">Source:</span> {dupCheck.lead.source}</p>
-                  {dupCheck.lead.createdAt && <p><span className="font-semibold">Added:</span> {new Date(dupCheck.lead.createdAt).toLocaleDateString()}</p>}
-                </div>
-                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2 font-semibold border-t border-amber-200 dark:border-amber-800 pt-2">
-                  This lead cannot be saved. Search for the existing lead to update it instead.
-                </p>
-              </div>
+          {/* ── Duplicate / Merge card ── */}
+{dupCheck.state === "duplicate" && dupCheck.lead && (() => {
+  const existingLead    = dupCheck.lead;
+  const alreadyHasSec   = !!existingLead.secondaryPhone;
+  const canMerge        = !alreadyHasSec; // max 2 numbers per lead
+  return (
+    <div className="mt-2 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600 overflow-hidden">
+      {/* Header */}
+      <div className="px-3 py-2.5 border-b border-amber-200 dark:border-amber-800">
+        <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          This number belongs to existing lead &quot;{existingLead.name}&quot;
+        </p>
+      </div>
+      {/* Existing lead details */}
+      <div className="px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300 space-y-0.5">
+        <p><span className="font-semibold">Primary:</span>{" "}
+          <span className="font-mono">{maskPhone(existingLead.primaryPhone || existingLead.mobile, isSuperAdmin)}</span>
+        </p>
+        {existingLead.secondaryPhone && (
+          <p><span className="font-semibold">Secondary:</span>{" "}
+            <span className="font-mono">{maskPhone(existingLead.secondaryPhone, isSuperAdmin)}</span>
+          </p>
+        )}
+        <p><span className="font-semibold">Status:</span> {existingLead.status}</p>
+        {existingLead.createdAt && (
+          <p><span className="font-semibold">Added:</span> {new Date(existingLead.createdAt).toLocaleDateString()}</p>
+        )}
+      </div>
+      {/* Action buttons */}
+      <div className="px-3 pb-3 space-y-2">
+        {canMerge ? (
+          <>
+            <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wide">Choose an action:</p>
+            {mergeError && (
+              <p className="text-[11px] text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3 shrink-0" />{mergeError}
+              </p>
             )}
-            {dupCheck.state === "duplicate" && !dupCheck.lead && (
-              <div className="mt-2 p-3 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600">
-                <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> This number is already registered as a lead.
-                </p>
-                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
-                  This lead cannot be saved. Search for the existing lead to update it.
-                </p>
-              </div>
-            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setDupCheck({ state: "idle", lead: null }); setMergeError(""); }}
+                className="flex-1 py-2 rounded-xl border border-amber-300 dark:border-amber-700 text-[12px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMerge}
+                disabled={merging}
+                className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5"
+              >
+                {merging
+                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Merging…</>
+                  : "Add as Secondary & Merge Leads"}
+              </button>
+            </div>
+            <p className="text-[10px] text-amber-600/80 dark:text-amber-500/70 leading-snug">
+              This will add <span className="font-mono font-semibold">{normalizeMobile(form.mobile)}</span> as the secondary number of &quot;{existingLead.name}&quot; and transfer all call logs, WhatsApp, notes, tasks, and timeline entries.
+            </p>
+          </>
+        ) : (
+          <p className="text-[11px] text-red-500 flex items-center gap-1.5 pb-1">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            Cannot merge — &quot;{existingLead.name}&quot; already has two numbers (max limit). Open that lead to manage its numbers.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+})()}
+{dupCheck.state === "duplicate" && !dupCheck.lead && (
+  <div className="mt-2 p-3 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600">
+    <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+      <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> This number is already registered as a lead.
+    </p>
+    <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+      Search for the existing lead to update or merge it.
+    </p>
+  </div>
+)}
           </div>
           {/* ── Secondary Phone (optional) ───────────────────────────────── */}
           <div>
