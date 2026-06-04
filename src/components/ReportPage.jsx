@@ -4,6 +4,7 @@ import api from "../data/axiosConfig";
 import { useDateFilter } from "../components/dataFilter";
 import CRMEncryption from "../utils/CRMEncryption";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES as ALL_STATUSES_SHARED } from "../utils/statusConfig";
+import { normalizePhone } from "../utils/normalizePhone";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
 function maskPhone(phone) {
@@ -962,7 +963,11 @@ function PhoneNumbersModal({ lead, role, onClose, onLeadUpdated }) {
   const handleAddSecondary = async () => {
     const trimmed = newSecondary.trim();
     if (!trimmed) { setErrorMsg("Please enter a phone number."); return; }
-    if (trimmed === primaryPhone) { setErrorMsg("Secondary number must differ from the primary."); return; }
+    if (!normalizePhone(trimmed)) { setErrorMsg("Enter a valid 10-digit phone number."); return; }
+    if (normalizePhone(trimmed) === normalizePhone(primaryPhone)) {
+      setErrorMsg("Secondary number must differ from the primary.");
+      return;
+    }
     setBusy(true); setBusyOp("add"); setErrorMsg("");
     try {
       const { data } = await api.put(endpoint("secondary-phone"), { secondaryPhone: trimmed });
@@ -1294,7 +1299,10 @@ export default function ReportPage() {
       );
       return (
         matchProject &&
-        (!q || l.name?.toLowerCase().includes(q) || l.phone?.includes(q) || l.campaign?.toLowerCase().includes(q)) &&
+(!q || l.name?.toLowerCase().includes(q) ||
+          (l.primaryPhone || l.phone || "").includes(q) ||
+          (l.secondaryPhone || "").includes(q) ||
+          l.campaign?.toLowerCase().includes(q)) &&
         (statusFilter === "All" || (() => {
           const { label } = getLeadDisplayStatus(l);
           return label === statusFilter;
