@@ -34,7 +34,7 @@ const STATUS_COLOR = {
   "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",      text: "text-red-600 dark:text-red-400",      dot: "#DC2626" },
 };
 
-const TEMP_ICON = { Hot: "", Warm: "", Cold: "" };
+const TEMP_ICON = { Hot: "🔥", Warm: "☀️", Cold: "❄️" };
 const TEMP_STYLE = {
   Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400" },
   Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400" },
@@ -166,7 +166,7 @@ function ScheduledCard({ sc: call }) {
     : isOverdue
     ? "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
     : "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400";
-  const icon = call.done ? "" : isOverdue ? "" : "";
+  const icon = call.done ? "✅" : isOverdue ? "⚠️" : "🕐";
 
   return (
     <div className={`rounded-xl border p-3 mb-2 ${
@@ -228,7 +228,7 @@ function EmployeeCard({ agent, isCurrent }) {
   );
 }
 
-// ── Default fallback masker (used when AdminLeadsPage doesn't pass maskPhone) ─
+// ── Default fallback masker ───────────────────────────────────────────────────
 function defaultMaskPhone(phone, isSuperAdmin) {
   if (!phone) return "—";
   if (isSuperAdmin) return phone;
@@ -237,7 +237,7 @@ function defaultMaskPhone(phone, isSuperAdmin) {
   return "•".repeat(str.length - 2) + str.slice(-2);
 }
 
-// ── Default email masker ───────────────────────────────────────────────────────
+// ── Default email masker ──────────────────────────────────────────────────────
 function defaultMaskEmail(email, isSuperAdmin) {
   if (!email) return null;
   if (isSuperAdmin) return email;
@@ -259,21 +259,38 @@ function defaultMaskEmail(email, isSuperAdmin) {
   return `${maskedLocal}@${maskedDomain}`;
 }
 
-// ── Main drawer ──────────────────────────────────────────────────────────────
-// NEW: accepts isSuperAdmin + maskPhone props for phone number masking.
-// Falls back to defaultMaskPhone if not provided (safe for standalone use).
+// ── WhatsApp SVG icon (shared) ────────────────────────────────────────────────
+function WhatsAppIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+    </svg>
+  );
+}
+
+// ── Phone SVG icon (shared) ───────────────────────────────────────────────────
+function PhoneIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+    </svg>
+  );
+}
+
+// ── Main drawer ───────────────────────────────────────────────────────────────
 export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false, maskPhone, maskEmail }) {
   if (!lead) return null;
 
   const masker      = maskPhone  || defaultMaskPhone;
-  const emailMasker  = maskEmail || defaultMaskEmail;
+  const emailMasker = maskEmail  || defaultMaskEmail;
 
-  // ── MASKED phones — used everywhere in this drawer ────────────────────────
   const displayPhone          = masker(lead.primaryPhone || lead.phone || lead.mobile, isSuperAdmin);
-  const displaySecondaryPhone = lead.secondaryPhone
-    ? masker(lead.secondaryPhone, isSuperAdmin)
-    : null;
-  const displayEmail = emailMasker(lead.email, isSuperAdmin);
+  const displaySecondaryPhone = lead.secondaryPhone ? masker(lead.secondaryPhone, isSuperAdmin) : null;
+  const displayEmail          = emailMasker(lead.email, isSuperAdmin);
+
+  // Raw (unmasked) numbers for href links — only used in tel:/wa.me links
+  const rawPrimary   = (lead.primaryPhone || lead.phone || lead.mobile || "");
+  const rawSecondary = (lead.secondaryPhone || "");
 
   const sc = STATUS_COLOR[lead.status] || STATUS_COLOR["New"];
   const name = lead.name || "Unknown";
@@ -317,14 +334,16 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
         <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] sticky top-0 z-10">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-[15px] font-black shrink-0"
-                style={{ background: (sc.dot || "#2563EB") + "18", color: sc.dot || "#2563EB" }}>
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center text-[15px] font-black shrink-0"
+                style={{ background: (sc.dot || "#2563EB") + "18", color: sc.dot || "#2563EB" }}
+              >
                 {name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
               </div>
               <div>
                 <h2 className="text-[17px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{name}</h2>
                 <div className="flex flex-col gap-0.5 mt-0.5">
-                  {(lead.primaryPhone || lead.phone || lead.mobile) && (
+                  {rawPrimary && (
                     <span className="inline-flex items-center gap-1.5">
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500">PRIMARY</span>
                       <span className="text-[11px] font-mono text-[#8B92A9]">{displayPhone}</span>
@@ -332,11 +351,13 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                   )}
                   {displaySecondaryPhone && (
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500">SECONDARY</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500">ADDITIONAL</span>
                       <span className="text-[11px] font-mono text-[#8B92A9]">{displaySecondaryPhone}</span>
                     </span>
                   )}
-                  {displayEmail && <span className="text-[11px] text-[#8B92A9] font-mono">{displayEmail}</span>}
+                  {displayEmail && (
+                    <span className="text-[11px] text-[#8B92A9] font-mono">{displayEmail}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -362,12 +383,12 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
             )}
             {lead.agent && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
-                + {lead.agent}
+                👤 {lead.agent}
               </span>
             )}
             {lead.reassignCount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 dark:bg-gray-900/40 text-gray-500 dark:text-gray-400">
-                 Reassigned {lead.reassignCount}×
+                🔄 Reassigned {lead.reassignCount}×
               </span>
             )}
           </div>
@@ -392,18 +413,84 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
         {/* ── Body ── */}
         <div className="px-6 py-5 flex-1 space-y-6">
 
-          {/* Lead details */}
+          {/* ── Contact Numbers ── */}
           <div>
-            <SectionLabel icon="" label="Lead Details" />
+            <SectionLabel icon="📞" label="Contact Numbers" />
+            <div className="space-y-2">
+
+              {/* Primary Number */}
+              <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-4 py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500 shrink-0">PRIMARY</span>
+                  <span className="text-[13px] font-mono font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{displayPhone}</span>
+                </div>
+                <div className="flex gap-2">
+                  <a
+                    href={`tel:${rawPrimary.replace(/\s/g, "")}`}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[12px] font-semibold hover:bg-emerald-500/20 transition"
+                  >
+                    <PhoneIcon />
+                    Call Primary
+                  </a>
+                  <a
+                    href={`https://wa.me/${rawPrimary.replace(/\D/g, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-[#25D366]/10 text-[#25D366] text-[12px] font-semibold hover:bg-[#25D366]/20 transition"
+                  >
+                    <WhatsAppIcon />
+                    WhatsApp
+                  </a>
+                </div>
+              </div>
+
+              {/* Additional Number */}
+              {lead.secondaryPhone ? (
+                <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-4 py-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500 shrink-0">ADDITIONAL</span>
+                    <span className="text-[13px] font-mono font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{displaySecondaryPhone}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <a
+                      href={`tel:${rawSecondary.replace(/\s/g, "")}`}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[12px] font-semibold hover:bg-blue-500/20 transition"
+                    >
+                      <PhoneIcon />
+                      Call Additional
+                    </a>
+                    <a
+                      href={`https://wa.me/${rawSecondary.replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-[#25D366]/10 text-[#25D366] text-[12px] font-semibold hover:bg-[#25D366]/20 transition"
+                    >
+                      <WhatsAppIcon />
+                      WhatsApp
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#F0F2FA] dark:bg-[#262A38] text-[#8B92A9]">ADDITIONAL</span>
+                  <span className="text-[12px] text-[#8B92A9] italic">Not set</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Lead Details ── */}
+          <div>
+            <SectionLabel icon="📋" label="Lead Details" />
             <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
               {[
-                { label: "Source",    value: lead.source || "—" },
-                { label: "Campaign",  value: lead.campaign && lead.campaign !== "—" ? lead.campaign : "—" },
-                { label: "Ad Set",    value: lead.adSetName || "—" },
-                { label: "Primary Phone",   value: displayPhone },
-                ...(displaySecondaryPhone ? [{ label: "Secondary Phone", value: displaySecondaryPhone }] : []),
-                { label: "Created",   value: fmtDateTime(lead._raw_date || lead.createdAt) },
-                { label: "Lead Date", value: lead.date || "—" },
+                { label: "Source",           value: lead.source || "—" },
+                { label: "Campaign",         value: lead.campaign && lead.campaign !== "—" ? lead.campaign : "—" },
+                { label: "Ad Set",           value: lead.adSetName || "—" },
+                { label: "Primary Number",   value: displayPhone },
+                ...(displaySecondaryPhone ? [{ label: "Additional Number", value: displaySecondaryPhone }] : []),
+                { label: "Created",          value: fmtDateTime(lead._raw_date || lead.createdAt) },
+                { label: "Lead Date",        value: lead.date || "—" },
               ].map((row, i) => (
                 <div
                   key={row.label}
@@ -416,7 +503,6 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                 </div>
               ))}
 
-              {/* Projects row */}
               {lead.projects && lead.projects.length > 0 && (
                 <div className="border-t border-[#F0F2FA] dark:border-[#1E2130] px-4 py-2.5">
                   <span className="text-[11px] text-[#8B92A9] block mb-1.5">Projects</span>
@@ -448,35 +534,35 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
             </div>
           </div>
 
-          {/* Call history */}
+          {/* ── Call History ── */}
           <div>
-            <SectionLabel icon="" label={`Call History (${sortedCalls.length})`} />
+            <SectionLabel icon="📞" label={`Call History (${sortedCalls.length})`} />
             {sortedCalls.length > 0 ? (
               sortedCalls.map((call, i) => (
                 <CallCard key={i} call={call} displayIndex={i + 1} />
               ))
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                <span className="text-[28px]"></span>
+                <span className="text-[28px]">📭</span>
                 <p className="text-[12px] text-[#8B92A9]">No calls recorded yet</p>
               </div>
             )}
           </div>
 
-          {/* Scheduled / follow-up calls */}
+          {/* ── Scheduled / Follow-up Calls ── */}
           {sortedSched.length > 0 && (
             <div>
-              <SectionLabel icon="" label={`Follow-ups & Scheduled Calls (${sortedSched.length})`} />
+              <SectionLabel icon="📅" label={`Follow-ups & Scheduled Calls (${sortedSched.length})`} />
               {sortedSched.map((s, i) => (
                 <ScheduledCard key={i} sc={s} />
               ))}
             </div>
           )}
 
-          {/* Employee history */}
+          {/* ── Employee History ── */}
           {allAgents.length > 0 && (
             <div>
-              <SectionLabel icon="" label={`Employee History (${allAgents.length})`} />
+              <SectionLabel icon="👥" label={`Employee History (${allAgents.length})`} />
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-4 py-2">
                 {allAgents.map((ag, i) => (
                   <EmployeeCard key={i} agent={ag} isCurrent={ag._isCurrent} />
@@ -485,25 +571,29 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
             </div>
           )}
 
-          {/* Current status summary */}
+          {/* ── Current Status Summary ── */}
           <div>
-            <SectionLabel icon="" label="Current Status Summary" />
-            <div className="rounded-xl border p-4"
-              style={{ borderColor: sc.dot + "40", background: sc.dot + "08" }}>
+            <SectionLabel icon="📊" label="Current Status Summary" />
+            <div
+              className="rounded-xl border p-4"
+              style={{ borderColor: sc.dot + "40", background: sc.dot + "08" }}
+            >
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[20px]"
-                  style={{ background: sc.dot + "15" }}>
-                  {lead.status === "Converted"        ? ""
-                   : lead.status === "Not Interested" ? ""
-                   : lead.status === "In Progress"    ? ""
-                   : ""}
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-[20px]"
+                  style={{ background: sc.dot + "15" }}
+                >
+                  {lead.status === "Converted"        ? "🎉"
+                   : lead.status === "Not Interested" ? "❌"
+                   : lead.status === "In Progress"    ? "⚡"
+                   : "🆕"}
                 </div>
                 <div>
                   <p className="text-[13px] font-bold" style={{ color: sc.dot }}>{lead.status}</p>
                   <p className="text-[10px] text-[#8B92A9]">
-                    {lead.status === "Converted"        ? "Successfully converted to customer" :
-                     lead.status === "Not Interested"   ? "Lead declined the offer" :
-                     lead.status === "In Progress"      ? `Active — ${totalCalls} call${totalCalls !== 1 ? "s" : ""} made` :
+                    {lead.status === "Converted"      ? "Successfully converted to customer" :
+                     lead.status === "Not Interested" ? "Lead declined the offer" :
+                     lead.status === "In Progress"    ? `Active — ${totalCalls} call${totalCalls !== 1 ? "s" : ""} made` :
                      "Newly added, awaiting first contact"}
                   </p>
                 </div>
@@ -526,7 +616,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
 
               {overdueCalls > 0 && (
                 <div className="mt-2.5 flex items-center gap-2 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
-                  <span className="text-[13px]"></span>
+                  <span className="text-[13px]">⚠️</span>
                   <p className="text-[11px] font-semibold text-red-600 dark:text-red-400">
                     {overdueCalls} overdue follow-up{overdueCalls > 1 ? "s" : ""} — action needed
                   </p>
