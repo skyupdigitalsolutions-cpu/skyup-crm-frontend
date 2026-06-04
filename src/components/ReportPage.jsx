@@ -936,8 +936,9 @@ function PhoneNumbersModal({ lead, role, onClose, onLeadUpdated }) {
   const [newSecondary,   setNewSecondary]   = useState("");
   const [busy,           setBusy]           = useState(false);
   const [busyOp,         setBusyOp]         = useState(null); // "add" | "remove" | "swap"
-  const [errorMsg,       setErrorMsg]       = useState("");
-
+const [errorMsg,  setErrorMsg]  = useState("");
+const [mergeLead, setMergeLead] = useState(null);   // populated when 409 returned
+const [merging,   setMerging]   = useState(false);
   // Build role-aware API endpoint prefix
   const endpoint = (path) => {
     const r = getRole();
@@ -969,14 +970,19 @@ function PhoneNumbersModal({ lead, role, onClose, onLeadUpdated }) {
       return;
     }
     setBusy(true); setBusyOp("add"); setErrorMsg("");
-    try {
-      const { data } = await api.put(endpoint("secondary-phone"), { secondaryPhone: trimmed });
-      applyUpdate(data);
-      setNewSecondary("");
-    } catch (err) {
-      setErrorMsg(err.response?.data?.message || "Failed to save secondary number.");
-    } finally { setBusy(false); setBusyOp(null); }
-  };
+ try {
+  const { data } = await api.put(endpoint("secondary-phone"), { secondaryPhone: trimmed });
+  applyUpdate(data);
+  setNewSecondary("");
+} catch (err) {
+  const status = err.response?.status;
+  const data   = err.response?.data;
+  if (status === 409 && data?.existingLead) {
+    setMergeLead(data.existingLead);   // triggers merge UI
+  } else {
+    setErrorMsg(data?.message || "Failed to save secondary number.");
+  }
+} finally { setBusy(false); setBusyOp(null); }
 
   const handleRemoveSecondary = async () => {
     setBusy(true); setBusyOp("remove"); setErrorMsg("");
@@ -1011,6 +1017,29 @@ function PhoneNumbersModal({ lead, role, onClose, onLeadUpdated }) {
       <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
     </svg>
   );
+
+   const handleMergeReport = async () => {
+  if (!mergeLead) return;
+  const targetId = mergeLead._id || mergeLead.id;
+  const norm     = normalizePhone(newSecondary.trim());
+  setMerging(true); setErrorMsg("");
+  try {
+    const r = getRole();
+    const prefix = (r === "superadmin" || r === "admin") ? "admin" : "";
+    const ep = prefix ? `/lead/${prefix}/${targetId}/merge` : `/lead/${targetId}/merge`;
+    const { data } = await api.post(ep, {
+      secondaryPhone: norm,
+      sourceName:     lead.name,
+      sourceMobile:   norm,
+    });
+    applyUpdate(data?.lead || data);
+    setMergeLead(null);
+    setNewSecondary("");
+    onClose();
+  } catch (err) {
+    setErrorMsg(err.response?.data?.message || "Merge failed.");
+  } finally { setMerging(false); }
+}; 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
