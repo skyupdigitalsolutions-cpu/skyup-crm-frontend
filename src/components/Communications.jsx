@@ -2305,7 +2305,7 @@ function SmsLeadRow({ lead, isActive, onClick }) {
 }
 
 // ── Skyup_greetings approved DLT template constants ──────────────────────────
-const SKYUP_GREETINGS_TEMPLATE_ID = "1007503933418344595";
+const SKYUP_GREETINGS_TEMPLATE_ID = "6a1ffe028c6272147b00b233";
 const SKYUP_GREETINGS_SENDER_ID   = "695382";
 const SKYUP_GREETINGS_MESSAGE =
   "Hi {{name}}, thank you for contacting SKYUP Digital Solutions LLP!" +
@@ -2659,7 +2659,7 @@ function SmsLeadThread({ lead, onBack, onSend }) {
           setSenderId(r.data.data.msg91SenderId || "");
           // Pre-fill with greetingsTemplateId from DB, fallback to known default
           setTemplateId(
-            r.data.data.greetingsTemplateId || "1007503933418344595"
+            r.data.data.greetingsTemplateId || "6a1ffe028c6272147b00b233"
           );
         }
       })
@@ -2686,7 +2686,7 @@ function SmsLeadThread({ lead, onBack, onSend }) {
       await api.put("/sms-config", {
         msg91AuthKey:        authKey.trim(),
         msg91SenderId:       senderId.trim() || "SKYCRM",
-        greetingsTemplateId: templateId.trim() || "1007503933418344595",
+        greetingsTemplateId: templateId.trim() || "6a1ffe028c6272147b00b233",
         greetingsSenderId:   "695382",
       });
       setConfigSaved(true);
@@ -2797,7 +2797,7 @@ function SmsLeadThread({ lead, onBack, onSend }) {
                 <button
                   type="button"
                   onClick={() => {
-                    setTemplateId("1007503933418344595");
+                    setTemplateId("6a1ffe028c6272147b00b233");
                     setSenderId("695382");
                   }}
                   className="text-[9px] font-bold text-[#EA580C] hover:underline whitespace-nowrap"
