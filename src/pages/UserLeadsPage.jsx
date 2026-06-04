@@ -54,7 +54,9 @@ function mapLead(l) {
     id:             String(l._id),
     _id:            l._id,
     name:           l.name           || "Unknown",
-    phone:          l.mobile         || l.phone || "",
+phone:          l.primaryPhone   || l.mobile || l.phone || "",
+    primaryPhone:   l.primaryPhone   || l.mobile || l.phone || "",
+    secondaryPhone: l.secondaryPhone || null,
     email:          l.email          || "",
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
@@ -461,12 +463,16 @@ function RecordingsTab({ lead }) {
       const all = res.data.recordings || [];
 
       // Match by lead ID or by last-6-digits of phone number
-      const phone6 = lead.phone ? lead.phone.replace(/\D/g, "").slice(-6) : null;
+const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "");
+      const secondaryDigits = (lead.secondaryPhone || "").replace(/\D/g, "");
+      const phone6          = primaryDigits.slice(-6) || null;
+      const sec6            = secondaryDigits.slice(-6) || null;
       const matched = all.filter(r => {
-        const byId    = r.matchedLead && String(r.matchedLead._id) === String(lead.id);
-        const byPhone = phone6 && r.phoneNumber &&
-          r.phoneNumber.replace(/\D/g, "").endsWith(phone6);
-        return byId || byPhone;
+        const byId       = r.matchedLead && String(r.matchedLead._id) === String(lead.id);
+        const recDigits  = (r.phoneNumber || "").replace(/\D/g, "");
+        const byPrimary  = phone6 && recDigits.endsWith(phone6);
+        const bySecondary = sec6  && recDigits.endsWith(sec6);
+        return byId || byPrimary || bySecondary;
       });
 
       setCallLogs(matched);
@@ -736,7 +742,18 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
               </div>
               <div>
                 <p className="text-[15px] font-bold text-[#0F1117] dark:text-white leading-none">{lead.name}</p>
-                <p className="text-[12px] text-[#8B92A9] dark:text-gray-400 font-mono mt-0.5">{maskPhone(lead.phone)}</p>
+<div className="flex flex-col gap-0.5 mt-0.5">
+                  <p className="text-[12px] text-[#8B92A9] dark:text-gray-400 font-mono">
+                    <span className="text-[9px] font-bold bg-emerald-500/15 text-emerald-500 px-1 rounded mr-1">PRIMARY</span>
+                    {maskPhone(lead.primaryPhone || lead.phone)}
+                  </p>
+                  {lead.secondaryPhone && (
+                    <p className="text-[12px] text-[#8B92A9] dark:text-gray-400 font-mono">
+                      <span className="text-[9px] font-bold bg-blue-500/15 text-blue-500 px-1 rounded mr-1">SECONDARY</span>
+                      {maskPhone(lead.secondaryPhone)}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -1210,10 +1227,19 @@ export default function UserLeadsPage() {
                           </div>
                         </td>
 
-                        <td className="px-4 py-3">
-                          <span className="font-mono text-[#4B5168] dark:text-white tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[11px]">
-                            {maskPhone(l.phone)}
-                          </span>
+                      <td className="px-4 py-3">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-mono text-[#4B5168] dark:text-white tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[11px] inline-flex items-center gap-1">
+                              <span className="text-[8px] font-bold text-emerald-500">P</span>
+                              {maskPhone(l.primaryPhone || l.phone)}
+                            </span>
+                            {l.secondaryPhone && (
+                              <span className="font-mono text-[#8B92A9] tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[11px] inline-flex items-center gap-1">
+                                <span className="text-[8px] font-bold text-blue-500">S</span>
+                                {maskPhone(l.secondaryPhone)}
+                              </span>
+                            )}
+                          </div>
                           {l.email && (
                             <p className="text-[14px] text-[#8B92A9] mt-0.5 truncate max-w-[120px]">
                               {l.email.replace(/(.{2})(.*)(@.*)/, "$1••••$3")}
