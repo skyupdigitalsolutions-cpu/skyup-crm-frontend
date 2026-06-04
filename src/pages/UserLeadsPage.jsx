@@ -2,17 +2,15 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import api from "../data/axiosConfig";
 import ColdReassignModal from "../components/ColdReassignModal";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
+import { maskPhone as _maskPhone } from "../utils/maskPhone";
 
 const BACKEND_ROOT = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace(/\/api$/, "")
   : "https://skyup-crm-backend.onrender.com";
 
-function maskPhone(phone) {
-  if (!phone) return "—";
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 6) return "••••••";
-  return digits.slice(0, 2) + "•••••" + digits.slice(-2);
-}
+function maskPhone(phone) { return _maskPhone(phone) || "—"; }
+
+
 
 // STATUS_CONFIG imported from ../utils/statusConfig (Merged=Yellow, Closed=Red)
 const TEMP_CONFIG = {
