@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import axios from "axios";
-import { fetchAll, getRole, getStoredUser } from "../data/dataService";
+import { fetchAll, getRole } from "../data/dataService";
 import api from "../data/axiosConfig";
 import { useDateFilter } from "../components/dataFilter";
 import CRMEncryption from "../utils/CRMEncryption";
@@ -34,13 +33,10 @@ const SOURCE_COLORS = {
   "Referral":     "#D97706",
 };
 
-// STATUS_STYLE and ALL_STATUSES are now sourced from ../utils/statusConfig
-// for consistency with AdminLeadsPage. The alias below preserves all existing
-// references (st.bg, st.text) without changing them.
 const STATUS_STYLE = Object.fromEntries(
   Object.entries(STATUS_CONFIG).map(([k, v]) => [k, { bg: v.bg, text: v.text }])
 );
-const ALL_STATUSES = ALL_STATUSES_SHARED; // ["New","In Progress","Converted","Not Interested","Merged","Closed"]
+const ALL_STATUSES = ALL_STATUSES_SHARED;
 
 const OUTCOME_STYLE = {
   "Not Interested": { bg: "bg-red-50 dark:bg-red-950/40",        text: "text-red-600 dark:text-red-400" },
@@ -49,8 +45,7 @@ const OUTCOME_STYLE = {
   "No Answer":      { bg: "bg-gray-100 dark:bg-gray-900/40",      text: "text-gray-500 dark:text-gray-400" },
 };
 
-const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral"];
-// ALL_STATUSES is now sourced from statusConfig (see import above)
+const ALL_SOURCES = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral"];
 
 function fmtDateTime(iso) {
   if (!iso) return "—";
@@ -68,7 +63,7 @@ function daysSince(iso) {
   return `${days}d ago`;
 }
 
-// ── Searchable Employee Select ───────────────────────────────────────────────────
+// ── Searchable Employee Select ────────────────────────────────────────────────
 function AgentSelect({ value, onChange, agents, className }) {
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState("");
@@ -213,17 +208,14 @@ function Skeleton() {
   );
 }
 
-
 // ── Manage Projects Modal (Admin) ─────────────────────────────────────────────
-
-
 function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
-  const [name, setName]           = useState("");
-  const [color, setColor]         = useState("#2563EB");
-  const [isGlobal, setIsGlobal]   = useState(true);
-  const [saving, setSaving]       = useState(false);
-  const [deleting, setDeleting]   = useState(null);
-  const [error, setError]         = useState("");
+  const [name, setName]         = useState("");
+  const [color, setColor]       = useState("#2563EB");
+  const [isGlobal, setIsGlobal] = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const [error, setError]       = useState("");
 
   const handleCreate = async () => {
     if (!name.trim()) { setError("Project name is required."); return; }
@@ -260,7 +252,6 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl flex flex-col max-h-[85vh]">
-        {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Manage Projects</h2>
@@ -271,7 +262,6 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
           </button>
         </div>
 
-        {/* Create new project */}
         <div className="bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-4 mb-4 shrink-0">
           <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-3">New Project</p>
           <div className="flex gap-2 mb-3">
@@ -291,26 +281,6 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
               {saving ? "…" : "+ Add"}
             </button>
           </div>
-
-          {/* Color picker */}
-          {/* <div className="flex flex-wrap gap-2 mb-3">
-            {PROJECT_COLORS.map(c => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                className="w-6 h-6 rounded-full border-2 transition shrink-0"
-                style={{
-                  background: c,
-                  borderColor: color === c ? "#0F1117" : "transparent",
-                  transform: color === c ? "scale(1.25)" : "scale(1)",
-                }}
-                title={c}
-              />
-            ))}
-          </div> */}
-
-          {/* Visibility toggle */}
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <div
               onClick={() => setIsGlobal(v => !v)}
@@ -322,11 +292,9 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
               {isGlobal ? "Visible to everyone in company" : "Visible to admins only"}
             </span>
           </label>
-
           {error && <p className="text-[11px] text-red-500 mt-2">{error}</p>}
         </div>
 
-        {/* Existing projects list */}
         <div className="overflow-y-auto flex-1 space-y-2 pr-0.5">
           {projects.length === 0 ? (
             <div className="flex flex-col items-center py-8 gap-2">
@@ -337,13 +305,8 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
             </div>
           ) : projects.map(p => (
             <div key={p._id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] group">
-              {/* Color dot */}
               <span className="w-3 h-3 rounded-full shrink-0" style={{ background: p.color || "#2563EB" }} />
-
-              {/* Name */}
               <span className="flex-1 text-[13px] font-medium text-[#0F1117] dark:text-[#F0F2FA] truncate">{p.name}</span>
-
-              {/* Global badge + toggle */}
               <button
                 onClick={() => handleToggleGlobal(p)}
                 title={p.isGlobal ? "Click to make admin-only" : "Click to make global"}
@@ -355,8 +318,6 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
               >
                 {p.isGlobal ? "Global" : "Admin only"}
               </button>
-
-              {/* Delete */}
               <button
                 onClick={() => handleDelete(p._id)}
                 disabled={deleting === p._id}
@@ -381,6 +342,8 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
     </div>
   );
 }
+
+// ── Project Dropdown (multi-select) ───────────────────────────────────────────
 function ProjectDropdown({ projects, selectedProjects, toggleProject }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -401,8 +364,6 @@ function ProjectDropdown({ projects, selectedProjects, toggleProject }) {
       <label className="block text-[11px] font-medium text-[#8B92A9] mb-1 uppercase tracking-wide">
         Projects
       </label>
-
-      {/* Trigger button */}
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
@@ -436,7 +397,6 @@ function ProjectDropdown({ projects, selectedProjects, toggleProject }) {
         </svg>
       </button>
 
-      {/* Dropdown panel */}
       {open && (
         <div className="absolute z-[100] mt-1.5 w-full bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl shadow-xl overflow-hidden">
           <div className="py-1 max-h-48 overflow-y-auto">
@@ -449,10 +409,7 @@ function ProjectDropdown({ projects, selectedProjects, toggleProject }) {
                   onClick={() => toggleProject(String(p._id))}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[12px] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition text-left"
                 >
-                  {/* Color swatch */}
-                  
                   <span className="flex-1 font-medium text-[#0F1117] dark:text-white">{p.name}</span>
-                  {/* Checkmark */}
                   {active && (
                     <svg className="w-3.5 h-3.5 shrink-0" style={{ color: p.color || "#2563EB" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -481,10 +438,9 @@ function ProjectDropdown({ projects, selectedProjects, toggleProject }) {
 
 // ── Edit Lead Modal ───────────────────────────────────────────────────────────
 function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
-  const [form, setForm] = useState({ ...lead });
+  const [form, setForm]                   = useState({ ...lead });
   const [reassignReason, setReassignReason] = useState("");
-  const [saving, setSaving] = useState(false);
-  // Multi-select project toggle — initialise from the lead's existing projects
+  const [saving, setSaving]               = useState(false);
   const [selectedProjects, setSelectedProjects] = useState(() => {
     if (!Array.isArray(lead.projects)) return [];
     return lead.projects.map(p => p?._id || String(p)).filter(Boolean);
@@ -497,8 +453,6 @@ function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
   };
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  // Detect if the employee has been changed from the original
   const agentChanged = form.agent && form.agent !== lead.agent;
 
   return (
@@ -513,7 +467,6 @@ function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
         <div className="grid grid-cols-2 gap-3">
           {[
             { label: "Lead Name", key: "name" },
-            // { label: "Phone",     key: "phone" },
             { label: "Campaign",  key: "campaign" },
             { label: "Remark",    key: "remark" },
           ].map(f => (
@@ -523,16 +476,15 @@ function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
                 className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]" />
             </div>
           ))}
-          {/* Date: read-only display — not editable via this form */}
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Date</label>
             <input type="text" value={form.date || "—"} readOnly
               className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#8B92A9] dark:text-[#565C75] cursor-not-allowed" />
           </div>
           {[
-            { label: "Source", key: "source", options: ALL_SOURCES },
-            { label: "Employee",  key: "agent",  options: agents.map(a => a.name) },
-            { label: "Status", key: "status", options: ALL_STATUSES },
+            { label: "Source",   key: "source",  options: ALL_SOURCES },
+            { label: "Employee", key: "agent",   options: agents.map(a => a.name) },
+            { label: "Status",   key: "status",  options: ALL_STATUSES },
           ].map(f => (
             <div key={f.key} className="flex flex-col gap-1">
               <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
@@ -544,16 +496,14 @@ function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
           ))}
         </div>
 
-        {/* ── Project tag buttons (multi-select) ── */}
         {projects.length > 0 && (
-  <ProjectDropdown
-    projects={projects}
-    selectedProjects={selectedProjects}
-    toggleProject={toggleProject}
-  />
-     )}
+          <ProjectDropdown
+            projects={projects}
+            selectedProjects={selectedProjects}
+            toggleProject={toggleProject}
+          />
+        )}
 
-        {/* Reassign Reason — visible only when employee is changed */}
         {agentChanged && (
           <div className="mt-3 flex flex-col gap-1">
             <label className="text-[11px] font-medium text-[#D97706] dark:text-[#FCD34D] uppercase tracking-wide flex items-center gap-1">
@@ -569,15 +519,15 @@ function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
             />
           </div>
         )}
+
         <div className="flex gap-2 mt-5">
           <button onClick={onClose} disabled={saving} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition disabled:opacity-50">Cancel</button>
           <button disabled={saving} onClick={async () => {
-            // Validate: reassign reason is required when employee changes
             if (agentChanged && !reassignReason.trim()) {
               alert("Please enter a reason for reassigning this lead.");
               return;
             }
-            const role = getRole();
+            const role   = getRole();
             const leadId = form._id || form.id;
             const endpoint =
               role === "superadmin" ? `/lead/superadmin/${leadId}` :
@@ -595,16 +545,11 @@ function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
                 projects: selectedProjects,
               };
 
-              // FIX: include user ID for agent reassignment so employee changes
-              // are actually persisted. adminUpdateLead accepts `user` (ObjectId);
-              // updateLead (user role) strips it server-side — safe to always send.
               if (form.agent) {
                 const selectedAgent = agents.find(a => a.name === form.agent);
                 if (selectedAgent?.id) basePayload.user = selectedAgent.id;
               }
 
-              // Include reassign reason if employee changed — backend stores it
-              // in activityTimeline for a full audit trail.
               if (agentChanged && reassignReason.trim()) {
                 basePayload.reassignReason = reassignReason.trim();
               }
@@ -621,14 +566,10 @@ function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
                 } catch { /* send plain */ }
               }
               const { data: updatedFromServer } = await api.put(endpoint, payload);
-              // FIX: use the server's response to update local state so the table
-              // always reflects what was actually saved (not just what was in the form).
-              // Fall back to form merge if the server returns an unexpected shape.
               const merged = updatedFromServer?._id
                 ? {
                     ...lead,
                     ...form,
-                    // keep server-authoritative fields
                     name:     updatedFromServer.name     ?? form.name,
                     mobile:   updatedFromServer.mobile   ?? form.mobile,
                     phone:    updatedFromServer.mobile   ?? form.phone,
@@ -655,29 +596,23 @@ function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
   );
 }
 
-// ── Remarks History Panel ─────────────────────────────────────────────────────
-// FIX: accepts `role` prop and uses displayPhone() instead of maskPhone()
+// ── Remarks History Modal ─────────────────────────────────────────────────────
 function RemarksHistoryModal({ lead, role, onClose }) {
   const callHistory      = Array.isArray(lead.callHistory)      ? lead.callHistory      : [];
   const activityTimeline = Array.isArray(lead.activityTimeline) ? lead.activityTimeline : [];
 
-  // Merge call-history entries and reassign activity-timeline events into one
-  // chronological list so the admin can see the full story in one place.
   const callEntries = callHistory.map(e => ({ _type: "call", ...e, _ts: new Date(e.calledAt) }));
   const reassignEntries = activityTimeline
     .filter(e => e.action === "reassigned" || e.action === "merged")
     .map(e => ({ _type: e.action === "merged" ? "merge" : "reassign", ...e, _ts: new Date(e.timestamp) }));
 
-  const merged = [...callEntries, ...reassignEntries].sort((a, b) => b._ts - a._ts);
+  const mergedTimeline = [...callEntries, ...reassignEntries].sort((a, b) => b._ts - a._ts);
 
-  const { label: stLabel, config: stConfig } = getLeadDisplayStatus(lead);
-  const st = stConfig;
+  const { config: st } = getLeadDisplayStatus(lead);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl flex flex-col max-h-[85vh]">
-
-        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[11px] font-bold text-[#2563EB] dark:text-[#4F8EF7] shrink-0">
@@ -686,7 +621,7 @@ function RemarksHistoryModal({ lead, role, onClose }) {
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
               <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
-                {displayPhone(lead.phone, role)} · {lead.source}
+                {displayPhone(lead.primaryPhone || lead.phone, role)} · {lead.source}
               </p>
             </div>
           </div>
@@ -695,7 +630,6 @@ function RemarksHistoryModal({ lead, role, onClose }) {
           </button>
         </div>
 
-        {/* Current remark + status */}
         <div className="flex items-center gap-2 mb-4">
           <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${st.bg} ${st.text}`}>{lead.status}</span>
           {lead.remark && (
@@ -703,22 +637,18 @@ function RemarksHistoryModal({ lead, role, onClose }) {
           )}
         </div>
 
-        {/* Title row */}
         <div className="flex items-center gap-2 mb-3">
           <svg className="w-4 h-4 text-[#7C3AED] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
           </svg>
-          <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-            Call History & Remarks
-          </span>
+          <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Call History & Remarks</span>
           <span className="ml-auto text-[11px] text-[#8B92A9] dark:text-[#565C75] bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-full">
-            {merged.length} {merged.length === 1 ? "entry" : "entries"}
+            {mergedTimeline.length} {mergedTimeline.length === 1 ? "entry" : "entries"}
           </span>
         </div>
 
-        {/* Merged timeline list */}
         <div className="overflow-y-auto flex-1 pr-1 space-y-2">
-          {merged.length === 0 ? (
+          {mergedTimeline.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-2">
               <svg className="w-8 h-8 text-[#C4C9D9] dark:text-[#3E4257]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
@@ -726,9 +656,7 @@ function RemarksHistoryModal({ lead, role, onClose }) {
               <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No call history yet</p>
               <p className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257]">Remarks appear here after employee interactions</p>
             </div>
-          ) : merged.map((entry, i) => {
-
-            // ── Reassign event card ───────────────────────────────────────────
+          ) : mergedTimeline.map((entry, i) => {
             if (entry._type === "reassign") {
               return (
                 <div key={`reassign-${i}`} className="bg-[#FFFBEB] dark:bg-[#2D1F00] border border-[#FDE68A] dark:border-[#92400E] rounded-xl p-3">
@@ -740,9 +668,7 @@ function RemarksHistoryModal({ lead, role, onClose }) {
                         </svg>
                       </div>
                       <div>
-                        <p className="text-[12px] font-semibold text-[#D97706] dark:text-[#FCD34D] leading-none">
-                          Lead Reassigned
-                        </p>
+                        <p className="text-[12px] font-semibold text-[#D97706] dark:text-[#FCD34D] leading-none">Lead Reassigned</p>
                         <p className="text-[10px] text-[#8B92A9] mt-0.5">{fmtDateTime(entry.timestamp)}</p>
                       </div>
                     </div>
@@ -753,9 +679,7 @@ function RemarksHistoryModal({ lead, role, onClose }) {
                   {entry.note ? (
                     <div className="ml-8">
                       <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] font-medium mb-0.5">Reason:</p>
-                      <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic leading-relaxed">
-                        "{entry.note}"
-                      </p>
+                      <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic leading-relaxed">"{entry.note}"</p>
                     </div>
                   ) : (
                     <p className="ml-8 text-[11px] text-[#C4C9D9] dark:text-[#3E4257] italic">No reason recorded</p>
@@ -764,7 +688,6 @@ function RemarksHistoryModal({ lead, role, onClose }) {
               );
             }
 
-            // ── Merge event card ──────────────────────────────────────────────
             if (entry._type === "merge") {
               return (
                 <div key={`merge-${i}`} className="bg-[#ECFDF5] dark:bg-[#052E1C] border border-[#6EE7B7] dark:border-[#065F46] rounded-xl p-3">
@@ -776,9 +699,7 @@ function RemarksHistoryModal({ lead, role, onClose }) {
                         </svg>
                       </div>
                       <div>
-                        <p className="text-[12px] font-semibold text-[#059669] dark:text-[#34D399] leading-none">
-                          Duplicate Lead Merged
-                        </p>
+                        <p className="text-[12px] font-semibold text-[#059669] dark:text-[#34D399] leading-none">Duplicate Lead Merged</p>
                         <p className="text-[10px] text-[#8B92A9] mt-0.5">{fmtDateTime(entry.timestamp)}</p>
                       </div>
                     </div>
@@ -788,16 +709,13 @@ function RemarksHistoryModal({ lead, role, onClose }) {
                   </div>
                   {entry.note && (
                     <div className="ml-8">
-                      <p className="text-[11px] text-[#065F46] dark:text-[#6EE7B7] italic leading-relaxed">
-                        {entry.note}
-                      </p>
+                      <p className="text-[11px] text-[#065F46] dark:text-[#6EE7B7] italic leading-relaxed">{entry.note}</p>
                     </div>
                   )}
                 </div>
               );
             }
 
-            // ── Call history card (default) ───────────────────────────────────
             const outcome = entry.outcome || "No Answer";
             const os = OUTCOME_STYLE[outcome] || OUTCOME_STYLE["No Answer"];
             return (
@@ -808,9 +726,7 @@ function RemarksHistoryModal({ lead, role, onClose }) {
                       {callEntries.length - callEntries.findIndex(c => c === entry)}
                     </div>
                     <div>
-                      <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">
-                        {entry.userName || "Employee"}
-                      </p>
+                      <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{entry.userName || "Employee"}</p>
                       <p className="text-[10px] text-[#8B92A9] mt-0.5">{fmtDateTime(entry.calledAt)}</p>
                     </div>
                   </div>
@@ -825,9 +741,7 @@ function RemarksHistoryModal({ lead, role, onClose }) {
                 </div>
                 {entry.remark ? (
                   <div className="ml-8">
-                    <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic leading-relaxed">
-                      "{entry.remark}"
-                    </p>
+                    <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic leading-relaxed">"{entry.remark}"</p>
                   </div>
                 ) : (
                   <p className="ml-8 text-[11px] text-[#C4C9D9] dark:text-[#3E4257] italic">No remark added</p>
@@ -848,7 +762,6 @@ function RemarksHistoryModal({ lead, role, onClose }) {
 }
 
 // ── Recording & Remarks Modal ─────────────────────────────────────────────────
-// FIX: accepts `role` prop and uses displayPhone() instead of hardcoded maskPhone()
 function RecordingModal({ lead, role, onClose }) {
   const [mobileLogs, setMobileLogs] = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -864,9 +777,7 @@ function RecordingModal({ lead, role, onClose }) {
       .finally(() => setLoading(false));
   }, [lead]);
 
-  const { label: stLabel2, config: stConfig2 } = getLeadDisplayStatus(lead);
-  const st = stConfig2;
-
+  const { config: st } = getLeadDisplayStatus(lead);
   const allCallHistory = Array.isArray(lead.callHistory) ? [...lead.callHistory] : [];
   const recordingsFromMobile = mobileLogs.filter(l => l.recordings?.length > 0);
 
@@ -879,8 +790,6 @@ function RecordingModal({ lead, role, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-
-        {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[11px] font-bold text-[#2563EB] shrink-0">
@@ -888,9 +797,8 @@ function RecordingModal({ lead, role, onClose }) {
             </div>
             <div>
               <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{lead.name}</p>
-              {/* FIX: use displayPhone() so superadmin sees full number */}
               <p className="text-[12px] text-[#8B92A9] mt-0.5 font-mono">
-                {displayPhone(lead.phone, role)}
+                {displayPhone(lead.primaryPhone || lead.phone, role)}
               </p>
             </div>
           </div>
@@ -899,12 +807,11 @@ function RecordingModal({ lead, role, onClose }) {
           </button>
         </div>
 
-        {/* Lead info grid */}
         <div className="grid grid-cols-2 gap-2 mb-4">
           {[
             { label: "Status",   value: <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${st.bg} ${st.text}`}>{lead.status}</span> },
             { label: "Source",   value: lead.source },
-            { label: "Employee",    value: lead.agent },
+            { label: "Employee", value: lead.agent },
             { label: "Date",     value: lead.date },
           ].map(({ label, value }) => (
             <div key={label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 py-2.5">
@@ -914,10 +821,9 @@ function RecordingModal({ lead, role, onClose }) {
           ))}
         </div>
 
-        {/* ── All Remarks (CRM call history) ── */}
         <div className="mb-4">
           <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">
-             All Remarks ({allCallHistory.length})
+            All Remarks ({allCallHistory.length})
           </p>
           {allCallHistory.length === 0 ? (
             <p className="text-[12px] text-[#8B92A9] italic px-1">No remarks recorded yet.</p>
@@ -952,7 +858,6 @@ function RecordingModal({ lead, role, onClose }) {
           )}
         </div>
 
-        {/* ── Mobile Call Recordings ── */}
         <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-3.5">
           <div className="flex items-center gap-2 mb-3">
             <svg className="w-3.5 h-3.5 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -962,7 +867,6 @@ function RecordingModal({ lead, role, onClose }) {
               Mobile Recordings ({recordingsFromMobile.length})
             </span>
           </div>
-
           {loading && (
             <div className="flex items-center gap-2 py-2">
               <svg className="w-3.5 h-3.5 animate-spin text-[#2563EB]" fill="none" viewBox="0 0 24 24">
@@ -1014,19 +918,234 @@ function RecordingModal({ lead, role, onClose }) {
   );
 }
 
+// ── Phone Numbers Modal ───────────────────────────────────────────────────────
+// Manages exactly two phone numbers: primaryPhone + optional secondaryPhone.
+//
+// Backend API contract:
+//   PUT    /lead/(admin|superadmin)/:id/secondary-phone  { secondaryPhone }  → add / update
+//   DELETE /lead/(admin|superadmin)/:id/secondary-phone                      → remove
+//   PUT    /lead/(admin|superadmin)/:id/swap-phones                          → swap primary ↔ secondary
+//
+// After every mutation the parent list is refreshed via onLeadUpdated.
+function PhoneNumbersModal({ lead, role, onClose, onLeadUpdated }) {
+  const leadId = lead._id || lead.id;
+
+  const [primaryPhone,   setPrimaryPhone]   = useState(lead.primaryPhone   || lead.phone || "");
+  const [secondaryPhone, setSecondaryPhone] = useState(lead.secondaryPhone || "");
+  const [newSecondary,   setNewSecondary]   = useState("");
+  const [busy,           setBusy]           = useState(false);
+  const [busyOp,         setBusyOp]         = useState(null); // "add" | "remove" | "swap"
+  const [errorMsg,       setErrorMsg]       = useState("");
+
+  // Build role-aware API endpoint prefix
+  const endpoint = (path) => {
+    const r = getRole();
+    const prefix = (r === "superadmin" || r === "admin") ? "admin" : "";
+    return prefix ? `/lead/${prefix}/${leadId}/${path}` : `/lead/${leadId}/${path}`;
+  };
+
+  // Apply server response to local state + propagate update to parent list
+  const applyUpdate = (data) => {
+    const newPrimary   = data.primaryPhone   ?? primaryPhone;
+    const newSecondary = data.secondaryPhone ?? "";
+    setPrimaryPhone(newPrimary);
+    setSecondaryPhone(newSecondary);
+    onLeadUpdated({
+      ...lead,
+      primaryPhone:   newPrimary,
+      secondaryPhone: newSecondary,
+      // keep legacy phone field in sync so other modals still work
+      phone: newPrimary,
+    });
+  };
+
+  const handleAddSecondary = async () => {
+    const trimmed = newSecondary.trim();
+    if (!trimmed) { setErrorMsg("Please enter a phone number."); return; }
+    if (trimmed === primaryPhone) { setErrorMsg("Secondary number must differ from the primary."); return; }
+    setBusy(true); setBusyOp("add"); setErrorMsg("");
+    try {
+      const { data } = await api.put(endpoint("secondary-phone"), { secondaryPhone: trimmed });
+      applyUpdate(data);
+      setNewSecondary("");
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || "Failed to save secondary number.");
+    } finally { setBusy(false); setBusyOp(null); }
+  };
+
+  const handleRemoveSecondary = async () => {
+    setBusy(true); setBusyOp("remove"); setErrorMsg("");
+    try {
+      const { data } = await api.delete(endpoint("secondary-phone"));
+      applyUpdate(data);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || "Failed to remove secondary number.");
+    } finally { setBusy(false); setBusyOp(null); }
+  };
+
+  const handleSwap = async () => {
+    if (!secondaryPhone) return;
+    setBusy(true); setBusyOp("swap"); setErrorMsg("");
+    try {
+      const { data } = await api.put(endpoint("swap-phones"));
+      applyUpdate(data);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || "Failed to swap phone numbers.");
+    } finally { setBusy(false); setBusyOp(null); }
+  };
+
+  const Spinner = () => (
+    <svg className="w-3.5 h-3.5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+    </svg>
+  );
+
+  const PhoneIcon = ({ className = "" }) => (
+    <svg className={`w-3.5 h-3.5 shrink-0 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+    </svg>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Phone Numbers</h2>
+            <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{lead.name}</p>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Primary number */}
+        <div className="mb-3">
+          <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1.5">Primary Number</p>
+          <div className="flex items-center gap-2.5 bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl px-3 py-2.5">
+            <PhoneIcon className="text-[#2563EB]" />
+            <span className="text-[13px] font-semibold font-mono text-[#0F1117] dark:text-[#F0F2FA] flex-1">
+              {displayPhone(primaryPhone, role)}
+            </span>
+            <span className="text-[9px] font-bold uppercase tracking-wide text-[#2563EB] bg-[#EEF3FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-full shrink-0">
+              Primary
+            </span>
+          </div>
+        </div>
+
+        {/* Secondary number */}
+        <div className="mb-4">
+          <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1.5">Secondary Number</p>
+
+          {secondaryPhone ? (
+            <>
+              <div className="flex items-center gap-2 bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl px-3 py-2.5">
+                <PhoneIcon className="text-[#059669]" />
+                <span className="text-[13px] font-semibold font-mono text-[#0F1117] dark:text-[#F0F2FA] flex-1">
+                  {displayPhone(secondaryPhone, role)}
+                </span>
+                {/* Swap primary ↔ secondary */}
+                <button
+                  onClick={handleSwap}
+                  disabled={busy}
+                  title="Swap primary ↔ secondary"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[#7C3AED] hover:bg-[#F3EEFF] dark:hover:bg-[#2A1F40] hover:border-[#7C3AED] transition disabled:opacity-50"
+                >
+                  {busy && busyOp === "swap" ? <Spinner /> : (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+                    </svg>
+                  )}
+                </button>
+                {/* Remove secondary */}
+                <button
+                  onClick={handleRemoveSecondary}
+                  disabled={busy}
+                  title="Remove secondary number"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[#DC2626] hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-[#DC2626] transition disabled:opacity-50"
+                >
+                  {busy && busyOp === "remove" ? <Spinner /> : (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
+              {/* Swap hint */}
+              <div className="mt-2 flex items-start gap-2 bg-[#F3EEFF] dark:bg-[#1E1030] border border-[#DDD6FE] dark:border-[#4C1D95] rounded-xl px-3 py-2">
+                <svg className="w-3.5 h-3.5 text-[#7C3AED] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <p className="text-[11px] text-[#6D28D9] dark:text-[#C4B5FD]">
+                  Use the swap button (↕) to promote the secondary to primary without losing either number.
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2.5 bg-[#F8F9FC] dark:bg-[#13161E] border border-dashed border-[#C4C9D9] dark:border-[#3E4257] rounded-xl px-3 py-2.5">
+              <PhoneIcon className="text-[#C4C9D9] dark:text-[#3E4257]" />
+              <span className="text-[12px] text-[#8B92A9] dark:text-[#565C75] italic">No secondary number added</span>
+            </div>
+          )}
+        </div>
+
+        {/* Add secondary form — only shown when no secondary exists */}
+        {!secondaryPhone && (
+          <div className="border-t border-[#E4E7EF] dark:border-[#262A38] pt-4">
+            <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-2">
+              Add Secondary Number
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="tel"
+                placeholder="e.g. +91 98765 43210"
+                value={newSecondary}
+                onChange={e => { setNewSecondary(e.target.value); setErrorMsg(""); }}
+                onKeyDown={e => { if (e.key === "Enter") handleAddSecondary(); }}
+                className="flex-1 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition"
+              />
+              <button
+                onClick={handleAddSecondary}
+                disabled={!newSecondary.trim() || busy}
+                className="px-4 py-2 rounded-xl bg-[#059669] text-white text-[12px] font-semibold hover:bg-emerald-700 disabled:opacity-50 transition flex items-center gap-1.5"
+              >
+                {busy && busyOp === "add" ? <Spinner /> : null}
+                Save
+              </button>
+            </div>
+          </div>
+        )}
+
+        {errorMsg && (
+          <p className="mt-2 text-[11px] text-red-500">{errorMsg}</p>
+        )}
+
+        <div className="mt-5 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38]">
+          <button onClick={onClose} className="w-full py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Close Lead (Wrong Entry) Modal ────────────────────────────────────────────
 function CloseLeadModal({ lead, onClose, onClosed }) {
-  const [reason, setReason]   = useState("");
-  const [saving, setSaving]   = useState(false);
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const handleSubmit = async () => {
     if (!reason.trim()) {
       alert("Please enter a remark/reason before closing this lead.");
       return;
     }
-    const role   = getRole();
-    const leadId = lead._id || lead.id;
-    // Only admins can close a lead — users don't have this button
+    const leadId   = lead._id || lead.id;
     const endpoint = `/lead/admin/${leadId}/close-wrong-entry`;
     try {
       setSaving(true);
@@ -1097,15 +1216,14 @@ function CloseLeadModal({ lead, onClose, onClosed }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ReportPage() {
-  const [leads, setLeads]         = useState([]);
-  const [agents, setAgents]       = useState([]);
-  const [projects, setProjects]   = useState([]);
+  const [leads, setLeads]               = useState([]);
+  const [agents, setAgents]             = useState([]);
+  const [projects, setProjects]         = useState([]);
   const [projectFilter, setProjectFilter] = useState("All");
   const [manageProjects, setManageProjects] = useState(false);
-  const [loading, setLoading]     = useState(true);
-  const [fetchError, setFetchError] = useState(null);
+  const [loading, setLoading]           = useState(true);
+  const [fetchError, setFetchError]     = useState(null);
 
-  // FIX: role is read once at the top level and passed down to modals
   const role = getRole();
 
   useEffect(() => {
@@ -1117,7 +1235,6 @@ export default function ReportPage() {
       .catch(err => setFetchError(err.message))
       .finally(() => setLoading(false));
 
-    // Fetch projects visible to admin
     api.get("/project/admin")
       .then(res => setProjects(Array.isArray(res.data) ? res.data : []))
       .catch(() => setProjects([]));
@@ -1132,17 +1249,12 @@ export default function ReportPage() {
   const [recordingLead, setRecordingLead] = useState(null);
   const [remarksLead, setRemarksLead]     = useState(null);
   const [timeFilter, setTimeFilter]       = useState("All");
-  // Additional numbers modal state
-  const [addNumberLead, setAddNumberLead]   = useState(null);  // lead being edited
-  const [newNumber, setNewNumber]           = useState("");
-  const [newLabel, setNewLabel]             = useState("");
-  const [addNumLoading, setAddNumLoading]   = useState(false);
-  const [mergeToast, setMergeToast]         = useState(null);  // { name, id } of merged lead
-  const [closeLead, setCloseLead]           = useState(null);  // lead to close as wrong entry
+  const [phoneLead, setPhoneLead]         = useState(null); // PhoneNumbersModal trigger
+  const [closeLead, setCloseLead]         = useState(null);
   const PER_PAGE = 8;
 
   const isWithinRange = useDateFilter(timeFilter);
-  const statuses   = ["All", ...ALL_STATUSES];
+  const statuses = ["All", ...ALL_STATUSES];
 
   const agentStats = useMemo(() => agents.map(agent => {
     const agentLeads = leads.filter(l => l.agent === agent.name);
@@ -1177,11 +1289,8 @@ export default function ReportPage() {
     .filter(l => {
       if (!isWithinRange(l.date)) return false;
       const q = search.toLowerCase();
-      // Project filter: check if any of the lead's project IDs match the selected project
       const matchProject = projectFilter === "All" || (
-        Array.isArray(l.projects) && l.projects.some(p =>
-          (p?._id || p) === projectFilter
-        )
+        Array.isArray(l.projects) && l.projects.some(p => (p?._id || p) === projectFilter)
       );
       return (
         matchProject &&
@@ -1190,10 +1299,13 @@ export default function ReportPage() {
           const { label } = getLeadDisplayStatus(l);
           return label === statusFilter;
         })()) &&
-        (agentFilter  === "All" || l.agent  === agentFilter)
+        (agentFilter === "All" || l.agent === agentFilter)
       );
     })
-    .sort((a, b) => sortBy === "name" ? (a.name || "").localeCompare(b.name || "") : new Date(b.createdAt || 0) - new Date(a.createdAt || 0)),
+    .sort((a, b) => sortBy === "name"
+      ? (a.name || "").localeCompare(b.name || "")
+      : new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    ),
   [leads, search, statusFilter, agentFilter, projectFilter, sortBy, isWithinRange]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
@@ -1201,69 +1313,18 @@ export default function ReportPage() {
 
   const saveLead = updated => setLeads(ls => ls.map(l => l.id === updated.id ? { ...l, ...updated } : l));
 
-  // Remove closed lead from active list (it still exists in DB but is marked isClosed)
+  // Called by PhoneNumbersModal after any phone mutation; keeps modal state fresh
+  const handlePhoneUpdate = (updatedLead) => {
+    setLeads(ls => ls.map(l =>
+      (l.id === updatedLead.id || l._id === updatedLead._id)
+        ? { ...l, ...updatedLead }
+        : l
+    ));
+    // Keep the open modal's lead reference fresh so UI reflects the change
+    setPhoneLead(prev => prev ? { ...prev, ...updatedLead } : null);
+  };
+
   const handleLeadClosed = (leadId) => setLeads(ls => ls.filter(l => l.id !== leadId && l._id !== leadId));
-
-  // ── Additional numbers ────────────────────────────────────────────────────
-  const handleAddNumber = async () => {
-    if (!newNumber.trim() || !addNumberLead) return;
-    const role = getRole();
-    const endpoint =
-      role === "superadmin" ? `/lead/admin/${addNumberLead.id}/additional-numbers` :
-      role === "admin"      ? `/lead/admin/${addNumberLead.id}/additional-numbers` :
-                              `/lead/${addNumberLead.id}/additional-numbers`;
-    setAddNumLoading(true);
-    try {
-      const { data } = await api.post(endpoint, { number: newNumber.trim(), label: newLabel.trim() });
-
-      if (data.merged) {
-        // Auto-merge happened: remove the duplicate from the active list,
-        // update the primary lead with the new merged data, show a toast.
-        setLeads(ls => ls
-          .filter(l => l.id !== data.mergedLeadId && l._id !== data.mergedLeadId)
-          .map(l => l.id === addNumberLead.id || l._id === addNumberLead.id
-            ? { ...l, additionalNumbers: data.additionalNumbers, callHistory: data.lead?.callHistory ?? l.callHistory }
-            : l
-          )
-        );
-        setAddNumberLead(prev => ({
-          ...prev,
-          additionalNumbers: data.additionalNumbers,
-          callHistory: data.lead?.callHistory ?? prev.callHistory,
-        }));
-        setMergeToast({ name: data.mergedLeadName, id: data.mergedLeadId });
-        setTimeout(() => setMergeToast(null), 6000);
-      } else {
-        setLeads(ls => ls.map(l =>
-          l.id === addNumberLead.id ? { ...l, additionalNumbers: data.additionalNumbers } : l
-        ));
-        setAddNumberLead(prev => ({ ...prev, additionalNumbers: data.additionalNumbers }));
-      }
-      setNewNumber("");
-      setNewLabel("");
-    } catch (err) {
-      alert("Failed to add number: " + (err.response?.data?.message || err.message));
-    } finally {
-      setAddNumLoading(false);
-    }
-  };
-
-  const handleRemoveNumber = async (leadId, idx) => {
-    const role = getRole();
-    const endpoint =
-      role === "superadmin" ? `/lead/admin/${leadId}/additional-numbers/${idx}` :
-      role === "admin"      ? `/lead/admin/${leadId}/additional-numbers/${idx}` :
-                              `/lead/${leadId}/additional-numbers/${idx}`;
-    try {
-      const { data } = await api.delete(endpoint);
-      setLeads(ls => ls.map(l =>
-        l.id === leadId ? { ...l, additionalNumbers: data.additionalNumbers } : l
-      ));
-      setAddNumberLead(prev => prev?.id === leadId ? { ...prev, additionalNumbers: data.additionalNumbers } : prev);
-    } catch (err) {
-      alert("Failed to remove number: " + (err.response?.data?.message || err.message));
-    }
-  };
 
   const displayDate = (dateStr) => {
     if (!dateStr) return "—";
@@ -1273,9 +1334,15 @@ export default function ReportPage() {
   };
 
   const exportCSV = () => {
-    const headers = ["#", "Name", "Phone", "Source", "Campaign", "Employee", "Status", "Date", "Remark", "Call Count"];
+    const headers = ["#", "Name", "Primary Phone", "Secondary Phone", "Source", "Campaign", "Employee", "Status", "Date", "Remark", "Call Count"];
     const rows = filtered.map((l, i) =>
-      [i + 1, l.name, l.phone, l.source, l.campaign, l.agent, l.status, l.date, l.remark, (l.callHistory || []).length]
+      [
+        i + 1, l.name,
+        l.primaryPhone || l.phone || "",
+        l.secondaryPhone || "",
+        l.source, l.campaign, l.agent, l.status, l.date, l.remark,
+        (l.callHistory || []).length,
+      ]
         .map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")
     );
     const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv" });
@@ -1307,6 +1374,7 @@ export default function ReportPage() {
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-3 py-4 md:px-6 md:py-8">
 
+      {/* ── Modals ── */}
       {manageProjects && (
         <ManageProjectsModal
           projects={projects}
@@ -1315,169 +1383,30 @@ export default function ReportPage() {
         />
       )}
 
-      {editLead      && <EditLeadModal lead={editLead} agents={agents} projects={projects} onClose={() => setEditLead(null)} onSave={saveLead} />}
+      {editLead && (
+        <EditLeadModal lead={editLead} agents={agents} projects={projects} onClose={() => setEditLead(null)} onSave={saveLead} />
+      )}
 
-      {/* Close Lead (Wrong Entry) modal */}
       {closeLead && (
-        <CloseLeadModal
-          lead={closeLead}
-          onClose={() => setCloseLead(null)}
-          onClosed={handleLeadClosed}
-        />
+        <CloseLeadModal lead={closeLead} onClose={() => setCloseLead(null)} onClosed={handleLeadClosed} />
       )}
 
-      {/* FIX: pass role to RecordingModal so superadmin sees unmasked phone */}
       {recordingLead && (
-        <RecordingModal
-          lead={recordingLead}
-          role={role}
-          onClose={() => setRecordingLead(null)}
-        />
+        <RecordingModal lead={recordingLead} role={role} onClose={() => setRecordingLead(null)} />
       )}
 
-      {/* FIX: pass role to RemarksHistoryModal so superadmin sees unmasked phone */}
       {remarksLead && (
-        <RemarksHistoryModal
-          lead={remarksLead}
-          role={role}
-          onClose={() => setRemarksLead(null)}
-        />
+        <RemarksHistoryModal lead={remarksLead} role={role} onClose={() => setRemarksLead(null)} />
       )}
 
-      {/* ── Additional Numbers Modal ── */}
-      {addNumberLead && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-                Linked Numbers — {addNumberLead.name}
-              </h2>
-              <button onClick={() => { setAddNumberLead(null); setNewNumber(""); setNewLabel(""); setMergeToast(null); }}
-                className="text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#F0F2FA] transition">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-              </button>
-            </div>
-
-            {/* Merge success banner */}
-            {mergeToast && (
-              <div className="mb-3 flex items-start gap-2 bg-[#ECFDF5] dark:bg-[#052E1C] border border-[#6EE7B7] dark:border-[#065F46] rounded-xl px-3 py-2.5">
-                <svg className="w-4 h-4 text-[#059669] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <div>
-                  <p className="text-[12px] font-semibold text-[#065F46] dark:text-[#34D399]">Leads merged successfully</p>
-                  <p className="text-[11px] text-[#059669] dark:text-[#6EE7B7] mt-0.5">
-                    "{mergeToast.name}" was a duplicate — its call history, remarks and numbers have been combined into this lead.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Primary number */}
-            <div className="mb-3">
-              <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">Primary</p>
-              <div className="flex items-center gap-2">
-                {(addNumberLead.isClosed || addNumberLead.mergedInto) && (() => {
-                  const isMerged = !!addNumberLead.mergedInto;
-                  return (
-                    <span
-                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${
-                        isMerged
-                          ? "bg-yellow-50 dark:bg-yellow-950/40 border-yellow-300 dark:border-yellow-800"
-                          : "bg-[#FEF2F2] dark:bg-[#2D0A0A] border-[#FECACA] dark:border-[#7F1D1D]"
-                      }`}
-                      title={isMerged
-                        ? "Merged into another lead"
-                        : (addNumberLead.closeReason ? `Closed: ${addNumberLead.closeReason}` : "Closed — wrong entry")}
-                    >
-                      <svg
-                        className={`w-2.5 h-2.5 shrink-0 ${isMerged ? "text-yellow-600 dark:text-yellow-400" : "text-[#DC2626]"}`}
-                        fill="currentColor" viewBox="0 0 20 20"
-                      >
-                        <circle cx="10" cy="10" r="10"/>
-                      </svg>
-                      <span className={`text-[9px] font-bold uppercase tracking-wide ${
-                        isMerged ? "text-yellow-700 dark:text-yellow-400" : "text-[#DC2626]"
-                      }`}>
-                        {isMerged ? "Merged" : "Closed"}
-                      </span>
-                    </span>
-                  );
-                })()}
-                <span className={`text-[13px] font-medium font-mono ${
-                  addNumberLead.mergedInto
-                    ? "text-yellow-600 dark:text-yellow-400"
-                    : addNumberLead.isClosed
-                      ? "text-[#DC2626] dark:text-[#F87171]"
-                      : "text-[#0F1117] dark:text-[#F0F2FA]"
-                }`}>
-                  {displayPhone(addNumberLead.phone, role)}
-                </span>
-              </div>
-            </div>
-
-            {/* Existing additional numbers */}
-            {(addNumberLead.additionalNumbers?.length > 0) && (
-              <div className="mb-3">
-                <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1">Additional</p>
-                <ul className="space-y-1.5">
-                  {addNumberLead.additionalNumbers.map((n, i) => (
-                    <li key={i} className="flex items-center justify-between gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-lg px-3 py-1.5">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        {n.label === "Merged primary" && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#ECFDF5] dark:bg-[#052E1C] border border-[#6EE7B7] dark:border-[#065F46] shrink-0">
-                            <svg className="w-2.5 h-2.5 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
-                            </svg>
-                            <span className="text-[9px] font-bold text-[#059669] uppercase">Merged</span>
-                          </span>
-                        )}
-                        <span className="text-[13px] font-medium text-[#0F1117] dark:text-[#F0F2FA] truncate">{n.number}</span>
-                        {n.label && n.label !== "Merged primary" && (
-                          <span className="ml-1 text-[11px] text-[#8B92A9] shrink-0">({n.label})</span>
-                        )}
-                      </div>
-                      <button onClick={() => handleRemoveNumber(addNumberLead.id, i)}
-                        className="text-red-400 hover:text-red-600 transition shrink-0" title="Remove">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Add new number */}
-            <div className="border-t border-[#E4E7EF] dark:border-[#262A38] pt-3 mt-3">
-              <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-2">Add Number</p>
-              <input
-                type="tel"
-                placeholder="Phone number"
-                value={newNumber}
-                onChange={e => setNewNumber(e.target.value)}
-                className="w-full mb-2 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder-[#8B92A9] focus:outline-none focus:border-[#2563EB]"
-              />
-              <input
-                type="text"
-                placeholder="Label (e.g. WhatsApp, Office) — optional"
-                value={newLabel}
-                onChange={e => setNewLabel(e.target.value)}
-                className="w-full mb-3 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder-[#8B92A9] focus:outline-none focus:border-[#2563EB]"
-              />
-              <button
-                onClick={handleAddNumber}
-                disabled={!newNumber.trim() || addNumLoading}
-                className="w-full py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
-              >
-                {addNumLoading ? "Saving…" : "Add Number"}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Phone Numbers Modal — primary + optional secondary only */}
+      {phoneLead && (
+        <PhoneNumbersModal
+          lead={phoneLead}
+          role={role}
+          onClose={() => setPhoneLead(null)}
+          onLeadUpdated={handlePhoneUpdate}
+        />
       )}
 
       {/* ── Page header ── */}
@@ -1552,7 +1481,6 @@ export default function ReportPage() {
             <h3 className="text-[12px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-3">Pipeline status</h3>
             <div className="grid grid-cols-2 gap-2">
               {ALL_STATUSES.map(s => {
-                // For virtual statuses (Merged/Closed) count using getLeadDisplayStatus
                 const count = leads.filter(l => getLeadDisplayStatus(l).label === s).length;
                 const st = STATUS_CONFIG[s] ?? STATUS_CONFIG["New"];
                 return (
@@ -1626,211 +1554,210 @@ export default function ReportPage() {
             )}
           </div>
         </div>
-        
-      <div className="overflow-hidden rounded-b-2xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                {["#", "Lead Name", "Phone", "Source", "Campaign", "Employee", "Status", "Date", "Calls", "Remark", "Actions"].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 ? (
-                <tr><td colSpan={11} className="px-4 py-12 text-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads match your filters.</td></tr>
-              ) : paged.map((lead, i) => {
-                const { label: displayLabel, config: st } = getLeadDisplayStatus(lead);
-                const callCount = (lead.callHistory || []).length;
-                return (
-                  <tr key={lead.id} className={`border-b border-[#E4E7EF] dark:border-[#262A38] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A] transition ${i % 2 === 0 ? "" : "bg-[#FAFBFF] dark:bg-[#1E2130]"}`}>
-                    <td className="px-4 py-3 text-[#8B92A9] dark:text-[#565C75]">{(page - 1) * PER_PAGE + i + 1}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[10px] font-bold text-[#2563EB] dark:text-[#4F8EF7] shrink-0">
-                          {(lead.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2)}
+
+        <div className="overflow-hidden rounded-b-2xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
+                  {["#", "Lead Name", "Phone", "Source", "Campaign", "Employee", "Status", "Date", "Calls", "Remark", "Actions"].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {paged.length === 0 ? (
+                  <tr><td colSpan={11} className="px-4 py-12 text-center text-[13px] text-[#8B92A9] dark:text-[#565C75]">No leads match your filters.</td></tr>
+                ) : paged.map((lead, i) => {
+                  const { label: displayLabel, config: st } = getLeadDisplayStatus(lead);
+                  const callCount  = (lead.callHistory || []).length;
+                  // primaryPhone is the canonical primary; fall back to legacy phone field
+                  const primary    = lead.primaryPhone   || lead.phone  || null;
+                  const secondary  = lead.secondaryPhone || null;
+
+                  return (
+                    <tr key={lead.id || lead._id} className={`border-b border-[#E4E7EF] dark:border-[#262A38] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A] transition ${i % 2 === 0 ? "" : "bg-[#FAFBFF] dark:bg-[#1E2130]"}`}>
+                      <td className="px-4 py-3 text-[#8B92A9] dark:text-[#565C75]">{(page - 1) * PER_PAGE + i + 1}</td>
+
+                      {/* Lead name + avatar */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center text-[10px] font-bold text-[#2563EB] dark:text-[#4F8EF7] shrink-0">
+                            {(lead.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2)}
+                          </div>
+                          <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{lead.name}</span>
                         </div>
-                        <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{lead.name}</span>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* FIX: use displayPhone() — superadmin sees full number, others see masked */}
-                    <td className="px-4 py-3 whitespace-nowrap font-mono">
-                      <div className="flex items-center gap-1.5">
-                        {/* Merged (Yellow) or Closed (Red) inline badge next to the phone */}
-                        {(lead.isClosed || lead.mergedInto) && (() => {
-                          const isMerged = !!lead.mergedInto;
-                          return (
-                            <span
-                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${
-                                isMerged
-                                  ? "bg-yellow-50 dark:bg-yellow-950/40 border-yellow-300 dark:border-yellow-800"
-                                  : "bg-[#FEF2F2] dark:bg-[#2D0A0A] border-[#FECACA] dark:border-[#7F1D1D]"
-                              }`}
-                              title={isMerged
-                                ? "Merged into another lead"
-                                : (lead.closeReason ? `Closed: ${lead.closeReason}` : "Closed — wrong entry")}
-                            >
-                              <svg
-                                className={`w-2.5 h-2.5 shrink-0 ${isMerged ? "text-yellow-600 dark:text-yellow-400" : "text-[#DC2626]"}`}
-                                fill="currentColor" viewBox="0 0 20 20"
-                              >
-                                <circle cx="10" cy="10" r="10"/>
+                      {/* Phone — primary + optional secondary badge */}
+                      <td className="px-4 py-3 whitespace-nowrap font-mono">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB]">
+                            {displayPhone(primary, role)}
+                          </span>
+                          {secondary && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-[#059669] dark:text-[#34D399]">
+                              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
                               </svg>
-                              <span className={`text-[9px] font-bold uppercase tracking-wide ${
-                                isMerged ? "text-yellow-700 dark:text-yellow-400" : "text-[#DC2626]"
-                              }`}>
-                                {isMerged ? "Merged" : "Closed"}
-                              </span>
-                            </span>
-                          );
-                        })()}
-                        <span className={
-                          lead.mergedInto
-                            ? "text-yellow-600 dark:text-yellow-400"
-                            : lead.isClosed
-                              ? "text-[#DC2626] dark:text-[#F87171]"
-                              : "text-[#4B5168] dark:text-[#9DA3BB]"
-                        }>
-                          {displayPhone(lead.phone, role)}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.source}</td>
-                    <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB]">{lead.campaign}</td>
-                    <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.agent}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${st.bg} ${st.text}`}>{displayLabel}</span>
-                    </td>
-                    <td className="px-4 py-3 text-[#8B92A9] dark:text-[#565C75] whitespace-nowrap">{displayDate(lead.date)}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => setRemarksLead(lead)}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold transition
-                          ${callCount > 0
-                            ? "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] hover:bg-[#DBEAFE]"
-                            : "bg-[#F8F9FC] dark:bg-[#13161E] text-[#8B92A9] dark:text-[#565C75] hover:bg-[#F1F4FF]"
-                          }`}
-                        title={callCount > 0 ? "View call history & remarks" : "No calls yet"}
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
-                        </svg>
-                        {callCount}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] max-w-[140px] truncate">{lead.remark}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        {/* Edit */}
-                        <button onClick={() => setEditLead(lead)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#2563EB] hover:text-[#2563EB] text-[#8B92A9] transition" title="Edit">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                        </button>
-                        {/* Add / view additional numbers */}
-                        <button onClick={() => setAddNumberLead(lead)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#059669] hover:text-[#059669] text-[#8B92A9] transition" title="Linked Numbers">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
-                          </svg>
-                          {lead.additionalNumbers?.length > 0 && (
-                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#059669] text-white text-[9px] flex items-center justify-center font-bold">
-                              {lead.additionalNumbers.length}
+                              {displayPhone(secondary, role)}
                             </span>
                           )}
-                        </button>
-                        {/* Remarks history */}
-                        <button onClick={() => setRemarksLead(lead)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#7C3AED] hover:text-[#7C3AED] text-[#8B92A9] transition" title="Call History & Remarks">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.source}</td>
+                      <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB]">{lead.campaign}</td>
+                      <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{lead.agent}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${st.bg} ${st.text}`}>{displayLabel}</span>
+                      </td>
+                      <td className="px-4 py-3 text-[#8B92A9] dark:text-[#565C75] whitespace-nowrap">{displayDate(lead.date)}</td>
+
+                      {/* Call count badge */}
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => setRemarksLead(lead)}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold transition
+                            ${callCount > 0
+                              ? "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] hover:bg-[#DBEAFE]"
+                              : "bg-[#F8F9FC] dark:bg-[#13161E] text-[#8B92A9] dark:text-[#565C75] hover:bg-[#F1F4FF]"
+                            }`}
+                          title={callCount > 0 ? "View call history & remarks" : "No calls yet"}
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
                           </svg>
+                          {callCount}
                         </button>
-                        {/* Recording */}
-                        <button onClick={() => setRecordingLead(lead)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#0891B2] hover:text-[#0891B2] text-[#8B92A9] transition" title="Call Recording">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-                          </svg>
-                        </button>
-                        {/* Close Lead (Wrong Entry) — admin/superadmin only */}
-                        {(role === "admin" || role === "superadmin") && (
+                      </td>
+
+                      <td className="px-4 py-3 text-[#4B5168] dark:text-[#9DA3BB] max-w-[140px] truncate">{lead.remark}</td>
+
+                      {/* Action buttons */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+
+                          {/* Edit lead */}
                           <button
-                            onClick={() => setCloseLead(lead)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#DC2626] hover:text-[#DC2626] text-[#8B92A9] transition"
-                            title="Close Lead (Wrong Entry)"
+                            onClick={() => setEditLead(lead)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#2563EB] hover:text-[#2563EB] text-[#8B92A9] transition"
+                            title="Edit lead"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                          </button>
+
+                          {/* Phone numbers (primary + secondary) */}
+                          <button
+                            onClick={() => setPhoneLead(lead)}
+                            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition
+                              ${secondary
+                                ? "border-[#059669] text-[#059669] bg-[#ECFDF5] dark:bg-[#052E1C] hover:bg-[#D1FAE5]"
+                                : "border-[#E4E7EF] dark:border-[#262A38] hover:border-[#059669] hover:text-[#059669] text-[#8B92A9]"
+                              }`}
+                            title={secondary ? "View / manage phone numbers (has secondary)" : "Manage phone numbers"}
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
                             </svg>
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
-            <span className="text-[12px] text-[#8B92A9] dark:text-[#565C75]">
-              Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, filtered.length)} of {filtered.length}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
-                </svg>
-              </button>
+                          {/* Call history & remarks */}
+                          <button
+                            onClick={() => setRemarksLead(lead)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#7C3AED] hover:text-[#7C3AED] text-[#8B92A9] transition"
+                            title="Call History & Remarks"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
+                            </svg>
+                          </button>
 
-              {Array.from(
-                { length: Math.min(3, totalPages) },
-                (_, i) => {
+                          {/* Call recording */}
+                          <button
+                            onClick={() => setRecordingLead(lead)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#0891B2] hover:text-[#0891B2] text-[#8B92A9] transition"
+                            title="Call Recording"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                            </svg>
+                          </button>
+
+                          {/* Close lead — admin / superadmin only */}
+                          {(role === "admin" || role === "superadmin") && (
+                            <button
+                              onClick={() => setCloseLead(lead)}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-[#DC2626] hover:text-[#DC2626] text-[#8B92A9] transition"
+                              title="Close Lead (Wrong Entry)"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-5 py-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
+              <span className="text-[12px] text-[#8B92A9] dark:text-[#565C75]">
+                Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, filtered.length)} of {filtered.length}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                </button>
+
+                {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
                   let start = Math.max(1, page - 1);
                   if (start + 2 > totalPages) start = Math.max(1, totalPages - 2);
                   return start + i;
-                }
-              ).map(n => (
+                }).map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setPage(n)}
+                    className={`h-8 w-8 rounded-lg text-[12px] font-semibold transition ${
+                      n === page
+                        ? "bg-[#2563EB] text-white border border-[#2563EB]"
+                        : "border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB]"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+
+                {totalPages > 3 && (
+                  <span className="px-2 text-[#8B92A9]">...</span>
+                )}
+
                 <button
-                  key={n}
-                  onClick={() => setPage(n)}
-                  className={`h-8 w-8 rounded-lg text-[12px] font-semibold transition ${
-                    n === page
-                      ? "bg-[#2563EB] text-white border border-[#2563EB]"
-                      : "border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB]"
-                  }`}
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition"
                 >
-                  {n}
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+                  </svg>
                 </button>
-              ))}
-
-              {totalPages > 3 && (
-                <span className="px-2 text-[#8B92A9]">...</span>
-              )}
-
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="h-8 w-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] hover:text-[#2563EB] disabled:opacity-30 disabled:cursor-not-allowed transition"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-                </svg>
-              </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div> 
     </div>
   );
 }
