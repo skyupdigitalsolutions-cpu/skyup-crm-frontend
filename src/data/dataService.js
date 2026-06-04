@@ -240,3 +240,18 @@ function hashStr(str = "") {
   }
   return hash;
 }
+/**
+ * Merge two leads: adds `secondaryPhone` to the target lead (targetId)
+ * and archives/merges the source lead.
+ *
+ * @param {string}  targetId       - The lead that will SURVIVE (receives the secondary number)
+ * @param {string}  secondaryPhone - The phone number to add as secondary (from the source lead)
+ * @param {object}  sourceInfo     - { sourceName, sourceMobile } for timeline entry
+ * @param {string}  role           - "admin" | "superadmin"
+ */
+export async function mergeLeads(targetId, secondaryPhone, sourceInfo, role) {
+  const prefix   = (role === "superadmin" || role === "admin") ? role : "admin";
+  const endpoint = `/lead/${prefix}/${targetId}/merge`;
+  const { data } = await api.post(endpoint, { secondaryPhone, ...sourceInfo });
+  return data;
+}
