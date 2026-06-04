@@ -351,7 +351,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                   )}
                   {displaySecondaryPhone && (
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500">ADDITIONAL</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500">SECONDARY</span>
                       <span className="text-[11px] font-mono text-[#8B92A9]">{displaySecondaryPhone}</span>
                     </span>
                   )}
@@ -448,7 +448,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
               {lead.secondaryPhone ? (
                 <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-4 py-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500 shrink-0">ADDITIONAL</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500 shrink-0">SECONDARY</span>
                     <span className="text-[13px] font-mono font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{displaySecondaryPhone}</span>
                   </div>
                   <div className="flex gap-2">
@@ -457,7 +457,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                       className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[12px] font-semibold hover:bg-blue-500/20 transition"
                     >
                       <PhoneIcon />
-                      Call Additional
+                     Call Secondary
                     </a>
                     <a
                       href={`https://wa.me/${rawSecondary.replace(/\D/g, "")}`}
@@ -488,7 +488,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                 { label: "Campaign",         value: lead.campaign && lead.campaign !== "—" ? lead.campaign : "—" },
                 { label: "Ad Set",           value: lead.adSetName || "—" },
                 { label: "Primary Number",   value: displayPhone },
-                ...(displaySecondaryPhone ? [{ label: "Additional Number", value: displaySecondaryPhone }] : []),
+                ...(displaySecondaryPhone ? [{ label: "Secondary Number", value: displaySecondaryPhone }] : []),
                 { label: "Created",          value: fmtDateTime(lead._raw_date || lead.createdAt) },
                 { label: "Lead Date",        value: lead.date || "—" },
               ].map((row, i) => (
