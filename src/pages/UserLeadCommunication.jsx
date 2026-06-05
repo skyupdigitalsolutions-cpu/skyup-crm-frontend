@@ -455,6 +455,389 @@ function StartConversationPane({ lead, authHeaders, apiUrl, onStarted }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── SMS BLAST TAB (employee-scoped, mirrors admin SMS panel) ──────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FIELD_CLS_SMS =
+  "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition";
+
+const SKYUP_GREETINGS_TEMPLATE_ID_EMP = "6a1ffe028c6272147b00b233";
+const SKYUP_GREETINGS_SENDER_ID_EMP   = "695382";
+const SKYUP_GREETINGS_MESSAGE_EMP =
+  "Hi {{name}}, thank you for contacting SKYUP Digital Solutions LLP!" +
+  "Our Services:SEO ServicesSocial Media & GBP ManagementGoogle & Meta Ads" +
+  "Website Design & DevelopmentAI Automation & Machine LearningChatbot & " +
+  "WhatsApp AutomationOne of our team members will connect with you shortly." +
+  "Phone: +91 88678 67775Website: SKYUP Digital Solutions LLP";
+
+function SmsBlastTab() {
+  const [mode,       setMode]       = useState("campaign");
+  const [campaign,   setCampaign]   = useState("");
+  const [singleLead, setSingleLead] = useState({ name: "", mobile: "" });
+  const [csvText,    setCsvText]    = useState("name,mobile\nRahul Sharma,919876543210\nPriya Patel,919988776655");
+  const [csvParsed,  setCsvParsed]  = useState(null);
+  const [csvError,   setCsvError]   = useState("");
+  const [message,    setMessage]    = useState("");
+  const [templateId, setTemplateId] = useState(SKYUP_GREETINGS_TEMPLATE_ID_EMP);
+  const [senderId,   setSenderId]   = useState(SKYUP_GREETINGS_SENDER_ID_EMP);
+  const [leadCount,  setLeadCount]  = useState(null);
+  const [campaigns,  setCampaigns]  = useState([]);
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState("");
+  const [result,     setResult]     = useState(null);
+  const [configured, setConfigured] = useState(null); // null = loading, true/false
+
+  const MERGE_TAGS = ["{{name}}", "{{mobile}}", "{{email}}", "{{campaign}}"];
+  const charCount  = message.length;
+  const smsCount   = charCount === 0 ? 0 : Math.ceil(charCount / 160);
+
+  // Load campaigns and SMS config status on mount
+  useEffect(() => {
+    api.get("/sms-campaign/employee/my-campaigns")
+      .then((r) => setCampaigns(r.data.data || []))
+      .catch(() => {});
+    api.get("/sms-campaign/employee/config")
+      .then((r) => setConfigured(r.data?.data?.isConfigured ?? false))
+      .catch(() => setConfigured(false));
+  }, []);
+
+  // Preview lead count when campaign changes
+  useEffect(() => {
+    setLeadCount(null);
+    if (mode === "campaign" && campaign) {
+      api.get(`/sms-campaign/employee/preview?campaign=${encodeURIComponent(campaign)}`)
+        .then((r) => setLeadCount(r.data.count))
+        .catch(() => {});
+    }
+  }, [campaign, mode]);
+
+  const parseCsv = () => {
+    setCsvError(""); setCsvParsed(null);
+    const lines = csvText.trim().split("\n").filter(Boolean);
+    if (lines.length < 2) return setCsvError("CSV needs a header row + at least one data row");
+    const header    = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const mobileIdx = header.indexOf("mobile");
+    if (mobileIdx === -1) return setCsvError("CSV must have a 'mobile' column");
+    const nameIdx = header.indexOf("name");
+    const rows = lines.slice(1).map((line) => {
+      const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+      return { name: nameIdx !== -1 ? cols[nameIdx] : "Friend", mobile: cols[mobileIdx] };
+    }).filter((r) => r.mobile && r.mobile.replace(/\D/g, "").length >= 10);
+    if (rows.length === 0) return setCsvError("No valid mobile rows found (need 10+ digits)");
+    setCsvParsed(rows);
+  };
+
+  const handleSend = async () => {
+    if (!message.trim()) return setError("Message body is required");
+    setLoading(true); setError("");
+    try {
+      let res;
+      if (mode === "campaign") {
+        if (!campaign) { setError("Please select a campaign"); setLoading(false); return; }
+        if (!window.confirm(`Send SMS to ${leadCount ?? "?"} leads in "${campaign}"?`)) { setLoading(false); return; }
+        res = await api.post("/sms-campaign/employee/send", { campaign, message, templateId: templateId || undefined, senderId: senderId || undefined });
+      } else if (mode === "all") {
+        if (!window.confirm(`Send SMS to ALL ${leadCount ?? "?"} of your assigned leads with a mobile number?`)) { setLoading(false); return; }
+        res = await api.post("/sms-campaign/employee/send", { message, templateId: templateId || undefined, senderId: senderId || undefined });
+      } else if (mode === "single") {
+        if (!singleLead.mobile) { setError("Mobile number is required"); setLoading(false); return; }
+        if (!window.confirm(`Send SMS to ${singleLead.name || singleLead.mobile}?`)) { setLoading(false); return; }
+        res = await api.post("/sms-campaign/employee/send-single", { name: singleLead.name, mobile: singleLead.mobile, message, templateId: templateId || undefined, senderId: senderId || undefined });
+      } else {
+        if (!csvParsed) { setError("Parse your CSV first"); setLoading(false); return; }
+        if (!window.confirm(`Send SMS to ${csvParsed.length} recipients from CSV?`)) { setLoading(false); return; }
+        res = await api.post("/sms-campaign/employee/send-csv", { recipients: csvParsed, message, templateId: templateId || undefined, senderId: senderId || undefined });
+      }
+      setResult({ success: true, message: res.data.message, total: res.data.total });
+    } catch (err) {
+      setError(err.response?.data?.error || err.response?.data?.message || "Failed to send SMS");
+    } finally { setLoading(false); }
+  };
+
+  // All-mode lead count preview
+  useEffect(() => {
+    if (mode === "all") {
+      api.get("/sms-campaign/employee/preview")
+        .then((r) => setLeadCount(r.data.count))
+        .catch(() => {});
+    }
+  }, [mode]);
+
+  const isValid = message.trim() && (
+    mode === "campaign" ? !!campaign :
+    mode === "all"      ? true :
+    mode === "single"   ? !!singleLead.mobile :
+    !!csvParsed
+  );
+
+  const recipientLabel =
+    mode === "campaign" && leadCount !== null ? `${leadCount} leads` :
+    mode === "all"      && leadCount !== null ? `${leadCount} leads` :
+    mode === "single"   && singleLead.mobile  ? "1 recipient" :
+    mode === "csv"      && csvParsed          ? `${csvParsed.length} recipients` : "recipients";
+
+  const previewMsg = message
+    .replace(/{{name}}/g, singleLead.name || "Rahul Sharma")
+    .replace(/{{mobile}}/g, singleLead.mobile || "9876543210")
+    .replace(/{{campaign}}/g, campaign || "Campaign")
+    .replace(/{{email}}/g, "rahul@example.com");
+
+  if (result) return (
+    <div className="flex-1 flex flex-col items-center justify-center bg-[#EFEAE2] dark:bg-[#0B141A] gap-4">
+      <div className="w-20 h-20 rounded-full bg-[#25D366]/10 flex items-center justify-center mb-2">
+        <svg className="w-10 h-10 text-[#25D366]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <h3 className="text-[18px] font-bold text-[#111B21] dark:text-[#E9EDEF]">SMS Blast Queued!</h3>
+      <p className="text-[13px] text-[#667781] dark:text-[#8696A0] text-center max-w-xs">{result.message}</p>
+      {result.total && (
+        <div className="flex items-center gap-2 bg-white dark:bg-[#202C33] rounded-xl px-6 py-3 shadow-sm">
+          <span className="text-[24px] font-bold text-[#EA580C]">{result.total}</span>
+          <span className="text-[13px] text-[#667781] dark:text-[#8696A0]">messages queued</span>
+        </div>
+      )}
+      <button
+        onClick={() => setResult(null)}
+        className="mt-2 px-6 py-2.5 rounded-full bg-[#EA580C] text-white text-[13px] font-semibold hover:bg-orange-700 transition"
+      >
+        Send Another
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="flex-1 flex flex-col bg-[#EFEAE2] dark:bg-[#0B141A] overflow-hidden">
+      {/* Header */}
+      <div className="bg-[#075E54] dark:bg-[#202C33] px-4 py-3 flex items-center gap-3 shrink-0">
+        <div className="w-9 h-9 rounded-full bg-[#EA580C] flex items-center justify-center">
+          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+          </svg>
+        </div>
+        <div>
+          <h3 className="text-[14px] font-semibold text-white leading-none">New SMS Blast</h3>
+          <p className="text-[11px] text-[#8FB8A8] mt-0.5">via MSG91 · DLT compliant · my leads only</p>
+        </div>
+        {configured === false && (
+          <div className="ml-auto bg-[#DC2626]/20 text-[#FCA5A5] text-[10px] font-semibold px-2.5 py-1 rounded-lg">
+            ⚠ SMS not configured — ask admin
+          </div>
+        )}
+      </div>
+
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+
+        {/* DLT info */}
+        <div className="flex justify-center">
+          <div className="bg-[#FFF7C7] dark:bg-[#2A2519] rounded-lg px-4 py-2 max-w-sm text-center shadow-sm">
+            <p className="text-[11px] text-[#7B6914] dark:text-[#CDB648] leading-relaxed">
+              📋 MSG91 requires a <strong>DLT Template ID</strong>. SMS is only sent to <strong>your assigned leads</strong>.
+            </p>
+          </div>
+        </div>
+
+        {/* Mode selector */}
+        <div className="bg-white dark:bg-[#202C33] rounded-2xl p-4 shadow-sm">
+          <p className="text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] uppercase tracking-wide mb-2">Send to</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { key: "campaign", label: "My Campaign",   icon: "🎯" },
+              { key: "all",      label: "All My Leads",  icon: "👥" },
+              { key: "single",   label: "Single Number", icon: "📱" },
+              { key: "csv",      label: "CSV Upload",    icon: "📄" },
+            ].map((m) => (
+              <button key={m.key} onClick={() => setMode(m.key)}
+                className={`py-2 px-2 rounded-xl text-[11px] font-semibold border transition ${
+                  mode === m.key
+                    ? "bg-[#FFF7ED] dark:bg-[#2D1000] border-[#EA580C] text-[#EA580C]"
+                    : "border-[#E4E7EF] dark:border-[#2A3942] text-[#8B92A9] hover:border-[#EA580C] hover:text-[#EA580C]"
+                }`}>
+                <span className="mr-1">{m.icon}</span>{m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Mode-specific inputs */}
+        <div className="bg-white dark:bg-[#202C33] rounded-2xl p-4 shadow-sm space-y-3">
+          {mode === "campaign" && (
+            <div>
+              <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">
+                Campaign <span className="text-[#DC2626]">*</span>
+              </label>
+              <select value={campaign} onChange={(e) => setCampaign(e.target.value)} className={FIELD_CLS_SMS}>
+                <option value="">— Select campaign —</option>
+                {campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {leadCount !== null && (
+                <p className="text-[11px] text-[#8B92A9] mt-1">
+                  <span className="font-bold text-[#EA580C]">{leadCount}</span> of your leads with mobile numbers
+                </p>
+              )}
+            </div>
+          )}
+
+          {mode === "all" && (
+            <div className="flex items-center gap-3 p-3 bg-[#FFF7ED] dark:bg-[#1c0a00] rounded-xl border border-[#FED7AA] dark:border-[#7c3a00]">
+              <svg className="w-5 h-5 text-[#EA580C] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <div>
+                <p className="text-[12px] font-semibold text-[#EA580C]">
+                  Blast to all your assigned leads
+                </p>
+                {leadCount !== null && (
+                  <p className="text-[11px] text-[#9A3412] dark:text-[#FED7AA]">
+                    <strong>{leadCount}</strong> leads with mobile numbers
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {mode === "single" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">Recipient Name</label>
+                <input type="text" value={singleLead.name} onChange={(e) => setSingleLead((p) => ({ ...p, name: e.target.value }))} placeholder="Rahul Sharma" className={FIELD_CLS_SMS} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">Mobile <span className="text-[#DC2626]">*</span></label>
+                <input type="tel" value={singleLead.mobile} onChange={(e) => setSingleLead((p) => ({ ...p, mobile: e.target.value }))} placeholder="919876543210" className={FIELD_CLS_SMS} />
+              </div>
+            </div>
+          )}
+
+          {mode === "csv" && (
+            <div>
+              <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">Paste CSV (name, mobile) <span className="text-[#DC2626]">*</span></label>
+              <textarea value={csvText} onChange={(e) => { setCsvText(e.target.value); setCsvParsed(null); setCsvError(""); }} rows={4} className={FIELD_CLS_SMS + " font-mono text-[11px] resize-y"} />
+              <div className="flex items-center gap-2 mt-1.5">
+                <button onClick={parseCsv} className="px-3 py-1.5 rounded-lg bg-[#F1F5F9] dark:bg-[#2A3942] text-[11px] font-semibold text-[#4B5168] border border-[#E4E7EF] dark:border-[#2A3942] hover:border-[#EA580C] hover:text-[#EA580C] transition">Parse CSV</button>
+                {csvParsed && <span className="text-[11px] text-[#059669] font-semibold">✓ {csvParsed.length} valid rows</span>}
+                {csvError  && <span className="text-[11px] text-[#DC2626]">⚠ {csvError}</span>}
+              </div>
+            </div>
+          )}
+
+          {/* MSG91 config fields */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#F1F5F9] dark:border-[#2A3942]">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">DLT Template ID</label>
+              <input type="text" value={templateId} onChange={(e) => setTemplateId(e.target.value)} placeholder="1234567890123456789" className={FIELD_CLS_SMS} />
+              <p className="text-[10px] text-[#8B92A9] mt-0.5">MSG91 → DLT dashboard</p>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] mb-1.5">Sender ID</label>
+              <input type="text" maxLength={6} value={senderId} onChange={(e) => setSenderId(e.target.value.toUpperCase())} placeholder="SKYCRM" className={FIELD_CLS_SMS} />
+              <p className="text-[10px] text-[#8B92A9] mt-0.5">6-char DLT-approved</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Message body */}
+        <div className="bg-white dark:bg-[#202C33] rounded-2xl p-4 shadow-sm">
+          {/* Quick-fill approved template */}
+          <div className="mb-3 p-3 bg-[#FFF7ED] dark:bg-[#1c0a00] border border-[#FED7AA] dark:border-[#7c3a00] rounded-xl flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-[#EA580C] mb-0.5">📋 Approved Template</p>
+              <p className="text-[10px] text-[#9A3412] dark:text-[#FED7AA] font-mono truncate">
+                Sender: <strong>695382</strong> · DLT: <strong>1007503933418344595</strong>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTemplateId(SKYUP_GREETINGS_TEMPLATE_ID_EMP);
+                setSenderId(SKYUP_GREETINGS_SENDER_ID_EMP);
+                setMessage(SKYUP_GREETINGS_MESSAGE_EMP);
+              }}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-[#EA580C] text-white text-[11px] font-bold hover:bg-orange-700 transition whitespace-nowrap"
+            >
+              Use Skyup_greetings
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] uppercase tracking-wide">
+              Message <span className="text-[#DC2626]">*</span>
+            </label>
+            <div className="flex items-center gap-1 flex-wrap justify-end">
+              {MERGE_TAGS.map((tag) => (
+                <button key={tag} onClick={() => setMessage((m) => m + tag)}
+                  className="px-2 py-0.5 rounded-md bg-[#FFF7ED] dark:bg-[#1c0a00] text-[#EA580C] text-[10px] font-mono font-bold hover:opacity-80 transition">
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={4}
+            className={FIELD_CLS_SMS + " resize-y"}
+            placeholder={`Hi {{name}}, this is a message from SkyUp CRM.`}
+          />
+          <div className="flex items-center justify-between mt-1.5">
+            <p className="text-[10px] text-[#8B92A9]">
+              <span className={charCount > 160 ? "text-[#EA580C] font-bold" : ""}>{charCount}</span> chars ·{" "}
+              <span className={smsCount > 1 ? "text-[#EA580C] font-bold" : ""}>{smsCount} SMS</span>/recipient
+            </p>
+            <p className="text-[10px] text-[#8B92A9]">→ <strong className="text-[#EA580C]">{recipientLabel}</strong></p>
+          </div>
+        </div>
+
+        {/* Live preview */}
+        {message.trim() && (
+          <div>
+            <p className="text-[10px] font-semibold text-[#667781] dark:text-[#8696A0] uppercase tracking-wide text-center mb-2">Preview</p>
+            <div className="flex justify-end px-2">
+              <div className="max-w-[75%] bg-[#DCF8C6] dark:bg-[#005C4B] rounded-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
+                <p className="text-[13px] text-[#111B21] dark:text-[#E9EDEF] leading-relaxed whitespace-pre-wrap">{previewMsg}</p>
+                <div className="flex items-center justify-end gap-1 mt-1">
+                  <span className="text-[10px] text-[#667781] dark:text-[#8696A0]">now</span>
+                  <svg className="w-4 h-4 text-[#34B7F1]" viewBox="0 0 16 11" fill="currentColor">
+                    <path d="M11.071.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.092-.013l-3-3.5a.75.75 0 1 1 1.14-.977l2.46 2.87 5.908-6.415a.75.75 0 0 1 1.059-.025z"/>
+                    <path d="M14.071.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.085.013L4.54 6.653a.75.75 0 0 1 1.14-.977l1.502 1.752 5.83-6.75a.75.75 0 0 1 1.059-.025z"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">⚠ {error}</div>
+        )}
+      </div>
+
+      {/* Send bar */}
+      <div className="bg-[#F0F2F5] dark:bg-[#202C33] px-4 py-3 flex items-center gap-3 shrink-0 border-t border-[#E4E7EF] dark:border-[#2A3942]">
+        <div className="flex-1 bg-white dark:bg-[#2A3942] rounded-full px-4 py-2.5 text-[12px] text-[#667781] dark:text-[#8696A0] select-none">
+          {message.trim()
+            ? <span className="text-[#111B21] dark:text-[#E9EDEF] truncate block">{message.slice(0, 60)}{message.length > 60 ? "…" : ""}</span>
+            : "Compose your message above…"
+          }
+        </div>
+        <button
+          onClick={handleSend}
+          disabled={loading || !isValid || configured === false}
+          className="w-11 h-11 rounded-full bg-[#EA580C] hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition shadow-md"
+          title={configured === false ? "SMS not configured — ask admin to set up MSG91" : "Send SMS Blast"}
+        >
+          {loading
+            ? <svg className="w-5 h-5 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+            : <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+          }
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 export default function UserLeadCommunication() {
@@ -820,6 +1203,15 @@ export default function UserLeadCommunication() {
               </svg>
             ),
           },
+          {
+            key: "sms",
+            label: "SMS Blast",
+            icon: (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+            ),
+          },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -837,12 +1229,19 @@ export default function UserLeadCommunication() {
                 {leads.length}
               </span>
             )}
+            {tab.key === "sms" && (
+              <span className="ml-1 bg-[#EA580C]/15 text-[#EA580C] text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                SMS
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       {/* ── Tab content ──────────────────────────────────────────────────── */}
-      {activeTab === "blast" ? (
+      {activeTab === "sms" ? (
+        <SmsBlastTab />
+      ) : activeTab === "blast" ? (
         <BlastTab leads={leads} authHeaders={authHeaders} />
       ) : (
         /* ── CHAT TAB ──────────────────────────────────────────────────── */
