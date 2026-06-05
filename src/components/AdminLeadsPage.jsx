@@ -1010,29 +1010,47 @@ const handleMergeFromPanel = async () => {
       )}
 
       {/* Merge confirmation */}
-{mode === "merge" && mergeLead && (
-  <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
-    <p className="text-[12px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
-      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-      Number belongs to &quot;{mergeLead.name}&quot;
-    </p>
-    <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
-      Add <span className="font-mono font-semibold">{normalizeMobile(secInput)}</span> as secondary of &quot;{mergeLead.name}&quot; and merge all data?
-    </p>
-    {error && (
-      <p className="text-[11px] text-red-500 flex items-center gap-1">
-        <AlertCircle className="w-3 h-3 shrink-0" />{error}
+{mode === "merge" && mergeLead && (() => {
+  const isAlreadyPrimary =
+    normalizeMobile(secInput) === normalizeMobile(mergeLead.mobile || mergeLead.primaryPhone || "");
+  return (
+    <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
+      <p className="text-[12px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        Number belongs to &quot;{mergeLead.name}&quot;
       </p>
-    )}
-    <div className="flex gap-2">
-      <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-      <button onClick={handleMergeFromPanel} disabled={merging}
-        className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
-        {merging ? <><Loader2 className="w-3 h-3 animate-spin" /> Merging…</> : "Merge Leads"}
-      </button>
+      {isAlreadyPrimary ? (
+        <div className="space-y-1">
+          <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
+            <span className="font-mono font-semibold">{normalizeMobile(secInput)}</span> is already the <span className="font-semibold text-blue-600 dark:text-blue-400">primary number</span> of &quot;{mergeLead.name}&quot;.
+          </p>
+          <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
+            Click <strong>Merge Data</strong> to combine records — no secondary number will be added since it is already the primary.
+          </p>
+        </div>
+      ) : (
+        <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
+          Add <span className="font-mono font-semibold">{normalizeMobile(secInput)}</span> as secondary of &quot;{mergeLead.name}&quot; and merge all data?
+        </p>
+      )}
+      {error && (
+        <p className="text-[11px] text-red-500 flex items-center gap-1">
+          <AlertCircle className="w-3 h-3 shrink-0" />{error}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+        <button onClick={handleMergeFromPanel} disabled={merging}
+          className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+          {merging
+            ? <><Loader2 className="w-3 h-3 animate-spin" /> Merging…</>
+            : isAlreadyPrimary ? "Merge Data" : "Add as Secondary & Merge"
+          }
+        </button>
+      </div>
     </div>
-  </div>
-)}
+  );
+})()}
 
       {/* Remove confirm */}
       {mode === "remove" && (
