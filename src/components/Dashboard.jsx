@@ -14,6 +14,7 @@ import AdminAttendanceView from "./AdminAttendanceView";
 import CompanyBrandSettings from "./CompanyBrandSettings";
 import TelegramSettings from "./TelegramSettings";
 import SuperAdminFilter from "./SuperAdminFilter";
+import useEntitlements from "../hooks/useEntitlements";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
 function maskPhone(phone) {
