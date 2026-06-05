@@ -28,9 +28,11 @@ const UserLeadsPage          = lazy(() => import("./pages/UserLeadsPage"));
 const UserLeadCommunication  = lazy(() => import("./pages/UserLeadCommunication"));
 
 // Developer pages
-const DeveloperDashboard     = lazy(() => import("./pages/developer/DeveloperDashboard"));
-const DeveloperCompanies     = lazy(() => import("./pages/developer/Companies"));
-const DeveloperSubscriptions = lazy(() => import("./pages/developer/Subscriptions"));
+const DeveloperDashboard         = lazy(() => import("./pages/developer/DeveloperDashboard"));
+const DeveloperCompanies         = lazy(() => import("./pages/developer/Companies"));
+const DeveloperSubscriptions     = lazy(() => import("./pages/developer/Subscriptions"));
+const DeveloperPlanCustomization = lazy(() => import("./pages/developer/PlanCustomization"));
+const DeveloperAddonManager      = lazy(() => import("./pages/developer/AddonManagerPage"));
 
 // Auth pages
 const AdminLogin      = lazy(() => import("./pages/UserLogin")); // /admin/login now redirects to the unified login
@@ -481,6 +483,16 @@ function AppInner() {
           <Route path="/developer/subscriptions" element={
             <DeveloperRoute>
               <AppLayout><DeveloperSubscriptions /></AppLayout>
+            </DeveloperRoute>
+          }/>
+          <Route path="/developer/plan-customization" element={
+            <DeveloperRoute>
+              <AppLayout><DeveloperPlanCustomization /></AppLayout>
+            </DeveloperRoute>
+          }/>
+          <Route path="/developer/addons" element={
+            <DeveloperRoute>
+              <AppLayout><DeveloperAddonManager /></AppLayout>
             </DeveloperRoute>
           }/>
 
