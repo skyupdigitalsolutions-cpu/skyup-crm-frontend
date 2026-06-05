@@ -1794,6 +1794,13 @@ const showToast = useCallback((message, type = "success") => {
 
   // ── Phone masking — only relevant for non-superadmin ─────────────────────
   const [revealedPhone, setRevealedPhone] = useState(null);
+  const [revealedEmail, setRevealedEmail] = useState(null);
+const [emailViewCounts, setEmailViewCounts] = useState(() => {
+  try {
+    const stored = sessionStorage.getItem("leadEmailViewCounts");
+    return stored ? JSON.parse(stored) : {};
+  } catch { return {}; }
+});
 
   const [viewCounts, setViewCounts] = useState(() => {
     try {
@@ -1810,8 +1817,16 @@ const showToast = useCallback((message, type = "success") => {
     } catch { /* quota exceeded or private mode — silently ignore */ }
   }, [viewCounts]);
 
+  useEffect(() => {
+  try {
+    sessionStorage.setItem("leadEmailViewCounts", JSON.stringify(emailViewCounts));
+  } catch { /* ignore */ }
+}, [emailViewCounts]);
+
   const revealTimerRef = useRef(null);
 
+
+  
   const handleRevealPhone = async (e, leadId) => {
     e.stopPropagation();
     clearTimeout(revealTimerRef.current);
@@ -1821,7 +1836,19 @@ const showToast = useCallback((message, type = "success") => {
     try { await api.post(`/lead/admin/${leadId}/reveal-phone`); } catch { /* non-critical */ }
   };
 
+  const emailRevealTimerRef = useRef(null);
+
+const handleRevealEmail = async (e, leadId) => {
+  e.stopPropagation();
+  clearTimeout(emailRevealTimerRef.current);
+  setEmailViewCounts(prev => ({ ...prev, [leadId]: (prev[leadId] || 0) + 1 }));
+  setRevealedEmail(leadId);
+  emailRevealTimerRef.current = setTimeout(() => setRevealedEmail(null), 4000);
+  try { await api.post(`/lead/admin/${leadId}/reveal-email`); } catch { /* non-critical */ }
+};
+  
   useEffect(() => () => clearTimeout(revealTimerRef.current), []);
+  useEffect(() => () => clearTimeout(emailRevealTimerRef.current), []);
 
   const handleLeadUpdated = useCallback((updatedLead) => {
   setAllLeads(prev =>
@@ -2179,9 +2206,36 @@ const showToast = useCallback((message, type = "success") => {
                               </span>
                             )}
                           </div>
-                          {maskEmail(l.email, isSuperAdmin) && (
-                            <p className="text-[10px] text-[#8B92A9] truncate max-w-[130px] mt-0.5 font-mono">{maskEmail(l.email, isSuperAdmin)}</p>
-                          )}
+                         {l.email && (
+  <div className="mt-0.5 flex items-center gap-1">
+    {isSuperAdmin ? (
+      <p className="text-[10px] text-[#8B92A9] truncate max-w-[130px] font-mono">{l.email}</p>
+    ) : revealedEmail === l.id ? (
+      <div className="flex items-center gap-1">
+        <p className="text-[10px] text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[130px] font-mono animate-pulse">{l.email}</p>
+        <span className="inline-block w-6 h-1 rounded-full bg-[#E4E7EF] dark:bg-[#262A38] overflow-hidden shrink-0">
+          <span className="block h-full bg-[#2563EB] rounded-full" style={{ animation: "shrink 4s linear forwards" }} />
+        </span>
+      </div>
+    ) : (
+      <button onClick={(e) => handleRevealEmail(e, l.id)} className="flex items-center gap-1 group/email" title="Click to reveal email">
+        <p className="text-[10px] text-[#8B92A9] truncate max-w-[110px] font-mono select-none">{maskEmail(l.email, isSuperAdmin)}</p>
+        <Eye className="w-2.5 h-2.5 text-[#C4C9D9] dark:text-[#3E4257] group-hover/email:text-[#2563EB] transition shrink-0" />
+      </button>
+    )}
+    {!isSuperAdmin && (emailViewCounts[l.id] || 0) > 0 && (
+      <span
+        title={`Viewed ${emailViewCounts[l.id]} time${emailViewCounts[l.id] > 1 ? "s" : ""} this session`}
+        className={`text-[9px] font-bold px-1 py-0.5 rounded-full shrink-0 leading-none flex items-center gap-0.5
+          ${(emailViewCounts[l.id] || 0) >= 5 ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
+          : (emailViewCounts[l.id] || 0) >= 3 ? "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
+          : "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7]"}`}
+      >
+        <Eye className="w-2 h-2" />{emailViewCounts[l.id]}
+      </span>
+    )}
+  </div>
+)}
                         </td>
 
                         {/* Employee */}
