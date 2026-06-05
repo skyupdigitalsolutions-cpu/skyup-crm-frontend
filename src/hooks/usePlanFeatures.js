@@ -4,12 +4,15 @@
 //  2. Returns the full entitlements object (not just features array)
 //  3. Added helpers: getLimit(resource), isReadOnly(), getRemainingUsage(resource)
 //  4. Backward-compat: hasFeature(key) still works identically
+//  5. NEW: exports setEntitlements, setRemaining, setLoading so useEntitlements
+//     can implement refreshEntitlements() without a second fetch layer
+//  6. NEW: plan field extracted from entitlements response and stored in entitlements.plan
 
 import { useState, useEffect } from "react";
 import api from "../data/axiosConfig";
 
-const CACHE_KEY     = "plan_entitlements";
-const CACHE_TTL     = 5 * 60 * 1000; // 5 minutes
+const CACHE_KEY = "plan_entitlements";
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 function loadCache() {
   try {
@@ -61,6 +64,13 @@ const FEATURE_KEY_MAP = {
   "api-access":     "apiAccess",
   "custom-reports": "customReports",
   "white-label":    "whiteLabel",
+  "voice-bot":      "voiceBot",
+  "call-transcription": "callTranscription",
+  "ai-summary":     "aiSummary",
+  "whatsapp-automation": "whatsappAutomation",
+  "webhook-access": "webhookAccess",
+  "custom-domain":  "customDomain",
+  "custom-branding":"customBranding",
 };
 
 export default function usePlanFeatures() {
@@ -98,12 +108,17 @@ export default function usePlanFeatures() {
           .then(({ data }) => {
             // Build a minimal entitlements object from legacy response
             const features = data?.resolvedFeatures?.features || [];
-            const ent = { subscriptionStatus: data?.status, readOnly: data?.readOnly };
+            const ent = {
+              subscriptionStatus: data?.status,
+              readOnly: data?.readOnly,
+              plan: data?.plan || null,
+            };
             for (const f of features) {
               const mapped = FEATURE_KEY_MAP[f.key] || f.key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
               ent[mapped] = f.enabled;
             }
             setEntitlements(ent);
+            saveCache({ entitlements: ent, remaining: null });
           })
           .catch(() => setEntitlements(null));
       })
@@ -173,5 +188,10 @@ export default function usePlanFeatures() {
     hasFeature,
     features,
     loading,
+    // Exposed setters — needed by useEntitlements.refreshEntitlements()
+    // (Do NOT use these directly in components; use useEntitlements instead)
+    setEntitlements,
+    setRemaining,
+    setLoading,
   };
 }
