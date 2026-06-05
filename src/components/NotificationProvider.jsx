@@ -25,6 +25,10 @@ const SOCKET_URL =
     ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
     : 'https://skyup-crm-backend.onrender.com');
 
+// ── API base URL — used for the expiry subscription REST fetch ────────────────
+const API_BASE =
+  import.meta.env.VITE_API_URL || '/api';
+
 // ── Context ───────────────────────────────────────────────────────────────────
 const NotificationContext = createContext(null);
 
@@ -143,6 +147,68 @@ export function NotificationProvider({ children }) {
       Notification.requestPermission().catch(() => {});
     }
 
+    // ── SuperAdmin: Fetch expiring subscriptions on mount ─────────────────────
+    // Pulls the next 30 days of expiring companies from the REST endpoint so the
+    // bell is pre-populated right after login, before the cron fires.
+    if (isSuperAdmin) {
+      const token = user.token || localStorage.getItem('token');
+      fetch(`${API_BASE}/superadmin/expiring-subscriptions?days=30`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      })
+        .then(res => res.ok ? res.json() : Promise.reject(res.status))
+        .then(data => {
+          if (!data?.companies?.length) return;
+
+          // Group by urgency for a single digest notification
+          const critical = data.companies.filter(c => c.daysLeft <= 1);
+          const warning  = data.companies.filter(c => c.daysLeft > 1 && c.daysLeft <= 3);
+          const notice   = data.companies.filter(c => c.daysLeft > 3);
+
+          const total = data.total;
+          const mostUrgent = critical.length > 0 ? 'critical'
+                           : warning.length  > 0 ? 'warning'
+                           : 'notice';
+
+          const emoji   = mostUrgent === 'critical' ? '🚨' : mostUrgent === 'warning' ? '⚠️' : '📋';
+          const urgency = mostUrgent === 'critical' || mostUrgent === 'warning';
+
+          // Build one summary notification + one per critical company
+          addNotification({
+            id:        'sub-expiry-digest',
+            type:      'subscription_expiry',
+            title:     `${emoji} ${total} Subscription${total > 1 ? 's' : ''} Expiring Soon`,
+            body:      critical.length
+              ? `${critical.length} plan${critical.length > 1 ? 's' : ''} expire today/tomorrow. Immediate action needed.`
+              : `${total} subscription${total > 1 ? 's' : ''} expiring within 7 days.`,
+            companies: data.companies,
+            critical:  critical.length,
+            warning:   warning.length,
+            notice:    notice.length,
+            timestamp: new Date().toISOString(),
+            urgent:    urgency,
+          });
+
+          // Also fire individual notifications for critical (≤1 day) companies
+          critical.forEach(c => {
+            addNotification({
+              id:        `sub-critical-${c._id}`,
+              type:      'subscription_expiry',
+              title:     `🔴 Subscription Expires Today — ${c.name}`,
+              body:      `${c.name}'s ${(c.plan || 'plan').charAt(0).toUpperCase() + (c.plan || 'plan').slice(1)} plan expires today or tomorrow. Renew immediately.`,
+              companies: [c],
+              timestamp: new Date().toISOString(),
+              urgent:    true,
+            });
+          });
+        })
+        .catch(err => {
+          console.debug('[NotificationProvider] expiry fetch skipped:', err);
+        });
+    }
+
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
 
@@ -253,6 +319,45 @@ export function NotificationProvider({ children }) {
       });
     });
 
+    // ── subscription_expiry_alert ─────────────────────────────────────────────
+    // Emitted to room superadmin:${adminId} by subscriptionExpiryJob after the
+    // daily cron runs.  Keeps the bell in sync without a page reload.
+    if (isSuperAdmin) {
+      socket.on('subscription_expiry_alert', ({ totalExpiring, critical, warning, notice, companies, timestamp }) => {
+        if (!totalExpiring) return;
+
+        const emoji   = critical > 0 ? '🚨' : warning > 0 ? '⚠️' : '📋';
+        const urgency = critical > 0 || warning > 0;
+
+        // Upsert the digest notification (replaces the REST-fetched one if present)
+        const notif = {
+          id:        'sub-expiry-digest',
+          type:      'subscription_expiry',
+          title:     `${emoji} ${totalExpiring} Subscription${totalExpiring > 1 ? 's' : ''} Expiring Soon`,
+          body:      critical > 0
+            ? `${critical} plan${critical > 1 ? 's' : ''} expire today/tomorrow. Immediate action needed.`
+            : `${totalExpiring} subscription${totalExpiring > 1 ? 's' : ''} expiring within 7 days.`,
+          companies: companies || [],
+          critical,
+          warning,
+          notice,
+          timestamp: timestamp || new Date().toISOString(),
+          urgent:    urgency,
+        };
+
+        setNotifications(prev => {
+          const exists = prev.some(n => n.id === notif.id);
+          if (exists) return prev.map(n => n.id === notif.id ? notif : n);
+          setUnreadCount(c => c + 1);
+          return [notif, ...prev].slice(0, MAX_NOTIFS);
+        });
+
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
+        }
+      });
+    }
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
@@ -355,14 +460,23 @@ export function NotificationBell() {
 function NotificationItem({ notif }) {
   const bgClass = notif.urgent
     ? 'bg-red-50 dark:bg-red-950/20'
-    : 'hover:bg-gray-50 dark:hover:bg-white/[0.02]';
+    : notif.type === 'subscription_expiry'
+      ? 'bg-amber-50 dark:bg-amber-950/15'
+      : 'hover:bg-gray-50 dark:hover:bg-white/[0.02]';
 
   const dotColor =
-    notif.type === 'reassignment' ? 'bg-blue-500' :
-    notif.urgent                  ? 'bg-red-500'  :
-    notif.subType === 'overdue'   ? 'bg-red-500'  :
-    notif.type === 'follow_up'    ? 'bg-yellow-400':
-                                    'bg-amber-500';
+    notif.type === 'subscription_expiry' && notif.critical > 0 ? 'bg-red-500'    :
+    notif.type === 'subscription_expiry' && notif.warning  > 0 ? 'bg-amber-400'  :
+    notif.type === 'subscription_expiry'                        ? 'bg-indigo-400' :
+    notif.type === 'reassignment'                               ? 'bg-blue-500'   :
+    notif.urgent                                                ? 'bg-red-500'    :
+    notif.subType === 'overdue'                                 ? 'bg-red-500'    :
+    notif.type === 'follow_up'                                  ? 'bg-yellow-400' :
+                                                                  'bg-amber-500';
+
+  // For subscription expiry: show company chips instead of lead chips
+  const showCompanies = notif.type === 'subscription_expiry' && notif.companies?.length > 0;
+  const showLeads     = !showCompanies && notif.leads?.length > 0;
 
   return (
     <div className={`px-4 py-3 ${bgClass} transition`}>
@@ -375,7 +489,31 @@ function NotificationItem({ notif }) {
           <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug line-clamp-2">
             {notif.body}
           </p>
-          {notif.leads?.length > 0 && (
+
+          {/* Subscription expiry: show company chips */}
+          {showCompanies && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {notif.companies.slice(0, 3).map((c, i) => {
+                const chipColor =
+                  (c.daysLeft ?? 99) <= 1 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                  : (c.daysLeft ?? 99) <= 3 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                  : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400';
+                return (
+                  <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${chipColor}`}>
+                    {c.name}{c.daysLeft != null ? ` · ${c.daysLeft}d` : ''}
+                  </span>
+                );
+              })}
+              {notif.companies.length > 3 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 font-medium">
+                  +{notif.companies.length - 3} more
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Lead alerts: show lead name chips */}
+          {showLeads && (
             <div className="flex flex-wrap gap-1 mt-1">
               {notif.leads.slice(0, 3).map((l, i) => (
                 <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 font-medium">
@@ -389,6 +527,7 @@ function NotificationItem({ notif }) {
               )}
             </div>
           )}
+
           <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
             {timeLabel(notif.timestamp)}
           </p>
