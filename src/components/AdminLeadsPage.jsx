@@ -909,18 +909,19 @@ const handleMergeFromPanel = async () => {
     const role     = getRole();
     const endpoint = role === "superadmin"
       ? `/lead/superadmin/${targetId}/merge`
-      : `/lead/admin/${targetId}/merge`;
-    await api.post(endpoint, {
+      : role === "admin"
+        ? `/lead/admin/${targetId}/merge`
+        : `/lead/${targetId}/merge`;
+    const res = await api.post(endpoint, {
       secondaryPhone: norm,
       sourceName:     lead.name,
       sourceMobile:   norm,
     });
-    // The current lead (lead.id) is now archived; we close the panel and
-    // let the parent refresh the list.
-    onToast("Leads merged successfully.");
+    const updatedTarget = res.data?.lead || res.data;
+    onToast("Leads merged successfully. The secondary number has been added to the existing lead.");
     reset();
-    // Optional: signal parent to remove the current lead from list
-    onLeadUpdated({ ...lead, _merged: true });
+    // Refresh parent with the updated merged lead data
+    onLeadUpdated({ ...lead, _merged: true, _mergedTarget: updatedTarget });
   } catch (e) {
     setError(e.response?.data?.message || "Merge failed. Please try again.");
   } finally { setMerging(false); }
@@ -1282,7 +1283,9 @@ const handleMerge = async () => {
     const role     = getRole();
     const endpoint = role === "superadmin"
       ? `/lead/superadmin/${existingId}/merge`
-      : `/lead/admin/${existingId}/merge`;
+      : role === "admin"
+        ? `/lead/admin/${existingId}/merge`
+        : `/lead/${existingId}/merge`;
     const res = await api.post(endpoint, {
       secondaryPhone: currentMob,
       // The "source" lead whose data should be absorbed is the current (new) form.
