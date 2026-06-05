@@ -519,8 +519,6 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
 
   // ── SuperAdmin: two-level view ─────────────────────────────────────────────
   if (isSuperAdmin) {
-    // byAdmin expected shape: [{ adminName, adminEmail?, totalReveals, leadsRevealed, leads: [{ name, mobile, count }] }]
-    // Fallback: derive from topRevealed if byAdmin not present
     const adminList = byAdmin.length > 0 ? byAdmin : [];
     const maxAdminReveals = Math.max(...adminList.map((a) => a.totalReveals || 0), 1);
 
@@ -537,7 +535,6 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
         accentColor="#7C3AED"
       >
         {selectedAdmin ? (
-          // ── Drill-down: leads revealed by this admin ──
           <AdminLeadRevealList
             leads={selectedAdmin.leads || []}
             adminName={selectedAdmin.adminName}
@@ -549,7 +546,6 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
             <p className="text-[14px] text-[#6B7280] dark:text-[#565C75]">No phone reveals recorded yet.</p>
           </div>
         ) : (
-          // ── Admin list view ──
           <div className="space-y-2">
             <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-[#F0F2FA] dark:border-[#1E2130]">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF] dark:text-[#565C75]">Admin</span>
@@ -573,15 +569,12 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
                       hover:bg-white dark:hover:bg-[#1E2130]
                       transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                   >
-                    {/* Rank */}
                     <span className="w-5 text-[11px] font-bold text-[#9CA3AF] dark:text-[#565C75] shrink-0 tabular-nums text-center">
                       {i + 1}
                     </span>
-                    {/* Avatar */}
                     <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-500/15 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                       <span className="text-[12px] font-bold text-purple-600 dark:text-purple-400">{initials}</span>
                     </div>
-                    {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">
@@ -605,7 +598,6 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
                         />
                       </div>
                     </div>
-                    {/* Badge + chevron */}
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span className={`inline-flex items-center gap-1 text-[12px] font-bold px-2.5 py-1 rounded-full ${heat.bg} ${heat.text}`}>
                         <Eye className="w-3 h-3" /> {admin.totalReveals || 0}
@@ -621,7 +613,7 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
     );
   }
 
-  // ── Admin role: flat list (original behaviour) ─────────────────────────────
+  // ── Admin role: flat list ──────────────────────────────────────────────────
   const maxCount = Math.max(...topRevealed.map((x) => x.count), 1);
   return (
     <Modal
@@ -923,8 +915,8 @@ export default function Dashboard() {
   const [agents,      setAgents]      = useState([]);
   const [dbAdmins,    setDbAdmins]    = useState([]);
   const [dbUsers,     setDbUsers]     = useState([]);
-  const [companyPlan, setCompanyPlan] = useState("basic");   // admin's real plan
-  const [superAdminPlan, setSuperAdminPlan] = useState(null); // superadmin's real plan (null = loading)
+  const [companyPlan, setCompanyPlan] = useState("basic");
+  const [superAdminPlan, setSuperAdminPlan] = useState(null);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState(null);
@@ -983,7 +975,6 @@ export default function Dashboard() {
       ])
         .then(([adminsRes, usersRes, companyRes]) => {
           setDbAdmins(adminsRes.data || []);
-          // Handle new shape { users, totalCompanyUsers } or legacy plain array
           const parsedUsers = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.users || []);
           setDbUsers(parsedUsers);
           setCompanyPlan(companyRes.data?.plan || "basic");
@@ -992,36 +983,44 @@ export default function Dashboard() {
     }
   };
 
-  // ── Fetch real subscription plan for SuperAdmin ───────────────────────────
-  // const fetchSuperAdminPlan = useCallback(() => {
-  //   if (!isSuperAdmin) return;
-  //   api.get("/razorpay/subscription")
-  //     .then((r) => {
-  //       const nameToId = { Starter: "starter", Growth: "growth", Enterprise: "enterprise" };
-  //       const planId = nameToId[r.data?.planName] || r.data?.planName?.toLowerCase() || "starter";
-  //       setSuperAdminPlan(planId);
-  //     })
-  //     .catch(() => {
-  //       // fallback: derive from subscription endpoint or default starter
-  //       setSuperAdminPlan("starter");
-  //     });
-  // }, [isSuperAdmin]);
+  // ── FIX: Uncommented all three useEffect hooks that were previously disabled ──
+  // These are the root cause of the blank dashboard — without them:
+  //   1. loadData() never fires → loading stays true → only <Skeleton /> renders
+  //   2. fetchDashStats() never fires → dashStats stays null → KPI row hidden
+  //   3. superAdminPlan stays null → SuperAdmin UserManagement never renders
 
-  // useEffect(() => { loadData(); }, []);
-  // useEffect(() => { fetchSuperAdminPlan(); }, [fetchSuperAdminPlan]);
+  // Effect 1: Load leads + agents on mount
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  // useEffect(() => {
-  //   fetchDashStats();
+  // Effect 2: Fetch real subscription plan for SuperAdmin
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    api.get("/razorpay/subscription")
+      .then((r) => {
+        const nameToId = { Starter: "starter", Growth: "growth", Enterprise: "enterprise" };
+        const planId = nameToId[r.data?.planName] || r.data?.planName?.toLowerCase() || "starter";
+        setSuperAdminPlan(planId);
+      })
+      .catch(() => {
+        setSuperAdminPlan("starter");
+      });
+  }, [isSuperAdmin]);
 
-  //   const handleVisibilityChange = () => {
-  //     if (document.visibilityState === "visible") {
-  //       fetchDashStats();
-  //     }
-  //   };
+  // Effect 3: Fetch dashboard stats on mount + on tab visibility change
+  useEffect(() => {
+    fetchDashStats();
 
-  //   document.addEventListener("visibilitychange", handleVisibilityChange);
-  //   return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  // }, []);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchDashStats();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
   const { planId } = useEntitlements();
 
@@ -1136,18 +1135,18 @@ export default function Dashboard() {
         <div className="flex items-center gap-2">
           <TelegramSettings />
           <button
-          onClick={() => { loadData(true); fetchDashStats(); }}
-          disabled={refreshing}
-          className={`p-2 sm:p-2 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]
-            text-[#6B7280] hover:text-[#2563EB] dark:hover:text-[#4F8EF7]
-            hover:border-blue-300 dark:hover:border-blue-700
-            transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
-            ${refreshing ? "opacity-60 cursor-not-allowed" : ""}`}
-          title="Refresh data"
-          aria-label="Refresh dashboard data"
-        >
-          <RefreshCw className={`w-4 h-4 transition-transform ${refreshing ? "animate-spin" : ""}`} />
-        </button>
+            onClick={() => { loadData(true); fetchDashStats(); }}
+            disabled={refreshing}
+            className={`p-2 sm:p-2 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]
+              text-[#6B7280] hover:text-[#2563EB] dark:hover:text-[#4F8EF7]
+              hover:border-blue-300 dark:hover:border-blue-700
+              transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
+              ${refreshing ? "opacity-60 cursor-not-allowed" : ""}`}
+            title="Refresh data"
+            aria-label="Refresh dashboard data"
+          >
+            <RefreshCw className={`w-4 h-4 transition-transform ${refreshing ? "animate-spin" : ""}`} />
+          </button>
         </div>
       </div>
 
@@ -1385,13 +1384,6 @@ export default function Dashboard() {
         <AdminAttendanceView />
       </div>
 
-      {/*
-        ── UserManagement:
-           • SuperAdmin → rendered with their REAL fetched plan (never hardcoded)
-           • Admin      → rendered with company-scoped real plan
-           • User role  → hidden entirely
-        ── superAdminPlan is null while loading to avoid a flash of wrong limits
-      */}
       {/* ── Admin-Based Filter (SuperAdmin only) ── */}
       {isSuperAdmin && <SuperAdminFilter />}
 
@@ -1403,7 +1395,6 @@ export default function Dashboard() {
         />
       )}
 
-    
       {role === "admin" && (
         <UserManagement
           currentPlan={companyPlan}
