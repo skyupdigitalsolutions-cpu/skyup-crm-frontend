@@ -5,8 +5,10 @@ import { Sidebar } from "./components/Sidebar";
 import ThemeToggle from "./components/ThemeToggle";
 import api from "./data/axiosConfig";
 import ExpiryBanner, { SuspensionScreen } from "./components/ExpiryBanner";
+import EntitlementStatusBanner from "./components/EntitlementStatusBanner";
 import FeatureGate from "./components/FeatureGate";
 import { NotificationProvider, NotificationBell } from "./components/NotificationProvider";
+import { clearFeaturesCache } from "./hooks/usePlanFeatures";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
 const Dashboard      = lazy(() => import("./components/Dashboard"));
@@ -116,9 +118,6 @@ function getStoredAuth() {
 }
 
 // ── Auth Navigation Guard ─────────────────────────────────────────────────────
-// When the user is logged in, intercepts the browser back/forward button so
-// they can never leave the app via browser history. Pressing back keeps them
-// on the current page. Pressing forward after logout redirects to /login.
 function useAuthNavGuard() {
   const location = useLocation();
 
@@ -126,24 +125,18 @@ function useAuthNavGuard() {
     const { token } = getStoredAuth();
     if (!token) return;
 
-    // Push an extra state entry so there's always something "behind" the
-    // current page within our app's history stack.
     window.history.pushState({ appGuard: true }, "", window.location.href);
 
     const handlePopState = () => {
       const { token: t } = getStoredAuth();
       if (t) {
-        // Still logged in — push the current URL back so the browser
-        // stays on the same page (neutralises back AND forward).
         window.history.pushState({ appGuard: true }, "", window.location.href);
       }
-      // If token is gone (logged out) we do nothing — React Router's
-      // ProtectedRoute will redirect to /login automatically.
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [location.pathname]); // re-run on every route change so guard stays current
+  }, [location.pathname]);
 }
 
 // ── Login Guard ────────────────────────────────────────────────────────────────
@@ -356,15 +349,35 @@ function CompanyHeader() {
 }
 
 // ── Layout with Sidebar ────────────────────────────────────────────────────────
+// Changes:
+//  1. Added EntitlementStatusBanner — shows persistent read-only indicator
+//     at the top of the layout for blocked subscription states.
+//  2. EntitlementStatusBanner replaces the duplicate logic that was in
+//     ExpiryBanner for read-only states. ExpiryBanner is still kept for
+//     "expiring soon" warnings (not blocked yet).
+//  3. On plan_updated event: clears entitlement cache so sidebar and
+//     feature gates refresh automatically without a page reload.
 function AppLayout({ children }) {
   const goToPlans = () => { window.location.href = "/upgrade-plan"; };
+
+  // Clear entitlement cache when plan changes (e.g. after developer update)
+  // so usePlanFeatures / useEntitlements pick up fresh data on next render.
+  React.useEffect(() => {
+    const handler = () => clearFeaturesCache();
+    window.addEventListener("plan_updated", handler);
+    return () => window.removeEventListener("plan_updated", handler);
+  }, []);
 
   return (
     <NotificationProvider>
       <div className="flex h-screen overflow-hidden">
         <Sidebar />
         <main className="flex-1 overflow-hidden flex flex-col min-w-0">
+          {/* Expiry / suspension banners — ordered from most to least severe */}
           <ExpiryBanner onGoToPlans={goToPlans} />
+          {/* EntitlementStatusBanner: persistent read-only indicator
+              (separate from ExpiryBanner's "expiring soon" warning) */}
+          <EntitlementStatusBanner onGoToPlans={goToPlans} />
           <CompanyHeader />
           <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
         </main>
@@ -400,6 +413,12 @@ function UpgradePlanWithMembers(props) {
         {...props}
         currentAdmins={currentAdmins}
         currentUsers={currentUsers}
+        // After payment succeeds, clear the entitlement cache so the
+        // sidebar and feature gates pick up the new plan immediately.
+        onPlanChange={() => {
+          clearFeaturesCache();
+          window.dispatchEvent(new Event("plan_updated"));
+        }}
       />
     </Suspense>
   );
