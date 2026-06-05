@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../data/axiosConfig";
 import { getRole, getStoredUser } from "../data/dataService";
+import useEntitlements from "../hooks/useEntitlements";
+
 
 const PLANS = {
   starter:    { label: "Starter",    maxAdmins: 1,  maxUsers: 10,  price: "₹999/mo",   badgeColor: "bg-cyan-600",   borderColor: "border-cyan-500",   bgColor: "bg-cyan-50   dark:bg-cyan-900/30",   textColor: "text-cyan-800   dark:text-cyan-200",   statColor: "text-cyan-600   dark:text-cyan-400",   dividerColor: "bg-cyan-300   dark:bg-cyan-700"   },
@@ -616,8 +618,11 @@ export default function UserManagement({
   existingUsers  = [],
   onMembersChange = null,
 }) {
-  const planKey = normalizePlanId(currentPlan);
-  const cfg = PLANS[planKey] || PLANS.starter;
+  const { getLimit, getPlanLabel, hasAdminCapacity, hasUserCapacity, entitlements } = useEntitlements();
+const maxAdmins = getLimit("admins") ?? 1;
+const maxUsers  = getLimit("users")  ?? 5;
+const planLabel = getPlanLabel();
+  
   const navigate = useNavigate();
 
   const role = getRole();
