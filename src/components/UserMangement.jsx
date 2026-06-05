@@ -7,10 +7,10 @@ import useEntitlements from "../hooks/useEntitlements";
 
 const PLANS = {
   starter:    { label: "Starter",    maxAdmins: 1,  maxUsers: 10,  price: "₹999/mo",   badgeColor: "bg-cyan-600",   borderColor: "border-cyan-500",   bgColor: "bg-cyan-50   dark:bg-cyan-900/30",   textColor: "text-cyan-800   dark:text-cyan-200",   statColor: "text-cyan-600   dark:text-cyan-400",   dividerColor: "bg-cyan-300   dark:bg-cyan-700"   },
-  growth:     { label: "Growth",     maxAdmins: 3,  maxUsers: 30,  price: "₹2,499/mo", badgeColor: "bg-violet-600", borderColor: "border-violet-500", bgColor: "bg-violet-50 dark:bg-violet-950/40", textColor: "text-violet-800 dark:text-violet-200", statColor: "text-violet-600 dark:text-violet-400", dividerColor: "bg-violet-300 dark:bg-violet-700" },
-  enterprise: { label: "Enterprise", maxAdmins: 5,  maxUsers: 50,  price: "₹5,999/mo", badgeColor: "bg-amber-500",  borderColor: "border-amber-500",  bgColor: "bg-amber-50  dark:bg-amber-900/30",  textColor: "text-amber-800  dark:text-amber-200",  statColor: "text-amber-600  dark:text-amber-400",  dividerColor: "bg-amber-300  dark:bg-amber-700"  },
+  growth:     { label: "Growth",     maxAdmins: 3,  maxUsers: 30,  price: "₹2,999/mo", badgeColor: "bg-violet-600", borderColor: "border-violet-500", bgColor: "bg-violet-50 dark:bg-violet-950/40", textColor: "text-violet-800 dark:text-violet-200", statColor: "text-violet-600 dark:text-violet-400", dividerColor: "bg-violet-300 dark:bg-violet-700" },
+  enterprise: { label: "Enterprise", maxAdmins: 5,  maxUsers: 50,  price: "₹9,999/mo", badgeColor: "bg-amber-500",  borderColor: "border-amber-500",  bgColor: "bg-amber-50  dark:bg-amber-900/30",  textColor: "text-amber-800  dark:text-amber-200",  statColor: "text-amber-600  dark:text-amber-400",  dividerColor: "bg-amber-300  dark:bg-amber-700"  },
   basic:      { label: "Starter",    maxAdmins: 1,  maxUsers: 10,  price: "₹999/mo",   badgeColor: "bg-slate-500",  borderColor: "border-slate-500",  bgColor: "bg-slate-50  dark:bg-slate-900/30",  textColor: "text-slate-700 dark:text-slate-300",  statColor: "text-slate-600 dark:text-slate-400",  dividerColor: "bg-slate-300 dark:bg-slate-700"  },
-  pro:        { label: "Growth",     maxAdmins: 3,  maxUsers: 30,  price: "₹2,499/mo", badgeColor: "bg-blue-600",   borderColor: "border-blue-500",   bgColor: "bg-blue-50   dark:bg-blue-950/40",   textColor: "text-blue-800  dark:text-blue-200",   statColor: "text-blue-600  dark:text-blue-400",   dividerColor: "bg-blue-300  dark:bg-blue-700"   },
+  pro:        { label: "Growth",     maxAdmins: 3,  maxUsers: 30,  price: "₹2,999/mo", badgeColor: "bg-blue-600",   borderColor: "border-blue-500",   bgColor: "bg-blue-50   dark:bg-blue-950/40",   textColor: "text-blue-800  dark:text-blue-200",   statColor: "text-blue-600  dark:text-blue-400",   dividerColor: "bg-blue-300  dark:bg-blue-700"   },
 };
 
 export function normalizePlanId(planNameOrId) {
@@ -618,10 +618,15 @@ export default function UserManagement({
   existingUsers  = [],
   onMembersChange = null,
 }) {
-  const { getLimit, getPlanLabel, hasAdminCapacity, hasUserCapacity, entitlements } = useEntitlements();
-const maxAdmins = getLimit("admins") ?? 1;
-const maxUsers  = getLimit("users")  ?? 5;
-const planLabel = getPlanLabel();
+  const { getLimit, getPlanLabel, hasAdminCapacity, hasUserCapacity, entitlements, planId } = useEntitlements();
+  const maxAdmins = getLimit("admins") ?? 1;
+  const maxUsers  = getLimit("users")  ?? 5;
+  const planLabel = getPlanLabel();
+
+  // cfg drives all plan-specific UI (label, colors, limits shown in the card).
+  // Derive it from the live entitlement planId so it always reflects the actual
+  // subscription rather than the prop passed in (which may lag after a plan change).
+  const cfg = PLANS[normalizePlanId(planId ?? currentPlan)] ?? PLANS.starter;
   
   const navigate = useNavigate();
 
@@ -692,24 +697,29 @@ const planLabel = getPlanLabel();
   };
 
   const tryAdd = (role) => {
-    if (role === "admin" && regularAdminCount >= cfg.maxAdmins) {
+    // Use entitlement-based limits as the authoritative source of truth.
+    // cfg.maxAdmins/maxUsers are kept for display only (plan card UI).
+    const effectiveMaxAdmins = maxAdmins ?? cfg.maxAdmins;
+    const effectiveMaxUsers  = maxUsers  ?? cfg.maxUsers;
+
+    if (role === "admin" && regularAdminCount >= effectiveMaxAdmins) {
       return setUpgradeAlert({
         title: "Admin Limit Reached",
-        message: `You are on the ${cfg.label} plan which allows only ${cfg.maxAdmins} admin${cfg.maxAdmins > 1 ? "s" : ""}. To add more admins, please upgrade your plan.`,
+        message: `You are on the ${cfg.label} plan which allows only ${effectiveMaxAdmins} admin${effectiveMaxAdmins > 1 ? "s" : ""}. To add more admins, please upgrade your plan.`,
         contactSuperAdmin: false,
       });
     }
-    if (role === "user" && totalCompanyUsers >= cfg.maxUsers) {
+    if (role === "user" && totalCompanyUsers >= effectiveMaxUsers) {
       return setUpgradeAlert(
         isCompanySuperAdmin
           ? {
               title: "Employee Limit Reached",
-              message: `You are on the ${cfg.label} plan which allows only ${cfg.maxUsers} users. Please upgrade your plan to add more.`,
+              message: `You are on the ${cfg.label} plan which allows only ${effectiveMaxUsers} users. Please upgrade your plan to add more.`,
               contactSuperAdmin: false,
             }
           : {
               title: "Employee Limit Reached",
-              message: `The ${cfg.label} plan limit of ${cfg.maxUsers} users has been reached. Please contact your Super Admin to upgrade the plan.`,
+              message: `The ${cfg.label} plan limit of ${effectiveMaxUsers} users has been reached. Please contact your Super Admin to upgrade the plan.`,
               contactSuperAdmin: true,
             }
       );
@@ -860,8 +870,8 @@ const planLabel = getPlanLabel();
             </div>
             <p className={`text-[11px] mt-0.5 ${cfg.statColor}`}>
               {isCompanySuperAdmin
-                ? `${cfg.price} · Up to ${cfg.maxAdmins} admins · ${cfg.maxUsers} users`
-                : `Up to ${cfg.maxUsers} users`}
+                ? `${cfg.price} · Up to ${maxAdmins ?? cfg.maxAdmins} admins · ${maxUsers ?? cfg.maxUsers} users`
+                : `Up to ${maxUsers ?? cfg.maxUsers} users`}
             </p>
           </div>
         </div>
@@ -869,14 +879,14 @@ const planLabel = getPlanLabel();
           {isCompanySuperAdmin && (
             <>
               <div className="text-center">
-                <div className={`text-xl font-bold ${cfg.statColor}`}>{regularAdminCount}/{cfg.maxAdmins}</div>
+                <div className={`text-xl font-bold ${cfg.statColor}`}>{regularAdminCount}/{maxAdmins ?? cfg.maxAdmins}</div>
                 <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Admins</div>
               </div>
               <div className={`w-px h-8 ${cfg.dividerColor}`}/>
             </>
           )}
           <div className="text-center">
-            <div className="text-xl font-bold text-[#059669] dark:text-[#34D399]">{totalCompanyUsers}/{cfg.maxUsers}</div>
+            <div className="text-xl font-bold text-[#059669] dark:text-[#34D399]">{totalCompanyUsers}/{maxUsers ?? cfg.maxUsers}</div>
             <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Employees</div>
           </div>
           {isCompanySuperAdmin && (
@@ -899,7 +909,7 @@ const planLabel = getPlanLabel();
                   <svg className="w-4 h-4 text-[#2563EB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
                   <h3 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Admins</h3>
                 </div>
-                <SlotBar used={regularAdminCount} max={cfg.maxAdmins} isAdmin/>
+                <SlotBar used={regularAdminCount} max={maxAdmins ?? cfg.maxAdmins} isAdmin/>
               </div>
               <button
                 onClick={() => tryAdd("admin")}
@@ -979,13 +989,13 @@ const planLabel = getPlanLabel();
                 <svg className="w-4 h-4 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
                 <h3 className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">Users <span className="text-xs font-normal text-[#8B92A9] dark:text-[#565C75]">(Employees)</span></h3>
               </div>
-              <SlotBar used={totalCompanyUsers} max={cfg.maxUsers} isAdmin={false}/>
+              <SlotBar used={totalCompanyUsers} max={maxUsers ?? cfg.maxUsers} isAdmin={false}/>
             </div>
             <button
               onClick={() => tryAdd("user")}
-              disabled={totalCompanyUsers >= cfg.maxUsers}
+              disabled={totalCompanyUsers >= (maxUsers ?? cfg.maxUsers)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition
-                ${totalCompanyUsers >= cfg.maxUsers
+                ${totalCompanyUsers >= (maxUsers ?? cfg.maxUsers)
                   ? "bg-[#F1F4FF] dark:bg-[#262A38] text-[#8B92A9] dark:text-[#565C75] cursor-not-allowed"
                   : "bg-green-50 dark:bg-green-950/40 text-[#059669] dark:text-green-400 hover:bg-green-100"
                 }`}
