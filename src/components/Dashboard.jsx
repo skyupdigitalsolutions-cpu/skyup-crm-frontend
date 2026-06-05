@@ -992,35 +992,37 @@ export default function Dashboard() {
   };
 
   // ── Fetch real subscription plan for SuperAdmin ───────────────────────────
-  const fetchSuperAdminPlan = useCallback(() => {
-    if (!isSuperAdmin) return;
-    api.get("/razorpay/subscription")
-      .then((r) => {
-        const nameToId = { Starter: "starter", Growth: "growth", Enterprise: "enterprise" };
-        const planId = nameToId[r.data?.planName] || r.data?.planName?.toLowerCase() || "starter";
-        setSuperAdminPlan(planId);
-      })
-      .catch(() => {
-        // fallback: derive from subscription endpoint or default starter
-        setSuperAdminPlan("starter");
-      });
-  }, [isSuperAdmin]);
+  // const fetchSuperAdminPlan = useCallback(() => {
+  //   if (!isSuperAdmin) return;
+  //   api.get("/razorpay/subscription")
+  //     .then((r) => {
+  //       const nameToId = { Starter: "starter", Growth: "growth", Enterprise: "enterprise" };
+  //       const planId = nameToId[r.data?.planName] || r.data?.planName?.toLowerCase() || "starter";
+  //       setSuperAdminPlan(planId);
+  //     })
+  //     .catch(() => {
+  //       // fallback: derive from subscription endpoint or default starter
+  //       setSuperAdminPlan("starter");
+  //     });
+  // }, [isSuperAdmin]);
 
-  useEffect(() => { loadData(); }, []);
-  useEffect(() => { fetchSuperAdminPlan(); }, [fetchSuperAdminPlan]);
+  // useEffect(() => { loadData(); }, []);
+  // useEffect(() => { fetchSuperAdminPlan(); }, [fetchSuperAdminPlan]);
 
-  useEffect(() => {
-    fetchDashStats();
+  // useEffect(() => {
+  //   fetchDashStats();
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchDashStats();
-      }
-    };
+  //   const handleVisibilityChange = () => {
+  //     if (document.visibilityState === "visible") {
+  //       fetchDashStats();
+  //     }
+  //   };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
+  //   document.addEventListener("visibilitychange", handleVisibilityChange);
+  //   return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  // }, []);
+
+  const { planId } = useEntitlements();
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const leads = useMemo(() => filterByRange(allLeads, range), [allLeads, range]);
