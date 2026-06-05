@@ -411,7 +411,7 @@ export function NotificationBell() {
         className="relative w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1A1D27] text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 transition"
         title="Notifications"
       >
-        <BellIcon className="w-2.5 h-2.5" />
+        <BellIcon className="w-3.5 h-3.5" />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none px-0.5">
             {unreadCount > 9 ? '9+' : unreadCount}
