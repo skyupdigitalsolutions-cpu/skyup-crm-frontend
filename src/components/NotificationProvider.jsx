@@ -18,7 +18,7 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-// ── Socket URL (same logic used by Adminchat + UserDashboard) ────────────────
+// ── Socket URL ────────────────────────────────────────────────────────────────
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   (import.meta.env.VITE_API_URL
@@ -32,7 +32,6 @@ export function useNotifications() {
   return useContext(NotificationContext);
 }
 
-// ── Max notifications to keep in memory ──────────────────────────────────────
 const MAX_NOTIFS = 50;
 
 // ── Helper — human-readable timestamp ────────────────────────────────────────
@@ -47,14 +46,43 @@ function timeLabel(iso) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+// ── Normalize role ────────────────────────────────────────────────────────────
+// Backend Admin model stores: "super_admin" | "admin"
+// adminAuthController.js login response sends admin.role directly.
+// This helper handles any casing/spacing variant defensively.
+function normalizeRole(raw) {
+  if (!raw) return '';
+  const s = String(raw).toLowerCase().trim();
+  // "super_admin", "superadmin", "super admin" → canonical "super_admin"
+  if (s === 'super_admin' || s === 'superadmin' || s === 'super admin') return 'super_admin';
+  if (s === 'admin') return 'admin';
+  return s;
+}
+
+// ── Resolve companyId from localStorage user object ───────────────────────────
+// Login response shape (adminAuthController.js):
+//   { _id, name, email, company: admin.company._id, role, token, plan }
+// So user.company is a plain ObjectId string.
+// Defensively also handles user.companyId and populated user.company._id.
+function resolveCompanyId(user) {
+  if (!user) return '';
+  // Explicit companyId field (some older login responses)
+  if (user.companyId && typeof user.companyId === 'string') return user.companyId;
+  if (user.company) {
+    // Plain ObjectId string — the normal case from adminAuthController loginAdmin
+    if (typeof user.company === 'string') return user.company;
+    // Populated object (e.g. from register response which returns admin.company before _id is extracted)
+    if (typeof user.company === 'object' && user.company._id) return String(user.company._id);
+  }
+  return '';
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 export function NotificationProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount,   setUnreadCount]   = useState(0);
   const socketRef = useRef(null);
 
-  // Read user from localStorage; re-read whenever another component writes it
-  // (e.g. after login, localStorage.setItem('user', ...) fires a 'storage' event)
   const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
   });
@@ -70,13 +98,8 @@ export function NotificationProvider({ children }) {
   }, []);
 
   const addNotification = useCallback((notif) => {
-    setNotifications(prev => {
-      const next = [notif, ...prev].slice(0, MAX_NOTIFS);
-      return next;
-    });
+    setNotifications(prev => [notif, ...prev].slice(0, MAX_NOTIFS));
     setUnreadCount(c => c + 1);
-
-    // Native browser notification (if user granted permission)
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
     }
@@ -86,19 +109,36 @@ export function NotificationProvider({ children }) {
   const clearAll    = useCallback(() => { setNotifications([]); setUnreadCount(0); }, []);
 
   useEffect(() => {
-    // Only run for admin / superadmin roles
     if (!user) return;
-    const role = (user?.role || '').toLowerCase();
-    if (role !== 'admin' && role !== 'superadmin' && role !== 'super_admin') return;
 
-    const adminId     = user._id || user.id || '';
-    const companyId   = user.companyId || user.company?._id || user.company || '';
-    const displayName = user.name || 'Admin';
-    const isSuperAdmin = role === 'superadmin' || role === 'super_admin';
+    const role         = normalizeRole(user?.role);
+    const adminId      = String(user._id || user.id || '');
+    const companyId    = resolveCompanyId(user);
+    const displayName  = user.name || 'Admin';
+    const isSuperAdmin = role === 'super_admin';
 
-    if (!adminId || !companyId) return;
+    // Only admin and super_admin get notifications
+    if (role !== 'admin' && role !== 'super_admin') {
+      console.debug('[NotificationProvider] skipping — role not eligible:', role, '(raw:', user?.role, ')');
+      return;
+    }
 
-    // Request browser notification permission once
+    if (!adminId) {
+      console.warn('[NotificationProvider] missing adminId — check localStorage user object:', user);
+      return;
+    }
+    if (!companyId) {
+      console.warn('[NotificationProvider] missing companyId — check localStorage user object:', user);
+      return;
+    }
+
+    console.debug(
+      '[NotificationProvider] init | role:', role,
+      '| isSuperAdmin:', isSuperAdmin,
+      '| adminId:', adminId,
+      '| companyId:', companyId
+    );
+
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
     }
@@ -106,10 +146,26 @@ export function NotificationProvider({ children }) {
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
 
+    // ── Join the correct room(s) ──────────────────────────────────────────────
+    //
+    // Backend socketHandler.js room mapping:
+    //   admin_join       → joins  admin:${adminId}
+    //                      receives: no_action_alert, follow_up_alert,
+    //                                pushPendingFollowUps on connect
+    //                      SCOPED: only leads where assignedAdmin === this admin
+    //
+    //   super_admin_join → joins  superadmin:${adminId}
+    //                      receives: lead_reassigned_notify only
+    //                      does NOT receive follow-up / no-action alerts
+    //
+    // admin role:       emits admin_join only
+    // super_admin role: emits super_admin_join only (no follow-up alerts for them)
     const doJoin = () => {
       if (isSuperAdmin) {
+        console.debug('[NotificationProvider] emitting super_admin_join');
         socket.emit('super_admin_join', { adminId, company: companyId, displayName });
       } else {
+        console.debug('[NotificationProvider] emitting admin_join');
         socket.emit('admin_join', { adminId, company: companyId, displayName });
       }
     };
@@ -117,7 +173,16 @@ export function NotificationProvider({ children }) {
     socket.on('connect', doJoin);
     if (socket.connected) doJoin();
 
+    socket.on('connect_error', (err) => {
+      console.error('[NotificationProvider] socket connect_error:', err.message);
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.debug('[NotificationProvider] socket disconnected:', reason);
+    });
+
     // ── no_action_alert ───────────────────────────────────────────────────────
+    // Emitted to room admin:${adminId} and superadmin:${adminId} by fcmService.sendNoActionAlert
     socket.on('no_action_alert', ({ count, threshold, leads, timestamp }) => {
       const thresholdLabel =
         threshold === '1h' ? '1 hour' :
@@ -138,12 +203,13 @@ export function NotificationProvider({ children }) {
     });
 
     // ── follow_up_alert ───────────────────────────────────────────────────────
-    // Upsert by subType — replaces any existing overdue/due notification of
-    // the same type so reconnects or the initial on-join push don't stack duplicates.
+    // Emitted to room admin:${adminId} and superadmin:${adminId} by fcmService.sendFollowUpAlert
+    // Also pushed immediately on connect by socketHandler.pushPendingFollowUps
+    // Upserts by stable id so reconnects don't stack duplicate notifications.
     socket.on('follow_up_alert', ({ type, count, leads, timestamp }) => {
       const isOverdue = type === 'overdue';
       const notif = {
-        id:        `fu-${type}`,           // stable id — same type always replaces
+        id:        `fu-${type}`,
         type:      'follow_up',
         title:     isOverdue
           ? `🔴 ${count} Overdue Follow-Up${count > 1 ? 's' : ''}`
@@ -159,7 +225,6 @@ export function NotificationProvider({ children }) {
       setNotifications(prev => {
         const exists = prev.some(n => n.id === notif.id);
         if (exists) {
-          // Replace in-place — count may have changed, don't re-bump unread
           return prev.map(n => n.id === notif.id ? notif : n);
         }
         setUnreadCount(c => c + 1);
@@ -170,20 +235,21 @@ export function NotificationProvider({ children }) {
       }
     });
 
-    // ── lead_reassigned_notify (super_admin only) ─────────────────────────────
+    // ── lead_reassigned_notify ────────────────────────────────────────────────
+    // Emitted to room superadmin:${superAdmin._id} by fcmService.notifySuperAdminReassignment
     socket.on('lead_reassigned_notify', ({ leadId, leadName, fromAdminName, toUserName, reason, timestamp }) => {
       addNotification({
-        id:        `reassign-${Date.now()}`,
-        type:      'reassignment',
-        title:     '🔄 Lead Reassigned',
-        body:      `"${leadName}" moved from ${fromAdminName} → ${toUserName}${reason ? ` — ${reason}` : ''}`,
+        id:           `reassign-${Date.now()}`,
+        type:         'reassignment',
+        title:        '🔄 Lead Reassigned',
+        body:         `"${leadName}" moved from ${fromAdminName} → ${toUserName}${reason ? ` — ${reason}` : ''}`,
         leadId,
         leadName,
         fromAdminName,
         toUserName,
-        reason:    reason || '',
-        timestamp: timestamp || new Date().toISOString(),
-        urgent:    false,
+        reason:       reason || '',
+        timestamp:    timestamp || new Date().toISOString(),
+        urgent:       false,
       });
     });
 
@@ -191,7 +257,7 @@ export function NotificationProvider({ children }) {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [user, addNotification]); // re-runs when user logs in/out
+  }, [user, addNotification]);
 
   return (
     <NotificationContext.Provider value={{ notifications, unreadCount, markAllRead, clearAll }}>
@@ -200,7 +266,7 @@ export function NotificationProvider({ children }) {
   );
 }
 
-// ── Bell Icon ──────────────────────────────────────────────────────────────────
+// ── Bell Icon ─────────────────────────────────────────────────────────────────
 function BellIcon({ className = 'w-5 h-5' }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -210,13 +276,12 @@ function BellIcon({ className = 'w-5 h-5' }) {
   );
 }
 
-// ── Notification Bell (place inside CompanyHeader) ────────────────────────────
+// ── Notification Bell ─────────────────────────────────────────────────────────
 export function NotificationBell() {
   const ctx = useNotifications();
   const [open, setOpen] = useState(false);
   const panelRef = useRef(null);
 
-  // Close when clicking outside
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -236,7 +301,6 @@ export function NotificationBell() {
 
   return (
     <div className="relative" ref={panelRef}>
-      {/* Bell button */}
       <button
         onClick={handleOpen}
         className="relative w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1A1D27] text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 transition"
@@ -244,19 +308,17 @@ export function NotificationBell() {
       >
         <BellIcon className="w-4.5 h-4.5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-4.5 h-4.5 min-w-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none px-0.5">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none px-0.5">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
-      {/* Dropdown panel */}
       {open && (
         <div
           className="absolute right-0 top-11 z-[300] w-80 bg-white dark:bg-[#1A1D27] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden"
           style={{ maxHeight: '480px' }}
         >
-          {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-[#13161E]">
             <span className="text-[13px] font-bold text-gray-800 dark:text-white">Notifications</span>
             {notifications.length > 0 && (
@@ -269,7 +331,6 @@ export function NotificationBell() {
             )}
           </div>
 
-          {/* List */}
           <div className="overflow-y-auto" style={{ maxHeight: '400px' }}>
             {notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 gap-2">
