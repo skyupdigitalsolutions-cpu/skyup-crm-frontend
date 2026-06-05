@@ -1,29 +1,38 @@
-// src/hooks/usePlanFeatures.js
-// Fetches and caches the company's resolved plan features.
-// Returns a `hasFeature(key)` function used by Sidebar and FeatureGate.
+// src/hooks/usePlanFeatures.js — UPDATED
+// Changes:
+//  1. Switched API call from /subscription/my/status → /subscription/my/entitlements
+//  2. Returns the full entitlements object (not just features array)
+//  3. Added helpers: getLimit(resource), isReadOnly(), getRemainingUsage(resource)
+//  4. Backward-compat: hasFeature(key) still works identically
+
 import { useState, useEffect } from "react";
 import api from "../data/axiosConfig";
 
-const CACHE_KEY = "plan_features";
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_KEY     = "plan_entitlements";
+const CACHE_TTL     = 5 * 60 * 1000; // 5 minutes
 
 function loadCache() {
   try {
     const raw = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
-    if (raw && Date.now() - raw.ts < CACHE_TTL) return raw.features;
+    if (raw && Date.now() - raw.ts < CACHE_TTL) return raw.data;
   } catch {}
   return null;
 }
 
-function saveCache(features) {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ features, ts: Date.now() })); } catch {}
+function saveCache(data) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
+  } catch {}
 }
 
 export function clearFeaturesCache() {
-  try { localStorage.removeItem(CACHE_KEY); } catch {}
+  try {
+    localStorage.removeItem(CACHE_KEY);
+    // Also clear the old key so stale data doesn't linger
+    localStorage.removeItem("plan_features");
+  } catch {}
 }
 
-// FIX: Read role from the "user" JSON object (not a standalone "role" key which is never set)
 function getStoredRole() {
   try {
     const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -33,35 +42,83 @@ function getStoredRole() {
   }
 }
 
+// ── Feature key → entitlements boolean key map ────────────────────────────────
+// Converts legacy sidebar/FeatureGate keys (e.g. "basic-reports") to the
+// entitlements object keys returned by the new endpoint (e.g. "basicReports").
+const FEATURE_KEY_MAP = {
+  "leads":          "leadManagement",
+  "contacts":       "contacts",
+  "basic-reports":  "basicReports",
+  "attendance":     "attendance",
+  "daily-report":   "dailyReport",
+  "sms-blast":      "smsBlast",
+  "whatsapp-blast": "whatsappBlast",
+  "email-blast":    "emailBlast",
+  "campaigns":      "campaigns",
+  "google-ads":     "googleAds",
+  "meta-ads":       "metaAds",
+  "call-recording": "callRecording",
+  "api-access":     "apiAccess",
+  "custom-reports": "customReports",
+  "white-label":    "whiteLabel",
+};
+
 export default function usePlanFeatures() {
-  const [features, setFeatures] = useState(() => loadCache());
-  const [loading,  setLoading]  = useState(!loadCache());
+  const [entitlements, setEntitlements] = useState(() => loadCache()?.entitlements ?? null);
+  const [remaining,    setRemaining]    = useState(() => loadCache()?.remaining    ?? null);
+  const [loading,      setLoading]      = useState(!loadCache());
 
   useEffect(() => {
     const role = getStoredRole();
-    // Only admin / super_admin have plan features — skip for developer and user
-    if (role === "developer" || role === "user") { setLoading(false); return; }
+    // Only admin / super_admin have plan entitlements
+    if (role === "developer" || role === "user") {
+      setLoading(false);
+      return;
+    }
 
     const cached = loadCache();
-    if (cached) { setFeatures(cached); setLoading(false); return; }
+    if (cached) {
+      setEntitlements(cached.entitlements ?? null);
+      setRemaining(cached.remaining ?? null);
+      setLoading(false);
+      return;
+    }
 
-    api.get("/subscription/my/status")
+    api.get("/subscription/my/entitlements")
       .then(({ data }) => {
-        const feats = data?.resolvedFeatures?.features || null;
-        setFeatures(feats);
-        if (feats) saveCache(feats);
+        const ent = data?.entitlements ?? null;
+        const rem = data?.remaining    ?? null;
+        setEntitlements(ent);
+        setRemaining(rem);
+        if (ent) saveCache({ entitlements: ent, remaining: rem });
       })
-      .catch(() => setFeatures(null))
+      .catch(() => {
+        // Fallback: try old endpoint for backward compat
+        api.get("/subscription/my/status")
+          .then(({ data }) => {
+            // Build a minimal entitlements object from legacy response
+            const features = data?.resolvedFeatures?.features || [];
+            const ent = { subscriptionStatus: data?.status, readOnly: data?.readOnly };
+            for (const f of features) {
+              const mapped = FEATURE_KEY_MAP[f.key] || f.key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+              ent[mapped] = f.enabled;
+            }
+            setEntitlements(ent);
+          })
+          .catch(() => setEntitlements(null));
+      })
       .finally(() => setLoading(false));
 
-    // Re-fetch when plan changes (e.g. after payment)
+    // Re-fetch when plan changes (e.g. after payment or developer update)
     const handler = () => {
       clearFeaturesCache();
-      api.get("/subscription/my/status")
+      api.get("/subscription/my/entitlements")
         .then(({ data }) => {
-          const feats = data?.resolvedFeatures?.features || null;
-          setFeatures(feats);
-          if (feats) saveCache(feats);
+          const ent = data?.entitlements ?? null;
+          const rem = data?.remaining    ?? null;
+          setEntitlements(ent);
+          setRemaining(rem);
+          if (ent) saveCache({ entitlements: ent, remaining: rem });
         })
         .catch(() => {});
     };
@@ -69,12 +126,52 @@ export default function usePlanFeatures() {
     return () => window.removeEventListener("plan_updated", handler);
   }, []);
 
-  // hasFeature: returns true if feature is enabled OR if no features loaded yet (fail-open)
+  // ── hasFeature — backward-compat with sidebar/FeatureGate ────────────────
+  // Accepts both legacy dash-keys ("basic-reports") and entitlement keys ("basicReports")
   const hasFeature = (key) => {
-    if (!features) return true; // fail-open: show everything if features not loaded
-    const feat = features.find(f => f.key === key);
-    return feat ? feat.enabled : true; // unknown keys are allowed
+    if (!entitlements) return true; // fail-open
+    // Map dash-key to entitlement key
+    const entKey = FEATURE_KEY_MAP[key] || key;
+    if (entKey in entitlements) return !!entitlements[entKey];
+    return true; // unknown keys → allow
   };
 
-  return { hasFeature, features, loading };
+  // ── getLimit — returns numeric resource limit ─────────────────────────────
+  const getLimit = (resource) => {
+    if (!entitlements) return null;
+    return entitlements[resource] ?? null;
+  };
+
+  // ── isReadOnly — true when subscription is not active or trial ────────────
+  const isReadOnly = () => {
+    if (!entitlements) return false; // fail-open
+    return !!entitlements.readOnly;
+  };
+
+  // ── getRemainingUsage — remaining AI units this month ────────────────────
+  const getRemainingUsage = (resource) => {
+    if (!remaining) return null;
+    return remaining[resource] ?? null;
+  };
+
+  // Legacy: expose features array for any code that still iterates it
+  const features = entitlements
+    ? Object.entries(FEATURE_KEY_MAP).map(([key, entKey]) => ({
+        key,
+        enabled: !!entitlements[entKey],
+      }))
+    : null;
+
+  return {
+    // New
+    entitlements,
+    remaining,
+    getLimit,
+    isReadOnly,
+    getRemainingUsage,
+    // Backward-compat
+    hasFeature,
+    features,
+    loading,
+  };
 }
