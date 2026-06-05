@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import usePlanFeatures from "../hooks/usePlanFeatures";
+import useEntitlements from "../hooks/useEntitlements";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import api from "../data/axiosConfig";
 
@@ -206,26 +206,32 @@ export function Sidebar() {
   );
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [followUpAlerts, setFollowUpAlerts] = useState({ todayCount: 0, overdueCount: 0 });
-  // ── Mobile sidebar open/close state ──────────────────────────────────────
   const [mobileOpen, setMobileOpen] = useState(false);
-  // ── Company branding: SuperAdmin sets name + logo via Settings ────────────
-  
+
   const location = useLocation();
   const navigate  = useNavigate();
 
- const user        = JSON.parse(localStorage.getItem("user") || "null");
+  const user        = JSON.parse(localStorage.getItem("user") || "null");
   const rawRole     = user?.role?.toLowerCase() || "user";
-  
+
   const role        = rawRole === "superadmin" ? "super_admin" : rawRole;
   const isSuperAdmin = role === "super_admin";
   const isDeveloper  = role === "developer";
+
   // ── Sidebar branding is fixed — always shows SKYUP identity ─────────────
   const companyName = "SKYUP";
   const companyLogo = "/skyup_logo1.svg";
 
-  // ── Plan feature gating ───────────────────────────────────────────────────
-  const { hasFeature } = usePlanFeatures();
-
+  // ── Entitlement-driven feature gating ────────────────────────────────────
+  // Switched from usePlanFeatures to useEntitlements for richer helpers.
+  // hasFeature() behaviour is unchanged — sidebar items are filtered by plan.
+  // readOnlyMode adds a visual indicator in the footer area.
+  const {
+    hasFeature,
+    readOnlyMode,
+    subscriptionStatus,
+    refreshEntitlements,
+  } = useEntitlements();
 
   // ── Poll follow-up alerts every 5 minutes (skip for developer) ────────────
   useEffect(() => {
@@ -247,25 +253,34 @@ export function Sidebar() {
     return () => clearInterval(interval);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Refresh entitlements when plan_updated fires (e.g. after payment) ────
+  useEffect(() => {
+    const handler = () => refreshEntitlements();
+    window.addEventListener("plan_updated", handler);
+    return () => window.removeEventListener("plan_updated", handler);
+  }, [refreshEntitlements]);
+
   const initials = user?.name
     ? user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "?";
 
   const roleStyle = {
     super_admin: { border: "border-amber-500/30",  bg: "bg-amber-500/10",  text: "text-amber-400"  },
-    admin:      { border: "border-purple-500/30", bg: "bg-purple-500/10", text: "text-purple-400" },
-    user:       { border: "border-blue-500/30",   bg: "bg-blue-500/10",   text: "text-blue-400"   },
-    developer:  { border: "border-emerald-500/30",bg: "bg-emerald-500/10",text: "text-emerald-400" },
+    admin:       { border: "border-purple-500/30", bg: "bg-purple-500/10", text: "text-purple-400" },
+    user:        { border: "border-blue-500/30",   bg: "bg-blue-500/10",   text: "text-blue-400"   },
+    developer:   { border: "border-emerald-500/30",bg: "bg-emerald-500/10",text: "text-emerald-400" },
   }[role] ?? { border: "border-blue-500/30", bg: "bg-blue-500/10", text: "text-blue-400" };
 
-  // ── Build nav items based on role, filtered by plan features ──────────────
+  // ── Build nav items based on role, filtered by entitlement feature flags ──
+  // NOTE: Items without a featureKey are always shown regardless of plan.
+  //       Items WITH a featureKey are hidden if hasFeature() returns false —
+  //       which is now driven by the entitlements API, not hardcoded plan names.
   const ALL_NAV_ITEMS =
     isDeveloper  ? DEVELOPER_NAV_ITEMS :
     role === "user" ? USER_NAV_ITEMS :
     isSuperAdmin ? [...ADMIN_NAV_ITEMS, ...SUPERADMIN_EXTRA_ITEMS] :
     ADMIN_NAV_ITEMS;
 
-  // Hide items whose feature is disabled on this company's plan
   const NAV_ITEMS = ALL_NAV_ITEMS.filter(item =>
     !item.featureKey || hasFeature(item.featureKey)
   );
@@ -281,6 +296,15 @@ export function Sidebar() {
     setMobileOpen(false);
   }, [location.pathname]);
 
+  // ── Read-only status pill — shown in sidebar footer for admin/superadmin ──
+  const READ_ONLY_STATUS_STYLES = {
+    suspended: { bg: "bg-red-500/10",    text: "text-red-400",    dot: "bg-red-500",    label: "Suspended"  },
+    paused:    { bg: "bg-amber-500/10",  text: "text-amber-400",  dot: "bg-amber-500",  label: "Paused"     },
+    expired:   { bg: "bg-orange-500/10", text: "text-orange-400", dot: "bg-orange-500", label: "Expired"    },
+    cancelled: { bg: "bg-red-500/10",    text: "text-red-400",    dot: "bg-red-500",    label: "Cancelled"  },
+  };
+  const readOnlyStyle = READ_ONLY_STATUS_STYLES[subscriptionStatus] || null;
+
   return (
     <>
       <style>{`
@@ -288,7 +312,7 @@ export function Sidebar() {
         .sidebar {
           transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           font-family: 'DM Sans', sans-serif;
-          overflow: visible; /* Do NOT set overflow:hidden — it breaks sticky positioning */
+          overflow: visible;
           flex-shrink: 0;
         }
         .nav-label {
@@ -496,6 +520,24 @@ export function Sidebar() {
 
         {/* Footer */}
         <div className="px-3 py-4 border-t border-gray-100 dark:border-white/5 flex flex-col gap-1">
+          {/* Read-only indicator — shown when subscription is not active/trial */}
+          {readOnlyMode && !isDeveloper && !minimized && readOnlyStyle && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl mb-1 ${readOnlyStyle.bg}`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${readOnlyStyle.dot}`} />
+              <span className={`text-[11px] font-semibold ${readOnlyStyle.text}`}>
+                Read-only — {readOnlyStyle.label}
+              </span>
+            </div>
+          )}
+          {readOnlyMode && !isDeveloper && minimized && readOnlyStyle && (
+            <div className="relative flex justify-center mb-1">
+              <span className={`w-2.5 h-2.5 rounded-full ${readOnlyStyle.dot}`} />
+              <span className="tooltip absolute left-16 z-50 bg-gray-900 dark:bg-gray-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl">
+                Read-only — {readOnlyStyle.label}
+              </span>
+            </div>
+          )}
+
           <button
             onClick={() => setShowLogoutModal(true)}
             className={`logout-btn flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium w-full
