@@ -30,6 +30,7 @@ const UserLeadCommunication  = lazy(() => import("./pages/UserLeadCommunication"
 // Developer pages
 const DeveloperDashboard         = lazy(() => import("./pages/developer/DeveloperDashboard"));
 const DeveloperCompanies         = lazy(() => import("./pages/developer/Companies"));
+const DeveloperCompanyDetails    = lazy(() => import("./pages/developer/CompanyDetails"));
 const DeveloperSubscriptions     = lazy(() => import("./pages/developer/Subscriptions"));
 const DeveloperPlanCustomization = lazy(() => import("./pages/developer/PlanCustomization"));
 const DeveloperAddonManager      = lazy(() => import("./pages/developer/AddonManagerPage"));
@@ -478,6 +479,11 @@ function AppInner() {
           <Route path="/developer/companies" element={
             <DeveloperRoute>
               <AppLayout><DeveloperCompanies /></AppLayout>
+            </DeveloperRoute>
+          }/>
+          <Route path="/developer/companies/:id" element={
+            <DeveloperRoute>
+              <AppLayout><DeveloperCompanyDetails /></AppLayout>
             </DeveloperRoute>
           }/>
           <Route path="/developer/subscriptions" element={
