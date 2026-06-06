@@ -12,7 +12,7 @@ import { useState, useEffect } from "react";
 import api from "../data/axiosConfig";
 
 const CACHE_KEY = "plan_entitlements";
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 60 * 1000; // 1 minute — short TTL so developer changes take effect quickly
 
 function loadCache() {
   try {
@@ -137,8 +137,22 @@ export default function usePlanFeatures() {
         })
         .catch(() => {});
     };
+
+    // Also revalidate when the user switches back to this tab — covers the case
+    // where a developer changed the company's features in another window/tab.
+    const visibilityHandler = () => {
+      if (document.visibilityState === "visible") {
+        // Only refetch if the cache has expired
+        if (!loadCache()) handler();
+      }
+    };
+
     window.addEventListener("plan_updated", handler);
-    return () => window.removeEventListener("plan_updated", handler);
+    document.addEventListener("visibilitychange", visibilityHandler);
+    return () => {
+      window.removeEventListener("plan_updated", handler);
+      document.removeEventListener("visibilitychange", visibilityHandler);
+    };
   }, []);
 
   // ── hasFeature — backward-compat with sidebar/FeatureGate ────────────────
