@@ -906,7 +906,11 @@ if (!norm) { setError("Enter a valid 10-digit mobile number."); return; }
 const handleMergeFromPanel = async () => {
   if (!mergeLead) return;
   const targetId = mergeLead._id || mergeLead.id;
-  const norm     = normalizeMobile(secInput);
+  // The number we typed (secInput) already belongs to mergeLead as its primary.
+  // What we actually want to add as secondary on mergeLead is the CURRENT lead's
+  // own primary phone — that is the number being absorbed into the target.
+  const sourcePhone = normalizeMobile(lead.primaryPhone || lead.phone || "");
+  if (!sourcePhone) { setError("Cannot determine current lead's primary number."); return; }
   setMerging(true); setError("");
   try {
     const role     = getRole();
@@ -916,9 +920,10 @@ const handleMergeFromPanel = async () => {
         ? `/lead/admin/${targetId}/merge`
         : `/lead/${targetId}/merge`;
     const res = await api.post(endpoint, {
-      secondaryPhone: norm,
+      secondaryPhone: sourcePhone,   // current lead's primary becomes target's secondary
       sourceName:     lead.name,
-      sourceMobile:   norm,
+      sourceMobile:   sourcePhone,   // correct: the source lead's own primary
+      sourceLeadId:   lead.id,       // lets backend mark source as mergedInto
     });
     const updatedTarget = res.data?.lead || res.data;
     onToast("Leads merged successfully. The secondary number has been added to the existing lead.");
@@ -1410,7 +1415,10 @@ const canSubmit =
 {dupCheck.state === "duplicate" && dupCheck.lead && (() => {
   const existingLead    = dupCheck.lead;
   const alreadyHasSec   = !!existingLead.secondaryPhone;
-  const canMerge        = !alreadyHasSec; // max 2 numbers per lead
+  // canMerge is an optimistic hint from the cached duplicate-check response.
+  // If the lead gained a secondary since this page loaded, handleMerge will
+  // receive a 409 and show the error inline — no need to hard-block here.
+  const canMerge        = !alreadyHasSec;
   return (
     <div className="mt-2 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600 overflow-hidden">
       {/* Header */}
