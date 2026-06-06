@@ -92,13 +92,22 @@ export function NotificationProvider({ children }) {
   });
 
   useEffect(() => {
+    // Cross-tab: fires when another tab writes to localStorage
     const onStorage = (e) => {
       if (e.key === 'user') {
         try { setUser(JSON.parse(e.newValue)); } catch { setUser(null); }
       }
     };
+    // Same-tab: fires after login/logout in the SAME tab (window.storage doesn't fire same-tab)
+    const onUserChanged = () => {
+      try { setUser(JSON.parse(localStorage.getItem('user'))); } catch { setUser(null); }
+    };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener('user_changed', onUserChanged);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('user_changed', onUserChanged);
+    };
   }, []);
 
   const addNotification = useCallback((notif) => {
