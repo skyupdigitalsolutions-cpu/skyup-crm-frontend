@@ -1778,8 +1778,11 @@ function mapLead(l) {
     isClosed:       l.isClosed      || false,
     mergedInto:     l.mergedInto    || null,
     closeReason:    l.closeReason   || "",
+<<<<<<< HEAD
     // ── Merged lead name — searchable alias (e.g. "Shashi" searches find Divzz) ─
     mergedSourceName: l.mergedSourceName || "",
+=======
+>>>>>>> 58648e3108ab9e05e5e2c4005393251ef6ba3b38
     // ── Project membership ─────────────────────────────────────────────────────
     projects:       Array.isArray(l.projects) ? l.projects : [],
   };
@@ -1974,8 +1977,12 @@ const showToast = useCallback((message, type = "success") => {
   const displayed = useMemo(() => {
     let res = allLeads.filter(l => {
       const q           = search.toLowerCase();
+<<<<<<< HEAD
       const matchSearch = !q || l.name.toLowerCase().includes(q) || l.phone.includes(q) ||
         (l.mergedSourceName && l.mergedSourceName.toLowerCase().includes(q));
+=======
+      const matchSearch = !q || l.name.toLowerCase().includes(q) || l.phone.includes(q);
+>>>>>>> 58648e3108ab9e05e5e2c4005393251ef6ba3b38
 
       // Use getLeadDisplayStatus so "Merged" and "Closed" virtual statuses
       // are correctly matched — l.status alone won't catch them.
