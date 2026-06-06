@@ -846,12 +846,13 @@ const [merging,    setMerging]      = useState(false);
   // ── Add / Update secondary phone ───────────────────────────────────────────
 const handleAddSecondary = async () => {
   const norm = normalizeMobile(secInput);
-  if (!norm || norm.length < 7) { setError("Enter a valid phone number (min 7 digits)."); return; }
+if (!norm) { setError("Enter a valid 10-digit mobile number."); return; }
   if (norm === normalizeMobile(primaryPhone)) { setError("Secondary cannot match the primary number."); return; }
   setLoading(true); setError("");
   try {
     const res = await api.put(`/lead/${lead.id}/secondary-phone`, { secondaryPhone: norm });
-    onLeadUpdated({ ...lead, secondaryPhone: norm, _raw: res.data });
+   const savedLead = res.data?.lead || res.data;
+   onLeadUpdated({ ...lead, secondaryPhone: savedLead.secondaryPhone ?? norm });
     onToast("Secondary number saved successfully.");
     reset();
   } catch (e) {
