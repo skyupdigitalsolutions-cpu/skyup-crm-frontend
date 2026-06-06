@@ -1366,16 +1366,20 @@ export default function ReportPage() {
   const filtered = useMemo(() => leads
     .filter(l => {
       if (!isWithinRange(l.date)) return false;
+      // Employees (user role) must not see closed leads —
+      // backend filters them out, this is a safety net for stale state.
+      if (role !== "admin" && role !== "superadmin" && l.isClosed && !l.mergedInto) return false;
       const q = search.toLowerCase();
       const matchProject = projectFilter === "All" || (
         Array.isArray(l.projects) && l.projects.some(p => (p?._id || p) === projectFilter)
       );
       return (
         matchProject &&
-(!q || l.name?.toLowerCase().includes(q) ||
+        (!q || l.name?.toLowerCase().includes(q) ||
           (l.primaryPhone || l.phone || "").includes(q) ||
           (l.secondaryPhone || "").includes(q) ||
-          l.campaign?.toLowerCase().includes(q)) &&
+          l.campaign?.toLowerCase().includes(q) ||
+          (l.mergedSourceName && l.mergedSourceName.toLowerCase().includes(q))) &&
         (statusFilter === "All" || (() => {
           const { label } = getLeadDisplayStatus(l);
           return label === statusFilter;

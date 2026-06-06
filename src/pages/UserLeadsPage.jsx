@@ -75,9 +75,11 @@ phone:          l.primaryPhone   || l.mobile || l.phone || "",
     hasRecording,
     hasAiSummary,
     // ── Status-resolution fields (required by getLeadDisplayStatus) ───────────
-    isClosed:       l.isClosed      || false,
-    mergedInto:     l.mergedInto    || null,
-    closeReason:    l.closeReason   || "",
+    isClosed:         l.isClosed        || false,
+    mergedInto:       l.mergedInto      || null,
+    closeReason:      l.closeReason     || "",
+    // Merged lead's name — so searching absorbed lead name finds the surviving one
+    mergedSourceName: l.mergedSourceName || "",
     // ── Project membership ─────────────────────────────────────────────────────
     projects:       Array.isArray(l.projects) ? l.projects : [],
   };
@@ -1049,8 +1051,12 @@ export default function UserLeadsPage() {
 
   const displayed = useMemo(() => {
     let res = leads.filter(l => {
+      // Employees (user role) never see closed leads — backend filters them out,
+      // but this is a safety net in case stale state has any.
+      if (l.isClosed && !l.mergedInto) return false;
       const q           = search.toLowerCase();
-      const matchSearch = !q || l.name.toLowerCase().includes(q) || l.source.toLowerCase().includes(q) || l.campaign.toLowerCase().includes(q);
+      const matchSearch = !q || l.name.toLowerCase().includes(q) || l.source.toLowerCase().includes(q) || l.campaign.toLowerCase().includes(q) ||
+        (l.mergedSourceName && l.mergedSourceName.toLowerCase().includes(q));
       const { label: displayLabel } = getLeadDisplayStatus(l);
       const matchSt     = filterSt   === "All" || displayLabel === filterSt;
       const matchTemp   = filterTemp === "All" || l.temperature === filterTemp;
