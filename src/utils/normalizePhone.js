@@ -31,6 +31,14 @@ export function normalizePhone(raw) {
   let digits = String(raw).replace(/\D/g, '');
   if (!digits) return null;
 
+  // ── FIX: Handle double-country-code caused by bad bulk Atlas updates ──────
+  // When a number like "+918496868060" (already correct E.164) gets "+91"
+  // prepended again, it becomes "+91918496868060" → digits "91918496868060" (14 digits).
+  // Detect: starts with "9191" and length is 14 → strip the extra "91" prefix.
+  if (digits.startsWith('9191') && digits.length === 14) {
+    digits = digits.slice(2); // "91918496868060" → "918496868060"
+  }
+
   for (const prefix of COUNTRY_CODE_PREFIXES) {
     if (digits.startsWith(prefix) && digits.length > prefix.length) {
       digits = digits.slice(prefix.length);
