@@ -53,6 +53,8 @@ api.interceptors.response.use(
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       localStorage.removeItem("company_brand");
+      // Notify same-tab NotificationProvider so socket disconnects immediately
+      window.dispatchEvent(new Event("user_changed"));
       window.location.href = "/login";
     }
 
