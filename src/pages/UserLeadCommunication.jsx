@@ -970,7 +970,7 @@ function SmsChatTab({ leads, loadingLeads }) {
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#E9EDEF] truncate">{lead.name || "Unknown"}</p>
                     <p className={`text-[11px] truncate ${hasMobile ? "text-[#8B92A9]" : "text-amber-500"}`}>
-                      {hasMobile ? lead.mobile : "No mobile number"}
+                      {hasMobile ? maskPhone(lead.mobile) : "No mobile number"}
                     </p>
                   </div>
                   {!hasMobile && (
@@ -1007,7 +1007,7 @@ function SmsChatTab({ leads, loadingLeads }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#E9EDEF] truncate">{selected.name}</p>
-                <p className="text-[11px] text-[#8B92A9]">{selected.mobile || "No mobile"} · SMS</p>
+                <p className="text-[11px] text-[#8B92A9]">{maskPhone(selected.mobile) || "No mobile"} · SMS</p>
               </div>
               {configured === false && (
                 <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-1 rounded-lg font-semibold">SMS not configured</span>
