@@ -234,7 +234,13 @@ function LeadDrawer({ campaign, onClose }) {
     if (!campaign) return;
     setLoading(true);
     if (campaign._isMeta || campaign._isGoogle || campaign._isWebsite) {
-      api.get(`/lead/by-campaign?campaign=${encodeURIComponent(campaign.name)}`)
+      // When this is a Meta ad set (has adSetName), scope the query to that
+      // specific ad set so only its leads are shown, not all campaign leads.
+      const adSetParam =
+        campaign._isMeta && campaign.adSetName
+          ? `&adSetName=${encodeURIComponent(campaign.adSetName)}`
+          : "";
+      api.get(`/lead/by-campaign?campaign=${encodeURIComponent(campaign.name)}${adSetParam}`)
         .then((res) => setLeads(Array.isArray(res.data) ? res.data : res.data?.data || []))
         .catch(() => setLeads([]))
         .finally(() => setLoading(false));
@@ -1416,11 +1422,15 @@ function QualificationModal({ adSet, onClose, onSaved }) {
           setRules(existing.rules || []);
           setThresholds(existing.thresholds || { hot: 70, warm: 40 });
         } else if (formQuestions.length > 0) {
-          // Build a blank rule entry per question
+          // Build a blank rule entry per question.
+          // _keyFromMeta = true signals handleLabelChange to NOT overwrite questionKey
+          // when the admin edits the display label — the key must stay as Meta's field name
+          // so it matches what arrives in field_data[].name on the webhook.
           setRules(
             formQuestions.map((q) => ({
               questionKey: q.key || q.label,
               questionLabel: q.label,
+              _keyFromMeta: !!q.key,
               answers: (q.options || []).map((opt) => ({ value: opt, score: 0 })),
             }))
           );
@@ -1481,9 +1491,17 @@ function QualificationModal({ adSet, onClose, onSaved }) {
 
   const handleLabelChange = (rIdx, val) => {
     setRules((prev) =>
-      prev.map((r, ri) =>
-        ri === rIdx ? { ...r, questionLabel: val, questionKey: val } : r
-      )
+      prev.map((r, ri) => {
+        if (ri !== rIdx) return r;
+        // For manually added questions (no pre-set key), keep key in sync with label.
+        // For auto-loaded questions (key already set from Meta form), only update the label.
+        const isManual = !r._keyFromMeta;
+        return {
+          ...r,
+          questionLabel: val,
+          questionKey: isManual ? val : r.questionKey,
+        };
+      })
     );
   };
 
@@ -1501,8 +1519,10 @@ function QualificationModal({ adSet, onClose, onSaved }) {
     setSaving(true);
     setError("");
     try {
+      // Strip the UI-only _keyFromMeta flag before sending to the backend
+      const cleanRules = rules.map(({ _keyFromMeta, ...r }) => r);
       await api.post(`/meta-qualification/${adSet._id}`, {
-        rules,
+        rules: cleanRules,
         thresholds,
         adSetId: adSet._id,
         adSetName: adSet.adSetName || adSet.name,
@@ -1773,7 +1793,12 @@ function AdSetLeadsPanel({ adSet }) {
   useEffect(() => {
     if (!adSet) return;
     setLoading(true);
-    api.get(`/lead/by-campaign?campaign=${encodeURIComponent(adSet.name)}`)
+    // Use adSetName param so the backend scopes results to this specific ad set,
+    // not all leads under the parent campaign name.
+    const url = adSet.adSetName
+      ? `/lead/by-campaign?campaign=${encodeURIComponent(adSet.name)}&adSetName=${encodeURIComponent(adSet.adSetName)}`
+      : `/lead/by-campaign?campaign=${encodeURIComponent(adSet.name)}`;
+    api.get(url)
       .then((res) => setLeads(Array.isArray(res.data) ? res.data : res.data?.data || []))
       .catch(() => setLeads([]))
       .finally(() => setLoading(false));
@@ -1950,6 +1975,21 @@ export default function Campaigns() {
       const googleList = googleRes.status === "fulfilled" ? (Array.isArray(googleRes.value.data) ? googleRes.value.data : googleRes.value.data?.data || []) : [];
       const websiteList = websiteRes.status === "fulfilled" ? (websiteRes.value?.data?.data || []) : [];
 
+      const metaLeadCounts = await Promise.allSettled(
+        metaList.map((cfg) => {
+          // Scope by adSetName when set, so each ad set gets its own lead count,
+          // not the total for the whole campaign name.
+          const adSetParam =
+            cfg.adSetName
+              ? `&adSetName=${encodeURIComponent(cfg.adSetName)}`
+              : "";
+          return api
+            .get(`/lead/by-campaign?campaign=${encodeURIComponent(cfg.campaignName)}${adSetParam}`)
+            .then((r) => (Array.isArray(r.data) ? r.data : r.data?.data || []).length)
+            .catch(() => 0);
+        }),
+      );
+
       const shapedMeta = metaList.map((cfg, idx) => ({
         _id: cfg._id,
         _isMeta: true,
@@ -1958,7 +1998,7 @@ export default function Campaigns() {
         channel: "Meta",
         status: cfg.isActive ? "Active" : "Paused",
         sent: cfg.sent ?? 0,
-        leads: cfg.leads ?? 0,
+        leads: metaLeadCounts[idx]?.status === "fulfilled" ? metaLeadCounts[idx].value : 0,
         converted: cfg.converted ?? 0,
         cost: cfg.cost ?? 0,
         date: fmtDate(cfg.createdAt),
