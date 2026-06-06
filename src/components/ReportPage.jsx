@@ -943,12 +943,18 @@ const [merging,   setMerging]   = useState(false);
   // Build role-aware API endpoint prefix
   const endpoint = (path) => {
     const r = getRole();
-    const prefix = (r === "superadmin" || r === "admin") ? "admin" : "";
+    // superadmin uses /lead/superadmin/:id/* routes (protectSuperAdmin middleware)
+    // admin uses /lead/admin/:id/* routes (protectAdmin middleware)
+    // user uses /lead/:id/* routes (protect middleware)
+    const prefix = r === "superadmin" ? "superadmin" : r === "admin" ? "admin" : "";
     return prefix ? `/lead/${prefix}/${leadId}/${path}` : `/lead/${leadId}/${path}`;
   };
 
   // Apply server response to local state + propagate update to parent list
-  const applyUpdate = (data) => {
+  // Backend returns { success: true, lead: {...} } for all phone mutations.
+  // Unwrap the nested lead object before reading phone fields.
+  const applyUpdate = (raw) => {
+    const data         = raw?.lead ?? raw;            // unwrap { success, lead } wrapper
     const newPrimary   = data.primaryPhone   ?? primaryPhone;
     const newSecondary = data.secondaryPhone ?? "";
     setPrimaryPhone(newPrimary);
@@ -1023,16 +1029,21 @@ const [merging,   setMerging]   = useState(false);
    const handleMergeReport = async () => {
   if (!mergeLead) return;
   const targetId = mergeLead._id || mergeLead.id;
-  const norm     = normalizePhone(newSecondary.trim());
+  // The number typed (newSecondary) already belongs to mergeLead as its primary.
+  // The correct secondary to add to mergeLead is the CURRENT lead's own primary phone
+  // (the lead being absorbed into the target).
+  const sourcePhone = normalizePhone((lead.primaryPhone || lead.phone || "").trim());
+  if (!sourcePhone) { setErrorMsg("Cannot determine current lead's primary number."); return; }
   setMerging(true); setErrorMsg("");
   try {
     const r = getRole();
-    const prefix = (r === "superadmin" || r === "admin") ? "admin" : "";
+    const prefix = r === "superadmin" ? "superadmin" : r === "admin" ? "admin" : "";
     const ep = prefix ? `/lead/${prefix}/${targetId}/merge` : `/lead/${targetId}/merge`;
     const { data } = await api.post(ep, {
-      secondaryPhone: norm,
+      secondaryPhone: sourcePhone,   // current lead's primary becomes target's secondary
       sourceName:     lead.name,
-      sourceMobile:   norm,
+      sourceMobile:   sourcePhone,   // the source lead's own primary phone
+      sourceLeadId:   lead._id || lead.id,  // backend marks source as mergedInto
     });
     applyUpdate(data?.lead || data);
     setMergeLead(null);
