@@ -1775,13 +1775,13 @@ function mapLead(l) {
     lastCalledAt:   lastCall?.calledAt || null,
     lastRemark:     lastCall?.remark   || null,
     // ── Status-resolution fields (required by getLeadDisplayStatus) ───────────
-    isClosed:       l.isClosed      || false,
-    mergedInto:     l.mergedInto    || null,
-    closeReason:    l.closeReason   || "",
+    isClosed:         l.isClosed        || false,
+    mergedInto:       l.mergedInto      || null,
+    closeReason:      l.closeReason     || "",
     // ── Merged lead name — searchable alias (e.g. "Shashi" searches find Divzz) ─
     mergedSourceName: l.mergedSourceName || "",
     // ── Project membership ─────────────────────────────────────────────────────
-    projects:       Array.isArray(l.projects) ? l.projects : [],
+    projects:         Array.isArray(l.projects) ? l.projects : [],
   };
 }
 
