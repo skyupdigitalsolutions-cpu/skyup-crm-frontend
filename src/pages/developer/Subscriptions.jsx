@@ -8,12 +8,36 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../data/axiosConfig';
 
-// ── Plan config (mirrors backend PLANS constant) ──────────────────────────────
-const PLANS = {
+// ── Plan display config ───────────────────────────────────────────────────────
+// Colors are cosmetic and live here; names/prices/limits come from the live
+// /developer/plans/config endpoint (so changes in Plan Customization show up
+// here too). FALLBACK_PLANS is used only if that fetch fails.
+const PLAN_COLORS = {
+  trial: '#D97706', basic: '#6B7280', pro: '#2563EB', enterprise: '#7C3AED',
+};
+
+const FALLBACK_PLANS = {
+  trial:      { name: 'Trial',      color: '#D97706', price: '₹0/mo',    maxUsers: 3,   maxLeads: 100    },
   basic:      { name: 'Basic',      color: '#6B7280', price: '₹999/mo',  maxUsers: 5,   maxLeads: 1000   },
   pro:        { name: 'Pro',        color: '#2563EB', price: '₹2999/mo', maxUsers: 20,  maxLeads: 10000  },
   enterprise: { name: 'Enterprise', color: '#7C3AED', price: '₹9999/mo', maxUsers: 999, maxLeads: 999999 },
 };
+
+// Convert the /developer/plans/config response into the shape this page uses.
+function buildPlanMap(config) {
+  const map = {};
+  for (const [key, p] of Object.entries(config || {})) {
+    if (!p || typeof p !== 'object') continue;
+    map[key] = {
+      name:     p.name || key,
+      color:    PLAN_COLORS[key] || '#8B92A9',
+      price:    `₹${Number(p.monthlyPrice || 0).toLocaleString()}/mo`,
+      maxUsers: p.maxUsers ?? 0,
+      maxLeads: p.maxLeads ?? 0,
+    };
+  }
+  return map;
+}
 
 const STATUS_STYLE = {
   active:    { bg: 'bg-[#ECFDF5] dark:bg-[#052E1C]', text: 'text-[#059669] dark:text-[#34D399]', dot: '#059669', label: 'Active'    },
@@ -48,12 +72,16 @@ function Skeleton() {
 }
 
 // ── Activate / Change Plan Modal ──────────────────────────────────────────────
-function ActivateModal({ company, onClose, onSuccess }) {
-  const [plan,     setPlan]     = useState(company.plan || 'basic');
+function ActivateModal({ company, plans, onClose, onSuccess }) {
+  // Activation is for PAID plans only. Never default to "trial" — it isn't a
+  // selectable button below and the old code crashed on PLANS['trial'].
+  const PAID = ['basic', 'pro', 'enterprise'];
+  const [plan,     setPlan]     = useState(PAID.includes(company.plan) ? company.plan : 'basic');
   const [billing,  setBilling]  = useState('monthly');
   const [months,   setMonths]   = useState(1);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
+  const sel = plans[plan] || FALLBACK_PLANS[plan] || {};
 
   const handleSubmit = async () => {
     setLoading(true); setError('');
@@ -90,18 +118,21 @@ function ActivateModal({ company, onClose, onSuccess }) {
           <div>
             <label className="text-[12px] font-semibold text-[#8B92A9] uppercase tracking-wide block mb-2">Plan</label>
             <div className="grid grid-cols-3 gap-2">
-              {Object.entries(PLANS).map(([key, p]) => (
-                <button key={key} onClick={() => setPlan(key)}
-                  className={`py-2.5 rounded-xl text-[12px] font-semibold border transition ${
-                    plan === key
-                      ? 'border-[#2563EB] bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB]'
-                      : 'border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB]'
-                  }`}>
-                  {p.name}
-                </button>
-              ))}
+              {PAID.map((key) => {
+                const p = plans[key] || FALLBACK_PLANS[key];
+                return (
+                  <button key={key} onClick={() => setPlan(key)}
+                    className={`py-2.5 rounded-xl text-[12px] font-semibold border transition ${
+                      plan === key
+                        ? 'border-[#2563EB] bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB]'
+                        : 'border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB]'
+                    }`}>
+                    {p.name}
+                  </button>
+                );
+              })}
             </div>
-            <p className="text-[11px] text-[#8B92A9] mt-1.5">{PLANS[plan].price} · {PLANS[plan].maxUsers} users · {PLANS[plan].maxLeads.toLocaleString()} leads</p>
+            <p className="text-[11px] text-[#8B92A9] mt-1.5">{sel.price} · {sel.maxUsers} users · {Number(sel.maxLeads || 0).toLocaleString()} leads</p>
           </div>
 
           <div>
@@ -204,6 +235,7 @@ function calcDaysRemaining(expiryDateStr) {
 
 export default function Subscriptions() {
   const [companies, setCompanies] = useState([]);
+  const [plans,     setPlans]     = useState(FALLBACK_PLANS);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState('');
   const [toast,     setToast]     = useState('');
@@ -233,6 +265,23 @@ export default function Subscriptions() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Load live plan config so names / prices / limits match Plan Customization.
+  // Falls back to FALLBACK_PLANS on error. Re-runs when plans are saved elsewhere.
+  useEffect(() => {
+    const loadPlans = () => {
+      api.get('/developer/plans/config')
+        .then(({ data }) => {
+          if (data && typeof data === 'object') {
+            setPlans({ ...FALLBACK_PLANS, ...buildPlanMap(data) });
+          }
+        })
+        .catch(() => { /* keep fallback */ });
+    };
+    loadPlans();
+    window.addEventListener('plan_updated', loadPlans);
+    return () => window.removeEventListener('plan_updated', loadPlans);
+  }, []);
 
   const handleCancel = async (company) => {
     if (!window.confirm(`Cancel subscription for ${company.name}?`)) return;
@@ -280,6 +329,7 @@ expiring: companies.filter(c => c.daysRemaining >= 0 && c.daysRemaining <= 30 &&
       {activateTarget && (
         <ActivateModal
           company={activateTarget}
+          plans={plans}
           onClose={() => setActivateTarget(null)}
           onSuccess={msg => { showToast(msg); fetchData(); }}
         />
@@ -373,7 +423,7 @@ expiring: companies.filter(c => c.daysRemaining >= 0 && c.daysRemaining <= 30 &&
                   </td>
                 </tr>
               ) : filtered.map(c => {
-                const planInfo    = PLANS[c.plan] || { name: c.plan, color: '#8B92A9' };
+                const planInfo    = plans[c.plan] || { name: c.plan, color: '#8B92A9' };
                 const expiryDate  = c.subscriptionExpiry || c.trialEndsAt;
                 return (
                   <tr key={c._id} className="border-b border-[#F0F2FA] dark:border-[#1E2130] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
