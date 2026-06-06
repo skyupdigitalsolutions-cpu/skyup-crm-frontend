@@ -53,6 +53,8 @@ export default function UserLogin() {
         createdBy:   res.data.createdBy,
         role,
       }));
+      // Notify same-tab listeners (window 'storage' event doesn't fire in the same tab)
+      window.dispatchEvent(new Event("user_changed"));
 
       // ── Developer → straight to developer dashboard, no encryption needed ──
       if (role === "developer") {
