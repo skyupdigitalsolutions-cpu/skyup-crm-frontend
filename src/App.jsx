@@ -530,7 +530,13 @@ function AppInner() {
           <Route path="/communications" element={
             <AdminRoute>
               <AppLayout>
-                <FeatureGate featureKey="sms-blast"><Communications currentUser={user} /></FeatureGate>
+                {/* Communications hosts WhatsApp, SMS, and Email blasts.
+                    Each tab is individually feature-gated on the backend.
+                    The page itself only requires the user to be an admin —
+                    individual send actions will return 403 if the specific
+                    blast feature (emailBlast / smsBlast / whatsappBlast)
+                    is disabled for this company. */}
+                <Communications currentUser={user} />
               </AppLayout>
             </AdminRoute>
           }/>
