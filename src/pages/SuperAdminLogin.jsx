@@ -123,6 +123,8 @@ export default function SuperAdminLogin() {
         companyId:   res.data.companyId,
         companyName: res.data.companyName,
       }));
+      // Notify same-tab listeners (window 'storage' event doesn't fire in the same tab)
+      window.dispatchEvent(new Event("user_changed"));
       toast.success("👑 Super Admin login successful! Welcome back.");
       navigate("/superadmin/dashboard");
     } catch (err) {
