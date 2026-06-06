@@ -309,6 +309,8 @@ export function Sidebar() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    // Notify same-tab NotificationProvider so socket disconnects immediately
+    window.dispatchEvent(new Event("user_changed"));
     navigate("/login", { replace: true });
   };
 
