@@ -837,6 +837,249 @@ function SmsBlastTab() {
   );
 }
 
+// ── SMS DIRECT MESSAGING TAB ──────────────────────────────────────────────────
+// WhatsApp-style layout: leads list left, SMS thread right, compose at bottom.
+// Uses the same lead list as other tabs (passed as prop) and calls the new
+// /api/sms-campaign/employee/thread + /send-single backend endpoints.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SmsChatBubble({ log }) {
+  const ts = log.sentAt ? new Date(log.sentAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }) : "";
+  const isOk = log.status === "sent";
+  return (
+    <div className="flex justify-end px-3 mb-2">
+      <div className="max-w-[75%] px-3 py-2 rounded-2xl rounded-br-none text-[13px] shadow-sm bg-[#DCF8C6] dark:bg-[#005C4B] text-[#111B21] dark:text-[#E9EDEF]">
+        <p className="break-words leading-relaxed">{log.message}</p>
+        <div className="flex items-center justify-end gap-1 mt-0.5">
+          <p className="text-[10px] opacity-50">{ts}</p>
+          <span className={`text-[10px] ${isOk ? "text-[#2563eb]" : "text-red-400"}`}>
+            {isOk ? "✓" : "✗"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SmsChatTab({ leads, loadingLeads }) {
+  const [selected,    setSelected]    = useState(null);
+  const [thread,      setThread]      = useState([]);
+  const [loadingThread, setLoadingThread] = useState(false);
+  const [msgText,     setMsgText]     = useState("");
+  const [sending,     setSending]     = useState(false);
+  const [sendErr,     setSendErr]     = useState("");
+  const [search,      setSearch]      = useState("");
+  const [configured,  setConfigured]  = useState(null); // null=unknown, true/false
+  const bottomRef = useRef(null);
+
+  // Load config status once
+  useEffect(() => {
+    api.get("/sms-campaign/employee/config")
+      .then(r => setConfigured(r.data?.data?.isConfigured ?? false))
+      .catch(() => setConfigured(false));
+  }, []);
+
+  // Load thread whenever a lead is selected
+  useEffect(() => {
+    if (!selected?.mobile) { setThread([]); return; }
+    setLoadingThread(true);
+    api.get(`/sms-campaign/employee/thread?mobile=${encodeURIComponent(selected.mobile)}`)
+      .then(r => setThread(Array.isArray(r.data?.data) ? r.data.data : []))
+      .catch(() => setThread([]))
+      .finally(() => setLoadingThread(false));
+  }, [selected]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [thread]);
+
+  const handleSend = async () => {
+    if (!msgText.trim() || !selected?.mobile) return;
+    setSending(true);
+    setSendErr("");
+    try {
+      await api.post("/sms-campaign/employee/send-single", {
+        mobile: selected.mobile,
+        name:   selected.name,
+        message: msgText.trim(),
+      });
+      // Optimistically add to thread
+      setThread(prev => [...prev, {
+        _id:           Date.now(),
+        message:       msgText.trim(),
+        to:            selected.mobile,
+        recipientName: selected.name,
+        status:        "sent",
+        sentAt:        new Date().toISOString(),
+      }]);
+      setMsgText("");
+    } catch (err) {
+      setSendErr(err.response?.data?.message || "Failed to send SMS");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const filteredLeads = leads.filter(l =>
+    !search || l.name?.toLowerCase().includes(search.toLowerCase()) || l.mobile?.includes(search)
+  );
+
+  return (
+    <div className="flex flex-1 overflow-hidden">
+
+      {/* ── Left panel: leads list ── */}
+      <div className={`w-80 shrink-0 flex flex-col border-r border-[#E4E7EF] dark:border-[#2A3942] bg-white dark:bg-[#111B21] ${selected ? "hidden sm:flex" : "flex"}`}>
+        <div className="px-4 pt-5 pb-3 border-b border-[#E4E7EF] dark:border-[#2A3942]">
+          <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#E9EDEF] mb-3">SMS Direct</h2>
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="11" cy="11" r="8"/><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35"/>
+            </svg>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search leads…"
+              className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#F0F2FA] dark:bg-[#202C33] text-[13px] text-[#0F1117] dark:text-[#E9EDEF] placeholder:text-[#8B92A9] focus:outline-none border border-transparent focus:border-[#EA580C]/40 transition"
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {loadingLeads ? (
+            <div className="flex items-center justify-center py-10 text-[#8B92A9] text-[13px]">Loading…</div>
+          ) : filteredLeads.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-[#8B92A9]">
+              <svg className="w-8 h-8 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              <p className="text-[12px]">No leads found</p>
+            </div>
+          ) : (
+            filteredLeads.map(lead => {
+              const hasMobile = !!lead.mobile;
+              const isActive  = selected?._id === lead._id;
+              return (
+                <button
+                  key={lead._id}
+                  onClick={() => { setSelected(lead); setMsgText(""); setSendErr(""); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-[#E4E7EF]/50 dark:border-[#2A3942]/50 hover:bg-[#F0F2FA] dark:hover:bg-[#202C33] transition ${isActive ? "bg-[#FFF3ED] dark:bg-[#EA580C]/10" : ""}`}
+                >
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold text-white shrink-0 ${isActive ? "bg-[#EA580C]" : "bg-[#6B7280]"}`}>
+                    {(lead.name || "?").slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#E9EDEF] truncate">{lead.name || "Unknown"}</p>
+                    <p className={`text-[11px] truncate ${hasMobile ? "text-[#8B92A9]" : "text-amber-500"}`}>
+                      {hasMobile ? lead.mobile : "No mobile number"}
+                    </p>
+                  </div>
+                  {!hasMobile && (
+                    <span className="shrink-0 text-[9px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-600 px-1.5 py-0.5 rounded-full">NO#</span>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* ── Right panel: SMS thread ── */}
+      <div className="flex-1 flex flex-col bg-[#F0F2FA] dark:bg-[#0A1A20] min-w-0">
+        {!selected ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#8B92A9]">
+            <div className="w-16 h-16 rounded-full bg-[#EA580C]/10 flex items-center justify-center">
+              <svg className="w-8 h-8 text-[#EA580C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+              </svg>
+            </div>
+            <p className="text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">Select a lead to start SMS messaging</p>
+            <p className="text-[12px] text-center max-w-xs">You can only message your assigned leads. Individual SMS messages are sent directly to their mobile number.</p>
+          </div>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#1F2C33] border-b border-[#E4E7EF] dark:border-[#2A3942] shadow-sm">
+              <button onClick={() => setSelected(null)} className="sm:hidden p-1 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#2A3942] text-[#8B92A9]">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              <div className="w-10 h-10 rounded-full bg-[#EA580C] flex items-center justify-center text-[12px] font-bold text-white shrink-0">
+                {(selected.name || "?").slice(0, 2).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#E9EDEF] truncate">{selected.name}</p>
+                <p className="text-[11px] text-[#8B92A9]">{selected.mobile || "No mobile"} · SMS</p>
+              </div>
+              {configured === false && (
+                <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-1 rounded-lg font-semibold">SMS not configured</span>
+              )}
+            </div>
+
+            {/* Thread */}
+            <div className="flex-1 overflow-y-auto py-4">
+              {loadingThread ? (
+                <div className="flex items-center justify-center py-10 text-[#8B92A9] text-[13px]">Loading messages…</div>
+              ) : thread.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-2 text-[#8B92A9]">
+                  <svg className="w-10 h-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                  </svg>
+                  <p className="text-[12px]">No messages yet. Send the first SMS below.</p>
+                </div>
+              ) : (
+                thread.map(log => <SmsChatBubble key={log._id} log={log} />)
+              )}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Compose */}
+            <div className="bg-white dark:bg-[#1F2C33] border-t border-[#E4E7EF] dark:border-[#2A3942] px-4 py-3">
+              {!selected.mobile ? (
+                <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                  <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <p className="text-[12px] text-amber-700 dark:text-amber-400">This lead has no mobile number — cannot send SMS.</p>
+                </div>
+              ) : (
+                <>
+                  {sendErr && (
+                    <p className="text-[11px] text-red-500 mb-2 px-1">{sendErr}</p>
+                  )}
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      value={msgText}
+                      onChange={e => setMsgText(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                      placeholder="Type an SMS message…"
+                      rows={2}
+                      disabled={sending || configured === false}
+                      className="flex-1 px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#EA580C]/60 transition resize-none"
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={sending || !msgText.trim() || configured === false}
+                      className="w-11 h-11 rounded-full bg-[#EA580C] hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition shadow-md shrink-0"
+                      title={configured === false ? "SMS not configured" : "Send SMS"}
+                    >
+                      {sending
+                        ? <svg className="w-5 h-5 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                        : <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                      }
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-[#8B92A9] mt-1.5 px-1">
+                    {msgText.length} chars · {msgText.length === 0 ? 0 : Math.ceil(msgText.length / 160)} SMS segment{Math.ceil(msgText.length / 160) !== 1 ? "s" : ""} · Press Enter to send
+                  </p>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1212,6 +1455,15 @@ export default function UserLeadCommunication() {
               </svg>
             ),
           },
+          {
+            key: "sms-direct",
+            label: "SMS Chat",
+            icon: (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+              </svg>
+            ),
+          },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -1234,6 +1486,11 @@ export default function UserLeadCommunication() {
                 SMS
               </span>
             )}
+            {tab.key === "sms-direct" && (
+              <span className="ml-1 bg-[#EA580C]/15 text-[#EA580C] text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                NEW
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1241,6 +1498,8 @@ export default function UserLeadCommunication() {
       {/* ── Tab content ──────────────────────────────────────────────────── */}
       {activeTab === "sms" ? (
         <SmsBlastTab />
+      ) : activeTab === "sms-direct" ? (
+        <SmsChatTab leads={leads} loadingLeads={loadingLeads} />
       ) : activeTab === "blast" ? (
         <BlastTab leads={leads} authHeaders={authHeaders} />
       ) : (
