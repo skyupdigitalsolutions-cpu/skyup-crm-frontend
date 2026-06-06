@@ -50,6 +50,8 @@ export default function AdminLogin() {
         company:   res.data.company,   // keep for legacy reads
         role:      res.data.role || "admin",
       }));
+      // Notify same-tab listeners (window 'storage' event doesn't fire in the same tab)
+      window.dispatchEvent(new Event("user_changed"));
 
       // ── BIP39 Encryption Setup ────────────────────────────────────────────
       const existingKey = crm.getLocalKey();
