@@ -87,8 +87,10 @@ const TEMP_STYLE = {
 const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral", "CSV Import", "Channel Partner", "Other"];
 // ALL_STATUSES imported from statusConfig (includes Merged + Closed)
 
+// normalizeMobile: returns 10-digit string or null — never falls back to raw digits
+// (the raw-digit fallback bypassed 10-digit enforcement allowing "91" or "123" to pass)
 function normalizeMobile(val) {
-  return normalizePhone(val) || (val || "").replace(/\D/g, "");
+  return normalizePhone(val);
 }
 function canonicalPhone(val) {
   let n = String(val || "").replace(/\D/g, "");
@@ -1313,6 +1315,8 @@ const handleMerge = async () => {
     });
     const merged = res.data?.lead || res.data;
     // Notify parent so the leads list refreshes / shows the updated lead
+    // Pass isMerge=true so the parent updates the existing lead in-place
+    // rather than prepending a duplicate entry to the list
     onAdd({
       ...merged,
       id:             String(merged._id),
@@ -1337,7 +1341,7 @@ const handleMerge = async () => {
       Quality:        merged.temperature ?? null,
       temperature:    merged.temperature ?? null,
       createdAt:      merged.createdAt,
-    });
+    }, true);   // ← isMerge flag
     onClose();
   } catch (e) {
     setMergeError(e.response?.data?.message || "Merge failed. Please try again.");
@@ -1872,14 +1876,34 @@ const handleRevealEmail = async (e, leadId) => {
   useEffect(() => () => clearTimeout(emailRevealTimerRef.current), []);
 
   const handleLeadUpdated = useCallback((updatedLead) => {
-  setAllLeads(prev =>
-    prev.map(l => l.id === updatedLead.id ? { ...l, ...updatedLead } : l)
-  );
-    
-  // Also refresh selected / recordingsLead if open
-  setSelected(prev => prev && prev.id === updatedLead.id ? { ...prev, ...updatedLead } : prev);
-  setRecordingsLead(prev => prev && prev.id === updatedLead.id ? { ...prev, ...updatedLead } : prev);
-}, []);
+    // When a lead is merged into another, remove it from the list entirely
+    // and close any open panels that reference it
+    if (updatedLead._merged) {
+      setAllLeads(prev => prev.filter(l => l.id !== updatedLead.id));
+      setSelected(prev => prev && prev.id === updatedLead.id ? null : prev);
+      setRecordingsLead(prev => prev && prev.id === updatedLead.id ? null : prev);
+      // If the merge target is also in the list, refresh it with updated data
+      if (updatedLead._mergedTarget) {
+        const target = updatedLead._mergedTarget;
+        const targetId = target._id || target.id;
+        setAllLeads(prev =>
+          prev.map(l => (l.id === targetId || l._id === targetId)
+            ? { ...l, ...mapLead(target) }
+            : l
+          )
+        );
+      }
+      return;
+    }
+
+    setAllLeads(prev =>
+      prev.map(l => l.id === updatedLead.id ? { ...l, ...updatedLead } : l)
+    );
+
+    // Also refresh selected / recordingsLead if open
+    setSelected(prev => prev && prev.id === updatedLead.id ? { ...prev, ...updatedLead } : prev);
+    setRecordingsLead(prev => prev && prev.id === updatedLead.id ? { ...prev, ...updatedLead } : prev);
+  }, []);
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -1913,9 +1937,22 @@ const handleRevealEmail = async (e, leadId) => {
       .catch(() => setProjects([]));
   }, []);
 
-  const handleAdd = useCallback((newLead) => {
-    setAllLeads(prev => [mapLead({ ...newLead, _id: newLead.id || newLead._id }), ...prev]);
-    setPage(1);
+  const handleAdd = useCallback((newLead, isMerge = false) => {
+    const mapped = mapLead({ ...newLead, _id: newLead.id || newLead._id });
+    if (isMerge) {
+      // Merge: update the existing lead in-place, do NOT prepend a duplicate
+      setAllLeads(prev => {
+        const exists = prev.some(l => l.id === mapped.id || l._id === mapped._id);
+        if (exists) {
+          return prev.map(l => (l.id === mapped.id || l._id === mapped._id) ? { ...l, ...mapped } : l);
+        }
+        // Fallback: if the existing lead wasn't in the list yet, prepend
+        return [mapped, ...prev];
+      });
+    } else {
+      setAllLeads(prev => [mapped, ...prev]);
+      setPage(1);
+    }
   }, []);
 
   const uniqueSources = useMemo(() =>
