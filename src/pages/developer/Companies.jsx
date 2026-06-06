@@ -1,8 +1,9 @@
 // src/pages/developer/Companies.jsx
 import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Building2, Plus, UploadCloud, X, ChevronRight,
-  CheckCircle2, XCircle, ShieldCheck, Image, Loader2, Pencil, Layout,
+  CheckCircle2, XCircle, ShieldCheck, Image, Loader2, Pencil, Layout, Settings,
 } from "lucide-react";
 import api from "../../data/axiosConfig";
 
@@ -21,6 +22,7 @@ export default function Companies() {
   const [editTarget, setEditTarget] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState("");
+  const navigate = useNavigate();
 
   const emptyForm = {
     companyName: "", email: "", phone: "", plan: "basic",
@@ -268,6 +270,13 @@ export default function Companies() {
                     {/* Actions */}
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => navigate(`/developer/companies/${c._id}`)}
+                          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-violet-200 dark:border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-all duration-150 active:scale-95"
+                        >
+                          <Settings className="w-3 h-3" />
+                          Manage
+                        </button>
                         <button
                           onClick={() => openEdit(c)}
                           className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all duration-150 active:scale-95"
