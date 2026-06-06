@@ -3,7 +3,7 @@ import {
   Users, CheckCircle, BarChart2, Clock, Building2, Eye,
   RefreshCw, AlertTriangle, X, Search, ChevronRight,
   Flame, Thermometer, Snowflake, TrendingUp, TrendingDown,
-  Activity, Zap, ArrowUpRight,
+  Activity, Zap, ArrowUpRight, Mail,
 } from "lucide-react";
 import api from "../data/axiosConfig";
 import { fetchAll, getRole, getStoredUser } from "../data/dataService";
@@ -22,6 +22,20 @@ function maskPhone(phone) {
   const str = String(phone).replace(/\s/g, "");
   if (str.length <= 4) return "••••";
   return str.slice(0, 2) + "•".repeat(Math.max(str.length - 4, 3)) + str.slice(-2);
+}
+
+// ── Email masking helper ──────────────────────────────────────────────────────
+function maskEmail(email) {
+  if (!email) return "—";
+  const str = String(email).trim();
+  const atIdx = str.indexOf("@");
+  if (atIdx <= 0) return "••••@••••";
+  const local  = str.slice(0, atIdx);
+  const domain = str.slice(atIdx + 1);
+  const maskedLocal  = local.length <= 2 ? "•".repeat(local.length) : local[0] + "•".repeat(Math.max(local.length - 2, 2)) + local[local.length - 1];
+  const dotIdx = domain.lastIndexOf(".");
+  const maskedDomain = dotIdx > 0 ? "••" + domain.slice(dotIdx) : "••";
+  return `${maskedLocal}@${maskedDomain}`;
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -385,18 +399,19 @@ function Modal({ open, onClose, title, subtitle, children, accentColor = "#2563E
 function heatFor(count) {
   if (count >= 10) return { bg: "bg-red-50 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400",    bar: "#DC2626", label: "High" };
   if (count >= 5)  return { bg: "bg-amber-50 dark:bg-amber-950/40", text: "text-amber-600 dark:text-amber-400", bar: "#D97706", label: "Med"  };
-  return               { bg: "bg-purple-50 dark:bg-purple-950/30", text: "text-purple-600 dark:text-purple-400", bar: "#7C3AED", label: "Low"  };
+  return               { bg: "bg-blue-50 dark:bg-blue-950/30", text: "text-blue-600 dark:text-blue-400", bar: "#2563EB", label: "Low"  };
 }
 
-// ── Admin-level lead list (drill-down view) ───────────────────────────────────
-function AdminLeadRevealList({ leads, onBack, adminName }) {
+// ── Admin-level lead list (drill-down, shared by phone & email reveal modals) ─
+function AdminLeadRevealList({ leads, onBack, adminName, maskFn, revealIcon: RevealIcon, accentColor }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     if (!search.trim()) return leads;
     const q = search.toLowerCase();
     return leads.filter((l) =>
       (l.name || "").toLowerCase().includes(q) ||
-      (l.mobile || "").includes(q)
+      (l.mobile || "").includes(q) ||
+      (l.email  || "").toLowerCase().includes(q)
     );
   }, [leads, search]);
 
@@ -404,16 +419,16 @@ function AdminLeadRevealList({ leads, onBack, adminName }) {
 
   return (
     <div>
-      {/* Back header */}
       <div className="flex items-center gap-3 mb-4">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-[12px] font-semibold text-purple-600 dark:text-purple-400
-            hover:text-purple-800 dark:hover:text-purple-300 transition-colors group"
+          className="flex items-center gap-1.5 text-[12px] font-semibold transition-colors group"
+          style={{ color: accentColor }}
         >
-          <span className="w-6 h-6 flex items-center justify-center rounded-lg
-            bg-purple-50 dark:bg-purple-500/10
-            group-hover:bg-purple-100 dark:group-hover:bg-purple-500/20 transition-colors">
+          <span
+            className="w-6 h-6 flex items-center justify-center rounded-lg transition-colors"
+            style={{ background: `${accentColor}18` }}
+          >
             ←
           </span>
           All Admins
@@ -425,13 +440,12 @@ function AdminLeadRevealList({ leads, onBack, adminName }) {
         </span>
       </div>
 
-      {/* Search */}
       {leads.length > 5 && (
         <div className="mb-4 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF] pointer-events-none" />
           <input
             type="text"
-            placeholder="Search lead name or number…"
+            placeholder="Search lead name…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 rounded-xl text-[13px]
@@ -439,13 +453,13 @@ function AdminLeadRevealList({ leads, onBack, adminName }) {
               border border-[#E5E7EB] dark:border-[#262A38]
               text-[#0F1117] dark:text-[#F0F2FA]
               placeholder:text-[#9CA3AF] dark:placeholder:text-[#565C75]
-              focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-500
+              focus:outline-none focus:ring-2 focus:border-blue-500
               transition-colors"
+            style={{ "--tw-ring-color": `${accentColor}66` }}
           />
         </div>
       )}
 
-      {/* Column headers */}
       <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-[#F0F2FA] dark:border-[#1E2130]">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF] dark:text-[#565C75]">Lead</span>
         <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF] dark:text-[#565C75]">Reveals</span>
@@ -453,7 +467,7 @@ function AdminLeadRevealList({ leads, onBack, adminName }) {
 
       {filtered.length === 0 ? (
         <div className="py-10 text-center">
-          <Eye className="w-8 h-8 mx-auto mb-2 text-[#D1D5DB] dark:text-[#374151]" />
+          <RevealIcon className="w-8 h-8 mx-auto mb-2 text-[#D1D5DB] dark:text-[#374151]" />
           <p className="text-[13px] text-[#6B7280] dark:text-[#565C75]">
             {search ? "No leads match your search." : "No reveals for this admin."}
           </p>
@@ -469,31 +483,30 @@ function AdminLeadRevealList({ leads, onBack, adminName }) {
                 className="flex items-center gap-3 px-3 py-3 rounded-xl
                   bg-[#F8F9FC] dark:bg-[#1A1D27]
                   border border-[#E5E7EB] dark:border-[#262A38]
-                  hover:border-purple-300 dark:hover:border-purple-800
                   transition-colors"
+                style={{ "--hover-border": accentColor }}
               >
-                {/* Rank */}
                 <span className="w-5 text-[11px] font-bold text-[#9CA3AF] dark:text-[#565C75] shrink-0 tabular-nums text-center">
                   {i + 1}
                 </span>
-                {/* Avatar */}
-                <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-500/15 flex items-center justify-center shrink-0">
-                  <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: `${accentColor}20` }}
+                >
+                  <span className="text-[11px] font-bold" style={{ color: accentColor }}>
                     {(item.name || "?").charAt(0).toUpperCase()}
                   </span>
                 </div>
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{item.name || "—"}</p>
-                  <p className="text-[11px] font-mono text-[#8B92A9] mt-0.5">{maskPhone(item.mobile)}</p>
+                  <p className="text-[11px] font-mono text-[#8B92A9] mt-0.5">{maskFn(item.mobile || item.email)}</p>
                   <div className="mt-1.5 h-1 bg-[#E5E7EB] dark:bg-[#262A38] rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: heat.bar }} />
                   </div>
                 </div>
-                {/* Badge */}
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <span className={`inline-flex items-center gap-1 text-[12px] font-bold px-2.5 py-1 rounded-full ${heat.bg} ${heat.text}`}>
-                    <Eye className="w-3 h-3" /> {item.count}
+                    <RevealIcon className="w-3 h-3" /> {item.count}
                   </span>
                   <span className={`text-[10px] font-medium ${heat.text}`}>{heat.label}</span>
                 </div>
@@ -506,18 +519,22 @@ function AdminLeadRevealList({ leads, onBack, adminName }) {
   );
 }
 
-// ── Phone Reveal Modal (SuperAdmin: Admin list → drill-down; Admin: flat list) ──
-function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
+// ── Generic Reveal Modal (used for both phone & email) ────────────────────────
+function RevealModal({
+  open, onClose, data, isSuperAdmin,
+  title, accentColor,
+  RevealIcon,
+  maskFn,
+  totalLabel,   // e.g. "total reveals"
+  uniqueLabel,  // e.g. "unique leads viewed"
+}) {
   const [selectedAdmin, setSelectedAdmin] = useState(null);
-
-  // Reset drill-down when modal closes
   useEffect(() => { if (!open) setSelectedAdmin(null); }, [open]);
-
   if (!data) return null;
 
   const { topRevealed = [], totalReveals = 0, leadsRevealed = 0, byAdmin = [] } = data;
 
-  // ── SuperAdmin: two-level view ─────────────────────────────────────────────
+  // ── SuperAdmin: two-level view ────────────────────────────────────────────
   if (isSuperAdmin) {
     const adminList = byAdmin.length > 0 ? byAdmin : [];
     const maxAdminReveals = Math.max(...adminList.map((a) => a.totalReveals || 0), 1);
@@ -526,24 +543,27 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
       <Modal
         open={open}
         onClose={() => { setSelectedAdmin(null); onClose(); }}
-        title={selectedAdmin ? "Phone Reveals by Admin" : "Phone Reveals · By Admin"}
+        title={selectedAdmin ? `${title} · By Admin` : `${title} · By Admin`}
         subtitle={
           selectedAdmin
             ? `${selectedAdmin.leads?.length || 0} leads · ${selectedAdmin.totalReveals || 0} total reveals`
-            : `${totalReveals} total reveals · ${adminList.length} admin${adminList.length !== 1 ? "s" : ""}`
+            : `${totalReveals} ${totalLabel} · ${adminList.length} admin${adminList.length !== 1 ? "s" : ""}`
         }
-        accentColor="#7C3AED"
+        accentColor={accentColor}
       >
         {selectedAdmin ? (
           <AdminLeadRevealList
             leads={selectedAdmin.leads || []}
             adminName={selectedAdmin.adminName}
             onBack={() => setSelectedAdmin(null)}
+            maskFn={maskFn}
+            revealIcon={RevealIcon}
+            accentColor={accentColor}
           />
         ) : adminList.length === 0 ? (
           <div className="py-12 text-center">
-            <Eye className="w-10 h-10 mx-auto mb-3 text-[#D1D5DB] dark:text-[#374151]" />
-            <p className="text-[14px] text-[#6B7280] dark:text-[#565C75]">No phone reveals recorded yet.</p>
+            <RevealIcon className="w-10 h-10 mx-auto mb-3 text-[#D1D5DB] dark:text-[#374151]" />
+            <p className="text-[14px] text-[#6B7280] dark:text-[#565C75]">No {title.toLowerCase()} recorded yet.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -565,15 +585,17 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
                     className="w-full text-left group flex items-center gap-3 sm:gap-4 px-3 py-3.5 rounded-xl
                       bg-[#F8F9FC] dark:bg-[#1A1D27]
                       border border-[#E5E7EB] dark:border-[#262A38]
-                      hover:border-purple-300 dark:hover:border-purple-700
                       hover:bg-white dark:hover:bg-[#1E2130]
-                      transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                      transition-all duration-150 focus:outline-none focus-visible:ring-2"
                   >
                     <span className="w-5 text-[11px] font-bold text-[#9CA3AF] dark:text-[#565C75] shrink-0 tabular-nums text-center">
                       {i + 1}
                     </span>
-                    <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-500/15 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                      <span className="text-[12px] font-bold text-purple-600 dark:text-purple-400">{initials}</span>
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform"
+                      style={{ background: `${accentColor}20` }}
+                    >
+                      <span className="text-[12px] font-bold" style={{ color: accentColor }}>{initials}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -600,9 +622,9 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span className={`inline-flex items-center gap-1 text-[12px] font-bold px-2.5 py-1 rounded-full ${heat.bg} ${heat.text}`}>
-                        <Eye className="w-3 h-3" /> {admin.totalReveals || 0}
+                        <RevealIcon className="w-3 h-3" /> {admin.totalReveals || 0}
                       </span>
-                      <ChevronRight className="w-3.5 h-3.5 text-[#9CA3AF] dark:text-[#565C75] group-hover:text-purple-500 transition-colors" />
+                      <ChevronRight className="w-3.5 h-3.5 text-[#9CA3AF] dark:text-[#565C75] group-hover:opacity-80 transition-colors" />
                     </div>
                   </button>
                 );
@@ -613,20 +635,20 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
     );
   }
 
-  // ── Admin role: flat list ──────────────────────────────────────────────────
+  // ── Admin role: flat list ─────────────────────────────────────────────────
   const maxCount = Math.max(...topRevealed.map((x) => x.count), 1);
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Phone Number Reveals"
-      subtitle={`${totalReveals} total reveals · ${leadsRevealed} unique leads viewed`}
-      accentColor="#7C3AED"
+      title={title}
+      subtitle={`${totalReveals} ${totalLabel} · ${leadsRevealed} ${uniqueLabel}`}
+      accentColor={accentColor}
     >
       {topRevealed.length === 0 ? (
         <div className="py-12 text-center">
-          <Eye className="w-10 h-10 mx-auto mb-3 text-[#D1D5DB] dark:text-[#374151]" />
-          <p className="text-[14px] text-[#6B7280] dark:text-[#565C75]">No phone reveals recorded yet.</p>
+          <RevealIcon className="w-10 h-10 mx-auto mb-3 text-[#D1D5DB] dark:text-[#374151]" />
+          <p className="text-[14px] text-[#6B7280] dark:text-[#565C75]">No {title.toLowerCase()} recorded yet.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -642,14 +664,14 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
                 <span className="w-5 sm:w-6 text-[12px] font-bold text-[#9CA3AF] dark:text-[#565C75] shrink-0 tabular-nums text-center">{i + 1}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{item.name}</p>
-                  <p className="text-[11px] text-[#8B92A9] font-mono mt-0.5">{maskPhone(item.mobile)}</p>
+                  <p className="text-[11px] text-[#8B92A9] font-mono mt-0.5">{maskFn(item.email || item.mobile)}</p>
                   <div className="mt-1.5 h-1 bg-[#E5E7EB] dark:bg-[#262A38] rounded-full overflow-hidden w-full">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: heat.bar }} />
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <span className={`inline-flex items-center gap-1 text-[12px] font-bold px-2.5 py-1 rounded-full ${heat.bg} ${heat.text}`}>
-                    <Eye className="w-3 h-3" /> {item.count}
+                    <RevealIcon className="w-3 h-3" /> {item.count}
                   </span>
                   <span className={`text-[10px] font-medium ${heat.text}`}>{heat.label}</span>
                 </div>
@@ -659,6 +681,42 @@ function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
         </div>
       )}
     </Modal>
+  );
+}
+
+// ── Phone Reveal Modal (kept as thin wrapper for backward compat) ─────────────
+function PhoneRevealModal({ open, onClose, data, isSuperAdmin }) {
+  return (
+    <RevealModal
+      open={open}
+      onClose={onClose}
+      data={data}
+      isSuperAdmin={isSuperAdmin}
+      title="Phone Reveals"
+      accentColor="#7C3AED"
+      RevealIcon={Eye}
+      maskFn={maskPhone}
+      totalLabel="total reveals"
+      uniqueLabel="unique leads viewed"
+    />
+  );
+}
+
+// ── Email Reveal Modal ────────────────────────────────────────────────────────
+function EmailRevealModal({ open, onClose, data, isSuperAdmin }) {
+  return (
+    <RevealModal
+      open={open}
+      onClose={onClose}
+      data={data}
+      isSuperAdmin={isSuperAdmin}
+      title="Email Reveals"
+      accentColor="#0891B2"
+      RevealIcon={Mail}
+      maskFn={maskEmail}
+      totalLabel="total reveals"
+      uniqueLabel="unique leads viewed"
+    />
   );
 }
 
@@ -788,6 +846,7 @@ const KPI_STYLES = {
   amber:  { icon: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400",   ring: "hover:ring-amber-200 dark:hover:ring-amber-800" },
   red:    { icon: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",           ring: "hover:ring-red-200 dark:hover:ring-red-800" },
   purple: { icon: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400", ring: "hover:ring-purple-200 dark:hover:ring-purple-800" },
+  cyan:   { icon: "bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",       ring: "hover:ring-cyan-200 dark:hover:ring-cyan-800" },
 };
 
 function KpiCard({ label, value, sub, up, IconComponent, variant = "blue", onClick, clickable }) {
@@ -928,6 +987,7 @@ export default function Dashboard() {
   const [warmLeads, setWarmLeads] = useState([]);
 
   const [phoneModal, setPhoneModal] = useState(false);
+  const [emailModal, setEmailModal] = useState(false);
   const [hotModal,   setHotModal]   = useState(false);
   const [warmModal,  setWarmModal]  = useState(false);
 
@@ -966,7 +1026,6 @@ export default function Dashboard() {
         setRefreshing(false);
       });
 
-    // ── Fetch real plan for admin role ─────────────────────────────────────
     if (role === "admin") {
       Promise.all([
         api.get("/admin/"),
@@ -983,18 +1042,8 @@ export default function Dashboard() {
     }
   };
 
-  // ── FIX: Uncommented all three useEffect hooks that were previously disabled ──
-  // These are the root cause of the blank dashboard — without them:
-  //   1. loadData() never fires → loading stays true → only <Skeleton /> renders
-  //   2. fetchDashStats() never fires → dashStats stays null → KPI row hidden
-  //   3. superAdminPlan stays null → SuperAdmin UserManagement never renders
+  useEffect(() => { loadData(); }, []);
 
-  // Effect 1: Load leads + agents on mount
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  // Effect 2: Fetch real subscription plan for SuperAdmin
   useEffect(() => {
     if (!isSuperAdmin) return;
     api.get("/razorpay/subscription")
@@ -1003,21 +1052,14 @@ export default function Dashboard() {
         const planId = nameToId[r.data?.planName] || r.data?.planName?.toLowerCase() || "starter";
         setSuperAdminPlan(planId);
       })
-      .catch(() => {
-        setSuperAdminPlan("starter");
-      });
+      .catch(() => { setSuperAdminPlan("starter"); });
   }, [isSuperAdmin]);
 
-  // Effect 3: Fetch dashboard stats on mount + on tab visibility change
   useEffect(() => {
     fetchDashStats();
-
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchDashStats();
-      }
+      if (document.visibilityState === "visible") fetchDashStats();
     };
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
@@ -1161,9 +1203,9 @@ export default function Dashboard() {
         <KpiCard label="Not Interested" value={pipeline.lost.toLocaleString()} sub="Review needed"                       up={false} IconComponent={Clock} variant="red" />
       </div>
 
-      {/* ── Quality KPI row + Phone Reveal Stats ── */}
+      {/* ── Quality KPI row + Phone & Email Reveal Stats ── */}
       {dashStats && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
           <KpiCard
             label="Hot Leads"
             value={dashStats.quality.hot.toLocaleString()}
@@ -1193,6 +1235,16 @@ export default function Dashboard() {
             variant="purple"
             clickable
             onClick={() => { fetchDashStats(); setPhoneModal(true); }}
+          />
+          <KpiCard
+            label="Email Reveals"
+            value={(dashStats.emailReveal?.totalReveals ?? 0).toLocaleString()}
+            sub={`${dashStats.emailReveal?.leadsRevealed ?? 0} leads · Tap to view`}
+            up={false}
+            IconComponent={Mail}
+            variant="cyan"
+            clickable
+            onClick={() => { fetchDashStats(); setEmailModal(true); }}
           />
         </div>
       )}
@@ -1384,7 +1436,6 @@ export default function Dashboard() {
         <AdminAttendanceView />
       </div>
 
-      {/* ── Admin-Based Filter (SuperAdmin only) ── */}
       {isSuperAdmin && <SuperAdminFilter />}
 
       {isSuperAdmin && superAdminPlan !== null && (
@@ -1408,6 +1459,13 @@ export default function Dashboard() {
         open={phoneModal}
         onClose={() => setPhoneModal(false)}
         data={dashStats?.phoneReveal}
+        isSuperAdmin={isSuperAdmin}
+      />
+
+      <EmailRevealModal
+        open={emailModal}
+        onClose={() => setEmailModal(false)}
+        data={dashStats?.emailReveal}
         isSuperAdmin={isSuperAdmin}
       />
 
