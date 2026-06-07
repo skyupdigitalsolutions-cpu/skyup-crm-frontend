@@ -1976,14 +1976,23 @@ const showToast = useCallback((message, type = "success") => {
   const handleAdd = useCallback((newLead, isMerge = false) => {
     const mapped = mapLead({ ...newLead, _id: newLead.id || newLead._id });
     if (isMerge) {
-      // Merge: update the existing lead in-place, do NOT prepend a duplicate
+      // Merge: update the survivor in-place AND remove the absorbed (duplicate) lead.
+      // The backend returns absorbedLeadId on the merge response.
+      // Without removing the absorbed lead here, it stays visible in the list
+      // until the next page refresh, making it look like two leads exist.
+      const absorbedId = String(newLead._absorbedLeadId || newLead.absorbedLeadId || "");
       setAllLeads(prev => {
-        const exists = prev.some(l => l.id === mapped.id || l._id === mapped._id);
-        if (exists) {
-          return prev.map(l => (l.id === mapped.id || l._id === mapped._id) ? { ...l, ...mapped } : l);
+        let updated = prev;
+        // Remove the absorbed duplicate from the list
+        if (absorbedId) {
+          updated = updated.filter(l => l.id !== absorbedId && String(l._id || "") !== absorbedId);
         }
-        // Fallback: if the existing lead wasn't in the list yet, prepend
-        return [mapped, ...prev];
+        const exists = updated.some(l => l.id === mapped.id || l._id === mapped._id);
+        if (exists) {
+          return updated.map(l => (l.id === mapped.id || l._id === mapped._id) ? { ...l, ...mapped } : l);
+        }
+        // Fallback: survivor wasn't in the list yet (e.g. filtered out) — prepend it
+        return [mapped, ...updated];
       });
     } else {
       setAllLeads(prev => [mapped, ...prev]);
