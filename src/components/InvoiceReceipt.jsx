@@ -36,7 +36,7 @@
 //  NOTE: baseAmount is GST-INCLUSIVE. GST is split out, not added on top.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 
 // ── SET YOUR LOGO HERE ────────────────────────────────────────────────────────
 // Replace with your image URL or a base64 string like "data:image/png;base64,..."
@@ -108,8 +108,19 @@ function buildPDF(lines, filename) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  InvoiceReceipt
 // ─────────────────────────────────────────────────────────────────────────────
-export default function InvoiceReceipt({ invoice, company: companyProp, onClose, onDownload }) {
+export default function InvoiceReceipt({ invoice, company: companyProp, onClose, onDownload, autoDownload }) {
   const printRef = useRef(null);
+  const autoDownloadFired = useRef(false);
+  const handleDownloadRef = useRef(null); // set after handleDownload is defined
+
+  // Auto-trigger download when the component is used in direct-PDF mode
+  useEffect(() => {
+    if (autoDownload && !autoDownloadFired.current) {
+      autoDownloadFired.current = true;
+      const t = setTimeout(() => handleDownloadRef.current?.(), 120);
+      return () => clearTimeout(t);
+    }
+  }, [autoDownload]);
 
   const company = {
     name:    "SKYUP DIGITAL SOLUTIONS LLP",
@@ -193,6 +204,9 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose,
     buildPDF(lines, `${invoice.invoiceId}.pdf`);
     if (onDownload) onDownload(invoice);
   }
+
+  // Expose handleDownload via ref so the autoDownload useEffect can call it
+  handleDownloadRef.current = handleDownload;
 
   // ── Print ─────────────────────────────────────────────────────────────────
   function handlePrint() {
