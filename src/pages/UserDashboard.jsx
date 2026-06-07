@@ -5,7 +5,6 @@ import { maskPhone } from "../utils/maskPhone";
 import { io } from "socket.io-client";
 import { FlameIcon, UsersIcon, LoaderIcon, CheckIcon } from "lucide-react";
 import NotInterestedModal from "../components/Notinterestedmodal";
-import TelegramProfileSettings from "../components/TelegramProfileSettings";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function parseDate(s) {
@@ -1634,7 +1633,6 @@ export default function UserDashboard() {
             </div>
 
             <AttendanceMiniWidget />
-            <TelegramProfileSettings />
 
             {/* CSV result toast */}
             {csvResult && (
