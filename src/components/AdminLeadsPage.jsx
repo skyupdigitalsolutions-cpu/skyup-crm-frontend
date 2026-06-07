@@ -1984,6 +1984,8 @@ const showToast = useCallback((message, type = "success") => {
     let res = allLeads.filter(l => {
       const q           = search.toLowerCase();
       const matchSearch = !q || l.name.toLowerCase().includes(q) || l.phone.includes(q) ||
+        (l.email  && l.email.toLowerCase().includes(q)) ||
+        (l.secondaryPhone && l.secondaryPhone.includes(q)) ||
         (l.mergedSourceName && l.mergedSourceName.toLowerCase().includes(q));
 
       // Use getLeadDisplayStatus so "Merged" and "Closed" virtual statuses
@@ -2115,7 +2117,7 @@ const showToast = useCallback((message, type = "success") => {
           <div className="relative flex-1 min-w-[180px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search name, phone…" className={INP + " pl-9 w-full"} />
+              placeholder="Search name, phone, email…" className={INP + " pl-9 w-full"} />
           </div>
           <AgentSelect value={filterAgent} onChange={(val) => { setFilterAgent(val); setPage(1); }} agents={agents} className={INP} />
           <select value={filterSrc} onChange={e => { setFilterSrc(e.target.value); setPage(1); }} className={INP}>
@@ -2279,7 +2281,7 @@ const showToast = useCallback((message, type = "success") => {
                          {l.email && (
   <div className="mt-0.5 flex items-center gap-1">
     {isSuperAdmin ? (
-      <p className="text-[10px] text-[#8B92A9] truncate max-w-[130px] font-mono">{l.email}</p>
+      <p className="text-[10px] text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[130px] font-mono" title={l.email}>{l.email}</p>
     ) : revealedEmail === l.id ? (
       <div className="flex items-center gap-1">
         <p className="text-[10px] text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[130px] font-mono animate-pulse">{l.email}</p>
