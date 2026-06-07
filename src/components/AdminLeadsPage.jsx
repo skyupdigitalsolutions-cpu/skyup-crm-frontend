@@ -905,31 +905,42 @@ if (!norm) { setError("Enter a valid 10-digit mobile number."); return; }
   // ── Merge from PhoneActionsPanel ─────────────────────────────────────────────
 const handleMergeFromPanel = async () => {
   if (!mergeLead) return;
-  const targetId = mergeLead._id || mergeLead.id;
-  // The number we typed (secInput) already belongs to mergeLead as its primary.
-  // What we actually want to add as secondary on mergeLead is the CURRENT lead's
-  // own primary phone — that is the number being absorbed into the target.
-  const sourcePhone = normalizeMobile(lead.primaryPhone || lead.phone || "");
-  if (!sourcePhone) { setError("Cannot determine current lead's primary number."); return; }
+  // Direction: the lead we OPENED (lead) survives and keeps its primary number.
+  // The number we typed (secInput) belongs to mergeLead — we add it as THIS
+  // lead's secondary, fold mergeLead's history in, and hide mergeLead.
+  const survivorId  = lead.id;
+  const numberToAdd = normalizeMobile(secInput) ||
+                      normalizeMobile(mergeLead.primaryPhone || mergeLead.mobile || "");
+  if (!survivorId)  { setError("Cannot determine the current lead."); return; }
+  if (!numberToAdd) { setError("Cannot determine the number to add."); return; }
   setMerging(true); setError("");
   try {
     const role     = getRole();
     const endpoint = role === "superadmin"
-      ? `/lead/superadmin/${targetId}/merge`
+      ? `/lead/superadmin/${survivorId}/merge`
       : role === "admin"
-        ? `/lead/admin/${targetId}/merge`
-        : `/lead/${targetId}/merge`;
+        ? `/lead/admin/${survivorId}/merge`
+        : `/lead/${survivorId}/merge`;
     const res = await api.post(endpoint, {
-      secondaryPhone: sourcePhone,   // current lead's primary becomes target's secondary
-      sourceName:     lead.name,
-      sourceMobile:   sourcePhone,   // correct: the source lead's own primary
-      sourceLeadId:   lead.id,       // lets backend mark source as mergedInto
+      secondaryPhone: numberToAdd,                    // becomes THIS lead's secondary
+      sourceName:     mergeLead.name,                 // the absorbed (duplicate) lead
+      sourceMobile:   numberToAdd,
+      sourceLeadId:   mergeLead._id || mergeLead.id,  // fold in + hide the other lead
     });
-    const updatedTarget = res.data?.lead || res.data;
-    onToast("Leads merged successfully. The secondary number has been added to the existing lead.");
+    const updated = res.data?.lead || res.data;
+    onToast(`Merged "${mergeLead.name}" in — both numbers and all history now live on this lead.`);
     reset();
-    // Refresh parent with the updated merged lead data
-    onLeadUpdated({ ...lead, _merged: true, _mergedTarget: updatedTarget });
+    // Survivor = the lead we opened. Tell the parent to update it in place and
+    // drop the absorbed lead from the list.
+    onLeadUpdated({
+      ...lead,
+      ...updated,
+      id:              String(updated?._id || lead.id),
+      secondaryPhone:  updated?.secondaryPhone ?? numberToAdd,
+      callHistory:     updated?.callHistory    || lead.callHistory    || [],
+      scheduledCalls:  updated?.scheduledCalls || lead.scheduledCalls || [],
+      _absorbedLeadId: res.data?.absorbedLeadId || mergeLead._id || mergeLead.id,
+    });
   } catch (e) {
     setError(e.response?.data?.message || "Merge failed. Please try again.");
   } finally { setMerging(false); }
@@ -1019,28 +1030,17 @@ const handleMergeFromPanel = async () => {
 
       {/* Merge confirmation */}
 {mode === "merge" && mergeLead && (() => {
-  const isAlreadyPrimary =
-    normalizeMobile(secInput) === normalizeMobile(mergeLead.mobile || mergeLead.primaryPhone || "");
+  const numberToAdd = normalizeMobile(secInput) ||
+                      normalizeMobile(mergeLead.primaryPhone || mergeLead.mobile || "");
   return (
     <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
       <p className="text-[12px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
         <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
         Number belongs to &quot;{mergeLead.name}&quot;
       </p>
-      {isAlreadyPrimary ? (
-        <div className="space-y-1">
-          <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
-            <span className="font-mono font-semibold">{normalizeMobile(secInput)}</span> is already the <span className="font-semibold text-blue-600 dark:text-blue-400">primary number</span> of &quot;{mergeLead.name}&quot;.
-          </p>
-          <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
-            Click <strong>Merge Data</strong> to combine records — no secondary number will be added since it is already the primary.
-          </p>
-        </div>
-      ) : (
-        <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
-          Add <span className="font-mono font-semibold">{normalizeMobile(secInput)}</span> as secondary of &quot;{mergeLead.name}&quot; and merge all data?
-        </p>
-      )}
+      <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
+        Add <span className="font-mono font-semibold">{numberToAdd}</span> as the secondary number of <span className="font-semibold">this lead</span> and fold in &quot;{mergeLead.name}&quot;? All of its call logs, WhatsApp, notes and history move here, and &quot;{mergeLead.name}&quot; is hidden.
+      </p>
       {error && (
         <p className="text-[11px] text-red-500 flex items-center gap-1">
           <AlertCircle className="w-3 h-3 shrink-0" />{error}
@@ -1052,7 +1052,7 @@ const handleMergeFromPanel = async () => {
           className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
           {merging
             ? <><Loader2 className="w-3 h-3 animate-spin" /> Merging…</>
-            : isAlreadyPrimary ? "Merge Data" : "Add as Secondary & Merge"
+            : "Add as Secondary & Merge"
           }
         </button>
       </div>
@@ -1887,6 +1887,31 @@ const showToast = useCallback((message, type = "success") => {
   useEffect(() => () => clearTimeout(emailRevealTimerRef.current), []);
 
   const handleLeadUpdated = useCallback((updatedLead) => {
+    // Merge (new direction): a duplicate lead was absorbed INTO this surviving
+    // lead. Drop the absorbed lead from the list and update the survivor in place.
+    if (updatedLead._absorbedLeadId) {
+      const absorbedId = updatedLead._absorbedLeadId;
+      const survivorId = updatedLead.id;
+      setAllLeads(prev =>
+        prev
+          .filter(l => l.id !== absorbedId && l._id !== absorbedId)
+          .map(l => (l.id === survivorId || l._id === survivorId)
+            ? { ...l, ...updatedLead }
+            : l)
+      );
+      setSelected(prev =>
+        prev && (prev.id === absorbedId)
+          ? null
+          : (prev && prev.id === survivorId ? { ...prev, ...updatedLead } : prev)
+      );
+      setRecordingsLead(prev =>
+        prev && (prev.id === absorbedId)
+          ? null
+          : (prev && prev.id === survivorId ? { ...prev, ...updatedLead } : prev)
+      );
+      return;
+    }
+
     // When a lead is merged into another, remove it from the list entirely
     // and close any open panels that reference it
     if (updatedLead._merged) {
