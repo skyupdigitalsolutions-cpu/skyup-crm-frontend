@@ -12,7 +12,6 @@ import AdminChat from "./Adminchat";
 import LeadTimeline from "./LeadTimeLine";
 import AdminAttendanceView from "./AdminAttendanceView";
 import CompanyBrandSettings from "./CompanyBrandSettings";
-import TelegramSettings from "./TelegramSettings";
 import SuperAdminFilter from "./SuperAdminFilter";
 import useEntitlements from "../hooks/useEntitlements";
 
@@ -1175,7 +1174,6 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-2">
-          <TelegramSettings />
           <button
             onClick={() => { loadData(true); fetchDashStats(); }}
             disabled={refreshing}
