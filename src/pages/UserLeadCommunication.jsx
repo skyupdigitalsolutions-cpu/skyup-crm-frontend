@@ -14,6 +14,7 @@ import { io } from "socket.io-client";
 import axios from "axios";
 import api from "../data/axiosConfig";
 import { maskPhone } from "../utils/maskPhone";
+import FeatureGate from "../components/FeatureGate";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://skyup-crm-backend.onrender.com/api";
 const SOCKET_URL =
@@ -1497,11 +1498,13 @@ export default function UserLeadCommunication() {
 
       {/* ── Tab content ──────────────────────────────────────────────────── */}
       {activeTab === "sms" ? (
-        <SmsBlastTab />
+        <FeatureGate featureKey="sms-blast"><SmsBlastTab /></FeatureGate>
       ) : activeTab === "sms-direct" ? (
         <SmsChatTab leads={leads} loadingLeads={loadingLeads} />
       ) : activeTab === "blast" ? (
-        <BlastTab leads={leads} authHeaders={authHeaders} />
+        <FeatureGate featureKey="whatsapp-blast">
+          <BlastTab leads={leads} authHeaders={authHeaders} />
+        </FeatureGate>
       ) : (
         /* ── CHAT TAB ──────────────────────────────────────────────────── */
         <div className="flex flex-1 overflow-hidden">
