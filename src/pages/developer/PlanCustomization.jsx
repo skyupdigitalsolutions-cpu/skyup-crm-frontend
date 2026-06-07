@@ -287,7 +287,13 @@ export default function PlanCustomization() {
           const merged = {};
           for (const id of PLAN_IDS) {
             merged[id] = { ...DEFAULT_PLANS[id], ...(data[id] || {}) };
-            if (!Array.isArray(merged[id].features)) merged[id].features = DEFAULT_PLANS[id].features;
+            // Server features array takes full priority over defaults.
+            // If the server has an explicit array (even empty = all disabled), use it.
+            if (data[id] && Array.isArray(data[id].features)) {
+              merged[id].features = data[id].features;
+            } else {
+              merged[id].features = DEFAULT_PLANS[id].features;
+            }
           }
           setPlans(merged);
         }
