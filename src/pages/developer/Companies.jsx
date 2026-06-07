@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Building2, Plus, UploadCloud, X, ChevronRight,
   CheckCircle2, XCircle, ShieldCheck, Image, Loader2, Pencil, Layout, Settings,
+  Receipt, CreditCard, Calendar, BadgeCheck, Clock, AlertCircle,
 } from "lucide-react";
 import api from "../../data/axiosConfig";
 
@@ -22,6 +23,7 @@ export default function Companies() {
   const [editTarget, setEditTarget] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState("");
+  const [paymentsCompany, setPaymentsCompany] = useState(null); // { _id, name }
   const navigate = useNavigate();
 
   const emptyForm = {
@@ -209,7 +211,7 @@ export default function Companies() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E5E7EB] dark:border-[#262A38]">
-                  {["Company", "Email", "Plan", "Status", "Actions"].map(h => (
+                  {["Company", "Email", "Plan", "Status", "Payment Details", "Actions"].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[10px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider">
                       {h}
                     </th>
@@ -265,6 +267,18 @@ export default function Companies() {
                         <span className={`w-1.5 h-1.5 rounded-full ${c.isActive ? "bg-green-500" : "bg-red-500"}`} />
                         {c.isActive ? "Active" : "Suspended"}
                       </span>
+                    </td>
+
+                    {/* Payment Details */}
+                    <td className="px-4 py-3.5">
+                      <button
+                        onClick={() => setPaymentsCompany(c)}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all duration-150 active:scale-95"
+                        title="View payment invoices"
+                      >
+                        <Receipt className="w-3 h-3" />
+                        Invoices
+                      </button>
                     </td>
 
                     {/* Actions */}
@@ -324,6 +338,14 @@ export default function Companies() {
         />
       )}
 
+      {/* ── Payment Invoices Modal ── */}
+      {paymentsCompany && (
+        <PaymentInvoicesModal
+          company={paymentsCompany}
+          onClose={() => setPaymentsCompany(null)}
+        />
+      )}
+
       {/* ── Edit Company Modal ── */}
       {showEdit && (
         <CompanyModal
@@ -343,6 +365,186 @@ export default function Companies() {
           showSuperAdmin={false}
         />
       )}
+    </div>
+  );
+}
+
+
+// ── Payment Invoices Modal ────────────────────────────────────────────────────
+function PaymentInvoicesModal({ company, onClose }) {
+  const [invoices, setInvoices] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState("");
+
+  useEffect(() => {
+    setLoading(true); setError("");
+    api.get(`/developer/companies/${company._id}/payments`)
+      .then(r => setInvoices(r.data?.invoices || []))
+      .catch(e => setError(e.response?.data?.message || "Failed to load invoices."))
+      .finally(() => setLoading(false));
+  }, [company._id]);
+
+  const totalPaid = invoices
+    .filter(inv => inv.status === "Paid")
+    .reduce((sum, inv) => sum + (inv.baseAmount || 0), 0);
+
+  const STATUS_STYLE = {
+    Paid:    { bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500", icon: BadgeCheck },
+    Pending: { bg: "bg-amber-50 dark:bg-amber-500/10",     text: "text-amber-700 dark:text-amber-400",     dot: "bg-amber-400",   icon: Clock },
+    Failed:  { bg: "bg-red-50 dark:bg-red-500/10",         text: "text-red-600 dark:text-red-400",         dot: "bg-red-500",     icon: AlertCircle },
+  };
+
+  const BILLING_LABEL = {
+    monthly: "Monthly",
+    yearly:  "Yearly",
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative w-full max-w-2xl bg-white dark:bg-[#1A1D27] rounded-2xl shadow-2xl border border-[#E5E7EB] dark:border-[#262A38] max-h-[88vh] flex flex-col overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[#F0F2FA] dark:border-[#1E2130] shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center shrink-0">
+              <Receipt className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-[#0F1117] dark:text-[#F0F2FA]">Payment Invoices</h2>
+              <p className="text-[11px] text-[#9DA3BB] mt-0.5">{company.name}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#9DA3BB] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] hover:bg-[#F0F2FA] dark:hover:bg-[#262A38] transition"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Summary strip */}
+        {!loading && !error && invoices.length > 0 && (
+          <div className="px-6 py-3 bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#F0F2FA] dark:border-[#1E2130] shrink-0">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-[#6B7280] dark:text-[#9DA3BB]" />
+                <span className="text-[11px] text-[#6B7280] dark:text-[#9DA3BB]">Total invoices:</span>
+                <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{invoices.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <BadgeCheck className="w-4 h-4 text-emerald-500" />
+                <span className="text-[11px] text-[#6B7280] dark:text-[#9DA3BB]">Total paid:</span>
+                <span className="text-[13px] font-bold text-emerald-600 dark:text-emerald-400">
+                  ₹{totalPaid.toLocaleString("en-IN")}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+
+          {/* Loading */}
+          {loading && (
+            <div className="flex flex-col items-center justify-center h-40 gap-3 text-[#9DA3BB]">
+              <Loader2 className="w-6 h-6 animate-spin" />
+              <span className="text-sm">Loading invoices…</span>
+            </div>
+          )}
+
+          {/* Error */}
+          {!loading && error && (
+            <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 text-sm">
+              <XCircle className="w-4 h-4 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loading && !error && invoices.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-40 gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#F0F2FA] dark:bg-[#13161E] flex items-center justify-center">
+                <Receipt className="w-6 h-6 text-[#C4C9DA]" />
+              </div>
+              <p className="text-sm text-[#9DA3BB] text-center">
+                No payment records found.<br />
+                <span className="text-[11px] text-[#C4C9DA]">Invoices appear here after a successful payment.</span>
+              </p>
+            </div>
+          )}
+
+          {/* Invoice list */}
+          {!loading && !error && invoices.length > 0 && (
+            <div className="space-y-3">
+              {invoices.map((inv) => {
+                const s = STATUS_STYLE[inv.status] || STATUS_STYLE.Pending;
+                const StatusIcon = s.icon;
+                return (
+                  <div
+                    key={inv.invoiceId}
+                    className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] hover:border-[#D1D5DB] dark:hover:border-[#3A3F52] transition-colors"
+                  >
+                    {/* Left: icon + invoice id + date */}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${s.bg}`}>
+                        <StatusIcon className={`w-4 h-4 ${s.text}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] font-mono truncate">
+                          {inv.invoiceId}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Calendar className="w-3 h-3 text-[#9DA3BB]" />
+                          <span className="text-[11px] text-[#9DA3BB]">{inv.date}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Middle: plan + billing */}
+                    <div className="flex items-center gap-2 sm:flex-col sm:items-end shrink-0">
+                      <span className="text-[11px] font-semibold text-[#4B5563] dark:text-[#9DA3BB] bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] px-2 py-0.5 rounded-lg">
+                        {inv.planName}
+                      </span>
+                      <span className="text-[10px] text-[#9DA3BB] capitalize">
+                        {BILLING_LABEL[inv.billingCycle] || inv.billingCycle}
+                      </span>
+                    </div>
+
+                    {/* Right: amount + status */}
+                    <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0">
+                      <span className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+                        {inv.amount}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold ${s.bg} ${s.text}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                        {inv.status}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Transaction ID footer per invoice — shown as subtle mono text below each card */}
+              {/* Already integrated in card above; extra detail drawer could be added later */}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-[#F0F2FA] dark:border-[#1E2130] shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] text-sm font-semibold text-[#6B7280] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition"
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
