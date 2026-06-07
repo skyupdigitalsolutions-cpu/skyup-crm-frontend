@@ -11,6 +11,30 @@ import api from "../data/axiosConfig";
 const API_URL    = import.meta.env.VITE_API_URL;
 const SOCKET_URL = API_URL.replace("/api", "");
 
+// ── Feature gate helper (non-hook) ────────────────────────────────────────────
+// Reads the entitlements cached by usePlanFeatures. Usable inside event
+// handlers where React hooks can't be called. Fails OPEN if entitlements are
+// unknown so it never blocks legitimately-entitled admins; the backend
+// requireFeature() middleware is the hard enforcement layer.
+const BLAST_FEATURE_MAP = {
+  "whatsapp-blast": "whatsappBlast",
+  "email-blast":    "emailBlast",
+  "sms-blast":      "smsBlast",
+};
+function isFeatureEnabled(featureKey) {
+  try {
+    const raw = JSON.parse(localStorage.getItem("plan_entitlements") || "null");
+    const ent = raw?.data?.entitlements;
+    if (!ent) return true; // unknown → fail open (backend still enforces)
+    const k = BLAST_FEATURE_MAP[featureKey] || featureKey;
+    return k in ent ? !!ent[k] : true;
+  } catch {
+    return true;
+  }
+}
+const FEATURE_DISABLED_MSG =
+  "This feature is disabled on your current plan. Ask your administrator to enable it.";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Shared helpers ────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
@@ -810,6 +834,7 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
 
   // Send
   const handleSend = async () => {
+    if (!isFeatureEnabled("whatsapp-blast")) return setError(FEATURE_DISABLED_MSG);
     if (!templateName.trim()) return setError("Template name is required");
     setLoading(true); setError("");
     try {
@@ -1784,6 +1809,7 @@ function EmailBlastModal({ onClose }) {
   };
 
   const handleSend = async () => {
+    if (!isFeatureEnabled("email-blast")) return setError(FEATURE_DISABLED_MSG);
     if (!subject || !bodyTemplate) return setError("Subject and body are required");
     setLoading(true); setError("");
     try {
@@ -2366,6 +2392,7 @@ function SmsBlastComposer({ onSent }) {
   };
 
   const handleSend = async () => {
+    if (!isFeatureEnabled("sms-blast")) return setError(FEATURE_DISABLED_MSG);
     if (!message.trim()) return setError("Message body is required");
     setLoading(true); setError("");
     try {
