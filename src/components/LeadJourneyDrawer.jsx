@@ -271,6 +271,19 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
   const displaySecondaryPhone = lead.secondaryPhone ? masker(lead.secondaryPhone, isSuperAdmin) : null;
   const displayEmail          = emailMasker(lead.email, isSuperAdmin);
 
+  // Raw (unmasked) numbers for tel: / WhatsApp actions. The number stays
+  // visually masked for non-superadmins, but the action still needs to dial.
+  const rawPrimary   = lead.primaryPhone || lead.phone || lead.mobile || "";
+  const rawSecondary = lead.secondaryPhone || "";
+  // WhatsApp needs international format with no "+". Default missing country
+  // code to 91 for bare 10-digit Indian numbers.
+  const toWaNumber = (raw) => {
+    const d = String(raw || "").replace(/\D/g, "");
+    if (!d) return "";
+    return d.length === 10 ? `91${d}` : d;
+  };
+  const telHref = (raw) => `tel:${String(raw || "").replace(/[^\d+]/g, "")}`;
+
   const sc = STATUS_COLOR[lead.status] || STATUS_COLOR["New"];
   const name = lead.name || "Unknown";
   const callHistory    = lead.callHistory    || [];
@@ -400,6 +413,18 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                 <div className="flex items-center gap-2">
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500 shrink-0">PRIMARY</span>
                   <span className="text-[13px] font-mono font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{displayPhone}</span>
+                  {rawPrimary && (
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <a href={telHref(rawPrimary)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition">
+                        <Phone className="w-3 h-3" /> Call
+                      </a>
+                      <a href={`https://wa.me/${toWaNumber(rawPrimary)}`} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition">
+                        <MessageCircle className="w-3 h-3" /> WhatsApp
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -409,6 +434,18 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500 shrink-0">SECONDARY</span>
                     <span className="text-[13px] font-mono font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{displaySecondaryPhone}</span>
+                    {rawSecondary && (
+                      <div className="ml-auto flex items-center gap-1.5">
+                        <a href={telHref(rawSecondary)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition">
+                          <Phone className="w-3 h-3" /> Call
+                        </a>
+                        <a href={`https://wa.me/${toWaNumber(rawSecondary)}`} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition">
+                          <MessageCircle className="w-3 h-3" /> WhatsApp
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
