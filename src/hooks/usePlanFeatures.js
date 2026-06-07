@@ -80,8 +80,10 @@ export default function usePlanFeatures() {
 
   useEffect(() => {
     const role = getStoredRole();
-    // Only admin / super_admin have plan entitlements
-    if (role === "developer" || role === "user") {
+    // Developers have no company entitlements. Admins, company super-admins AND
+    // employees all fetch — employees need them so screens like the WhatsApp
+    // blast tab can gate themselves (the /my/entitlements endpoint is protectAny).
+    if (role === "developer") {
       setLoading(false);
       return;
     }
