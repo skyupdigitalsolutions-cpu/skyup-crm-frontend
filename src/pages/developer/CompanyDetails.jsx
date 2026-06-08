@@ -213,7 +213,7 @@ export default function CompanyDetails() {
       for (const key of ALL_FEATURE_KEYS) {
         if (featureState[key] === "on")  featureToggles[key] = true;
         if (featureState[key] === "off") featureToggles[key] = false;
-        // "inherit" → omit, so the plan + addon value applies
+        // "inherit" → omitted → backend stores nothing for this key → plan value applies
       }
       const { data: res } = await api.put(`/developer/companies/${id}/override`, {
         featureToggles,
@@ -225,6 +225,8 @@ export default function CompanyDetails() {
         company: { ...prev.company, devOverrides: res.devOverrides },
       } : prev);
       applyOverridesToState(res.devOverrides);
+      // Clear entitlement cache so any admin tab for this company refreshes
+      window.dispatchEvent(new Event("plan_updated"));
       showToast("Features saved.", true);
     } catch (e) {
       showToast(e.response?.data?.message || "Failed to save features", false);
@@ -250,6 +252,7 @@ export default function CompanyDetails() {
         company: { ...prev.company, devOverrides: res.devOverrides },
       } : prev);
       applyOverridesToState(res.devOverrides);
+      window.dispatchEvent(new Event("plan_updated"));
       showToast("Limits saved.", true);
     } catch (e) {
       showToast(e.response?.data?.message || "Failed to save limits", false);
