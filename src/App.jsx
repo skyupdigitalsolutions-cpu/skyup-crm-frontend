@@ -9,6 +9,7 @@ import EntitlementStatusBanner from "./components/EntitlementStatusBanner";
 import FeatureGate from "./components/FeatureGate";
 import { NotificationProvider, NotificationBell } from "./components/NotificationProvider";
 import { clearFeaturesCache } from "./hooks/usePlanFeatures";
+import TelegramSettings from "./components/TelegramSettings";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
 const Dashboard      = lazy(() => import("./components/Dashboard"));
@@ -343,6 +344,10 @@ function CompanyHeader() {
         {/* Notification bell — visible for admin and superadmin only */}
         {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
           <NotificationBell />
+        )}
+        {/* Telegram campaign notifications — admin and superadmin only */}
+        {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
+          <TelegramSettings />
         )}
         <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${roleColor}`}>
           {roleLabel}
