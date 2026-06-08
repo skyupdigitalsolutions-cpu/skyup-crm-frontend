@@ -1210,14 +1210,15 @@ function UserChatWidget() {
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
     const joinPayload = { username, userId: user?._id, company: companyId, adminId, displayName: user?.name };
-    socket.on("connect", () => {
+    const doJoin = () => {
       sharedSocket.current = socket;
       socket.emit("user_join", joinPayload);
-    });
-    if (socket.connected) {
-      sharedSocket.current = socket;
-      socket.emit("user_join", joinPayload);
-    }
+      // Bug 1 fix: also join the personal agent room so new_lead_assigned
+      // events from leadController reach this browser tab.
+      if (user?._id) socket.emit("agent_join", { userId: user._id });
+    };
+    socket.on("connect", doJoin);
+    if (socket.connected) doJoin();
     socket.on("chat_history", history => {
       const isAdminMsg = (from) => from === "admin" || from?.startsWith("admin:") || from?.startsWith("superadmin:");
       setMessages(history.map(m => ({ _id: m._id, from: isAdminMsg(m.from) ? "Admin" : "You", message: m.message, ts: m.timestamp, isDeleted: m.isDeleted || false, editedAt: m.editedAt || null })));
@@ -1241,6 +1242,16 @@ function UserChatWidget() {
     });
     socket.on("message_deleted", ({ _id }) => {
       setMessages(prev => prev.map(m => m._id?.toString() === _id?.toString() ? { ...m, message: "This message was deleted", isDeleted: true } : m));
+    });
+    // Bug 3 fix: handle new_lead_assigned — show browser notification + badge
+    socket.on("new_lead_assigned", ({ leadName, source }) => {
+      setUnread(n => n + 1);
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        new Notification("📋 New Lead Assigned", {
+          body: `${leadName || "New Lead"} — ${source || "Web Form"}`,
+          icon: "/skyup_logo1.svg",
+        });
+      }
     });
     return () => { sharedSocket.current = null; socket.disconnect(); };
   }, []);
