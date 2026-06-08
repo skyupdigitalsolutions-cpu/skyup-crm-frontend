@@ -20,6 +20,11 @@ const Communications = lazy(() => import("./components/Communications"));
 const AttendancePage = lazy(() => import("./pages/AttendancePage"));
 const UpgradePlan    = lazy(() => import("./components/UpgradePlan"));
 
+// NEW: Operations pages
+const ProjectsPage        = lazy(() => import("./pages/ProjectsPage"));
+const PayrollPage         = lazy(() => import("./pages/PayrollPage"));
+const WebsiteTrackingPage = lazy(() => import("./pages/WebsiteTrackingPage"));
+
 // User pages
 const UserLogin              = lazy(() => import("./pages/UserLogin"));
 const UserDashboard          = lazy(() => import("./pages/UserDashboard"));
@@ -562,6 +567,33 @@ function AppInner() {
             <ProtectedRoute>
               <AppLayout><FeatureGate featureKey="daily-report"><DailyReportRoleSwitch /></FeatureGate></AppLayout>
             </ProtectedRoute>
+          }/>
+
+          {/* ── Projects ── */}
+          <Route path="/projects" element={
+            <AdminRoute>
+              <AppLayout>
+                <FeatureGate featureKey="projects"><ProjectsPage /></FeatureGate>
+              </AppLayout>
+            </AdminRoute>
+          }/>
+
+          {/* ── Payroll ── */}
+          <Route path="/payroll" element={
+            <AdminRoute>
+              <AppLayout>
+                <FeatureGate featureKey="payroll"><PayrollPage /></FeatureGate>
+              </AppLayout>
+            </AdminRoute>
+          }/>
+
+          {/* ── Website Tracking ── */}
+          <Route path="/website-tracking" element={
+            <AdminRoute>
+              <AppLayout>
+                <FeatureGate featureKey="website-tracking"><WebsiteTrackingPage /></FeatureGate>
+              </AppLayout>
+            </AdminRoute>
           }/>
 
           {/* ── Fallback ── */}
