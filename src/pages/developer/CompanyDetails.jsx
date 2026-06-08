@@ -58,6 +58,12 @@ const FEATURE_GROUPS = [
     { key: "customDomain",   label: "Custom Domain" },
     { key: "customBranding", label: "Custom Branding" },
   ]},
+  { group: "Operations", items: [
+    { key: "projects",        label: "Projects" },
+    { key: "tasks",           label: "Tasks" },
+    { key: "payroll",         label: "Payroll" },
+    { key: "websiteTracking", label: "Website Tracking" },
+  ]},
 ];
 const ALL_FEATURE_KEYS = FEATURE_GROUPS.flatMap(g => g.items.map(i => i.key));
 
