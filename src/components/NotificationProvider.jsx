@@ -236,6 +236,9 @@ export function NotificationProvider({ children }) {
         console.debug('[NotificationProvider] emitting admin_join');
         socket.emit('admin_join', { adminId, company: companyId, displayName });
       }
+      // Bug 4 fix: join wa_admin room so wa_new_lead events are received
+      // on any page the admin is viewing, not only when WhatsAppChat is mounted.
+      socket.emit('wa_admin_join');
     };
 
     socket.on('connect', doJoin);
@@ -357,6 +360,22 @@ export function NotificationProvider({ children }) {
         }
       });
     }
+
+    // Bug 4 fix: wa_new_lead — new lead created from WhatsApp webhook.
+    // Only wired in WhatsAppChat before; now handled here so the bell
+    // updates on any page the admin is viewing.
+    socket.on('wa_new_lead', ({ lead }) => {
+      const leadName = lead?.name || 'New Lead';
+      const source   = lead?.source || 'WhatsApp';
+      addNotification({
+        id:        `wa-lead-${lead?._id || Date.now()}`,
+        type:      'new_lead',
+        title:     '💬 New WhatsApp Lead',
+        body:      `${leadName} — ${source}`,
+        timestamp: new Date().toISOString(),
+        urgent:    false,
+      });
+    });
 
     return () => {
       socket.disconnect();
