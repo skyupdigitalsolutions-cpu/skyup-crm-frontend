@@ -3,8 +3,15 @@ import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
 import { maskPhone } from "../utils/maskPhone";
 import { io } from "socket.io-client";
-import { FlameIcon, UsersIcon, LoaderIcon, CheckIcon } from "lucide-react";
+import { FlameIcon, UsersIcon, LoaderIcon, CheckIcon, AlertTriangle } from "lucide-react";
 import NotInterestedModal from "../components/Notinterestedmodal";
+import { normalizePhone } from "../utils/normalizePhone";
+import { getRole } from "../data/dataService";
+import CRMEncryption from "../utils/CRMEncryption";
+
+const crm = new CRMEncryption();
+const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral"];
+const ALL_STATUSES = ["New", "In Progress", "Converted", "Not Interested"];
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function parseDate(s) {
@@ -746,11 +753,319 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects =
   );
 }
 
+// ── Edit Lead Modal (mirrors ReportPage) ──────────────────────────────────────
+function EditLeadModal({ lead, onClose, onSave }) {
+  const [form, setForm]             = useState({ ...lead });
+  const [saving, setSaving]         = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Edit Lead</h2>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { label: "Lead Name", key: "name" },
+            { label: "Campaign",  key: "campaign" },
+            { label: "Remark",    key: "remark" },
+          ].map(f => (
+            <div key={f.key} className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
+              <input type="text" value={form[f.key] || ""} onChange={e => set(f.key, e.target.value)}
+                className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]" />
+            </div>
+          ))}
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Date</label>
+            <input type="text" value={form.date || "—"} readOnly
+              className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#8B92A9] dark:text-[#565C75] cursor-not-allowed" />
+          </div>
+          {[
+            { label: "Source", key: "source", options: ALL_SOURCES },
+            { label: "Status", key: "status", options: ALL_STATUSES },
+          ].map(f => (
+            <div key={f.key} className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
+              <select value={form[f.key] || ""} onChange={e => set(f.key, e.target.value)}
+                className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#4B5168] dark:text-[#9DA3BB] focus:outline-none">
+                {f.options.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2 mt-5">
+          <button onClick={onClose} disabled={saving} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition disabled:opacity-50">Cancel</button>
+          <button disabled={saving} onClick={async () => {
+            const leadId = form.id || form._id;
+            const endpoint = `/lead/${leadId}`;
+            try {
+              setSaving(true);
+              const basePayload = {
+                name:     form.name,
+                mobile:   form.phone || form.mobile,
+                source:   form.source,
+                campaign: form.campaign === "—" ? "" : form.campaign,
+                status:   form.status,
+                remark:   form.remark,
+              };
+              let payload = basePayload;
+              const keyString = crm.getLocalKey();
+              if (keyString) {
+                try {
+                  const encryptedData = await crm.encrypt(
+                    { name: basePayload.name, mobile: basePayload.mobile, email: form.email || "", remark: basePayload.remark },
+                    keyString
+                  );
+                  payload = { ...basePayload, encryptedData };
+                } catch { /* send plain */ }
+              }
+              const { data: updated } = await api.put(endpoint, payload);
+              onSave({ ...lead, ...form, ...updated });
+              onClose();
+            } catch (err) {
+              alert("Failed to save: " + (err.response?.data?.message || err.message));
+            } finally { setSaving(false); }
+          }} className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allowed">
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Phone Numbers Modal (mirrors ReportPage) ──────────────────────────────────
+function PhoneNumbersModal({ lead, onClose, onLeadUpdated }) {
+  const leadId = lead.id || lead._id;
+  const role   = getRole();
+
+  const [primaryPhone,   setPrimaryPhone]   = useState(lead.primaryPhone   || lead.phone || lead.mobile || "");
+  const [secondaryPhone, setSecondaryPhone] = useState(lead.secondaryPhone || "");
+  const [newSecondary,   setNewSecondary]   = useState("");
+  const [busy,           setBusy]           = useState(false);
+  const [busyOp,         setBusyOp]         = useState(null);
+  const [errorMsg,       setErrorMsg]       = useState("");
+  const [mergeLead,      setMergeLead]      = useState(null);
+  const [merging,        setMerging]        = useState(false);
+
+  const ep = (path) => {
+    const prefix = role === "superadmin" ? "superadmin" : role === "admin" ? "admin" : "";
+    return prefix ? `/lead/${prefix}/${leadId}/${path}` : `/lead/${leadId}/${path}`;
+  };
+
+  const applyUpdate = (raw) => {
+    const data         = raw?.lead ?? raw;
+    const newPrimary   = data.primaryPhone   ?? primaryPhone;
+    const newSecondary = data.secondaryPhone ?? "";
+    setPrimaryPhone(newPrimary);
+    setSecondaryPhone(newSecondary);
+    onLeadUpdated({ ...lead, primaryPhone: newPrimary, secondaryPhone: newSecondary, phone: newPrimary, mobile: newPrimary });
+  };
+
+  const handleAdd = async () => {
+    const trimmed = newSecondary.trim();
+    if (!trimmed) { setErrorMsg("Please enter a phone number."); return; }
+    if (!normalizePhone(trimmed)) { setErrorMsg("Enter a valid 10-digit phone number."); return; }
+    if (normalizePhone(trimmed) === normalizePhone(primaryPhone)) { setErrorMsg("Secondary number must differ from the primary."); return; }
+    setBusy(true); setBusyOp("add"); setErrorMsg("");
+    try {
+      const { data } = await api.put(ep("secondary-phone"), { secondaryPhone: trimmed });
+      applyUpdate(data); setNewSecondary("");
+    } catch (err) {
+      const status = err.response?.status;
+      const data   = err.response?.data;
+      if (status === 409 && data?.existingLead) { setMergeLead(data.existingLead); }
+      else { setErrorMsg(data?.message || "Failed to save secondary number."); }
+    } finally { setBusy(false); setBusyOp(null); }
+  };
+
+  const handleRemove = async () => {
+    setBusy(true); setBusyOp("remove"); setErrorMsg("");
+    try { const { data } = await api.delete(ep("secondary-phone")); applyUpdate(data); }
+    catch (err) { setErrorMsg(err.response?.data?.message || "Failed to remove."); }
+    finally { setBusy(false); setBusyOp(null); }
+  };
+
+  const handleSwap = async () => {
+    if (!secondaryPhone) return;
+    setBusy(true); setBusyOp("swap"); setErrorMsg("");
+    try { const { data } = await api.put(ep("swap-phones")); applyUpdate(data); }
+    catch (err) { setErrorMsg(err.response?.data?.message || "Failed to swap."); }
+    finally { setBusy(false); setBusyOp(null); }
+  };
+
+  const handleMerge = async () => {
+    if (!mergeLead) return;
+    const targetId    = mergeLead._id || mergeLead.id;
+    const sourcePhone = normalizePhone((lead.primaryPhone || lead.phone || lead.mobile || "").trim());
+    if (!sourcePhone) { setErrorMsg("Cannot determine current lead's primary number."); return; }
+    setMerging(true); setErrorMsg("");
+    try {
+      const prefix = role === "superadmin" ? "superadmin" : role === "admin" ? "admin" : "";
+      const mergeEp = prefix ? `/lead/${prefix}/${targetId}/merge` : `/lead/${targetId}/merge`;
+      const { data } = await api.post(mergeEp, {
+        secondaryPhone: sourcePhone,
+        sourceName:     lead.name,
+        sourceMobile:   sourcePhone,
+        sourceLeadId:   lead.id || lead._id,
+      });
+      // Update the survivor lead in the list
+      applyUpdate(data?.lead || data);
+      // Remove the absorbed (source) lead — it's this modal's own lead — from the list
+      const absorbedId = data?.absorbedLeadId || lead.id || String(lead._id);
+      onLeadUpdated({ ...(data?.lead || data), _mergedAbsorbedId: absorbedId });
+      setMergeLead(null); setNewSecondary(""); onClose();
+    } catch (err) { setErrorMsg(err.response?.data?.message || "Merge failed."); }
+    finally { setMerging(false); }
+  };
+
+  const Spinner = () => (
+    <svg className="w-3.5 h-3.5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+    </svg>
+  );
+  const PhoneIcon = ({ className = "" }) => (
+    <svg className={`w-3.5 h-3.5 shrink-0 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+    </svg>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Phone Numbers</h2>
+            <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">{lead.name}</p>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Primary */}
+        <div className="mb-3">
+          <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1.5">Primary Number</p>
+          <div className="flex items-center gap-2.5 bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl px-3 py-2.5">
+            <PhoneIcon className="text-[#2563EB]" />
+            <span className="text-[13px] font-semibold font-mono text-[#0F1117] dark:text-[#F0F2FA] flex-1">{primaryPhone || "—"}</span>
+            <span className="text-[9px] font-bold uppercase tracking-wide text-[#2563EB] bg-[#EEF3FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-full shrink-0">Primary</span>
+          </div>
+        </div>
+
+        {/* Secondary */}
+        <div className="mb-4">
+          <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1.5">Secondary Number</p>
+          {secondaryPhone ? (
+            <>
+              <div className="flex items-center gap-2 bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl px-3 py-2.5">
+                <PhoneIcon className="text-[#059669]" />
+                <span className="text-[13px] font-semibold font-mono text-[#0F1117] dark:text-[#F0F2FA] flex-1">{secondaryPhone}</span>
+                <button onClick={handleSwap} disabled={busy} title="Swap primary ↔ secondary"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[#7C3AED] hover:bg-[#F3EEFF] dark:hover:bg-[#2A1F40] hover:border-[#7C3AED] transition disabled:opacity-50">
+                  {busy && busyOp === "swap" ? <Spinner /> : (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+                  )}
+                </button>
+                <button onClick={handleRemove} disabled={busy} title="Remove secondary"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[#DC2626] hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-[#DC2626] transition disabled:opacity-50">
+                  {busy && busyOp === "remove" ? <Spinner /> : (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  )}
+                </button>
+              </div>
+              <div className="mt-2 flex items-start gap-2 bg-[#F3EEFF] dark:bg-[#1E1030] border border-[#DDD6FE] dark:border-[#4C1D95] rounded-xl px-3 py-2">
+                <svg className="w-3.5 h-3.5 text-[#7C3AED] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <p className="text-[11px] text-[#6D28D9] dark:text-[#C4B5FD]">Use ↕ to promote the secondary to primary without losing either number.</p>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2.5 bg-[#F8F9FC] dark:bg-[#13161E] border border-dashed border-[#C4C9D9] dark:border-[#3E4257] rounded-xl px-3 py-2.5">
+              <PhoneIcon className="text-[#C4C9D9] dark:text-[#3E4257]" />
+              <span className="text-[12px] text-[#8B92A9] dark:text-[#565C75] italic">No secondary number added</span>
+            </div>
+          )}
+        </div>
+
+        {/* Add secondary form */}
+        {!secondaryPhone && (
+          <div className="border-t border-[#E4E7EF] dark:border-[#262A38] pt-4">
+            <p className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-2">Add Secondary Number</p>
+            <div className="flex gap-2">
+              <input type="tel" placeholder="e.g. +91 98765 43210" value={newSecondary}
+                onChange={e => { setNewSecondary(e.target.value); setErrorMsg(""); }}
+                onKeyDown={e => { if (e.key === "Enter") handleAdd(); }}
+                className="flex-1 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition" />
+              <button onClick={handleAdd} disabled={!newSecondary.trim() || busy}
+                className="px-4 py-2 rounded-xl bg-[#059669] text-white text-[12px] font-semibold hover:bg-emerald-700 disabled:opacity-50 transition flex items-center gap-1.5">
+                {busy && busyOp === "add" ? <Spinner /> : null} Save
+              </button>
+            </div>
+          </div>
+        )}
+
+        {errorMsg && <p className="mt-2 text-[11px] text-red-500">{errorMsg}</p>}
+
+        {/* Merge offer */}
+        {mergeLead && (
+          <div className="mt-3 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 overflow-hidden">
+            <div className="px-3 py-2 border-b border-amber-200 dark:border-amber-800">
+              <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" /> Number belongs to &quot;{mergeLead.name}&quot;
+              </p>
+            </div>
+            <div className="px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+              <p>Primary: <span className="font-mono">{mergeLead.primaryPhone || mergeLead.mobile}</span></p>
+              {mergeLead.secondaryPhone && <p>Secondary: <span className="font-mono">{mergeLead.secondaryPhone}</span></p>}
+            </div>
+            {(() => {
+              const isAlreadyPrimary = normalizePhone(newSecondary.trim()) === normalizePhone(mergeLead.primaryPhone || mergeLead.mobile || "");
+              if (mergeLead.secondaryPhone && !isAlreadyPrimary) {
+                return <p className="px-3 pb-2 text-[11px] text-red-500">Cannot merge — that lead already has two numbers.</p>;
+              }
+              return (
+                <div className="px-3 pb-3 space-y-2">
+                  {isAlreadyPrimary && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                      This number is the <strong>primary</strong> of &quot;{mergeLead.name}&quot;. Click <strong>Merge Data</strong> to combine records.
+                    </p>
+                  )}
+                  {errorMsg && <p className="text-[11px] text-red-500">{errorMsg}</p>}
+                  <div className="flex gap-2">
+                    <button onClick={() => { setMergeLead(null); setErrorMsg(""); }}
+                      className="flex-1 py-1.5 rounded-lg border border-amber-300 text-[12px] font-semibold text-amber-700 hover:bg-amber-100 transition">Cancel</button>
+                    <button onClick={handleMerge} disabled={merging}
+                      className="flex-1 py-1.5 rounded-lg bg-amber-500 text-white text-[12px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+                      {merging ? "Merging…" : isAlreadyPrimary ? "Merge Data" : "Add as Secondary & Merge"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        <div className="mt-5 pt-4 border-t border-[#E4E7EF] dark:border-[#262A38]">
+          <button onClick={onClose} className="w-full py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── LeadDrawer ────────────────────────────────────────────────────────────────
 // Now accepts `projects` prop and passes it through to UpdateStatusModal.
 function LeadDrawer({ lead, onClose, onUpdate, projects = [] }) {
   const [showUpdate,  setShowUpdate]  = useState(false);
   const [showNIModal, setShowNIModal] = useState(false);
+  const [showEdit,    setShowEdit]    = useState(false);
+  const [showPhone,   setShowPhone]   = useState(false);
   const name  = lead.name || "Unknown";
   const phone = lead.phone || lead.mobile || "—";
   const s = STATUS_CONFIG[lead.status] || STATUS_CONFIG["New"];
@@ -856,6 +1171,16 @@ function LeadDrawer({ lead, onClose, onUpdate, projects = [] }) {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             Update Status / Lead Quality
           </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setShowEdit(true)} className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] hover:border-[#2563EB] hover:text-[#2563EB] transition">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+              Edit Lead
+            </button>
+            <button onClick={() => setShowPhone(true)} className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] text-[13px] font-semibold hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] hover:border-[#059669] hover:text-[#059669] transition">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+              {lead.secondaryPhone ? "Manage Numbers" : "+ 2nd Number"}
+            </button>
+          </div>
           <button onClick={() => setShowNIModal(true)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 text-[13px] font-semibold hover:bg-orange-50 dark:hover:bg-orange-950/30 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
             Mark Not Interested & Reassign
@@ -871,6 +1196,22 @@ function LeadDrawer({ lead, onClose, onUpdate, projects = [] }) {
           onNotInterested={() => { setShowUpdate(false); setShowNIModal(true); }}
           projects={projects}
           onSaved={updated => { onUpdate(updated); setShowUpdate(false); }}
+        />,
+        document.body
+      )}
+      {showEdit && createPortal(
+        <EditLeadModal
+          lead={lead}
+          onClose={() => setShowEdit(false)}
+          onSave={updated => { onUpdate(updated); setShowEdit(false); }}
+        />,
+        document.body
+      )}
+      {showPhone && createPortal(
+        <PhoneNumbersModal
+          lead={lead}
+          onClose={() => setShowPhone(false)}
+          onLeadUpdated={updated => { onUpdate(updated); }}
         />,
         document.body
       )}
@@ -1362,6 +1703,8 @@ function mapLead(l) {
     name:           l.name           || "Unknown",
     phone:          l.mobile         || l.phone || "",
     mobile:         l.mobile         || l.phone || "",
+    primaryPhone:   l.primaryPhone   || l.mobile || l.phone || "",
+    secondaryPhone: l.secondaryPhone || "",
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
     status:         l.status         || "New",
@@ -1393,6 +1736,8 @@ export default function UserDashboard() {
   const [page,          setPage]          = useState(1);
   const [showAddModal,  setShowAddModal]  = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [editLead,      setEditLead]      = useState(null);
+  const [phoneLead,     setPhoneLead]     = useState(null);
   const [activeTab,     setActiveTab]     = useState("leads");
   const [csvImporting,  setCsvImporting]  = useState(false);
   const [csvResult,     setCsvResult]     = useState(null);
@@ -1471,6 +1816,13 @@ export default function UserDashboard() {
 
   const handleUpdate = updated => {
     if (updated._reassigned) { setLeads(prev => prev.filter(l => l.id !== (updated.id || String(updated._id)))); setSelected(null); return; }
+    // Merge: remove the absorbed source lead from the list, update the survivor
+    if (updated._mergedAbsorbedId) {
+      const absorbedId = String(updated._mergedAbsorbedId);
+      setLeads(prev => prev.filter(l => l.id !== absorbedId));
+      if (selected?.id === absorbedId) setSelected(null);
+      if (phoneLead?.id === absorbedId) setPhoneLead(null);
+    }
     const norm = {
       ...updated,
       id: updated.id || String(updated._id),
@@ -1871,9 +2223,12 @@ export default function UserDashboard() {
                                 <button onClick={e => { e.stopPropagation(); setSelected(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition" title="View details">
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
                                 </button>
-                                {/* <button onClick={e => { e.stopPropagation(); setDeleteConfirm(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition" title="Delete lead">
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                </button> */}
+                                <button onClick={e => { e.stopPropagation(); setEditLead(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition" title="Edit lead">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); setPhoneLead(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#059669] hover:border-[#059669] hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition" title={l.secondaryPhone ? "Manage phone numbers" : "Add secondary number"}>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -1949,6 +2304,22 @@ export default function UserDashboard() {
       {/* Pass projects so LeadDrawer → UpdateStatusModal can show project pills */}
       {selected      && <LeadDrawer lead={selected} onClose={() => setSelected(null)} onUpdate={handleUpdate} projects={projects} />}
       {showAddModal  && <AddLeadModal onClose={() => setShowAddModal(false)} onAdd={handleAddLead} />}
+      {editLead && createPortal(
+        <EditLeadModal
+          lead={editLead}
+          onClose={() => setEditLead(null)}
+          onSave={updated => { handleUpdate(updated); setEditLead(null); }}
+        />,
+        document.body
+      )}
+      {phoneLead && createPortal(
+        <PhoneNumbersModal
+          lead={phoneLead}
+          onClose={() => setPhoneLead(null)}
+          onLeadUpdated={updated => { handleUpdate(updated); setPhoneLead({ ...phoneLead, ...updated }); }}
+        />,
+        document.body
+      )}
       {/* {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
