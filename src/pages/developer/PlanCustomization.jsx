@@ -43,6 +43,12 @@ const FEATURE_GROUPS = [
     { key: "ai-summary",         label: "AI Summary",         desc: "AI call summaries" },
     { key: "voice-bot",          label: "Voice Bot",          desc: "Automated voice agent" },
   ]},
+  { group: "Operations", items: [
+    { key: "projects",         label: "Projects",         desc: "Project management board" },
+    { key: "tasks",            label: "Tasks",            desc: "Task assignment & tracking" },
+    { key: "payroll",          label: "Payroll",          desc: "Payroll calculation & history" },
+    { key: "website-tracking", label: "Website Tracking", desc: "Pixel / website lead capture" },
+  ]},
   { group: "Platform & Branding", items: [
     { key: "api-access",      label: "API Access",     desc: "REST API keys" },
     { key: "webhook-access",  label: "Webhook Access", desc: "Per-tenant webhooks" },
@@ -86,6 +92,7 @@ const DEFAULT_PLANS = {
       "sms-blast", "whatsapp-blast", "email-blast", "campaigns",
       "google-ads", "meta-ads", "call-recording", "api-access",
       "call-transcription", "ai-summary", "whatsapp-automation", "webhook-access",
+      "projects", "tasks", "website-tracking",
     ],
   },
   enterprise: {
