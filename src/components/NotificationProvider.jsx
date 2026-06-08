@@ -13,6 +13,17 @@
  * Usage:
  *   1. Wrap AppLayout (or AppInner) with <NotificationProvider>
  *   2. Place <NotificationBell /> inside CompanyHeader
+ *
+ * FIXES APPLIED:
+ *   1. no_action_alert     — changed id from `noa-${Date.now()}` to `noa-${threshold}`
+ *                            and added upsert logic (same as follow_up_alert).
+ *                            Stops the same alert spamming every 15-min cron tick.
+ *   2. daysLeft → daysRemaining — API returns `daysRemaining`, frontend was reading
+ *                            `daysLeft` (always undefined). Fixed everywhere.
+ *   3. lead_reassigned_notify — changed id from `reassign-${Date.now()}` to
+ *                            `reassign-${leadId}` to prevent duplicates per lead.
+ *   4. panelRef placement  — moved ref from outer wrapper to the dropdown panel only,
+ *                            so click-outside doesn't fight with the toggle button.
  */
 
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
@@ -51,34 +62,33 @@ function timeLabel(iso) {
 }
 
 // ── Normalize role ────────────────────────────────────────────────────────────
-// Backend Admin model stores: "super_admin" | "admin"
-// adminAuthController.js login response sends admin.role directly.
-// This helper handles any casing/spacing variant defensively.
 function normalizeRole(raw) {
   if (!raw) return '';
   const s = String(raw).toLowerCase().trim();
-  // "super_admin", "superadmin", "super admin" → canonical "super_admin"
   if (s === 'super_admin' || s === 'superadmin' || s === 'super admin') return 'super_admin';
   if (s === 'admin') return 'admin';
   return s;
 }
 
 // ── Resolve companyId from localStorage user object ───────────────────────────
-// Login response shape (adminAuthController.js):
-//   { _id, name, email, company: admin.company._id, role, token, plan }
-// So user.company is a plain ObjectId string.
-// Defensively also handles user.companyId and populated user.company._id.
 function resolveCompanyId(user) {
   if (!user) return '';
-  // Explicit companyId field (some older login responses)
   if (user.companyId && typeof user.companyId === 'string') return user.companyId;
   if (user.company) {
-    // Plain ObjectId string — the normal case from adminAuthController loginAdmin
     if (typeof user.company === 'string') return user.company;
-    // Populated object (e.g. from register response which returns admin.company before _id is extracted)
     if (typeof user.company === 'object' && user.company._id) return String(user.company._id);
   }
   return '';
+}
+
+// ── Upsert helper — replaces existing notification by id or prepends new ──────
+function upsertNotification(prev, notif, setUnreadCount) {
+  const exists = prev.some(n => n.id === notif.id);
+  if (exists) {
+    return prev.map(n => n.id === notif.id ? notif : n);
+  }
+  setUnreadCount(c => c + 1);
+  return [notif, ...prev].slice(0, MAX_NOTIFS);
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -92,13 +102,11 @@ export function NotificationProvider({ children }) {
   });
 
   useEffect(() => {
-    // Cross-tab: fires when another tab writes to localStorage
     const onStorage = (e) => {
       if (e.key === 'user') {
         try { setUser(JSON.parse(e.newValue)); } catch { setUser(null); }
       }
     };
-    // Same-tab: fires after login/logout in the SAME tab (window.storage doesn't fire same-tab)
     const onUserChanged = () => {
       try { setUser(JSON.parse(localStorage.getItem('user'))); } catch { setUser(null); }
     };
@@ -110,6 +118,7 @@ export function NotificationProvider({ children }) {
     };
   }, []);
 
+  // addNotification — used for events that are always unique (not upserted)
   const addNotification = useCallback((notif) => {
     setNotifications(prev => [notif, ...prev].slice(0, MAX_NOTIFS));
     setUnreadCount(c => c + 1);
@@ -130,7 +139,6 @@ export function NotificationProvider({ children }) {
     const displayName  = user.name || 'Admin';
     const isSuperAdmin = role === 'super_admin';
 
-    // Only admin and super_admin get notifications
     if (role !== 'admin' && role !== 'super_admin') {
       console.debug('[NotificationProvider] skipping — role not eligible:', role, '(raw:', user?.role, ')');
       return;
@@ -157,8 +165,8 @@ export function NotificationProvider({ children }) {
     }
 
     // ── SuperAdmin: Fetch expiring subscriptions on mount ─────────────────────
-    // Pulls the next 30 days of expiring companies from the REST endpoint so the
-    // bell is pre-populated right after login, before the cron fires.
+    // FIX #2: API returns `daysRemaining`, not `daysLeft`. All filter/display
+    // references updated from c.daysLeft → c.daysRemaining.
     if (isSuperAdmin) {
       const token = user.token || localStorage.getItem('token');
       fetch(`${API_BASE}/superadmin/expiring-subscriptions?days=30`, {
@@ -171,12 +179,12 @@ export function NotificationProvider({ children }) {
         .then(data => {
           if (!data?.companies?.length) return;
 
-          // Group by urgency for a single digest notification
-          const critical = data.companies.filter(c => c.daysLeft <= 1);
-          const warning  = data.companies.filter(c => c.daysLeft > 1 && c.daysLeft <= 3);
-          const notice   = data.companies.filter(c => c.daysLeft > 3);
+          // FIX #2: was c.daysLeft — API sends c.daysRemaining
+          const critical = data.companies.filter(c => c.daysRemaining <= 1);
+          const warning  = data.companies.filter(c => c.daysRemaining > 1 && c.daysRemaining <= 3);
+          const notice   = data.companies.filter(c => c.daysRemaining > 3);
 
-          const total = data.total;
+          const total = data.companies.length;
           const mostUrgent = critical.length > 0 ? 'critical'
                            : warning.length  > 0 ? 'warning'
                            : 'notice';
@@ -184,14 +192,13 @@ export function NotificationProvider({ children }) {
           const emoji   = mostUrgent === 'critical' ? '🚨' : mostUrgent === 'warning' ? '⚠️' : '📋';
           const urgency = mostUrgent === 'critical' || mostUrgent === 'warning';
 
-          // Build one summary notification + one per critical company
           addNotification({
             id:        'sub-expiry-digest',
             type:      'subscription_expiry',
             title:     `${emoji} ${total} Subscription${total > 1 ? 's' : ''} Expiring Soon`,
             body:      critical.length
               ? `${critical.length} plan${critical.length > 1 ? 's' : ''} expire today/tomorrow. Immediate action needed.`
-              : `${total} subscription${total > 1 ? 's' : ''} expiring within 7 days.`,
+              : `${total} subscription${total > 1 ? 's' : ''} expiring within 30 days.`,
             companies: data.companies,
             critical:  critical.length,
             warning:   warning.length,
@@ -200,7 +207,7 @@ export function NotificationProvider({ children }) {
             urgent:    urgency,
           });
 
-          // Also fire individual notifications for critical (≤1 day) companies
+          // Individual notifications for critical (≤1 day) companies
           critical.forEach(c => {
             addNotification({
               id:        `sub-critical-${c._id}`,
@@ -221,20 +228,6 @@ export function NotificationProvider({ children }) {
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
 
-    // ── Join the correct room(s) ──────────────────────────────────────────────
-    //
-    // Backend socketHandler.js room mapping:
-    //   admin_join       → joins  admin:${adminId}
-    //                      receives: no_action_alert, follow_up_alert,
-    //                                pushPendingFollowUps on connect
-    //                      SCOPED: only leads where assignedAdmin === this admin
-    //
-    //   super_admin_join → joins  superadmin:${adminId}
-    //                      receives: lead_reassigned_notify only
-    //                      does NOT receive follow-up / no-action alerts
-    //
-    // admin role:       emits admin_join only
-    // super_admin role: emits super_admin_join only (no follow-up alerts for them)
     const doJoin = () => {
       if (isSuperAdmin) {
         console.debug('[NotificationProvider] emitting super_admin_join');
@@ -257,14 +250,17 @@ export function NotificationProvider({ children }) {
     });
 
     // ── no_action_alert ───────────────────────────────────────────────────────
-    // Emitted to room admin:${adminId} and superadmin:${adminId} by fcmService.sendNoActionAlert
+    // FIX #1: was `noa-${Date.now()}` — unique every call → stacked duplicates
+    // every 15-min cron tick.  Now uses stable `noa-${threshold}` + upsert so
+    // repeated firings for the same threshold update in place, not stack.
     socket.on('no_action_alert', ({ count, threshold, leads, timestamp }) => {
       const thresholdLabel =
         threshold === '1h' ? '1 hour' :
-        threshold === '2h' ? '2 hours' : '24 hours';
-      const urgency = threshold === '2h' ? '🚨' : '⚠️';
-      addNotification({
-        id:        `noa-${Date.now()}`,
+        threshold === '2h' ? '2 hours' :
+        threshold === '3h' ? '3 hours' : '24 hours';
+      const urgency = (threshold === '2h' || threshold === '3h') ? '🚨' : '⚠️';
+      const notif = {
+        id:        `noa-${threshold}`,   // FIX: stable id per threshold
         type:      'no_action',
         title:     `${urgency} ${count} Lead${count > 1 ? 's' : ''} — No Action`,
         body:      count === 1
@@ -273,14 +269,17 @@ export function NotificationProvider({ children }) {
         leads:     leads || [],
         threshold,
         timestamp: timestamp || new Date().toISOString(),
-        urgent:    threshold === '2h',
-      });
+        urgent:    threshold === '2h' || threshold === '3h',
+      };
+      // Upsert — same pattern as follow_up_alert
+      setNotifications(prev => upsertNotification(prev, notif, setUnreadCount));
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
+      }
     });
 
     // ── follow_up_alert ───────────────────────────────────────────────────────
-    // Emitted to room admin:${adminId} and superadmin:${adminId} by fcmService.sendFollowUpAlert
-    // Also pushed immediately on connect by socketHandler.pushPendingFollowUps
-    // Upserts by stable id so reconnects don't stack duplicate notifications.
+    // Already correct: uses stable id `fu-${type}` + upsert. Unchanged.
     socket.on('follow_up_alert', ({ type, count, leads, timestamp }) => {
       const isOverdue = type === 'overdue';
       const notif = {
@@ -297,24 +296,18 @@ export function NotificationProvider({ children }) {
         timestamp: timestamp || new Date().toISOString(),
         urgent:    isOverdue,
       };
-      setNotifications(prev => {
-        const exists = prev.some(n => n.id === notif.id);
-        if (exists) {
-          return prev.map(n => n.id === notif.id ? notif : n);
-        }
-        setUnreadCount(c => c + 1);
-        return [notif, ...prev].slice(0, MAX_NOTIFS);
-      });
+      setNotifications(prev => upsertNotification(prev, notif, setUnreadCount));
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
       }
     });
 
     // ── lead_reassigned_notify ────────────────────────────────────────────────
-    // Emitted to room superadmin:${superAdmin._id} by fcmService.notifySuperAdminReassignment
+    // FIX #3: was `reassign-${Date.now()}` — duplicated on reconnect.
+    // Now uses `reassign-${leadId}` so same lead doesn't stack multiple entries.
     socket.on('lead_reassigned_notify', ({ leadId, leadName, fromAdminName, toUserName, reason, timestamp }) => {
-      addNotification({
-        id:           `reassign-${Date.now()}`,
+      const notif = {
+        id:           `reassign-${leadId}`,   // FIX: stable id per lead
         type:         'reassignment',
         title:        '🔄 Lead Reassigned',
         body:         `"${leadName}" moved from ${fromAdminName} → ${toUserName}${reason ? ` — ${reason}` : ''}`,
@@ -325,7 +318,11 @@ export function NotificationProvider({ children }) {
         reason:       reason || '',
         timestamp:    timestamp || new Date().toISOString(),
         urgent:       false,
-      });
+      };
+      setNotifications(prev => upsertNotification(prev, notif, setUnreadCount));
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
+      }
     });
 
     // ── subscription_expiry_alert ─────────────────────────────────────────────
@@ -338,14 +335,13 @@ export function NotificationProvider({ children }) {
         const emoji   = critical > 0 ? '🚨' : warning > 0 ? '⚠️' : '📋';
         const urgency = critical > 0 || warning > 0;
 
-        // Upsert the digest notification (replaces the REST-fetched one if present)
         const notif = {
           id:        'sub-expiry-digest',
           type:      'subscription_expiry',
           title:     `${emoji} ${totalExpiring} Subscription${totalExpiring > 1 ? 's' : ''} Expiring Soon`,
           body:      critical > 0
             ? `${critical} plan${critical > 1 ? 's' : ''} expire today/tomorrow. Immediate action needed.`
-            : `${totalExpiring} subscription${totalExpiring > 1 ? 's' : ''} expiring within 7 days.`,
+            : `${totalExpiring} subscription${totalExpiring > 1 ? 's' : ''} expiring within 30 days.`,
           companies: companies || [],
           critical,
           warning,
@@ -354,12 +350,7 @@ export function NotificationProvider({ children }) {
           urgent:    urgency,
         };
 
-        setNotifications(prev => {
-          const exists = prev.some(n => n.id === notif.id);
-          if (exists) return prev.map(n => n.id === notif.id ? notif : n);
-          setUnreadCount(c => c + 1);
-          return [notif, ...prev].slice(0, MAX_NOTIFS);
-        });
+        setNotifications(prev => upsertNotification(prev, notif, setUnreadCount));
 
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
@@ -394,12 +385,22 @@ function BellIcon({ className = 'w-5 h-5' }) {
 export function NotificationBell() {
   const ctx = useNotifications();
   const [open, setOpen] = useState(false);
+  // FIX #4: panelRef is now on the dropdown div only (not the outer wrapper).
+  // Previously the ref wrapped the button too, causing the click-outside handler
+  // to fight with the toggle — clicking the button to close would reopen instantly.
   const panelRef = useRef(null);
+  const buttonRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) setOpen(false);
+      // Close if clicked outside both the panel AND the button
+      if (
+        panelRef.current && !panelRef.current.contains(e.target) &&
+        buttonRef.current && !buttonRef.current.contains(e.target)
+      ) {
+        setOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -414,8 +415,9 @@ export function NotificationBell() {
   };
 
   return (
-    <div className="relative" ref={panelRef}>
+    <div className="relative">
       <button
+        ref={buttonRef}
         onClick={handleOpen}
         className="relative w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1A1D27] text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 transition"
         title="Notifications"
@@ -430,6 +432,7 @@ export function NotificationBell() {
 
       {open && (
         <div
+          ref={panelRef}
           className="absolute right-0 top-11 z-[300] w-80 bg-white dark:bg-[#1A1D27] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden"
           style={{ maxHeight: '480px' }}
         >
@@ -483,7 +486,6 @@ function NotificationItem({ notif }) {
     notif.type === 'follow_up'                                  ? 'bg-yellow-400' :
                                                                   'bg-amber-500';
 
-  // For subscription expiry: show company chips instead of lead chips
   const showCompanies = notif.type === 'subscription_expiry' && notif.companies?.length > 0;
   const showLeads     = !showCompanies && notif.leads?.length > 0;
 
@@ -500,16 +502,18 @@ function NotificationItem({ notif }) {
           </p>
 
           {/* Subscription expiry: show company chips */}
+          {/* FIX #2: was c.daysLeft — API sends c.daysRemaining */}
           {showCompanies && (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {notif.companies.slice(0, 3).map((c, i) => {
+                const days = c.daysRemaining ?? c.daysLeft ?? 99;
                 const chipColor =
-                  (c.daysLeft ?? 99) <= 1 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                  : (c.daysLeft ?? 99) <= 3 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                  days <= 1 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                  : days <= 3 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
                   : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400';
                 return (
                   <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${chipColor}`}>
-                    {c.name}{c.daysLeft != null ? ` · ${c.daysLeft}d` : ''}
+                    {c.name}{days !== 99 ? ` · ${days}d` : ''}
                   </span>
                 );
               })}
