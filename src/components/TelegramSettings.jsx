@@ -1,14 +1,17 @@
 // src/components/TelegramSettings.jsx
 // ─────────────────────────────────────────────────────────────────────────────
-// Company-level Telegram settings as an icon button + popover.
-// Shown in the Admin/SuperAdmin Dashboard header.
+// Company-level Telegram notification settings (campaign leads only).
+// Shown in the Admin/SuperAdmin Dashboard header as an icon button + popover.
 //
-// A green dot on the icon = admin chat ID is already configured.
+// Backend API (now implemented):
+//   GET  /admin/company/telegram      → { telegramEnabled, telegramChatId, hasToken }
+//   PUT  /admin/company/telegram      → { telegramBotToken?, telegramChatId, telegramEnabled }
+//   POST /admin/company/telegram/test → sends a test message
 //
-// Backend expected:
-//   GET  /admin/company/telegram      → { telegramAdminChatId }
-//   PUT  /admin/company/telegram      → { telegramBotToken?, telegramAdminChatId }
-//   POST /admin/company/telegram/test → sends a test message to adminChatId
+// Field name fixes vs old version:
+//   OLD: telegramAdminChatId  →  NEW: telegramChatId   (matches backend schema)
+//   NEW: telegramEnabled toggle added (master on/off switch)
+//   NEW: hasToken flag — backend never returns the actual token; UI shows ✓ if set
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react";
@@ -20,53 +23,97 @@ const TelegramIcon = ({ className }) => (
   </svg>
 );
 
+const Spinner = ({ className = "w-3.5 h-3.5" }) => (
+  <svg className={`${className} animate-spin`} fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+  </svg>
+);
+
+// Campaign sources that trigger notifications — mirrors telegramService.js
+const CAMPAIGN_SOURCES = ["Meta (Facebook/Instagram)", "Google Ads", "Website/Landing Page"];
+
 export default function TelegramSettings() {
-  const [open,       setOpen]      = useState(false);
-  const [chatId,     setChatId]    = useState("");
-  const [draftChat,  setDraftChat] = useState("");
-  const [draftToken, setDraftToken]= useState("");
-  const [showToken,  setShowToken] = useState(false);
-  const [saving,     setSaving]    = useState(false);
-  const [testing,    setTesting]   = useState(false);
-  const [msg,        setMsg]       = useState({ type: "", text: "" });
+  // ── State ─────────────────────────────────────────────────────────────────
+  const [open,        setOpen]       = useState(false);
+  const [loading,     setLoading]    = useState(true);
+
+  // Saved (server) values
+  const [chatId,      setChatId]     = useState("");
+  const [hasToken,    setHasToken]   = useState(false);
+  const [enabled,     setEnabled]    = useState(false);
+
+  // Draft (form) values
+  const [draftChat,   setDraftChat]  = useState("");
+  const [draftToken,  setDraftToken] = useState("");
+  const [draftEnabled,setDraftEnabled] = useState(false);
+
+  const [showToken,   setShowToken]  = useState(false);
+  const [saving,      setSaving]     = useState(false);
+  const [testing,     setTesting]    = useState(false);
+  const [msg,         setMsg]        = useState({ type: "", text: "" });
 
   const popoverRef = useRef(null);
   const inputRef   = useRef(null);
 
+  // ── Load config on mount ──────────────────────────────────────────────────
   useEffect(() => {
+    setLoading(true);
     api.get("/admin/company/telegram")
       .then((res) => {
-        const id = res.data?.telegramAdminChatId || "";
-        setChatId(id);
-        setDraftChat(id);
+        const d = res.data || {};
+        const id  = d.telegramChatId  || "";
+        const tok = d.hasToken        || false;
+        const en  = d.telegramEnabled || false;
+        setChatId(id);    setDraftChat(id);
+        setHasToken(tok);
+        setEnabled(en);   setDraftEnabled(en);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  // Close on outside click / Escape
+  // ── Close on outside click / Escape ──────────────────────────────────────
   useEffect(() => {
     if (!open) return;
-    const onClick  = (e) => { if (popoverRef.current && !popoverRef.current.contains(e.target)) setOpen(false); };
-    const onKey    = (e) => { if (e.key === "Escape") setOpen(false); };
+    const onClick = (e) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", onClick);
     document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onClick); document.removeEventListener("keydown", onKey); };
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
-  useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 80); }, [open]);
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 80);
+  }, [open]);
 
+  // ── Flash feedback ────────────────────────────────────────────────────────
   const flash = (type, text) => {
     setMsg({ type, text });
     if (type === "ok") setTimeout(() => setMsg({ type: "", text: "" }), 3500);
   };
 
+  // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = async () => {
+    if (!draftChat.trim() && !draftToken.trim() && draftEnabled === enabled) return;
     setSaving(true);
     try {
-      const payload = { telegramAdminChatId: draftChat.trim() };
+      const payload = {
+        telegramChatId:  draftChat.trim(),
+        telegramEnabled: draftEnabled,
+      };
       if (draftToken.trim()) payload.telegramBotToken = draftToken.trim();
+
       await api.put("/admin/company/telegram", payload);
+
       setChatId(draftChat.trim());
+      setEnabled(draftEnabled);
+      if (draftToken.trim()) setHasToken(true);
       setDraftToken("");
       flash("ok", "✓ Saved!");
     } catch (e) {
@@ -76,22 +123,25 @@ export default function TelegramSettings() {
     }
   };
 
+  // ── Test ──────────────────────────────────────────────────────────────────
   const handleTest = async () => {
     setTesting(true);
     try {
       await api.post("/admin/company/telegram/test");
-      flash("ok", "✓ Test sent! Check Telegram.");
+      flash("ok", "✓ Test sent! Check your Telegram group.");
     } catch (e) {
-      flash("err", "Test failed — check token & chat ID.");
+      flash("err", e.response?.data?.message || "Test failed — check token & chat ID.");
     } finally {
       setTesting(false);
     }
   };
 
-  const isConfigured = !!chatId;
+  const isConfigured = !!chatId && hasToken;
+  const hasChanges   = draftChat !== chatId || draftToken.trim() !== "" || draftEnabled !== enabled;
 
   return (
     <div className="relative" ref={popoverRef}>
+
       {/* ── Trigger icon ── */}
       <button
         onClick={() => setOpen((v) => !v)}
@@ -103,15 +153,18 @@ export default function TelegramSettings() {
           }`}
       >
         <TelegramIcon className="w-4 h-4" />
+        {/* Status dot: green = configured & enabled, amber = configured but disabled */}
         {isConfigured && (
-          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border-2 border-white dark:border-[#1A1D27]" />
+          <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border-2 border-white dark:border-[#1A1D27]
+            ${enabled ? "bg-emerald-500" : "bg-amber-400"}`}
+          />
         )}
       </button>
 
       {/* ── Popover ── */}
       {open && (
         <div
-          className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-[#1A1D27]
+          className="absolute top-full right-0 mt-2 w-[340px] bg-white dark:bg-[#1A1D27]
             border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-xl z-50 overflow-hidden"
           style={{ animation: "tgSlide 0.15s ease both" }}
         >
@@ -124,16 +177,16 @@ export default function TelegramSettings() {
 
           {/* Header */}
           <div className="flex items-center gap-2.5 px-4 pt-4 pb-3 border-b border-[#F3F4F6] dark:border-[#262A38]">
-            <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-500/10 flex items-center justify-center shrink-0">
-              <TelegramIcon className="w-3.5 h-3.5 text-sky-500" />
+            <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-500/10 flex items-center justify-center shrink-0">
+              <TelegramIcon className="w-4 h-4 text-sky-500" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Telegram Notifications</p>
-              <p className="text-[10px] text-[#8B92A9]">Company-wide lead alerts</p>
+              <p className="text-[10px] text-[#8B92A9]">Campaign leads only · company-isolated</p>
             </div>
             <button
               onClick={() => setOpen(false)}
-              className="w-5 h-5 flex items-center justify-center rounded-lg text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#262A38] transition"
+              className="w-6 h-6 flex items-center justify-center rounded-lg text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#262A38] transition"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
@@ -141,103 +194,173 @@ export default function TelegramSettings() {
             </button>
           </div>
 
-          <div className="px-4 py-3 space-y-3">
-            {/* Setup hint */}
-            <div className="px-2.5 py-2 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-800/30">
-              <p className="text-[10px] text-sky-700 dark:text-sky-300 leading-relaxed">
-                Create a bot via <span className="font-mono font-bold">@BotFather</span>, add it to your group, then get the chat ID via <span className="font-mono font-bold">@userinfobot</span>.
-              </p>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner className="w-5 h-5 text-[#8B92A9]" />
             </div>
+          ) : (
+            <div className="px-4 py-3 space-y-3">
 
-            {/* Bot Token */}
-            <div>
-              <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
-                Bot Token
-                <span className="ml-1 text-[10px] font-normal text-[#8B92A9]">(leave blank to keep existing)</span>
-              </label>
-              <div className="relative">
+              {/* ── Campaign sources info ── */}
+              <div className="px-3 py-2.5 rounded-xl bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-800/30">
+                <p className="text-[10px] font-semibold text-sky-700 dark:text-sky-300 mb-1">
+                  Notifies for campaign leads only:
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {CAMPAIGN_SOURCES.map(s => (
+                    <span key={s} className="text-[9px] px-1.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-300 font-medium">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-[10px] text-sky-600 dark:text-sky-400 mt-1.5">
+                  Manual entries, CSV imports, bulk uploads — never notified.
+                </p>
+              </div>
+
+              {/* ── Enable / disable toggle ── */}
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
+                <div>
+                  <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Enable notifications</p>
+                  <p className="text-[10px] text-[#8B92A9]">
+                    {draftEnabled ? "Active — campaign leads will be sent" : "Paused — no notifications sent"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDraftEnabled(v => !v)}
+                  className={`relative w-10 h-5.5 rounded-full transition-colors duration-200 focus:outline-none shrink-0
+                    ${draftEnabled ? "bg-emerald-500" : "bg-[#D1D5DB] dark:bg-[#3E4257]"}`}
+                  style={{ height: "22px", width: "40px" }}
+                >
+                  <span
+                    className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200"
+                    style={{ transform: draftEnabled ? "translateX(18px)" : "translateX(0)" }}
+                  />
+                </button>
+              </div>
+
+              {/* ── Bot Token ── */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
+                  Bot Token
+                  {hasToken
+                    ? <span className="ml-1.5 text-[10px] font-normal text-emerald-500">● set — leave blank to keep</span>
+                    : <span className="ml-1.5 text-[10px] font-normal text-amber-500">● not set</span>
+                  }
+                </label>
+                <div className="relative">
+                  <input
+                    ref={inputRef}
+                    type={showToken ? "text" : "password"}
+                    value={draftToken}
+                    onChange={(e) => setDraftToken(e.target.value)}
+                    placeholder={hasToken ? "Enter new token to replace…" : "7123456789:AAHxxxxxxxx"}
+                    className="w-full px-3 py-2 pr-8 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
+                      bg-[#F8F9FC] dark:bg-[#13161E] text-[11px] text-[#0F1117] dark:text-[#F0F2FA]
+                      placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] font-mono transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowToken(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#2563EB] transition"
+                  >
+                    {showToken
+                      ? <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.477 0-8.268-2.943-9.542-7a9.97 9.97 0 012.126-3.343M9.88 9.88a3 3 0 104.243 4.243M6.343 6.343A9.956 9.956 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.973 9.973 0 01-4.21 5.152M3 3l18 18"/></svg>
+                      : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    }
+                  </button>
+                </div>
+                <p className="text-[10px] text-[#8B92A9] mt-1">
+                  Create a bot via <span className="font-mono font-semibold">@BotFather</span> → copy the token
+                </p>
+              </div>
+
+              {/* ── Chat ID ── */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
+                  Group Chat ID
+                  {chatId && <span className="ml-1.5 text-[10px] font-normal text-emerald-500">● connected</span>}
+                </label>
                 <input
-                  ref={inputRef}
-                  type={showToken ? "text" : "password"}
-                  value={draftToken}
-                  onChange={(e) => setDraftToken(e.target.value)}
-                  placeholder="7123456789:AAHxxxxxxxx"
-                  className="w-full px-3 py-2 pr-8 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
+                  type="text"
+                  value={draftChat}
+                  onChange={(e) => setDraftChat(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
+                  placeholder="-1001234567890"
+                  className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
                     bg-[#F8F9FC] dark:bg-[#13161E] text-[11px] text-[#0F1117] dark:text-[#F0F2FA]
                     placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] font-mono transition"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowToken(v => !v)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#2563EB] transition"
+                <p className="text-[10px] text-[#8B92A9] mt-1">
+                  Add bot to your group → use <span className="font-mono font-semibold">@userinfobot</span> to get the ID (negative number)
+                </p>
+              </div>
+
+              {/* ── Feedback ── */}
+              {msg.text && (
+                <div className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[11px] font-medium
+                  ${msg.type === "ok"
+                    ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                    : "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800"
+                  }`}
                 >
-                  {showToken
-                    ? <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.477 0-8.268-2.943-9.542-7a9.97 9.97 0 012.126-3.343M9.88 9.88a3 3 0 104.243 4.243M6.343 6.343A9.956 9.956 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.973 9.973 0 01-4.21 5.152M3 3l18 18"/></svg>
-                    : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                  {msg.type === "ok"
+                    ? <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    : <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                   }
+                  {msg.text}
+                </div>
+              )}
+
+              {/* ── Actions ── */}
+              <div className="flex gap-2 pt-0.5">
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !hasChanges}
+                  className="flex-1 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50
+                    text-white text-[12px] font-semibold transition flex items-center justify-center gap-1.5"
+                >
+                  {saving ? <Spinner /> : (
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                  )}
+                  {saving ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={handleTest}
+                  disabled={testing || !isConfigured}
+                  title={!isConfigured ? "Save bot token and chat ID first" : "Send a test message to the group"}
+                  className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
+                    text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]
+                    hover:border-sky-400 hover:text-sky-600 dark:hover:text-sky-400
+                    disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1.5"
+                >
+                  {testing ? <Spinner className="w-3 h-3" /> : (
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                    </svg>
+                  )}
+                  Test
                 </button>
               </div>
-            </div>
 
-            {/* Admin Chat ID */}
-            <div>
-              <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
-                Admin Chat ID
-                {isConfigured && (
-                  <span className="ml-1.5 text-[10px] font-normal text-emerald-500">● connected</span>
-                )}
-              </label>
-              <input
-                type="text"
-                value={draftChat}
-                onChange={(e) => setDraftChat(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-                placeholder="-1001234567890"
-                className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
-                  bg-[#F8F9FC] dark:bg-[#13161E] text-[11px] text-[#0F1117] dark:text-[#F0F2FA]
-                  placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] font-mono transition"
-              />
-              <p className="text-[10px] text-[#8B92A9] mt-1">Group ID (negative) or personal chat ID</p>
-            </div>
-
-            {/* Feedback */}
-            {msg.text && (
-              <p className={`text-[11px] font-medium ${msg.type === "ok" ? "text-emerald-500" : "text-red-500"}`}>
-                {msg.text}
+              {/* ── Setup guide link ── */}
+              <p className="text-[10px] text-[#8B92A9] text-center pb-0.5">
+                Need help?{" "}
+                <a
+                  href="https://core.telegram.org/bots#how-do-i-create-a-bot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sky-500 hover:underline"
+                >
+                  Telegram Bot setup guide ↗
+                </a>
               </p>
-            )}
 
-            {/* Actions */}
-            <div className="flex gap-2 pt-0.5">
-              <button
-                onClick={handleSave}
-                disabled={saving || (!draftChat.trim() && !draftToken.trim())}
-                className="flex-1 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50
-                  text-white text-[12px] font-semibold transition flex items-center justify-center gap-1.5"
-              >
-                {saving
-                  ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                  : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
-                }
-                {saving ? "Saving…" : "Save"}
-              </button>
-              <button
-                onClick={handleTest}
-                disabled={testing || !chatId}
-                title={!chatId ? "Save a Chat ID first" : "Send a test message"}
-                className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
-                  text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]
-                  hover:border-sky-400 hover:text-sky-600 dark:hover:text-sky-400
-                  disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
-              >
-                {testing
-                  ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                  : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-                }
-                Test
-              </button>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
