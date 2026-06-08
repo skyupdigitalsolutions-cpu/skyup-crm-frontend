@@ -118,6 +118,18 @@ function IntegrationsModal({ onClose }) {
   const [brevoOk, setBrevoOk]               = useState("");
   const [brevoDisc, setBrevoDisc]           = useState(false);
 
+  // ── MSG91 Email state ──────────────────────────────────────────────────────
+  const [m91Email, setM91Email]                   = useState(null);
+  const [m91EmailKey, setM91EmailKey]             = useState("");
+  const [m91EmailDomain, setM91EmailDomain]       = useState("");
+  const [m91EmailSender, setM91EmailSender]       = useState("");
+  const [m91EmailName, setM91EmailName]           = useState("");
+  const [m91EmailShow, setM91EmailShow]           = useState(false);
+  const [m91EmailSaving, setM91EmailSaving]       = useState(false);
+  const [m91EmailErr, setM91EmailErr]             = useState("");
+  const [m91EmailOk, setM91EmailOk]               = useState("");
+  const [m91EmailDisc, setM91EmailDisc]           = useState(false);
+
   // ── Load configs on mount ──────────────────────────────────────────────────
   useEffect(() => {
     api.get("/admin/company/msg91-config").then(r => {
@@ -133,6 +145,14 @@ function IntegrationsModal({ onClose }) {
       setBrevoEmail(r.data?.senderEmail || "");
       setBrevoName(r.data?.senderName || "");
     }).catch(() => setBrevo({}));
+
+    api.get("/admin/company/msg91-email-config").then(r => {
+      setM91Email(r.data || {});
+      setM91EmailKey(r.data?.connected ? "••••••••••••••••" : "");
+      setM91EmailDomain(r.data?.domain || "");
+      setM91EmailSender(r.data?.senderEmail || "");
+      setM91EmailName(r.data?.senderName || "");
+    }).catch(() => setM91Email({}));
   }, []);
 
   // ── Save MSG91 ─────────────────────────────────────────────────────────────
@@ -183,15 +203,46 @@ function IntegrationsModal({ onClose }) {
     finally { setBrevoDisc(false); }
   };
 
-  const msg91Connected = msg91?.connected === true;
-  const brevoConnected = brevo?.connected === true;
+  // ── Save MSG91 Email ───────────────────────────────────────────────────────
+  const saveM91Email = async () => {
+    if (!m91EmailKey.trim() || m91EmailKey === "••••••••••••••••") { setM91EmailErr("Enter your MSG91 Auth Key"); return; }
+    if (!m91EmailDomain.trim()) { setM91EmailErr("Enter your verified sending domain"); return; }
+    if (!m91EmailSender.trim()) { setM91EmailErr("Enter the sender email address"); return; }
+    setM91EmailSaving(true); setM91EmailErr(""); setM91EmailOk("");
+    try {
+      const r = await api.put("/admin/company/msg91-email-config", {
+        apiKey: m91EmailKey.trim(),
+        domain: m91EmailDomain.trim(),
+        senderEmail: m91EmailSender.trim(),
+        senderName: m91EmailName.trim() || "CRM",
+      });
+      setM91Email(r.data); setM91EmailKey("••••••••••••••••");
+      setM91EmailOk("✓ MSG91 Email connected! Email blasts will now use MSG91 (up to 5,000/day), then fallback to Brevo.");
+      setTimeout(() => setM91EmailOk(""), 5000);
+    } catch (e) { setM91EmailErr(e.response?.data?.message || "Failed to save MSG91 Email config"); }
+    finally { setM91EmailSaving(false); }
+  };
+
+  const disconnectM91Email = async () => {
+    if (!window.confirm("Disconnect MSG91 Email? Email blasts will fall back to Brevo only.")) return;
+    setM91EmailDisc(true);
+    try { await api.delete("/admin/company/msg91-email-config"); setM91Email({}); setM91EmailKey(""); setM91EmailDomain(""); setM91EmailSender(""); setM91EmailName(""); }
+    catch { setM91EmailErr("Failed to disconnect MSG91 Email"); }
+    finally { setM91EmailDisc(false); }
+  };
+
+  const msg91Connected  = msg91?.connected === true;
+  const brevoConnected  = brevo?.connected === true;
+  const m91EmailConnected = m91Email?.connected === true;
 
   const TABS = [
-    { key: "whatsapp", label: "WhatsApp", color: "#25D366", connected: msg91Connected,
+    { key: "whatsapp",   label: "WhatsApp",  color: "#25D366", connected: msg91Connected,
       icon: <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/> },
-    { key: "sms",      label: "SMS",      color: "#EA580C", connected: msg91Connected,
+    { key: "sms",        label: "SMS",       color: "#EA580C", connected: msg91Connected,
       icon: <path strokeLinecap="round" strokeLinejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/> },
-    { key: "email",    label: "Email",    color: "#7C3AED", connected: brevoConnected,
+    { key: "msg91email", label: "MSG91 Email", color: "#0284C7", connected: m91EmailConnected,
+      icon: <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/> },
+    { key: "email",      label: "Brevo",     color: "#7C3AED", connected: brevoConnected,
       icon: <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/> },
   ];
 
@@ -257,6 +308,11 @@ function IntegrationsModal({ onClose }) {
               <button onClick={disconnectBrevo} disabled={brevoDisc}
                 className="ml-auto px-3 py-1 rounded-lg border border-red-200 dark:border-red-800 text-[11px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-50 shrink-0">
                 {brevoDisc ? "…" : "Disconnect"}
+              </button>
+            ) : activeTab === "msg91email" ? (
+              <button onClick={disconnectM91Email} disabled={m91EmailDisc}
+                className="ml-auto px-3 py-1 rounded-lg border border-red-200 dark:border-red-800 text-[11px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-50 shrink-0">
+                {m91EmailDisc ? "…" : "Disconnect"}
               </button>
             ) : (
               <button onClick={disconnectMsg91} disabled={msg91Disc}
@@ -375,6 +431,120 @@ function IntegrationsModal({ onClose }) {
                 style={{ background: "#25D366" }}>
                 {msg91Saving && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>}
                 {msg91Saving ? "Connecting…" : msg91Connected ? "Update MSG91 Credentials" : "Connect MSG91"}
+              </button>
+            </>
+          )}
+
+          {/* ── Email (Brevo) ── */}
+          {activeTab === "msg91email" && (
+            <>
+              {/* How-to steps */}
+              <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-4 space-y-2">
+                <p className="text-[11px] font-bold text-[#4B5168] dark:text-[#9DA3BB] uppercase tracking-widest mb-2">How to set up MSG91 Email</p>
+                {[
+                  "Log in to msg91.com → navigate to Email section",
+                  "Go to Settings → API Key → copy your Auth Key",
+                  "Add & verify your sending domain under Email → Domains",
+                  "Add a verified sender email under that domain",
+                  "Paste all details below and click Connect",
+                  "MSG91 handles up to 5,000 emails/day — when that limit is hit, the CRM automatically switches to Brevo",
+                ].map((s, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-[#0284C7]/10 text-[#0284C7] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                    <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{s}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Quota status banner if connected */}
+              {m91EmailConnected && m91Email && (
+                <div className="bg-[#EFF6FF] dark:bg-[#0c1a2e] border border-[#BFDBFE] dark:border-[#1e3a5f] rounded-xl px-4 py-3">
+                  <p className="text-[12px] font-semibold text-[#1e40af] dark:text-[#60a5fa] mb-1">📊 Daily Quota (resets midnight UTC)</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 bg-[#DBEAFE] dark:bg-[#1e3a5f] rounded-full h-2 overflow-hidden">
+                      <div
+                        className="h-full bg-[#2563EB] rounded-full transition-all"
+                        style={{ width: `${Math.min(100, ((5000 - (m91Email.remaining ?? 5000)) / 5000) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-semibold text-[#1e40af] dark:text-[#60a5fa] shrink-0">
+                      {m91Email.remaining ?? 5000} / 5,000 remaining
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Fallback info */}
+              <div className="bg-[#F0FDF4] dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-3">
+                <p className="text-[12px] text-emerald-700 dark:text-emerald-400">
+                  <strong>🔄 Smart fallback:</strong> MSG91 Email is the <strong>primary</strong> sender (free 5,000/day quota).
+                  When the daily limit is reached, the CRM <strong>automatically falls back to Brevo</strong> — zero downtime.
+                  Make sure Brevo is also connected as your backup.
+                </p>
+              </div>
+
+              {/* Auth Key */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  MSG91 Auth Key <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input type={m91EmailShow ? "text" : "password"} value={m91EmailKey} onChange={e => setM91EmailKey(e.target.value)}
+                    placeholder="Paste your MSG91 auth key here"
+                    className={FIELD + " pr-10 font-mono"} autoComplete="off"/>
+                  <button type="button" onClick={() => setM91EmailShow(s => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168] transition">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      {m91EmailShow
+                        ? <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                        : <><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></>
+                      }
+                    </svg>
+                  </button>
+                </div>
+                <p className="text-[10px] text-[#8B92A9] mt-1">msg91.com → Profile → API → Your Auth Key (same key used for WhatsApp/SMS)</p>
+              </div>
+
+              {/* Sending domain */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Sending Domain <span className="text-red-500">*</span>
+                </label>
+                <input type="text" value={m91EmailDomain} onChange={e => setM91EmailDomain(e.target.value)}
+                  placeholder="e.g. mail.skyupcrm.com"
+                  className={FIELD}/>
+                <p className="text-[10px] text-[#8B92A9] mt-1">Must be verified in MSG91 Email → Domains</p>
+              </div>
+
+              {/* Sender email */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Sender Email <span className="text-red-500">*</span>
+                </label>
+                <input type="email" value={m91EmailSender} onChange={e => setM91EmailSender(e.target.value)}
+                  placeholder="noreply@mail.skyupcrm.com"
+                  className={FIELD}/>
+                <p className="text-[10px] text-[#8B92A9] mt-1">Must be a verified sender under your MSG91 domain</p>
+              </div>
+
+              {/* Sender name */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Sender Name <span className="text-[#8B92A9] font-normal">(optional)</span>
+                </label>
+                <input type="text" value={m91EmailName} onChange={e => setM91EmailName(e.target.value)}
+                  placeholder="e.g. SKYUP CRM"
+                  className={FIELD}/>
+              </div>
+
+              {m91EmailErr && <div className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-[12px] text-red-600 dark:text-red-400">{m91EmailErr}</div>}
+              {m91EmailOk  && <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-[12px] text-emerald-700 dark:text-emerald-400">{m91EmailOk}</div>}
+
+              <button onClick={saveM91Email} disabled={m91EmailSaving}
+                className="w-full py-2.5 rounded-xl font-semibold text-[13px] text-white transition flex items-center justify-center gap-2 disabled:opacity-60"
+                style={{ background: "#0284C7" }}>
+                {m91EmailSaving && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>}
+                {m91EmailSaving ? "Connecting…" : m91EmailConnected ? "Update MSG91 Email Credentials" : "Connect MSG91 Email"}
               </button>
             </>
           )}
