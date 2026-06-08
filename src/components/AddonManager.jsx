@@ -52,7 +52,7 @@ function fmtDate(d) {
 export default function AddonManager({ companyId, addons: initialAddons = [], onRefresh }) {
   const [addons,     setAddons]     = useState(initialAddons);
   const [showGrant,  setShowGrant]  = useState(false);
-  const [form,       setForm]       = useState({ addonType: "extra_users_5", quantity: 1, durationMonths: "", notes: "" });
+  const [form,       setForm]       = useState({ addonType: "extra_users_5", quantity: 1, durationMonths: "", notes: "", price: "", currency: "INR" });
   const [busy,       setBusy]       = useState(false);
   const [actionId,   setActionId]   = useState(null);
   const [error,      setError]      = useState("");
@@ -75,9 +75,11 @@ export default function AddonManager({ companyId, addons: initialAddons = [], on
         quantity:  Number(form.quantity),
         durationMonths: form.durationMonths ? Number(form.durationMonths) : undefined,
         notes: form.notes,
+        price:    form.price !== "" ? Number(form.price) : 0,
+        currency: form.currency || "INR",
       });
       setShowGrant(false);
-      setForm({ addonType: "extra_users_5", quantity: 1, durationMonths: "", notes: "" });
+      setForm({ addonType: "extra_users_5", quantity: 1, durationMonths: "", notes: "", price: "", currency: "INR" });
       await reload();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to grant addon");
@@ -140,7 +142,7 @@ export default function AddonManager({ companyId, addons: initialAddons = [], on
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="bg-white dark:bg-[#1A1D27] rounded-2xl p-6 w-full max-w-md border border-[#E5E7EB] dark:border-[#262A38] shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="font-bold text-[#0F1117] dark:text-[#F0F2FA]">Grant Free Addon</h4>
+              <h4 className="font-bold text-[#0F1117] dark:text-[#F0F2FA]">Grant Addon</h4>
               <button onClick={() => setShowGrant(false)}><X className="w-4 h-4 text-gray-400" /></button>
             </div>
             <div className="space-y-3">
@@ -169,6 +171,34 @@ export default function AddonManager({ companyId, addons: initialAddons = [], on
                   <label className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider block mb-1.5">Duration (months)</label>
                   <input type="number" min={0} placeholder="Leave blank = forever" value={form.durationMonths} onChange={e => setForm(p => ({ ...p, durationMonths: e.target.value }))}
                     className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-sm text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:ring-2 focus:ring-blue-500/20 placeholder:text-[#C4C9DA]" />
+                </div>
+              </div>
+              {/* Price */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider block mb-1.5">
+                    Price <span className="text-[#9DA3BB] font-normal normal-case">(0 = free)</span>
+                  </label>
+                  <input
+                    type="number" min={0} step="0.01" placeholder="0"
+                    value={form.price}
+                    onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-sm text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:ring-2 focus:ring-blue-500/20 placeholder:text-[#C4C9DA]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider block mb-1.5">Currency</label>
+                  <select
+                    value={form.currency}
+                    onChange={e => setForm(p => ({ ...p, currency: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-sm text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="INR">INR ₹</option>
+                    <option value="USD">USD $</option>
+                    <option value="EUR">EUR €</option>
+                    <option value="GBP">GBP £</option>
+                    <option value="AED">AED د.إ</option>
+                  </select>
                 </div>
               </div>
               <div>
@@ -211,6 +241,11 @@ export default function AddonManager({ companyId, addons: initialAddons = [], on
                 </div>
                 <p className="text-[11px] text-[#8B92A9] mt-0.5">
                   Granted {fmtDate(a.startDate)} · Expires {fmtDate(a.expiryDate)}
+                  {a.price > 0 && (
+                    <span className="ml-2 font-semibold text-[#059669]">
+                      {a.currency || "INR"} {Number(a.price).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                    </span>
+                  )}
                 </p>
                 {a.notes && <p className="text-[11px] text-[#9DA3BB] italic mt-0.5">{a.notes}</p>}
               </div>
