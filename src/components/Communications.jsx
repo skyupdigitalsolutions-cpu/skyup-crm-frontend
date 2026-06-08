@@ -972,13 +972,13 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
       .catch(() => {});
   }, []);
 
-  // Campaign preview
+  // Campaign preview — counts leads with mobile numbers (for WhatsApp/SMS delivery)
   const handlePreview = async () => {
     if (!campaign) return;
     setPreviewing(true); setLeadCount(null);
     try {
-      const res = await api.get(`/email-campaign/preview?campaign=${encodeURIComponent(campaign)}`);
-      setLeadCount(res.data.leadCount);
+      const res = await api.get(`/sms-campaign/preview?campaign=${encodeURIComponent(campaign)}`);
+      setLeadCount(res.data.count);
     } catch (err) {
       setError(err.response?.data?.message || "Could not fetch preview");
     } finally { setPreviewing(false); }
@@ -1014,21 +1014,31 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
         let count = leadCount;
         if (count === null) {
           setPreviewing(true);
-          const r = await api.get(`/email-campaign/preview?campaign=${encodeURIComponent(campaign)}`);
-          count = r.data.leadCount; setLeadCount(count); setPreviewing(false);
+          const r = await api.get(`/sms-campaign/preview?campaign=${encodeURIComponent(campaign)}`);
+          count = r.data.count; setLeadCount(count); setPreviewing(false);
         }
         if (!window.confirm(`Send "${templateName}" to ${count} leads in "${campaign}"? This cannot be undone.`)) { setLoading(false); return; }
-        res = await axios.post(`${API_URL}/whatsapp/bulk-send`, { campaign, templateName: templateName.trim(), languageCode }, authHeaders);
+        res = await api.post("/whatsapp/bulk-send", {
+          campaign,
+          templateName: templateName.trim(),
+          languageCode,
+          filter: {
+            status:   blastFilter.status   || undefined,
+            source:   blastFilter.source   || undefined,
+            dateFrom: blastFilter.dateFrom || undefined,
+            dateTo:   blastFilter.dateTo   || undefined,
+          },
+        });
       } else if (mode === "single") {
         if (!singlePhone.trim()) { setLoading(false); return setError("Phone number is required"); }
         const phone = singlePhone.replace(/\D/g, "");
         if (!window.confirm(`Send "${templateName}" to ${singleName || "this contact"} (${phone})?`)) { setLoading(false); return; }
-        await axios.post(`${API_URL}/whatsapp/start-conversation`, { phone, contactName: singleName.trim() || undefined, templateName: templateName.trim(), languageCode }, authHeaders);
+        await api.post("/whatsapp/start-conversation", { phone, contactName: singleName.trim() || undefined, templateName: templateName.trim(), languageCode });
         res = { data: { sent: 1, failed: 0, total: 1, results: [{ name: singleName, phone, status: "sent" }] } };
       } else {
         if (!csvParsed) { setLoading(false); return setError("Parse the CSV first"); }
         if (!window.confirm(`Send "${templateName}" to ${csvParsed.length} recipients from CSV? This cannot be undone.`)) { setLoading(false); return; }
-        res = await axios.post(`${API_URL}/whatsapp/bulk-send-csv`, { recipients: csvParsed, templateName: templateName.trim(), languageCode }, authHeaders);
+        res = await api.post("/whatsapp/bulk-send-csv", { recipients: csvParsed, templateName: templateName.trim(), languageCode });
       }
       setResult(res.data);
     } catch (err) {
@@ -2003,7 +2013,11 @@ function EmailBlastModal({ onClose }) {
         if (!window.confirm(`Send emails to ${csvParsed.length} recipients from CSV?`)) { setLoading(false); return; }
         res = await api.post("/email-campaign/send-csv", { recipients: csvParsed, subject, bodyTemplate, fromName: fromName || undefined });
       }
-      setResult(res.data);
+      // Bulk/CSV sends respond immediately with { queued: true, total } — normalize for result screen
+      setResult(res.data.queued
+        ? { sent: res.data.total, failed: 0, total: res.data.total, queued: true, message: res.data.message }
+        : res.data
+      );
     } catch (err) { setError(err.response?.data?.message || err.message || "Failed to send"); }
     finally { setLoading(false); }
   };
@@ -2016,7 +2030,12 @@ function EmailBlastModal({ onClose }) {
         <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4">
           <svg className="w-7 h-7 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
         </div>
-        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2">Campaign Sent!</h2>
+        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2">
+          {result.queued ? "Campaign Queued!" : "Campaign Sent!"}
+        </h2>
+        {result.queued && (
+          <p className="text-[12px] text-[#8B92A9] mb-3">{result.message || "Emails are being sent in the background."}</p>
+        )}
         <div className="grid grid-cols-3 gap-3 my-5">
           {[{ label: "Sent", value: result.sent ?? 1, color: "#059669" }, { label: "Failed", value: result.failed ?? 0, color: "#DC2626" }, { label: "Total", value: result.total ?? 1, color: "#2563EB" }].map((s) => (
             <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3 text-center border border-[#E4E7EF] dark:border-[#262A38]">
