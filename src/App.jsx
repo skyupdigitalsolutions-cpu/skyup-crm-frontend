@@ -38,6 +38,7 @@ const DeveloperAddonManager      = lazy(() => import("./pages/developer/AddonMan
 // Auth pages
 const AdminLogin      = lazy(() => import("./pages/UserLogin")); // /admin/login now redirects to the unified login
 const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
+const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
 
 // ── Page loader ───────────────────────────────────────────────────────────────
 function PageLoader() {
@@ -441,6 +442,7 @@ function AppInner() {
 
           {/* ── Public login routes ── */}
           <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
+          <Route path="/forgot-password"  element={<LoginGuard><ForgotPassword /></LoginGuard>} />
           <Route path="/admin/login"      element={<Navigate to="/login" replace />} />
           <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
 

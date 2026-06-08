@@ -232,8 +232,11 @@ export default function UserLogin() {
         </form>
 
         {/* Only link to SuperAdmin — no Admin link since admin uses this same form */}
-        <div className="mt-6 pt-5 border-t border-[#E4E7EF] dark:border-[#1E2130] text-center">
-          <Link to="/superadmin/login" className="text-[12px] text-[#8B92A9] hover:text-amber-500 dark:hover:text-amber-400 transition">
+        <div className="mt-6 pt-5 border-t border-[#E4E7EF] dark:border-[#1E2130] text-center space-y-2">
+          <Link to="/forgot-password" className="block text-[12px] text-[#8B92A9] hover:text-blue-600 dark:hover:text-blue-400 transition">
+            Forgot your password?
+          </Link>
+          <Link to="/superadmin/login" className="block text-[12px] text-[#8B92A9] hover:text-amber-500 dark:hover:text-amber-400 transition">
             🔐 Super Admin secure login →
           </Link>
         </div>

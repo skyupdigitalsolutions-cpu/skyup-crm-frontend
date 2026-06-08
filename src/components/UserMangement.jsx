@@ -641,20 +641,21 @@ export default function UserManagement({
 
   useEffect(() => {
     api.get("/admin/")
-      .then((res) => setAdmins(res.data || []))
+      .then((res) => setAdmins((res.data || []).map(a => ({
+        ...a,
+        // plainPassword is returned for super_admin requests — map it so view-creds works
+        password: a.plainPassword || a.password || null,
+      }))))
       .catch(() => {});
 
     api.get("/admin/company/users")
       .then((res) => {
         // New shape: { users: [...], totalCompanyUsers: N }
         // Backward-compat: if still a plain array (old backend), handle that too
-        if (Array.isArray(res.data)) {
-          setUsers(res.data);
-          setTotalCompanyUsers(res.data.length);
-        } else {
-          setUsers(res.data?.users || []);
-          setTotalCompanyUsers(res.data?.totalCompanyUsers ?? res.data?.users?.length ?? 0);
-        }
+        const raw = Array.isArray(res.data) ? res.data : (res.data?.users || []);
+        const total = Array.isArray(res.data) ? res.data.length : (res.data?.totalCompanyUsers ?? raw.length);
+        setUsers(raw.map(u => ({ ...u, password: u.plainPassword || u.password || null })));
+        setTotalCompanyUsers(total);
       })
       .catch(() => {});
   }, []);
@@ -731,13 +732,14 @@ export default function UserManagement({
   const addMember = async ({ name, email, phone, role, password, assignedTo }) => {
     if (role === "admin") {
       const res = await api.post("/admin/", { name, email, password });
-      const member = { ...res.data, phone, role: "admin", password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
+      // plainPassword comes back from backend (stored for super_admin credential view)
+      const member = { ...res.data, phone, role: "admin", password: res.data.plainPassword || password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
       setAdmins(prev => [...prev, member]);
       setModal(null);
       setCredsFor(member);
     } else {
       const res = await api.post("/admin/user", { name, email, password, assignedTo });
-      const member = { ...res.data, phone, role: "user", password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
+      const member = { ...res.data, phone, role: "user", password: res.data.plainPassword || password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
       setUsers(prev => [...prev, member]);
       setTotalCompanyUsers(prev => prev + 1);
       setModal(null);

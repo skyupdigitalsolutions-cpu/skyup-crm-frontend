@@ -279,8 +279,9 @@ export default function SuperAdminLogin() {
         )}
 
         {/* Footer links */}
-        <div className="mt-6 pt-5 border-t border-[#1E2130] text-center">
-          <Link to="/login" className="text-[12px] text-[#565C75] hover:text-blue-400 transition">Sign in as Employee / Admin →</Link>
+        <div className="mt-6 pt-5 border-t border-[#1E2130] text-center space-y-2">
+          <Link to="/forgot-password" className="block text-[12px] text-[#565C75] hover:text-blue-400 transition">Forgot your password?</Link>
+          <Link to="/login" className="block text-[12px] text-[#565C75] hover:text-blue-400 transition">Sign in as Employee / Admin →</Link>
         </div>
       </div>
     </div>
