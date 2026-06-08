@@ -280,7 +280,11 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
   const toWaNumber = (raw) => {
     const d = String(raw || "").replace(/\D/g, "");
     if (!d) return "";
-    return d.length === 10 ? `91${d}` : d;
+    // Already has country code (12-digit Indian: 91XXXXXXXXXX) — return as-is
+    if (d.length === 12 && d.startsWith("91")) return d;
+    // Bare 10-digit number — prepend India country code
+    if (d.length === 10) return `91${d}`;
+    return d;
   };
   const telHref = (raw) => `tel:${String(raw || "").replace(/[^\d+]/g, "")}`;
 
