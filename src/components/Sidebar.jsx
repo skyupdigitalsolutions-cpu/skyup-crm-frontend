@@ -93,6 +93,42 @@ const ADMIN_NAV_ITEMS = [
       </svg>
     ),
   },
+  // Projects — independent feature, separate from Tasks
+  {
+    to: "/projects",
+    label: "Projects",
+    featureKey: "projects",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+      </svg>
+    ),
+  },
+  // Payroll — independent of Attendance
+  {
+    to: "/payroll",
+    label: "Payroll",
+    featureKey: "payroll",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <line x1="2" y1="10" x2="22" y2="10" />
+      </svg>
+    ),
+  },
+  // Website Tracking — independent of Meta Ads / Google Ads
+  {
+    to: "/website-tracking",
+    label: "Website Tracking",
+    featureKey: "website-tracking",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="2" y1="12" x2="22" y2="12" />
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+      </svg>
+    ),
+  },
 ];
 
 // ── Extra nav items for SUPERADMIN only ───────────────────────────────────────
