@@ -1045,7 +1045,11 @@ const [merging,   setMerging]   = useState(false);
       sourceMobile:   sourcePhone,   // the source lead's own primary phone
       sourceLeadId:   lead._id || lead.id,  // backend marks source as mergedInto
     });
+    // Update the survivor lead in the list
     applyUpdate(data?.lead || data);
+    // Signal caller to remove the absorbed (source) lead from the list
+    const absorbedId = data?.absorbedLeadId || lead._id || lead.id;
+    onLeadUpdated({ ...(data?.lead || data), _mergedAbsorbedId: String(absorbedId) });
     setMergeLead(null);
     setNewSecondary("");
     onClose();
@@ -1411,6 +1415,12 @@ export default function ReportPage() {
 
   // Called by PhoneNumbersModal after any phone mutation; keeps modal state fresh
   const handlePhoneUpdate = (updatedLead) => {
+    // Merge: remove the absorbed source lead from the list
+    if (updatedLead._mergedAbsorbedId) {
+      const absorbedId = String(updatedLead._mergedAbsorbedId);
+      setLeads(ls => ls.filter(l => String(l.id || l._id) !== absorbedId));
+      setPhoneLead(prev => prev && String(prev.id || prev._id) === absorbedId ? null : prev);
+    }
     setLeads(ls => ls.map(l =>
       (l.id === updatedLead.id || l._id === updatedLead._id)
         ? { ...l, ...updatedLead }
