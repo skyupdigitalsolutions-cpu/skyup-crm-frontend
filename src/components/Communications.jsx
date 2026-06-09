@@ -1502,9 +1502,19 @@ function WhatsAppPanel({ currentUser }) {
       const { data } = await axios.post(`${API_URL}/whatsapp/send`, { conversationId: selected._id, text: msgText }, authHeaders);
       setMessages((prev) => prev.map((m) => m._id === optimistic._id ? { ...optimistic, ...data.message } : m));
     } catch (err) {
-      setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
       const code = err.response?.data?.code;
-      setError(code === "SESSION_EXPIRED" ? "24-hour session expired. Use a template message to re-engage." : err.response?.data?.error || "Failed to send message");
+      const reason =
+        code === "SESSION_EXPIRED"
+          ? "24-hour session expired — customer must reply before free-form messages can be delivered."
+          : err.response?.data?.error || "Failed to send message";
+      // Keep the message visible in the thread, marked as failed, instead of
+      // deleting it — so the agent can see what they tried to send.
+      setMessages((prev) =>
+        prev.map((m) =>
+          m._id === optimistic._id ? { ...m, status: "failed", failReason: reason } : m
+        )
+      );
+      setError(reason);
     } finally { setSending(false); }
   };
 
@@ -1768,11 +1778,16 @@ function WhatsAppPanel({ currentUser }) {
                     <div className="flex justify-end items-center gap-1 mt-1">
                       <span className="text-[10px] text-[#6b7280]">{formatTime(msg.waTimestamp)}</span>
                       {isOut && (
-                        <span className={`text-[10px] ${msg.status === "read" ? "text-[#2563eb]" : "text-[#9ca3af]"}`}>
+                        <span className={`text-[10px] ${msg.status === "read" ? "text-[#2563eb]" : msg.status === "failed" ? "text-[#dc2626]" : "text-[#9ca3af]"}`}>
                           {msg.status === "read" ? "✓✓" : msg.status === "delivered" ? "✓✓" : msg.status === "sent" ? "✓" : msg.status === "failed" ? "✗" : "⏳"}
                         </span>
                       )}
                     </div>
+                    {isOut && msg.status === "failed" && (
+                      <div className="text-[10px] text-[#dc2626] mt-0.5 text-right" title={msg.failReason || ""}>
+                        Not delivered{msg.failReason ? " — tap for details" : ""}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
