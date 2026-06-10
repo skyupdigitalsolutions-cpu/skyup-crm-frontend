@@ -164,6 +164,20 @@ async function formatLead(lead) {
     }
   }
 
+  // ── Normalise mobile to 10 digits for display ─────────────────────────
+  // DB may store "919876543210" (12 digits with country code) from legacy entries
+  // or from WA webhook. Strip the 91 prefix so the UI always shows 10-digit numbers.
+  // The WA/SMS sending layers (whatsappChatController, smsCampaignController) add
+  // the country code back when talking to external APIs.
+  const rawDigits = String(mobile || "").replace(/\D/g, "");
+  if (rawDigits.startsWith("91") && rawDigits.length === 12) {
+    mobile = rawDigits.slice(2);   // "919876543210" → "9876543210"
+  } else if (rawDigits.startsWith("9191") && rawDigits.length === 14) {
+    mobile = rawDigits.slice(4);   // double-91 edge case
+  } else if (rawDigits.length > 0) {
+    mobile = rawDigits.slice(-10); // keep last 10 digits for any other format
+  }
+
   return {
     // ── Spread the ENTIRE raw document first so nothing is lost ───────────
     // This is the critical fix: callHistory, scheduledCalls, previousAgents,
@@ -175,8 +189,19 @@ async function formatLead(lead) {
     name,
 mobile,
     phone:          mobile,                                    // backward compat
-    primaryPhone:   lead.primaryPhone   || mobile || "",       // canonical primary
-    secondaryPhone: lead.secondaryPhone || null,               // optional secondary
+    primaryPhone:   (() => {
+      const raw = lead.primaryPhone || mobile || "";
+      const d = String(raw).replace(/\D/g, "");
+      if (d.startsWith("91") && d.length === 12) return d.slice(2);
+      if (d.startsWith("9191") && d.length === 14) return d.slice(4);
+      return d.slice(-10) || raw;
+    })(),
+    secondaryPhone: (() => {
+      if (!lead.secondaryPhone) return null;
+      const d = String(lead.secondaryPhone).replace(/\D/g, "");
+      if (d.startsWith("91") && d.length === 12) return d.slice(2);
+      return d.slice(-10) || lead.secondaryPhone;
+    })(),
     email,
     source:   lead.source   || "Web Form",
     campaign: lead.campaign || "—",
