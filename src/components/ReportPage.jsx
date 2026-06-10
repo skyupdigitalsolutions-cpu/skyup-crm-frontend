@@ -212,12 +212,351 @@ function Skeleton() {
 
 // ── Manage Projects Modal (Admin) ─────────────────────────────────────────────
 function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
-  const [name, setName]         = useState("");
-  const [color, setColor]       = useState("#2563EB");
-  const [isGlobal, setIsGlobal] = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [deleting, setDeleting] = useState(null);
-  const [error, setError]       = useState("");
+  const [name,        setName]        = useState("");
+  const [description, setDescription] = useState("");
+  const [color,       setColor]       = useState("#2563EB");
+  const [isGlobal,    setIsGlobal]    = useState(true);
+  const [saving,      setSaving]      = useState(false);
+  const [deleting,    setDeleting]    = useState(null);
+  const [error,       setError]       = useState("");
+
+  // Detail / edit panel — null = list view, object = selected project
+  const [detail,      setDetail]      = useState(null);
+  const [editName,    setEditName]    = useState("");
+  const [editDesc,    setEditDesc]    = useState("");
+  const [editColor,   setEditColor]   = useState("#2563EB");
+  const [updating,    setUpdating]    = useState(false);
+  const [updateError, setUpdateError] = useState("");
+
+  const openDetail = (p) => {
+    setDetail(p);
+    setEditName(p.name);
+    setEditDesc(p.description || "");
+    setEditColor(p.color || "#2563EB");
+    setUpdateError("");
+  };
+
+  const handleCreate = async () => {
+    if (!name.trim()) { setError("Project name is required."); return; }
+    setSaving(true); setError("");
+    try {
+      const { data } = await api.post("/project/admin", {
+        name: name.trim(),
+        description: description.trim(),
+        color,
+        isGlobal,
+      });
+      onProjectsChange([data, ...projects]);
+      setName(""); setDescription(""); setColor("#2563EB"); setIsGlobal(true);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to create project.");
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this project? It will be removed from all leads.")) return;
+    setDeleting(id);
+    try {
+      await api.delete(`/project/admin/${id}`);
+      onProjectsChange(projects.filter(p => p._id !== id));
+      if (detail?._id === id) setDetail(null);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to delete project.");
+    } finally { setDeleting(null); }
+  };
+
+  const handleToggleGlobal = async (project) => {
+    try {
+      const { data } = await api.put(`/project/admin/${project._id}`, { isGlobal: !project.isGlobal });
+      onProjectsChange(projects.map(p => p._id === project._id ? data : p));
+      if (detail?._id === project._id) setDetail(data);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to update project.");
+    }
+  };
+
+  const handleSaveDetail = async () => {
+    if (!editName.trim()) { setUpdateError("Project name is required."); return; }
+    setUpdating(true); setUpdateError("");
+    try {
+      const { data } = await api.put(`/project/admin/${detail._id}`, {
+        name:        editName.trim(),
+        description: editDesc.trim(),
+        color:       editColor,
+      });
+      onProjectsChange(projects.map(p => p._id === data._id ? data : p));
+      setDetail(data);
+    } catch (err) {
+      setUpdateError(err.response?.data?.message || "Failed to save changes.");
+    } finally { setUpdating(false); }
+  };
+
+  const PRESET_COLORS = [
+    "#2563EB","#7C3AED","#DB2777","#DC2626",
+    "#EA580C","#D97706","#16A34A","#0891B2","#475569",
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl w-full max-w-md mx-4 shadow-2xl flex flex-col max-h-[88vh] overflow-hidden">
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#F0F2FA] dark:border-[#262A38] shrink-0">
+          <div className="flex items-center gap-2.5">
+            {detail && (
+              <button onClick={() => setDetail(null)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] transition">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+                </svg>
+              </button>
+            )}
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+                {detail ? detail.name : "Manage Projects"}
+              </h2>
+              <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
+                {detail ? "Project details & settings" : "Create colour-coded tags to categorise leads"}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] transition">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* ── Detail / Edit panel ── */}
+        {detail ? (
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+
+            {/* Color dot + name */}
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38]">
+              <span className="w-5 h-5 rounded-full shrink-0 ring-2 ring-white dark:ring-[#1A1D27]" style={{ background: editColor }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">{detail.name}</p>
+                <p className="text-[10px] text-[#8B92A9]">{detail.isGlobal ? "Visible to everyone" : "Admin only"}</p>
+              </div>
+              <button
+                onClick={() => handleToggleGlobal(detail)}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold shrink-0 transition ${
+                  detail.isGlobal
+                    ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400"
+                    : "bg-[#F8F9FC] dark:bg-[#1A1D27] text-[#8B92A9] border border-[#E4E7EF] dark:border-[#262A38]"
+                }`}
+              >
+                {detail.isGlobal ? "Global" : "Admin only"}
+              </button>
+            </div>
+
+            {/* Edit Name */}
+            <div>
+              <label className="block text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1.5">Project Name</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition"
+              />
+            </div>
+
+            {/* Edit Description */}
+            <div>
+              <label className="block text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1.5">Description</label>
+              <textarea
+                rows={3}
+                value={editDesc}
+                onChange={e => setEditDesc(e.target.value)}
+                placeholder="Add a description for this project…"
+                className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition resize-none"
+              />
+            </div>
+
+            {/* Edit Color */}
+            <div>
+              <label className="block text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-1.5">Color</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {PRESET_COLORS.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setEditColor(c)}
+                    style={{ background: c }}
+                    className={`w-6 h-6 rounded-full transition-transform ${editColor === c ? "scale-125 ring-2 ring-offset-2 ring-[#2563EB]" : "hover:scale-110"}`}
+                  />
+                ))}
+                <input
+                  type="color"
+                  value={editColor}
+                  onChange={e => setEditColor(e.target.value)}
+                  className="w-6 h-6 rounded-full border-0 cursor-pointer bg-transparent"
+                  title="Custom color"
+                />
+              </div>
+            </div>
+
+            {/* Created info */}
+            <div className="text-[10px] text-[#8B92A9] dark:text-[#565C75]">
+              Created {detail.createdAt ? new Date(detail.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+            </div>
+
+            {updateError && <p className="text-[11px] text-red-500">{updateError}</p>}
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={handleSaveDetail}
+                disabled={updating}
+                className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-1.5"
+              >
+                {updating
+                  ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                  : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                }
+                {updating ? "Saving…" : "Save Changes"}
+              </button>
+              <button
+                onClick={() => handleDelete(detail._id)}
+                disabled={deleting === detail._id}
+                className="px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[13px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50 transition flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Delete
+              </button>
+            </div>
+          </div>
+
+        ) : (
+
+          /* ── List view ── */
+          <>
+            {/* Create new project form */}
+            <div className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38] px-6 py-4 shrink-0">
+              <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide mb-3">New Project</p>
+
+              <div className="flex gap-2 mb-2.5">
+                <input
+                  type="text"
+                  placeholder="Project name"
+                  value={name}
+                  onChange={e => { setName(e.target.value); setError(""); }}
+                  onKeyDown={e => { if (e.key === "Enter") handleCreate(); }}
+                  className="flex-1 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition"
+                />
+                <button
+                  onClick={handleCreate}
+                  disabled={saving || !name.trim()}
+                  className="px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
+                >
+                  {saving ? "…" : "+ Add"}
+                </button>
+              </div>
+
+              {/* Description */}
+              <textarea
+                rows={2}
+                placeholder="Description (optional)"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                className="w-full px-3 py-2 mb-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition resize-none"
+              />
+
+              {/* Color presets */}
+              <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+                {PRESET_COLORS.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setColor(c)}
+                    style={{ background: c }}
+                    className={`w-5 h-5 rounded-full transition-transform ${color === c ? "scale-125 ring-2 ring-offset-1 ring-[#2563EB]" : "hover:scale-110"}`}
+                  />
+                ))}
+                <input
+                  type="color"
+                  value={color}
+                  onChange={e => setColor(e.target.value)}
+                  className="w-5 h-5 rounded-full border-0 cursor-pointer bg-transparent"
+                  title="Custom color"
+                />
+              </div>
+
+              {/* Visibility toggle */}
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <div
+                  onClick={() => setIsGlobal(v => !v)}
+                  className={`relative w-8 h-4 rounded-full transition-colors ${isGlobal ? "bg-[#2563EB]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}
+                >
+                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${isGlobal ? "translate-x-4" : "translate-x-0.5"}`} />
+                </div>
+                <span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+                  {isGlobal ? "Visible to everyone in company" : "Visible to admins only"}
+                </span>
+              </label>
+              {error && <p className="text-[11px] text-red-500 mt-2">{error}</p>}
+            </div>
+
+            {/* Project list */}
+            <div className="overflow-y-auto flex-1 px-6 py-3 space-y-2">
+              {projects.length === 0 ? (
+                <div className="flex flex-col items-center py-10 gap-2">
+                  <svg className="w-8 h-8 text-[#C4C9D9] dark:text-[#3E4257]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+                  </svg>
+                  <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75]">No projects yet</p>
+                </div>
+              ) : projects.map(p => (
+                <div key={p._id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] group hover:border-[#2563EB]/40 transition">
+                  <span className="w-3 h-3 rounded-full shrink-0" style={{ background: p.color || "#2563EB" }} />
+
+                  {/* Name — clickable to open detail */}
+                  <button
+                    onClick={() => openDetail(p)}
+                    className="flex-1 text-left min-w-0"
+                  >
+                    <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate group-hover:text-[#2563EB] transition">{p.name}</p>
+                    {p.description && (
+                      <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] truncate mt-0.5">{p.description}</p>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => handleToggleGlobal(p)}
+                    title={p.isGlobal ? "Click to make admin-only" : "Click to make global"}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition shrink-0 ${
+                      p.isGlobal
+                        ? "bg-[#ECFDF5] dark:bg-[#052E1C] text-[#059669] dark:text-[#34D399]"
+                        : "bg-[#F8F9FC] dark:bg-[#1A1D27] text-[#8B92A9] dark:text-[#565C75] border border-[#E4E7EF] dark:border-[#262A38]"
+                    }`}
+                  >
+                    {p.isGlobal ? "Global" : "Admin"}
+                  </button>
+
+                  <button
+                    onClick={() => handleDelete(p._id)}
+                    disabled={deleting === p._id}
+                    className="w-6 h-6 flex items-center justify-center rounded-lg text-[#C4C9D9] dark:text-[#3E4257] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition disabled:opacity-40 shrink-0"
+                    title="Delete project"
+                  >
+                    {deleting === p._id
+                      ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                      : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    }
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-[#E4E7EF] dark:border-[#262A38] shrink-0">
+              <button onClick={onClose} className="w-full py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
+                Close
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
   const handleCreate = async () => {
     if (!name.trim()) { setError("Project name is required."); return; }
