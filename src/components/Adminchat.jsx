@@ -44,6 +44,7 @@ export default function AdminChat() {
 
   const [editingId, setEditingId]     = useState(null);
   const [editingText, setEditingText] = useState('');
+  const [closedNotifs, setClosedNotifs] = useState([]); // Lead close notifications
 
   const bottomRef = useRef(null);
 
@@ -158,6 +159,19 @@ export default function AdminChat() {
 
     socket.on('chat_error', ({ message: err }) => console.warn('Chat error:', err));
 
+    // ── Lead close notification from employee ─────────────────────────────
+    socket.on('lead_closed_by_user', (data) => {
+      const notif = { ...data, id: Date.now() };
+      setClosedNotifs(prev => [notif, ...prev].slice(0, 20));
+      // Browser notification
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification('🔴 Lead Closed by Employee', {
+          body: `${data.closedBy} closed "${data.leadName}" — ${data.remark}`,
+          icon: '/skyup_logo1.svg',
+        });
+      }
+    });
+
     return () => socket.disconnect();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -230,7 +244,32 @@ export default function AdminChat() {
   // ── FAB (minimised) ───────────────────────────────────────────────────────
   if (!open) {
     return (
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+        {/* Lead-closed notifications panel */}
+        {closedNotifs.length > 0 && (
+          <div className="w-80 max-h-72 overflow-y-auto bg-white dark:bg-[#1A1D27] border border-red-200 dark:border-red-800 rounded-2xl shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-red-100 dark:border-red-900 bg-red-50 dark:bg-red-950/40">
+              <span className="text-[12px] font-bold text-red-700 dark:text-red-400">🔴 Leads Closed by Employees ({closedNotifs.length})</span>
+              <button onClick={() => setClosedNotifs([])} className="text-[10px] text-red-400 hover:text-red-600 font-semibold">Clear all</button>
+            </div>
+            <div className="divide-y divide-[#F1F4FF] dark:divide-[#1E2130]">
+              {closedNotifs.map(n => (
+                <div key={n.id} className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-semibold text-[#0F1117] dark:text-white truncate">{n.leadName}</p>
+                      <p className="text-[10px] text-red-500 font-semibold">Closed by {n.closedBy} · 📞 {n.phone}</p>
+                      <p className="text-[11px] text-[#4B5168] dark:text-[#E5E7EB] mt-0.5 italic">"{n.remark}"</p>
+                    </div>
+                    <button onClick={() => setClosedNotifs(prev => prev.filter(x => x.id !== n.id))} className="text-[#C4C9D9] hover:text-red-500 shrink-0 mt-0.5">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <button
           onClick={() => setOpen(true)}
           className="relative w-14 h-14 rounded-2xl bg-[#2563EB] hover:bg-blue-700 text-white shadow-2xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
@@ -243,6 +282,11 @@ export default function AdminChat() {
           {totalUnread > 0 && (
             <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-white dark:ring-[#0D0F14]">
               {totalUnread > 9 ? '9+' : totalUnread}
+            </span>
+          )}
+          {closedNotifs.length > 0 && totalUnread === 0 && (
+            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-white dark:ring-[#0D0F14]">
+              {closedNotifs.length > 9 ? '9+' : closedNotifs.length}
             </span>
           )}
         </button>
