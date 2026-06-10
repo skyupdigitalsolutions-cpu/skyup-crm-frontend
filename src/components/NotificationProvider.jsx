@@ -28,6 +28,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
+import api from '../data/axiosConfig';
 
 // ── Socket URL ────────────────────────────────────────────────────────────────
 const SOCKET_URL =
@@ -36,9 +37,12 @@ const SOCKET_URL =
     ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
     : 'https://skyup-crm-backend.onrender.com');
 
-// ── API base URL — used for the expiry subscription REST fetch ────────────────
+// ── API base URL — full URL needed for fetch() which has no axios baseURL ─────
 const API_BASE =
-  import.meta.env.VITE_API_URL || '/api';
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' && window.location.origin !== 'null'
+    ? `${window.location.origin}/api`
+    : 'https://skyup-crm-backend.onrender.com/api');
 
 // ── Context ───────────────────────────────────────────────────────────────────
 const NotificationContext = createContext(null);
@@ -82,13 +86,34 @@ function resolveCompanyId(user) {
 }
 
 // ── Upsert helper — replaces existing notification by id or prepends new ──────
-function upsertNotification(prev, notif, setUnreadCount) {
+// Returns { notifications: [], isNew: bool }
+// isNew=true  → caller should increment badge + fire browser Notification
+// isNew=false → existing entry was updated in-place; no badge change, no browser popup
+function upsertNotification(prev, notif) {
   const exists = prev.some(n => n.id === notif.id);
   if (exists) {
-    return prev.map(n => n.id === notif.id ? notif : n);
+    return { notifications: prev.map(n => n.id === notif.id ? notif : n), isNew: false };
   }
-  setUnreadCount(c => c + 1);
-  return [notif, ...prev].slice(0, MAX_NOTIFS);
+  return { notifications: [notif, ...prev].slice(0, MAX_NOTIFS), isNew: true };
+}
+
+// Helper: upsert + conditionally fire badge + browser push
+function handleUpsert(notif, setNotifications, setUnreadCount) {
+  let wasNew = false;
+  setNotifications(prev => {
+    const result = upsertNotification(prev, notif);
+    wasNew = result.isNew;
+    return result.notifications;
+  });
+  // Use setTimeout(0) so the state update settles before we check wasNew
+  setTimeout(() => {
+    if (wasNew) {
+      setUnreadCount(c => c + 1);
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
+      }
+    }
+  }, 0);
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -165,21 +190,12 @@ export function NotificationProvider({ children }) {
     }
 
     // ── SuperAdmin: Fetch expiring subscriptions on mount ─────────────────────
-    // FIX #2: API returns `daysRemaining`, not `daysLeft`. All filter/display
-    // references updated from c.daysLeft → c.daysRemaining.
     if (isSuperAdmin) {
-      const token = user.token || localStorage.getItem('token');
-      fetch(`${API_BASE}/superadmin/expiring-subscriptions?days=30`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      })
-        .then(res => res.ok ? res.json() : Promise.reject(res.status))
-        .then(data => {
+      api.get('/superadmin/expiring-subscriptions?days=30')
+        .then(res => {
+          const data = res.data;
           if (!data?.companies?.length) return;
 
-          // FIX #2: was c.daysLeft — API sends c.daysRemaining
           const critical = data.companies.filter(c => c.daysRemaining <= 1);
           const warning  = data.companies.filter(c => c.daysRemaining > 1 && c.daysRemaining <= 3);
           const notice   = data.companies.filter(c => c.daysRemaining > 3);
@@ -207,7 +223,6 @@ export function NotificationProvider({ children }) {
             urgent:    urgency,
           });
 
-          // Individual notifications for critical (≤1 day) companies
           critical.forEach(c => {
             addNotification({
               id:        `sub-critical-${c._id}`,
@@ -221,14 +236,31 @@ export function NotificationProvider({ children }) {
           });
         })
         .catch(err => {
-          console.debug('[NotificationProvider] expiry fetch skipped:', err);
+          console.debug('[NotificationProvider] expiry fetch skipped:', err?.response?.status || err.message);
         });
     }
 
-    const socket = io(SOCKET_URL, { withCredentials: true });
+    const token  = localStorage.getItem('token');
+    const socket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports:      ['websocket', 'polling'],
+      auth:            token ? { token } : undefined,
+      reconnection:        true,
+      reconnectionAttempts: 10,
+      reconnectionDelay:    2000,
+    });
     socketRef.current = socket;
 
+    // hasJoined: emit admin_join only ONCE per socket lifecycle.
+    // On reconnect Socket.IO fires 'connect' again — if we re-emit admin_join,
+    // the backend calls pushPendingFollowUps again and the admin receives the
+    // same follow_up_alert every time the socket reconnects (every ~5 min on
+    // Render free tier). The browser Notification popup fires every time too.
+    const hasJoined = { current: false };
+
     const doJoin = () => {
+      if (hasJoined.current) return;   // ← skip all subsequent reconnects
+      hasJoined.current = true;
       if (isSuperAdmin) {
         console.debug('[NotificationProvider] emitting super_admin_join');
         socket.emit('super_admin_join', { adminId, company: companyId, displayName });
@@ -236,8 +268,6 @@ export function NotificationProvider({ children }) {
         console.debug('[NotificationProvider] emitting admin_join');
         socket.emit('admin_join', { adminId, company: companyId, displayName });
       }
-      // Bug 4 fix: join wa_admin room so wa_new_lead events are received
-      // on any page the admin is viewing, not only when WhatsAppChat is mounted.
       socket.emit('wa_admin_join');
     };
 
@@ -252,10 +282,6 @@ export function NotificationProvider({ children }) {
       console.debug('[NotificationProvider] socket disconnected:', reason);
     });
 
-    // ── no_action_alert ───────────────────────────────────────────────────────
-    // FIX #1: was `noa-${Date.now()}` — unique every call → stacked duplicates
-    // every 15-min cron tick.  Now uses stable `noa-${threshold}` + upsert so
-    // repeated firings for the same threshold update in place, not stack.
     socket.on('no_action_alert', ({ count, threshold, leads, timestamp }) => {
       const thresholdLabel =
         threshold === '1h' ? '1 hour' :
@@ -263,7 +289,7 @@ export function NotificationProvider({ children }) {
         threshold === '3h' ? '3 hours' : '24 hours';
       const urgency = (threshold === '2h' || threshold === '3h') ? '🚨' : '⚠️';
       const notif = {
-        id:        `noa-${threshold}`,   // FIX: stable id per threshold
+        id:        `noa-${threshold}`,
         type:      'no_action',
         title:     `${urgency} ${count} Lead${count > 1 ? 's' : ''} — No Action`,
         body:      count === 1
@@ -274,15 +300,9 @@ export function NotificationProvider({ children }) {
         timestamp: timestamp || new Date().toISOString(),
         urgent:    threshold === '2h' || threshold === '3h',
       };
-      // Upsert — same pattern as follow_up_alert
-      setNotifications(prev => upsertNotification(prev, notif, setUnreadCount));
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
-      }
+      handleUpsert(notif, setNotifications, setUnreadCount);
     });
 
-    // ── follow_up_alert ───────────────────────────────────────────────────────
-    // Already correct: uses stable id `fu-${type}` + upsert. Unchanged.
     socket.on('follow_up_alert', ({ type, count, leads, timestamp }) => {
       const isOverdue = type === 'overdue';
       const notif = {
@@ -299,18 +319,12 @@ export function NotificationProvider({ children }) {
         timestamp: timestamp || new Date().toISOString(),
         urgent:    isOverdue,
       };
-      setNotifications(prev => upsertNotification(prev, notif, setUnreadCount));
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
-      }
+      handleUpsert(notif, setNotifications, setUnreadCount);
     });
 
-    // ── lead_reassigned_notify ────────────────────────────────────────────────
-    // FIX #3: was `reassign-${Date.now()}` — duplicated on reconnect.
-    // Now uses `reassign-${leadId}` so same lead doesn't stack multiple entries.
     socket.on('lead_reassigned_notify', ({ leadId, leadName, fromAdminName, toUserName, reason, timestamp }) => {
       const notif = {
-        id:           `reassign-${leadId}`,   // FIX: stable id per lead
+        id:           `reassign-${leadId}`,
         type:         'reassignment',
         title:        '🔄 Lead Reassigned',
         body:         `"${leadName}" moved from ${fromAdminName} → ${toUserName}${reason ? ` — ${reason}` : ''}`,
@@ -322,10 +336,7 @@ export function NotificationProvider({ children }) {
         timestamp:    timestamp || new Date().toISOString(),
         urgent:       false,
       };
-      setNotifications(prev => upsertNotification(prev, notif, setUnreadCount));
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
-      }
+      handleUpsert(notif, setNotifications, setUnreadCount);
     });
 
     // ── subscription_expiry_alert ─────────────────────────────────────────────
@@ -353,15 +364,11 @@ export function NotificationProvider({ children }) {
           urgent:    urgency,
         };
 
-        setNotifications(prev => upsertNotification(prev, notif, setUnreadCount));
-
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          new Notification(notif.title, { body: notif.body, icon: '/skyup_logo1.svg' });
-        }
+        handleUpsert(notif, setNotifications, setUnreadCount);
       });
     }
 
-    // Bug 4 fix: wa_new_lead — new lead created from WhatsApp webhook.
+    // wa_new_lead — new lead created from WhatsApp webhook.
     // Only wired in WhatsAppChat before; now handled here so the bell
     // updates on any page the admin is viewing.
     socket.on('wa_new_lead', ({ lead }) => {
@@ -400,22 +407,17 @@ function BellIcon({ className = 'w-5 h-5' }) {
   );
 }
 
-// ── Notification Bell ─────────────────────────────────────────────────────────
 export function NotificationBell() {
   const ctx = useNotifications();
   const [open, setOpen] = useState(false);
-  // FIX #4: panelRef is now on the dropdown div only (not the outer wrapper).
-  // Previously the ref wrapped the button too, causing the click-outside handler
-  // to fight with the toggle — clicking the button to close would reopen instantly.
-  const panelRef = useRef(null);
+  const panelRef  = useRef(null);
   const buttonRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
-      // Close if clicked outside both the panel AND the button
       if (
-        panelRef.current && !panelRef.current.contains(e.target) &&
+        panelRef.current  && !panelRef.current.contains(e.target) &&
         buttonRef.current && !buttonRef.current.contains(e.target)
       ) {
         setOpen(false);
@@ -438,12 +440,12 @@ export function NotificationBell() {
       <button
         ref={buttonRef}
         onClick={handleOpen}
-        className="relative w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1A1D27] text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 transition"
+        className="relative w-9 h-9 flex items-center justify-center rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#6B7280] dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 transition"
         title="Notifications"
       >
         <BellIcon className="w-3.5 h-3.5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none px-0.5">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none px-0.5 z-10">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -452,29 +454,44 @@ export function NotificationBell() {
       {open && (
         <div
           ref={panelRef}
-          className="absolute right-0 top-11 z-[300] w-80 bg-white dark:bg-[#1A1D27] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden"
-          style={{ maxHeight: '480px' }}
+          className="absolute right-0 mt-2 z-[500] w-[320px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl overflow-hidden"
+          style={{ maxHeight: '480px', top: '100%' }}
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-[#13161E]">
-            <span className="text-[13px] font-bold text-gray-800 dark:text-white">Notifications</span>
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[#F0F2FA] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
+            <div className="flex items-center gap-2">
+              <BellIcon className="w-3.5 h-3.5 text-[#2563EB]" />
+              <span className="text-[13px] font-bold text-[#0F1117] dark:text-white">Notifications</span>
+              {unreadCount > 0 && (
+                <span className="text-[10px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
             {notifications.length > 0 && (
               <button
                 onClick={clearAll}
-                className="text-[11px] text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition font-semibold"
+                className="text-[11px] text-[#8B92A9] hover:text-red-500 dark:hover:text-red-400 transition font-semibold"
               >
                 Clear all
               </button>
             )}
           </div>
 
+          {/* Body */}
           <div className="overflow-y-auto" style={{ maxHeight: '400px' }}>
             {notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2">
-                <BellIcon className="w-8 h-8 text-gray-300 dark:text-gray-600" />
-                <p className="text-[12px] text-gray-400 dark:text-gray-500">No notifications yet</p>
+              <div className="flex flex-col items-center justify-center py-10 gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#F1F4FF] dark:bg-[#262A38] flex items-center justify-center">
+                  <BellIcon className="w-5 h-5 text-[#C4C9D9] dark:text-[#3E4257]" />
+                </div>
+                <div className="text-center">
+                  <p className="text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">All caught up!</p>
+                  <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">No new notifications</p>
+                </div>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100 dark:divide-white/5">
+              <div className="divide-y divide-[#F0F2FA] dark:divide-[#262A38]">
                 {notifications.map((n) => (
                   <NotificationItem key={n.id} notif={n} />
                 ))}
@@ -490,11 +507,10 @@ export function NotificationBell() {
 // ── Single notification row ───────────────────────────────────────────────────
 function NotificationItem({ notif }) {
   const bgClass = notif.urgent
-    ? 'bg-red-50 dark:bg-red-950/20'
+    ? 'bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30'
     : notif.type === 'subscription_expiry'
-      ? 'bg-amber-50 dark:bg-amber-950/15'
-      : 'hover:bg-gray-50 dark:hover:bg-white/[0.02]';
-
+      ? 'bg-amber-50 dark:bg-amber-950/15 hover:bg-amber-100 dark:hover:bg-amber-950/25'
+      : 'hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]';
   const dotColor =
     notif.type === 'subscription_expiry' && notif.critical > 0 ? 'bg-red-500'    :
     notif.type === 'subscription_expiry' && notif.warning  > 0 ? 'bg-amber-400'  :
@@ -502,26 +518,25 @@ function NotificationItem({ notif }) {
     notif.type === 'reassignment'                               ? 'bg-blue-500'   :
     notif.urgent                                                ? 'bg-red-500'    :
     notif.subType === 'overdue'                                 ? 'bg-red-500'    :
-    notif.type === 'follow_up'                                  ? 'bg-yellow-400' :
+    notif.type === 'follow_up'                                  ? 'bg-amber-400'  :
+    notif.type === 'new_lead'                                   ? 'bg-emerald-500':
                                                                   'bg-amber-500';
 
   const showCompanies = notif.type === 'subscription_expiry' && notif.companies?.length > 0;
   const showLeads     = !showCompanies && notif.leads?.length > 0;
 
   return (
-    <div className={`px-4 py-3 ${bgClass} transition`}>
+    <div className={`px-4 py-3 transition cursor-default ${bgClass}`}>
       <div className="flex items-start gap-2.5">
-        <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dotColor}`} />
+        <span className={`w-2 h-2 rounded-full mt-[5px] shrink-0 ${dotColor}`} />
         <div className="flex-1 min-w-0">
-          <p className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 leading-snug">
+          <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-snug">
             {notif.title}
           </p>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug line-clamp-2">
+          <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-0.5 leading-snug line-clamp-2">
             {notif.body}
           </p>
 
-          {/* Subscription expiry: show company chips */}
-          {/* FIX #2: was c.daysLeft — API sends c.daysRemaining */}
           {showCompanies && (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {notif.companies.slice(0, 3).map((c, i) => {
@@ -537,30 +552,29 @@ function NotificationItem({ notif }) {
                 );
               })}
               {notif.companies.length > 3 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 font-medium">
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#F1F4FF] dark:bg-[#262A38] text-[#8B92A9] font-medium">
                   +{notif.companies.length - 3} more
                 </span>
               )}
             </div>
           )}
 
-          {/* Lead alerts: show lead name chips */}
           {showLeads && (
             <div className="flex flex-wrap gap-1 mt-1">
               {notif.leads.slice(0, 3).map((l, i) => (
-                <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 font-medium">
+                <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#F1F4FF] dark:bg-[#262A38] text-[#8B92A9] font-medium">
                   {l.leadName}
                 </span>
               ))}
               {notif.leads.length > 3 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 font-medium">
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#F1F4FF] dark:bg-[#262A38] text-[#8B92A9] font-medium">
                   +{notif.leads.length - 3} more
                 </span>
               )}
             </div>
           )}
 
-          <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+          <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-1">
             {timeLabel(notif.timestamp)}
           </p>
         </div>
