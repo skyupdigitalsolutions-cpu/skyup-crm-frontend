@@ -1751,9 +1751,18 @@ function mapLead(l) {
   const sortedCalls = [...callHistory].sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt));
   const lastCall    = sortedCalls[0] || null;
 
-  // Prefer explicit primaryPhone; fall back to mobile for backward compat
-  const primaryPhone   = l.primaryPhone   || l.mobile || l.phone || "";
-  const secondaryPhone = l.secondaryPhone || null;
+  // Strip country-code prefix so phone is always displayed as 10 digits.
+  // WA/SMS APIs receive the raw stored value and add 91 at send time.
+  function strip91(raw) {
+    if (!raw) return raw || "";
+    const d = String(raw).replace(/\D/g, "");
+    if (d.startsWith("9191") && d.length === 14) return d.slice(4);  // double-91
+    if (d.startsWith("91")   && d.length === 12) return d.slice(2);  // single country code
+    return d.slice(-10) || raw;
+  }
+
+  const primaryPhone   = strip91(l.primaryPhone || l.mobile || l.phone || "");
+  const secondaryPhone = l.secondaryPhone ? strip91(l.secondaryPhone) : null;
 
   return {
     id:             String(l._id),
