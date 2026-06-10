@@ -1885,6 +1885,164 @@ function ProjectsCard({ projects, leads, projectFilter, setProjectFilter, setAct
   );
 }
 
+// ── TelegramSetupWidget — employee sets their own Telegram chat ID ────────────
+// Appears as a send-icon button in the sub-header.
+// On click opens a small popover to enter and save their personal chat ID.
+// When saved, lead assignment notifications will be sent to their Telegram chat.
+function TelegramSetupWidget({ user }) {
+  const [open,    setOpen]    = useState(false);
+  const [chatId,  setChatId]  = useState(() => user?.telegramChatId || "");
+  const [draft,   setDraft]   = useState(() => user?.telegramChatId || "");
+  const [saving,  setSaving]  = useState(false);
+  const [msg,     setMsg]     = useState({ type: "", text: "" });
+  const popRef  = useRef(null);
+  const btnRef  = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (popRef.current && !popRef.current.contains(e.target) &&
+          btnRef.current && !btnRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const flash = (type, text) => {
+    setMsg({ type, text });
+    if (type === "ok") setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.patch("/auth/my-telegram", { telegramChatId: draft.trim() });
+      setChatId(draft.trim());
+      flash("ok", "Saved! You'll now receive lead notifications on Telegram.");
+    } catch (e) {
+      flash("err", e.response?.data?.message || "Save failed.");
+    } finally { setSaving(false); }
+  };
+
+  const isConfigured = !!chatId;
+  const hasChanges   = draft !== chatId;
+
+  return (
+    <div className="relative">
+      <button
+        ref={btnRef}
+        onClick={() => setOpen(v => !v)}
+        title={isConfigured ? "Telegram notifications active" : "Set up Telegram notifications"}
+        className={`relative w-9 h-9 flex items-center justify-center rounded-xl border transition-all ${
+          open
+            ? "bg-sky-50 dark:bg-sky-500/15 border-sky-300 dark:border-sky-700 text-sky-600"
+            : "border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#6B7280] hover:text-sky-500 hover:border-sky-300"
+        }`}
+      >
+        {/* Send/paper-plane icon */}
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+        </svg>
+        {isConfigured && (
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border-2 border-white dark:border-[#1A1D27]" />
+        )}
+      </button>
+
+      {open && (
+        <div
+          ref={popRef}
+          className="absolute right-0 mt-2 w-[300px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-xl z-[500] overflow-hidden"
+          style={{ top: "100%" }}
+        >
+          {/* Header */}
+          <div className="flex items-center gap-2.5 px-4 pt-4 pb-3 border-b border-[#F0F2FA] dark:border-[#262A38]">
+            <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-500/10 flex items-center justify-center shrink-0">
+              <svg className="w-3.5 h-3.5 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Lead Notifications</p>
+              <p className="text-[10px] text-[#8B92A9]">Telegram — personal alerts</p>
+            </div>
+            <button onClick={() => setOpen(false)} className="ml-auto w-6 h-6 flex items-center justify-center rounded-lg text-[#8B92A9] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <div className="px-4 py-3 space-y-3">
+            {/* Status */}
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-semibold ${
+              isConfigured
+                ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                : "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
+            }`}>
+              <span>{isConfigured ? "✓ Active" : "⚠ Not configured"}</span>
+              <span className="font-normal opacity-75">
+                {isConfigured ? "You'll receive lead notifications on Telegram" : "Add your chat ID to get notified when leads are assigned"}
+              </span>
+            </div>
+
+            {/* Chat ID input */}
+            <div>
+              <label className="block text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-1.5">
+                Your Telegram Chat ID
+                {isConfigured && <span className="ml-1.5 text-[10px] font-normal text-emerald-500">● set</span>}
+              </label>
+              <input
+                type="text"
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleSave(); }}
+                placeholder="e.g. 123456789"
+                className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] font-mono focus:outline-none focus:border-[#2563EB] transition"
+              />
+              <p className="text-[10px] text-[#8B92A9] mt-1">
+                Message <span className="font-mono font-semibold">@userinfobot</span> on Telegram to get your ID
+              </p>
+            </div>
+
+            {/* Feedback */}
+            {msg.text && (
+              <div className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[11px] font-medium ${
+                msg.type === "ok"
+                  ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border border-emerald-200 dark:border-emerald-800"
+                  : "bg-red-50 dark:bg-red-950/30 text-red-600 border border-red-200 dark:border-red-800"
+              }`}>
+                {msg.type === "ok" ? "✓" : "✕"} {msg.text}
+              </div>
+            )}
+
+            {/* Save button */}
+            <button
+              onClick={handleSave}
+              disabled={saving || !hasChanges}
+              className="w-full py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white text-[12px] font-semibold transition flex items-center justify-center gap-1.5"
+            >
+              {saving
+                ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+              }
+              {saving ? "Saving…" : isConfigured ? "Update" : "Save Chat ID"}
+            </button>
+
+            {/* What triggers notifications */}
+            <div className="border-t border-[#F0F2FA] dark:border-[#262A38] pt-2">
+              <p className="text-[10px] text-[#8B92A9] font-semibold mb-1">You'll be notified when:</p>
+              {["A new lead is assigned to you", "A lead is reassigned to you"].map(t => (
+                <p key={t} className="text-[10px] text-[#8B92A9] flex items-center gap-1.5">
+                  <svg className="w-2.5 h-2.5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                  {t}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function UserDashboard() {
   const user     = JSON.parse(localStorage.getItem("user") || "null");
   const greeting = getGreeting();
@@ -2159,6 +2317,9 @@ export default function UserDashboard() {
             </div>
 
             <AttendanceMiniWidget />
+
+            {/* Telegram self-setup */}
+            <TelegramSetupWidget user={user} />
 
             {/* CSV result toast */}
             {csvResult && (
