@@ -673,7 +673,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
 function UpdateDrawer({ lead, onClose, onSaved }) {
   const [status,       setStatus]       = useState(lead.status);
   const [remark,       setRemark]       = useState("");
-  const [outcome,      setOutcome]      = useState("Call Back");
+  const [outcome,      setOutcome]      = useState("");  // empty — must be explicitly chosen to log a call
   const [temperature,  setTemperature]  = useState(lead.temperature || "");
   const [followUpDate, setFollowUpDate] = useState("");
   const [saving,       setSaving]       = useState(false);
@@ -907,11 +907,23 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 </div>
                 {!isNI && (
                   <div>
-                    <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Call Outcome</label>
-                    <select value={outcome} onChange={e => setOutcome(e.target.value)}
+                    <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
+                      Call Outcome
+                      <span className="ml-1.5 text-[11px] font-normal text-[#8B92A9]">(required to log a call)</span>
+                    </label>
+                    <select value={outcome} onChange={e => {
+                      const val = e.target.value;
+                      setOutcome(val);
+                      // Instantly map outcome → status where it's unambiguous
+                      if (val === "Interested")     { setStatus("In Progress");    quickSaveStatus("In Progress"); }
+                      if (val === "Not Interested") { setStatus("Not Interested"); quickSaveStatus("Not Interested"); }
+                      if (val === "Converted")      { setStatus("Converted");      quickSaveStatus("Converted"); }
+                    }}
                       className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition">
+                      <option value="">— Select outcome to log a call —</option>
                       {OUTCOME_OPTIONS.map(o => <option key={o}>{o}</option>)}
                     </select>
+                    <p className="text-[10px] text-[#8B92A9] mt-1">Selecting Interested / Not Interested / Converted saves status instantly</p>
                   </div>
                 )}
                 <div>
@@ -941,7 +953,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                   </div>
                   <p className="text-[10px] text-[#8B92A9] mt-1.5">Tap a quality to save it instantly</p>
                 </div>
-                {!isNI && outcome === "Call Back" && (
+                {!isNI && (outcome === "Call Back" || outcome === "") && (
                   <div>
                     <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
                       Follow-up Date
