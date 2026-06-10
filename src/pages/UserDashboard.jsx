@@ -2093,6 +2093,109 @@ export default function UserDashboard() {
           </div>
         </div>
 
+        {/* ── My Projects ─────────────────────────────────────────────────────── */}
+        {projects.length > 0 && (
+          <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-[12px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">My Projects</p>
+                <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Click a project to filter your leads</p>
+              </div>
+              <span className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] bg-[#F1F4FF] dark:bg-[#262A38] px-2.5 py-1 rounded-full">
+                {projects.length} project{projects.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {projects.map(p => {
+                const projLeads  = leads.filter(l =>
+                  Array.isArray(l.projects) && l.projects.some(lp => String(lp?._id || lp) === String(p._id))
+                );
+                const hot        = projLeads.filter(l => l.temperature === "Hot"  || l.Quality === "Hot").length;
+                const converted  = projLeads.filter(l => l.status === "Converted").length;
+                const inProgress = projLeads.filter(l => l.status === "In Progress").length;
+                const isActive   = projectFilter === String(p._id);
+
+                return (
+                  <button
+                    key={p._id}
+                    onClick={() => {
+                      setProjectFilter(isActive ? "All" : String(p._id));
+                      setActiveTab("leads");
+                      setPage(1);
+                    }}
+                    className={`text-left rounded-xl border-2 p-3.5 transition-all duration-150 hover:scale-[1.02] group ${
+                      isActive
+                        ? "border-[2px] shadow-sm"
+                        : "border-[#E4E7EF] dark:border-[#262A38] hover:border-opacity-60"
+                    }`}
+                    style={{
+                      borderColor:      isActive ? p.color || "#2563EB" : undefined,
+                      backgroundColor:  isActive ? (p.color || "#2563EB") + "12" : undefined,
+                    }}
+                  >
+                    {/* Color bar + name */}
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ background: p.color || "#2563EB" }}
+                      />
+                      <span className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate leading-tight">
+                        {p.name}
+                      </span>
+                    </div>
+
+                    {/* Description if present */}
+                    {p.description && (
+                      <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mb-2.5 line-clamp-2 leading-relaxed">
+                        {p.description}
+                      </p>
+                    )}
+
+                    {/* Mini stats */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="flex items-center gap-1 text-[10px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
+                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                        {projLeads.length}
+                      </span>
+                      {hot > 0 && (
+                        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-[#DC2626]">
+                          🔥 {hot}
+                        </span>
+                      )}
+                      {converted > 0 && (
+                        <span className="text-[10px] font-semibold text-[#059669]">
+                          ✓ {converted}
+                        </span>
+                      )}
+                      {inProgress > 0 && (
+                        <span className="text-[10px] font-semibold text-[#D97706]">
+                          ⏳ {inProgress}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="mt-2.5 h-1 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width:      projLeads.length > 0 ? (converted / projLeads.length * 100) + "%" : "0%",
+                          background: p.color || "#2563EB",
+                        }}
+                      />
+                    </div>
+                    <p className="text-[9px] text-[#8B92A9] dark:text-[#565C75] mt-1">
+                      {projLeads.length > 0 ? Math.round(converted / projLeads.length * 100) : 0}% converted
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Status filter pills */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
