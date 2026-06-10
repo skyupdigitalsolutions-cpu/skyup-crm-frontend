@@ -1722,6 +1722,169 @@ function mapLead(l) {
 }
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
+// ── ProjectsCard — sits next to Lead Quality, shows list → detail on click ────
+function ProjectsCard({ projects, leads, projectFilter, setProjectFilter, setActiveTab, setPage }) {
+  const [activeProj, setActiveProj] = useState(null);
+
+  // Keep activeProj in sync if projects list changes
+  useEffect(() => {
+    if (activeProj) {
+      const updated = projects.find(p => p._id === activeProj._id);
+      if (updated) setActiveProj(updated);
+      else setActiveProj(null);
+    }
+  }, [projects]);
+
+  const projLeadsFor = (p) =>
+    leads.filter(l =>
+      Array.isArray(l.projects) &&
+      l.projects.some(lp => String(lp?._id || lp) === String(p._id))
+    );
+
+  return (
+    <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5 flex flex-col" style={{ minHeight: 220 }}>
+
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-3 shrink-0">
+        {activeProj && (
+          <button
+            onClick={() => setActiveProj(null)}
+            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] transition shrink-0"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+            </svg>
+          </button>
+        )}
+        <p className="text-[12px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide flex-1 truncate">
+          {activeProj ? activeProj.name : "My Projects"}
+        </p>
+        {!activeProj && (
+          <span className="text-[10px] font-semibold text-[#8B92A9] bg-[#F1F4FF] dark:bg-[#262A38] px-2 py-0.5 rounded-full shrink-0">
+            {projects.length}
+          </span>
+        )}
+        {activeProj && (
+          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: activeProj.color || "#2563EB" }} />
+        )}
+      </div>
+
+      {/* ── Detail view ── */}
+      {activeProj ? (() => {
+        const p         = activeProj;
+        const projLeads = projLeadsFor(p);
+        const hot       = projLeads.filter(l => l.Quality === "Hot"  || l.temperature === "Hot").length;
+        const warm      = projLeads.filter(l => l.Quality === "Warm" || l.temperature === "Warm").length;
+        const cold      = projLeads.filter(l => l.Quality === "Cold" || l.temperature === "Cold").length;
+        const converted = projLeads.filter(l => l.status === "Converted").length;
+        const inProg    = projLeads.filter(l => l.status === "In Progress").length;
+        const newL      = projLeads.filter(l => l.status === "New").length;
+        const convPct   = projLeads.length > 0 ? Math.round(converted / projLeads.length * 100) : 0;
+        const isFiltered = projectFilter === String(p._id);
+
+        return (
+          <div className="flex-1 flex flex-col gap-2.5">
+            {/* Description */}
+            {p.description
+              ? <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] leading-snug">{p.description}</p>
+              : <p className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257] italic">No description added</p>
+            }
+
+            {/* Stat rows */}
+            <div className="space-y-1.5">
+              {[
+                { label: "Total Leads", value: projLeads.length, color: "#2563EB" },
+                { label: "Converted",   value: converted,         color: "#059669" },
+                { label: "In Progress", value: inProg,            color: "#D97706" },
+                { label: "New",         value: newL,              color: "#8B92A9" },
+              ].map(s => (
+                <div key={s.label} className="flex items-center justify-between">
+                  <span className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">{s.label}</span>
+                  <span className="text-[12px] font-bold" style={{ color: s.color }}>{s.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Quality pills */}
+            {(hot > 0 || warm > 0 || cold > 0) && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {hot  > 0 && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-500">🔥 {hot} Hot</span>}
+                {warm > 0 && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-600">☀ {warm} Warm</span>}
+                {cold > 0 && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-500">❄ {cold} Cold</span>}
+              </div>
+            )}
+
+            {/* Conversion bar */}
+            <div>
+              <div className="flex justify-between text-[10px] text-[#8B92A9] mb-1">
+                <span>Conversion rate</span>
+                <span className="font-bold" style={{ color: p.color || "#2563EB" }}>{convPct}%</span>
+              </div>
+              <div className="h-1.5 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-700" style={{ width: convPct + "%", background: p.color || "#2563EB" }} />
+              </div>
+            </div>
+
+            {/* Filter toggle */}
+            <button
+              onClick={() => {
+                setProjectFilter(isFiltered ? "All" : String(p._id));
+                setActiveTab("leads");
+                setPage(1);
+              }}
+              className="mt-auto w-full py-2 rounded-xl text-[11px] font-semibold transition border"
+              style={{
+                background:  isFiltered ? (p.color || "#2563EB") : "transparent",
+                borderColor: p.color || "#2563EB",
+                color:       isFiltered ? "#fff" : (p.color || "#2563EB"),
+              }}
+            >
+              {isFiltered ? "✓ Filtering leads — click to clear" : "Filter leads by this project"}
+            </button>
+          </div>
+        );
+      })() : (
+
+        /* ── List view ── */
+        projects.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center py-4">
+            <svg className="w-8 h-8 text-[#E4E7EF] dark:text-[#262A38]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+            </svg>
+            <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">No projects assigned yet</p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto space-y-0.5">
+            {projects.map(p => {
+              const count = projLeadsFor(p).length;
+              return (
+                <button
+                  key={p._id}
+                  onClick={() => setActiveProj(p)}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition group text-left"
+                >
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color || "#2563EB" }} />
+                  <span className="flex-1 text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate group-hover:text-[#2563EB] dark:group-hover:text-[#4F8EF7] transition">
+                    {p.name}
+                  </span>
+                  {count > 0 && (
+                    <span className="text-[10px] font-bold text-[#8B92A9] shrink-0 bg-[#F1F4FF] dark:bg-[#262A38] px-1.5 py-0.5 rounded-full">
+                      {count}
+                    </span>
+                  )}
+                  <svg className="w-3 h-3 text-[#C4C9D9] dark:text-[#3E4257] shrink-0 group-hover:text-[#2563EB] transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </button>
+              );
+            })}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
 export default function UserDashboard() {
   const user     = JSON.parse(localStorage.getItem("user") || "null");
   const greeting = getGreeting();
@@ -2061,8 +2224,10 @@ export default function UserDashboard() {
           <KpiCard label="Hot Leads"      value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon={<FlameIcon className="w-5 h-5"/>} />
         </div>
 
-        {/* Targets + Quality */}
+        {/* Targets + Quality + Projects — 3-column grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          {/* Daily Targets */}
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <p className="text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide mb-4"> My Daily Targets</p>
             <div className="flex items-center justify-around">
@@ -2072,6 +2237,8 @@ export default function UserDashboard() {
             </div>
             <p className="text-[9px] text-center text-[#8B92A9] dark:text-[#D1D5DB] mt-3 font-medium uppercase tracking-wide">Targets: 10 leads · 5 conversions · 8 follow-ups</p>
           </div>
+
+          {/* Lead Quality */}
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <p className="text-[12px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide mb-4">Lead Quality</p>
             <div className="space-y-3">
@@ -2091,111 +2258,11 @@ export default function UserDashboard() {
               ))}
             </div>
           </div>
+
+          {/* My Projects — list + detail panel */}
+          <ProjectsCard projects={projects} leads={leads} projectFilter={projectFilter} setProjectFilter={setProjectFilter} setActiveTab={setActiveTab} setPage={setPage} />
+
         </div>
-
-        {/* ── My Projects ─────────────────────────────────────────────────────── */}
-        {projects.length > 0 && (
-          <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-[12px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide">My Projects</p>
-                <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Click a project to filter your leads</p>
-              </div>
-              <span className="text-[11px] font-semibold text-[#8B92A9] dark:text-[#565C75] bg-[#F1F4FF] dark:bg-[#262A38] px-2.5 py-1 rounded-full">
-                {projects.length} project{projects.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {projects.map(p => {
-                const projLeads  = leads.filter(l =>
-                  Array.isArray(l.projects) && l.projects.some(lp => String(lp?._id || lp) === String(p._id))
-                );
-                const hot        = projLeads.filter(l => l.temperature === "Hot"  || l.Quality === "Hot").length;
-                const converted  = projLeads.filter(l => l.status === "Converted").length;
-                const inProgress = projLeads.filter(l => l.status === "In Progress").length;
-                const isActive   = projectFilter === String(p._id);
-
-                return (
-                  <button
-                    key={p._id}
-                    onClick={() => {
-                      setProjectFilter(isActive ? "All" : String(p._id));
-                      setActiveTab("leads");
-                      setPage(1);
-                    }}
-                    className={`text-left rounded-xl border-2 p-3.5 transition-all duration-150 hover:scale-[1.02] group ${
-                      isActive
-                        ? "border-[2px] shadow-sm"
-                        : "border-[#E4E7EF] dark:border-[#262A38] hover:border-opacity-60"
-                    }`}
-                    style={{
-                      borderColor:      isActive ? p.color || "#2563EB" : undefined,
-                      backgroundColor:  isActive ? (p.color || "#2563EB") + "12" : undefined,
-                    }}
-                  >
-                    {/* Color bar + name */}
-                    <div className="flex items-center gap-2 mb-2.5">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ background: p.color || "#2563EB" }}
-                      />
-                      <span className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate leading-tight">
-                        {p.name}
-                      </span>
-                    </div>
-
-                    {/* Description if present */}
-                    {p.description && (
-                      <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mb-2.5 line-clamp-2 leading-relaxed">
-                        {p.description}
-                      </p>
-                    )}
-
-                    {/* Mini stats */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="flex items-center gap-1 text-[10px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
-                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        </svg>
-                        {projLeads.length}
-                      </span>
-                      {hot > 0 && (
-                        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-[#DC2626]">
-                          🔥 {hot}
-                        </span>
-                      )}
-                      {converted > 0 && (
-                        <span className="text-[10px] font-semibold text-[#059669]">
-                          ✓ {converted}
-                        </span>
-                      )}
-                      {inProgress > 0 && (
-                        <span className="text-[10px] font-semibold text-[#D97706]">
-                          ⏳ {inProgress}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Progress bar */}
-                    <div className="mt-2.5 h-1 bg-[#F1F4FF] dark:bg-[#262A38] rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{
-                          width:      projLeads.length > 0 ? (converted / projLeads.length * 100) + "%" : "0%",
-                          background: p.color || "#2563EB",
-                        }}
-                      />
-                    </div>
-                    <p className="text-[9px] text-[#8B92A9] dark:text-[#565C75] mt-1">
-                      {projLeads.length > 0 ? Math.round(converted / projLeads.length * 100) : 0}% converted
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Status filter pills */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
