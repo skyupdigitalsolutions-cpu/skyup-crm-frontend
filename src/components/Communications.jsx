@@ -1394,6 +1394,10 @@ function WhatsAppPanel({ currentUser }) {
     socketRef.current = socket;
     if (isAdmin) socket.emit("wa_admin_join");
     else if (currentUser?._id) socket.emit("wa_agent_join", { agentId: currentUser._id });
+    // Join the company-wide WA room — backend emits wa_message here for inbound
+    // replies when conversation.assignedAgent is null or stale. Without this join,
+    // those messages are broadcast into a room nobody is in and never appear in the UI.
+    if (currentUser?.company) socket.emit("wa_company_join", { companyId: currentUser.company });
 
     socket.on("wa_message", (payload) => {
       const { conversationId, message: msg, sessionExpiresAt: newExpiry, waPhone: inboundWaPhone } = payload;
