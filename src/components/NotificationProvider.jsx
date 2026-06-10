@@ -117,6 +117,14 @@ function handleUpsert(notif, setNotifications, setUnreadCount) {
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
+// ── Module-level Set tracks which adminIds have already received their
+// initial pushPendingFollowUps this browser session.
+// Using a module-level ref (not component state) means it survives
+// React re-renders and effect re-runs — so even if the user object
+// changes reference (triggering a new socket), we don't re-emit admin_join
+// and trigger duplicate follow-up notifications.
+const _joinedAdminIds = new Set();
+
 export function NotificationProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount,   setUnreadCount]   = useState(0);
@@ -156,7 +164,11 @@ export function NotificationProvider({ children }) {
   const clearAll    = useCallback(() => { setNotifications([]); setUnreadCount(0); }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      // User logged out — clear the joined-admins Set so next login gets fresh notifications
+      _joinedAdminIds.clear();
+      return;
+    }
 
     const role         = normalizeRole(user?.role);
     const adminId      = String(user._id || user.id || '');
@@ -261,16 +273,13 @@ export function NotificationProvider({ children }) {
     });
     socketRef.current = socket;
 
-    // hasJoined: emit admin_join only ONCE per socket lifecycle.
-    // On reconnect Socket.IO fires 'connect' again — if we re-emit admin_join,
-    // the backend calls pushPendingFollowUps again and the admin receives the
-    // same follow_up_alert every time the socket reconnects (every ~5 min on
-    // Render free tier). The browser Notification popup fires every time too.
-    const hasJoined = { current: false };
-
+    // hasJoined guard — uses module-level Set so it survives React effect re-runs.
+    // Even if the user object changes reference (causing effect cleanup+rerun),
+    // admin_join is only emitted once per adminId per browser session.
+    // It IS cleared on logout (user_changed with null user) via _joinedAdminIds.delete().
     const doJoin = () => {
-      if (hasJoined.current) return;   // ← skip all subsequent reconnects
-      hasJoined.current = true;
+      if (_joinedAdminIds.has(adminId)) return;  // already joined this session
+      _joinedAdminIds.add(adminId);
       if (isSuperAdmin) {
         console.debug('[NotificationProvider] emitting super_admin_join');
         socket.emit('super_admin_join', { adminId, company: companyId, displayName });
@@ -399,7 +408,8 @@ export function NotificationProvider({ children }) {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [user]); // addNotification intentionally excluded — it's stable (useCallback with [] deps)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id || user?.id]); // stable string dep — prevents effect re-run on object re-parse
 
   return (
     <NotificationContext.Provider value={{ notifications, unreadCount, markAllRead, clearAll }}>
