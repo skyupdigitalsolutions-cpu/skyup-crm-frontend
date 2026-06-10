@@ -55,7 +55,12 @@ export default function AdminChat() {
 
   // ── Socket setup ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const socket = io(SOCKET_URL);
+    const token  = localStorage.getItem('token');
+    const socket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports:      ['websocket', 'polling'],
+      auth:            token ? { token } : undefined,
+    });
     socketRef.current = socket;
 
     // Send join AFTER socket connects to avoid losing the event
