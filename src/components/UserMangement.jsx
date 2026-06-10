@@ -435,7 +435,7 @@ function SlotBar({ used, max, isAdmin }) {
 }
 
 // ── Member Row ────────────────────────────────────────────────────────────────
-function MemberRow({ member, onRequestRemove, onViewCreds, onReassign }) {
+function MemberRow({ member, onRequestRemove, onViewCreds, onReassign, onMeetingPermission }) {
   const initials = member.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
   const uid = member._id || member.id || member.email;
   const isSuperAdmin = member.role === "super_admin" || member.role === "superadmin";
