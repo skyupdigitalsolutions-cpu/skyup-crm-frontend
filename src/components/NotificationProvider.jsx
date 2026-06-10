@@ -241,6 +241,16 @@ export function NotificationProvider({ children }) {
     }
 
     const token  = localStorage.getItem('token');
+
+    // Disconnect any lingering socket from a previous effect run before creating a new one.
+    // Without this, a fast user→null→user cycle leaves a half-connected socket that
+    // causes "WebSocket closed before the connection is established" errors.
+    if (socketRef.current) {
+      socketRef.current.off();
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+
     const socket = io(SOCKET_URL, {
       withCredentials: true,
       transports:      ['websocket', 'polling'],
@@ -385,10 +395,11 @@ export function NotificationProvider({ children }) {
     });
 
     return () => {
+      socket.off();           // remove all listeners before disconnect
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [user, addNotification]);
+  }, [user]); // addNotification intentionally excluded — it's stable (useCallback with [] deps)
 
   return (
     <NotificationContext.Provider value={{ notifications, unreadCount, markAllRead, clearAll }}>
