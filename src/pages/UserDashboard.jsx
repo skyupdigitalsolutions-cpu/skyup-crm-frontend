@@ -611,7 +611,7 @@ const OUTCOME_OPTIONS = ["Call Back","Interested","Not Reachable","Meeting Sched
 function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects = [] }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
   const [temp,         setTemp]         = useState(lead.temperature || lead.Quality || "");
-  const [outcome,      setOutcome]      = useState("Call Back");
+  const [outcome,      setOutcome]      = useState("");  // empty — user must explicitly pick; prevents remark-only saves from creating call log entries
   const [remark,       setRemark]       = useState(lead.remark || "");
   const [followUpDate, setFollowUpDate] = useState(getTomorrowStr());
   const [loading,      setLoading]      = useState(false);
@@ -685,8 +685,12 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects =
 
           {/* Call Outcome */}
           <div>
-            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Call Outcome</label>
+            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
+              Call Outcome
+              <span className="ml-1 text-[9px] font-normal text-[#C4C9D9] normal-case">(required to log a call)</span>
+            </label>
             <select value={outcome} onChange={e => setOutcome(e.target.value)} className={CLS}>
+              <option value="">— Select outcome to log a call —</option>
               {OUTCOME_OPTIONS.map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
@@ -2206,6 +2210,7 @@ export default function UserDashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editLead,      setEditLead]      = useState(null);
   const [phoneLead,     setPhoneLead]     = useState(null);
+  const [closeLead,     setCloseLead]     = useState(null);  // lead to close via CloseLeadModal (table row shortcut)
   const [activeTab,     setActiveTab]     = useState("leads");
   const [csvImporting,  setCsvImporting]  = useState(false);
   const [csvResult,     setCsvResult]     = useState(null);
@@ -2709,6 +2714,11 @@ export default function UserDashboard() {
                                 <button onClick={e => { e.stopPropagation(); setPhoneLead(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#059669] hover:border-[#059669] hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition" title={l.secondaryPhone ? "Manage phone numbers" : "Add secondary number"}>
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
                                 </button>
+                                {!l.isClosed && (
+                                  <button onClick={e => { e.stopPropagation(); setCloseLead(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition" title="Close lead (notify admin)">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -2797,6 +2807,20 @@ export default function UserDashboard() {
           lead={phoneLead}
           onClose={() => setPhoneLead(null)}
           onLeadUpdated={updated => { handleUpdate(updated); setPhoneLead({ ...phoneLead, ...updated }); }}
+        />,
+        document.body
+      )}
+      {/* Close Lead — opened from table row close button */}
+      {closeLead && createPortal(
+        <CloseLeadModal
+          lead={closeLead}
+          onClose={() => setCloseLead(null)}
+          onClosed={updated => {
+            // Remove immediately from user's list — permanently hidden after close
+            setLeads(prev => prev.filter(l => l.id !== (closeLead.id || String(closeLead._id))));
+            if (selected?.id === (closeLead.id || String(closeLead._id))) setSelected(null);
+            setCloseLead(null);
+          }}
         />,
         document.body
       )}
