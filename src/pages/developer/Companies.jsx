@@ -159,6 +159,16 @@ export default function Companies() {
     }
   };
 
+  const toggleCallLogSync = async (id, currentVal) => {
+    const newVal = !currentVal;
+    try {
+      await api.put(`/developer/companies/${id}/call-log-sync`, { enabled: newVal });
+      setCompanies(prev => prev.map(c => c._id === id ? { ...c, callLogSyncEnabled: newVal } : c));
+    } catch {
+      setError("Failed to toggle call log sync.");
+    }
+  };
+
   const avatarLetter = (name = "") => (name.trim().charAt(0) || "?").toUpperCase();
 
   return (
@@ -212,7 +222,7 @@ export default function Companies() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E5E7EB] dark:border-[#262A38]">
-                  {["Company", "Email", "Plan", "Status", "Payment Details", "Actions"].map(h => (
+                  {["Company", "Email", "Plan", "Status", "Call Log Sync", "Payment Details", "Actions"].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[10px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider">
                       {h}
                     </th>
@@ -268,6 +278,22 @@ export default function Companies() {
                         <span className={`w-1.5 h-1.5 rounded-full ${c.isActive ? "bg-green-500" : "bg-red-500"}`} />
                         {c.isActive ? "Active" : "Suspended"}
                       </span>
+                    </td>
+
+                    {/* Call Log Sync */}
+                    <td className="px-4 py-3.5">
+                      <button
+                        onClick={() => toggleCallLogSync(c._id, c.callLogSyncEnabled !== false)}
+                        title={c.callLogSyncEnabled !== false ? "Click to disable device call-log sync" : "Click to enable device call-log sync"}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all duration-150 active:scale-95 ${
+                          c.callLogSyncEnabled !== false
+                            ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"
+                            : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30 hover:bg-red-100 dark:hover:bg-red-500/20"
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${c.callLogSyncEnabled !== false ? "bg-emerald-500" : "bg-red-500"}`} />
+                        {c.callLogSyncEnabled !== false ? "Sync ON" : "Sync OFF"}
+                      </button>
                     </td>
 
                     {/* Payment Details */}
