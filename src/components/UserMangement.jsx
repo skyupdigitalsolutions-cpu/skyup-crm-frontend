@@ -494,6 +494,23 @@ function MemberRow({ member, onRequestRemove, onViewCreds, onReassign }) {
             </svg>
           </button>
         )}
+        {/* Client meeting remote clock-in permission — admin only, for employees */}
+        {!isAdmin && onMeetingPermission && (
+          <button
+            onClick={() => onMeetingPermission(member)}
+            className={`w-6 h-6 flex items-center justify-center rounded-lg border transition ${
+              member.clientMeetingPermission
+                ? 'border-emerald-400 text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
+                : 'border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-emerald-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+            }`}
+            title={member.clientMeetingPermission ? "Revoke remote clock-in permission" : "Grant remote clock-in (client meeting)"}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </button>
+        )}
         {onRequestRemove && !isSuperAdmin && (
           <button
             onClick={() => onRequestRemove(member)}
@@ -790,6 +807,26 @@ export default function UserManagement({
     ));
   };
 
+  const handleMeetingPermission = async (member) => {
+    const uid = member._id || member.id;
+    const currentlyGranted = member.clientMeetingPermission;
+    if (!window.confirm(
+      currentlyGranted
+        ? `Revoke remote clock-in permission for ${member.name}?`
+        : `Grant ${member.name} remote clock-in permission for 24 hours (client meeting)?`
+    )) return;
+    try {
+      await api.put(`/admin/user/${uid}/meeting-permission`, { grant: !currentlyGranted });
+      setUsers(u => u.map(m =>
+        (m._id || m.id) === uid
+          ? { ...m, clientMeetingPermission: !currentlyGranted, clientMeetingPermissionGrantedAt: !currentlyGranted ? new Date().toISOString() : null }
+          : m
+      ));
+    } catch (e) {
+      alert(e.response?.data?.message || "Failed to update permission.");
+    }
+  };
+
   return (
     <div className="mt-8">
       {modal && (
@@ -1023,6 +1060,7 @@ export default function UserManagement({
                     onRequestRemove={requestRemove}
                     onViewCreds={setCredsFor}
                     onReassign={isCompanySuperAdmin ? setReassignFor : null}
+                    onMeetingPermission={handleMeetingPermission}
                   />
                 ))
             }
