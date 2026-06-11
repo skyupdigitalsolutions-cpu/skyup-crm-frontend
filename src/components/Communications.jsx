@@ -1506,11 +1506,30 @@ function WhatsAppPanel({ currentUser }) {
         );
         const fresh = data.messages || [];
         setMessages((prev) => {
-          const existingIds = new Set(prev.map((m) => m._id));
-          const newMsgs = fresh.filter((m) => !existingIds.has(m._id));
-          if (newMsgs.length === 0) return prev;
+          // Build a map of existing messages by _id for quick lookup
+          const existingMap = new Map(prev.map((m) => [m._id, m]));
+          
+          let changed = false;
+          const merged = prev.map((m) => {
+            const freshVersion = existingMap.has(m._id)
+              ? fresh.find((f) => f._id === m._id)
+              : null;
+            // Update direction if it changed (e.g. outbound→inbound correction)
+            if (freshVersion && freshVersion.direction !== m.direction) {
+              changed = true;
+              return { ...m, ...freshVersion };
+            }
+            return m;
+          });
+
+          // Add brand new messages not yet in state
+          const freshIds = new Set(fresh.map((m) => m._id));
+          const newMsgs = fresh.filter((m) => !existingMap.has(m._id));
+          if (newMsgs.length > 0) changed = true;
+
+          if (!changed) return prev;
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-          return [...prev, ...newMsgs].sort((a, b) =>
+          return [...merged, ...newMsgs].sort((a, b) =>
             new Date(a.waTimestamp || 0) - new Date(b.waTimestamp || 0)
           );
         });
