@@ -1,5 +1,19 @@
-import { useState, useEffect, useCallback } from "react";import AttendanceFilters from "../components/AttendanceFilters";
-import AttendanceTable   from "../components/AttendanceTable";
+import { useState, useEffect, useCallback } from "react";
+import {
+  Download,
+  RefreshCw,
+  MapPin,
+  Navigation,
+  Check,
+  X,
+  Loader2,
+  ExternalLink,
+  Users,
+  AlertCircle,
+  CircleAlert,
+} from "lucide-react";
+import AttendanceFilters from "../components/AttendanceFilters";
+import AttendanceTable from "../components/AttendanceTable";
 import { fetchAttendanceReport, fetchAttendanceExport } from "../services/attendanceService";
 import api from "../data/axiosConfig";
 
@@ -47,47 +61,45 @@ const SUMMARY_ITEMS = [
 const today = new Date().toISOString().slice(0, 10);
 
 const DEFAULT_FILTERS = {
-  startDate : today,
-  endDate   : today,
-  userId    : "",
-  crmStatus : "",
-  quick     : "today",
-};
-
+  startDate: today,
+  endDate: today,
+  userId: "",
+  crmStatus: "",
+  quick: "today",
 };
 
 // ── MeetingTrackingSettings ───────────────────────────────────────────────────
 // Admin sets whether location tracking is enabled during client meetings,
 // and the interval (5–60 min). Appears as a button in the Attendance header.
 function MeetingTrackingSettings() {
-  const [open,     setOpen]     = useState(false);
-  const [loading,  setLoading]  = useState(false);
-  const [saving,   setSaving]   = useState(false);
-  const [enabled,  setEnabled]  = useState(false);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [enabled, setEnabled] = useState(false);
   const [interval, setInterval] = useState(15);
-  const [msg,      setMsg]      = useState({ type: '', text: '' });
+  const [msg, setMsg] = useState({ type: "", text: "" });
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    api.get('/attendance/meeting-tracking')
+    api.get("/attendance/meeting-tracking")
       .then(r => { setEnabled(r.data.enabled || false); setInterval(r.data.intervalMinutes || 15); })
-      .catch(() => setMsg({ type: 'err', text: 'Failed to load settings.' }))
+      .catch(() => setMsg({ type: "err", text: "Failed to load settings." }))
       .finally(() => setLoading(false));
   }, [open]);
 
   const flash = (type, text) => {
     setMsg({ type, text });
-    if (type === 'ok') setTimeout(() => setMsg({ type: '', text: '' }), 3000);
+    if (type === "ok") setTimeout(() => setMsg({ type: "", text: "" }), 3000);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put('/attendance/meeting-tracking', { enabled, intervalMinutes: interval });
-      flash('ok', 'Saved! Employees will be tracked every ' + interval + ' min when on a client meeting.');
+      await api.put("/attendance/meeting-tracking", { enabled, intervalMinutes: interval });
+      flash("ok", "Saved! Employees will be tracked every " + interval + " min when on a client meeting.");
     } catch (e) {
-      flash('err', e.response?.data?.message || 'Failed to save.');
+      flash("err", e.response?.data?.message || "Failed to save.");
     } finally { setSaving(false); }
   };
 
@@ -98,13 +110,11 @@ function MeetingTrackingSettings() {
         title="Client Meeting Location Tracking"
         className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-[12px] font-semibold transition ${
           open
-            ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
-            : 'border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#4B5168] dark:text-[#9DA3BB] hover:border-emerald-300 hover:text-emerald-700'
+            ? "bg-emerald-50 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300"
+            : "border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#4B5168] dark:text-[#9DA3BB] hover:border-emerald-300 hover:text-emerald-700"
         }`}
       >
-        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
-        </svg>
+        <Navigation className="w-4 h-4 shrink-0" strokeWidth={2} />
         Client Tracking
         {enabled && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
       </button>
@@ -117,13 +127,13 @@ function MeetingTrackingSettings() {
               <p className="text-[11px] text-[#8B92A9] mt-0.5">Track employee GPS during approved client visits</p>
             </div>
             <button onClick={() => setOpen(false)} className="w-7 h-7 flex items-center justify-center rounded-lg text-[#8B92A9] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              <X className="w-4 h-4" strokeWidth={2} />
             </button>
           </div>
 
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <svg className="w-5 h-5 animate-spin text-[#8B92A9]" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+              <Loader2 className="w-5 h-5 animate-spin text-[#8B92A9]" />
             </div>
           ) : (
             <div className="px-5 py-4 space-y-4">
@@ -133,22 +143,22 @@ function MeetingTrackingSettings() {
                 onClick={() => setEnabled(v => !v)}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition ${
                   enabled
-                    ? 'border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-500/10'
-                    : 'border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]'
+                    ? "border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-500/10"
+                    : "border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]"
                 }`}
               >
                 <div className="text-left">
-                  <p className={`text-[13px] font-semibold ${enabled ? 'text-emerald-700 dark:text-emerald-400' : 'text-[#0F1117] dark:text-[#F0F2FA]'}`}>
-                    {enabled ? 'Location tracking ON' : 'Location tracking OFF'}
+                  <p className={`text-[13px] font-semibold ${enabled ? "text-emerald-700 dark:text-emerald-400" : "text-[#0F1117] dark:text-[#F0F2FA]"}`}>
+                    {enabled ? "Location tracking ON" : "Location tracking OFF"}
                   </p>
                   <p className="text-[11px] text-[#8B92A9] mt-0.5">
                     {enabled
-                      ? 'GPS pings stored every ' + interval + ' min during approved meetings'
-                      : 'No GPS data collected during client visits'}
+                      ? "GPS pings stored every " + interval + " min during approved meetings"
+                      : "No GPS data collected during client visits"}
                   </p>
                 </div>
-                <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${enabled ? 'bg-emerald-500' : 'bg-[#D1D5DB] dark:bg-[#3E4257]'}`}>
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${enabled ? "bg-emerald-500" : "bg-[#D1D5DB] dark:bg-[#3E4257]"}`}>
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-5" : "translate-x-0.5"}`} />
                 </div>
               </button>
 
@@ -186,11 +196,12 @@ function MeetingTrackingSettings() {
 
               {msg.text && (
                 <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold ${
-                  msg.type === 'ok'
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-red-50 text-red-600 border border-red-200'
+                  msg.type === "ok"
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-red-50 text-red-600 border border-red-200"
                 }`}>
-                  {msg.type === 'ok' ? '✓' : '✕'} {msg.text}
+                  {msg.type === "ok" ? <Check className="w-3.5 h-3.5 shrink-0" /> : <X className="w-3.5 h-3.5 shrink-0" />}
+                  {msg.text}
                 </div>
               )}
 
@@ -199,8 +210,8 @@ function MeetingTrackingSettings() {
                 className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {saving
-                  ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Saving…</>
-                  : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Save Tracking Settings</>
+                  ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</>
+                  : <><Check className="w-4 h-4" strokeWidth={2.5} />Save Tracking Settings</>
                 }
               </button>
             </div>
@@ -215,14 +226,14 @@ function MeetingTrackingSettings() {
 // Admin views today's GPS trail for employees who are on client meetings.
 // Shows a map link for each ping and the full trail in chronological order.
 function LiveLocationsPanel({ open, onClose }) {
-  const [pings,   setPings]   = useState([]);
+  const [pings, setPings] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filter,  setFilter]  = useState('');
+  const [filter, setFilter] = useState("");
 
   const loadPings = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.get('/attendance/live-locations?limit=200');
+      const r = await api.get("/attendance/live-locations?limit=200");
       setPings(r.data.pings || []);
     } catch { /* silent */ }
     finally { setLoading(false); }
@@ -232,8 +243,8 @@ function LiveLocationsPanel({ open, onClose }) {
 
   if (!open) return null;
 
-  const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
-  const mapUrl  = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}&z=17`;
+  const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—";
+  const mapUrl = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}&z=17`;
 
   // Group pings by employee
   const grouped = pings.reduce((acc, p) => {
@@ -245,7 +256,7 @@ function LiveLocationsPanel({ open, onClose }) {
 
   const employees = Object.values(grouped).filter(g => {
     if (!filter) return true;
-    const name = g.user?.name || '';
+    const name = g.user?.name || "";
     return name.toLowerCase().includes(filter.toLowerCase());
   });
 
@@ -254,16 +265,19 @@ function LiveLocationsPanel({ open, onClose }) {
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#F0F2FA] dark:border-[#262A38]">
-          <div>
-            <p className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">📍 Live Client Meeting Locations</p>
-            <p className="text-[11px] text-[#8B92A9] mt-0.5">Today's GPS trail — {pings.length} pings from {employees.length} employee{employees.length !== 1 ? 's' : ''}</p>
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-indigo-500 shrink-0" strokeWidth={2} />
+            <div>
+              <p className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Live Client Meeting Locations</p>
+              <p className="text-[11px] text-[#8B92A9] mt-0.5">Today's GPS trail — {pings.length} pings from {employees.length} employee{employees.length !== 1 ? "s" : ""}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={loadPings} className="w-7 h-7 flex items-center justify-center rounded-lg text-[#8B92A9] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38]">
-              <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0114.13-3.36M20 15A9 9 0 015.87 18.36"/></svg>
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} strokeWidth={2} />
             </button>
             <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-[#8B92A9] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38]">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              <X className="w-4 h-4" strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -281,11 +295,11 @@ function LiveLocationsPanel({ open, onClose }) {
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-10">
-              <svg className="w-6 h-6 animate-spin text-[#8B92A9]" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+              <Loader2 className="w-6 h-6 animate-spin text-[#8B92A9]" />
             </div>
           ) : employees.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <svg className="w-10 h-10 text-[#565C75]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <Users className="w-10 h-10 text-[#565C75]" strokeWidth={1.5} />
               <p className="text-[13px] text-[#565C75]">No location pings today.</p>
               <p className="text-[11px] text-[#8B92A9] text-center max-w-xs">Pings appear here when employees with approved remote clock-in send GPS updates.</p>
             </div>
@@ -295,11 +309,11 @@ function LiveLocationsPanel({ open, onClose }) {
                 {/* Employee header */}
                 <div className="flex items-center gap-2.5 px-5 py-3 bg-[#F8F9FC] dark:bg-[#13161E]">
                   <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-[11px] font-bold text-indigo-700 dark:text-indigo-400 shrink-0">
-                    {(user?.name || '?').slice(0, 2).toUpperCase()}
+                    {(user?.name || "?").slice(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{user?.name || 'Unknown'}</p>
-                    <p className="text-[11px] text-[#8B92A9]">{empPings.length} ping{empPings.length !== 1 ? 's' : ''} today</p>
+                    <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{user?.name || "Unknown"}</p>
+                    <p className="text-[11px] text-[#8B92A9]">{empPings.length} ping{empPings.length !== 1 ? "s" : ""} today</p>
                   </div>
                   {/* Latest location map link */}
                   {empPings[0] && (
@@ -308,7 +322,7 @@ function LiveLocationsPanel({ open, onClose }) {
                       target="_blank" rel="noreferrer"
                       className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[11px] font-semibold hover:bg-indigo-100 transition shrink-0"
                     >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                      <ExternalLink className="w-3 h-3" strokeWidth={2} />
                       Latest
                     </a>
                   )}
@@ -319,7 +333,7 @@ function LiveLocationsPanel({ open, onClose }) {
                   {empPings.map((ping, idx) => (
                     <div key={ping._id} className="flex items-center gap-3 py-1.5">
                       <div className="relative flex flex-col items-center shrink-0">
-                        <div className={`w-2.5 h-2.5 rounded-full ${idx === 0 ? 'bg-emerald-500' : 'bg-[#565C75]'}`} />
+                        <div className={`w-2.5 h-2.5 rounded-full ${idx === 0 ? "bg-emerald-500" : "bg-[#565C75]"}`} />
                         {idx < empPings.length - 1 && <div className="w-px h-4 bg-[#E4E7EF] dark:bg-[#262A38] mt-0.5" />}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -342,7 +356,7 @@ function LiveLocationsPanel({ open, onClose }) {
                         className="shrink-0 text-[#8B92A9] hover:text-indigo-500 transition"
                         title="Open in Google Maps"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        <ExternalLink className="w-3.5 h-3.5" strokeWidth={2} />
                       </a>
                     </div>
                   ))}
@@ -360,16 +374,16 @@ function LiveLocationsPanel({ open, onClose }) {
 // Lets admin set the office lat/lng and radius. Employees must clock in
 // from within that radius unless they have client-meeting permission.
 function ClockInLocationSettings() {
-  const [open,    setOpen]    = useState(false);
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [saving,  setSaving]  = useState(false);
-  const [msg,     setMsg]     = useState({ type: "", text: "" });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState({ type: "", text: "" });
 
   // Form state
-  const [enabled,   setEnabled]   = useState(false);
-  const [latitude,  setLatitude]  = useState("");
+  const [enabled, setEnabled] = useState(false);
+  const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
-  const [radius,    setRadius]    = useState("100");
+  const [radius, setRadius] = useState("100");
   const [detecting, setDetecting] = useState(false);
 
   // Load current config when panel opens
@@ -380,9 +394,9 @@ function ClockInLocationSettings() {
       .then(r => {
         const d = r.data || {};
         setEnabled(d.enabled || false);
-        setLatitude(d.latitude  != null ? String(d.latitude)  : "");
+        setLatitude(d.latitude != null ? String(d.latitude) : "");
         setLongitude(d.longitude != null ? String(d.longitude) : "");
-        setRadius(d.radius  != null ? String(d.radius)  : "100");
+        setRadius(d.radius != null ? String(d.radius) : "100");
       })
       .catch(() => setMsg({ type: "err", text: "Failed to load settings." }))
       .finally(() => setLoading(false));
@@ -424,9 +438,9 @@ function ClockInLocationSettings() {
     try {
       await api.put("/admin/company/clock-in-location", {
         enabled,
-        latitude:  latitude  ? parseFloat(latitude)  : null,
+        latitude: latitude ? parseFloat(latitude) : null,
         longitude: longitude ? parseFloat(longitude) : null,
-        radius:    radius    ? parseInt(radius, 10)   : 100,
+        radius: radius ? parseInt(radius, 10) : 100,
       });
       flash("ok", "Clock-in location settings saved.");
     } catch (e) {
@@ -452,11 +466,7 @@ function ClockInLocationSettings() {
             : "border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#4B5168] dark:text-[#9DA3BB] hover:border-indigo-300 hover:text-indigo-700"
         }`}
       >
-        {/* Location pin icon */}
-        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-        </svg>
+        <MapPin className="w-4 h-4 shrink-0" strokeWidth={2} />
         Clock-In Location
         {enabled && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Location restriction active" />}
       </button>
@@ -471,13 +481,13 @@ function ClockInLocationSettings() {
               <p className="text-[11px] text-[#8B92A9] mt-0.5">Restrict employee clock-in to your office area</p>
             </div>
             <button onClick={() => setOpen(false)} className="w-7 h-7 flex items-center justify-center rounded-lg text-[#8B92A9] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              <X className="w-4 h-4" strokeWidth={2} />
             </button>
           </div>
 
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <svg className="w-5 h-5 animate-spin text-[#8B92A9]" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+              <Loader2 className="w-5 h-5 animate-spin text-[#8B92A9]" />
             </div>
           ) : (
             <div className="px-5 py-4 space-y-4">
@@ -515,8 +525,8 @@ function ClockInLocationSettings() {
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[11px] font-semibold hover:bg-indigo-100 transition disabled:opacity-60"
                   >
                     {detecting
-                      ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                      : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm-9 3H1m22 0h-2M12 3V1m0 22v-2"/></svg>
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : <Navigation className="w-3 h-3" strokeWidth={2.5} />
                     }
                     {detecting ? "Detecting…" : "Use my location"}
                   </button>
@@ -577,10 +587,8 @@ function ClockInLocationSettings() {
                     rel="noreferrer"
                     className="flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                    </svg>
-                    Verify on Google Maps ↗
+                    <ExternalLink className="w-3.5 h-3.5" strokeWidth={2} />
+                    Verify on Google Maps
                   </a>
                 )}
               </div>
@@ -597,9 +605,9 @@ function ClockInLocationSettings() {
 
               {/* Client meeting permission note */}
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-700">
-                <svg className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <CircleAlert className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" strokeWidth={2} />
                 <p className="text-[10px] text-amber-700 dark:text-amber-400">
-                  Employees on a <strong>client meeting</strong> can be granted temporary remote clock-in permission from the Employee Management page (📍 pin icon next to each employee).
+                  Employees on a <strong>client meeting</strong> can be granted temporary remote clock-in permission from the Employee Management page (location pin icon next to each employee).
                 </p>
               </div>
 
@@ -610,7 +618,8 @@ function ClockInLocationSettings() {
                     ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 border border-emerald-200"
                     : "bg-red-50 dark:bg-red-950/30 text-red-600 border border-red-200"
                 }`}>
-                  {msg.type === "ok" ? "✓" : "✕"} {msg.text}
+                  {msg.type === "ok" ? <Check className="w-3.5 h-3.5 shrink-0" /> : <X className="w-3.5 h-3.5 shrink-0" />}
+                  {msg.text}
                 </div>
               )}
 
@@ -621,8 +630,8 @@ function ClockInLocationSettings() {
                 className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {saving
-                  ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Saving…</>
-                  : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Save Location Settings</>
+                  ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</>
+                  : <><Check className="w-4 h-4" strokeWidth={2.5} />Save Location Settings</>
                 }
               </button>
             </div>
@@ -634,11 +643,11 @@ function ClockInLocationSettings() {
 }
 
 export default function AttendancePage() {
-  const [filters,     setFilters]     = useState(DEFAULT_FILTERS);
-  const [records,     setRecords]     = useState([]);
-  const [pagination,  setPagination]  = useState({ total: 0, page: 1, pages: 1 });
-  const [loading,     setLoading]     = useState(true);
-  const [exporting,   setExporting]   = useState(false);
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [records, setRecords] = useState([]);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1 });
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [showLiveLocations, setShowLiveLocations] = useState(false);
 
   const loadData = useCallback(async (overrideFilters) => {
@@ -646,9 +655,9 @@ export default function AttendancePage() {
     const f = overrideFilters || filters;
     try {
       const params = {
-        startDate : f.startDate,
-        endDate   : f.endDate,
-        ...(f.userId    && { userId:    f.userId    }),
+        startDate: f.startDate,
+        endDate: f.endDate,
+        ...(f.userId && { userId: f.userId }),
         ...(f.crmStatus && { crmStatus: f.crmStatus }),
         limit: 100,
       };
@@ -672,9 +681,9 @@ export default function AttendancePage() {
     setExporting(true);
     try {
       const params = {
-        startDate : filters.startDate,
-        endDate   : filters.endDate,
-        ...(filters.userId    && { userId:    filters.userId    }),
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        ...(filters.userId && { userId: filters.userId }),
         ...(filters.crmStatus && { crmStatus: filters.crmStatus }),
       };
       await exportToExcel(params);
@@ -711,10 +720,7 @@ export default function AttendancePage() {
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold hover:border-indigo-300 hover:text-indigo-700 transition"
             title="View live client meeting locations"
           >
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
-            </svg>
+            <MapPin className="w-4 h-4 shrink-0" strokeWidth={2} />
             Live Locations
           </button>
           <button
@@ -722,9 +728,10 @@ export default function AttendancePage() {
             disabled={exporting}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-semibold shadow transition disabled:opacity-60"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
+            {exporting
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Download className="w-4 h-4" strokeWidth={2} />
+            }
             {exporting ? "Exporting…" : "Export Excel"}
           </button>
         </div>
@@ -754,9 +761,10 @@ export default function AttendancePage() {
         </p>
         <button
           onClick={() => loadData()}
-          className="text-[12px] font-semibold text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition"
+          className="flex items-center gap-1.5 text-[12px] font-semibold text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition"
         >
-          ↻ Refresh
+          <RefreshCw className="w-3.5 h-3.5" strokeWidth={2} />
+          Refresh
         </button>
       </div>
 
