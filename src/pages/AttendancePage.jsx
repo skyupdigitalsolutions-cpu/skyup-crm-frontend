@@ -290,25 +290,34 @@ function ClockInLocationSettings() {
   );
 }
 
-// ── LateLoginSettings ─────────────────────────────────────────────────────────
-// SuperAdmin sets the company-wide clock-in threshold.
-// Anyone who clocks in after HH:MM gets marked "Late" in the attendance table.
-function LateLoginSettings() {
+// ── AttendanceSettings ────────────────────────────────────────────────────────
+// Company-wide attendance configuration set by admin/superadmin.
+// Covers: shift timings, late threshold, half/full-day rules, weekly off days,
+// and specific holiday dates. Applies to ALL employees (not per-employee).
+function AttendanceSettings() {
   const [open,    setOpen]    = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving,  setSaving]  = useState(false);
-  const [hour,    setHour]    = useState(9);
-  const [minute,  setMinute]  = useState(30);
   const [msg,     setMsg]     = useState({ type: "", text: "" });
+
+  const [cfg, setCfg] = useState({
+    shiftStartHour: 9, shiftStartMinute: 0,
+    shiftEndHour: 18,  shiftEndMinute: 0,
+    lateLoginHour: 10, lateLoginMinute: 30,
+    halfDayMinMinutes: 240, fullDayMinMinutes: 480,
+    weeklyOffDays: [0],
+    holidays: [],
+  });
+
+  // New holiday input
+  const [newHolidayDate, setNewHolidayDate] = useState("");
+  const [newHolidayName, setNewHolidayName] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    api.get("/admin/company/late-login-config")
-      .then(r => {
-        setHour(r.data.lateLoginHour ?? 9);
-        setMinute(r.data.lateLoginMinute ?? 30);
-      })
+    api.get("/admin/company/attendance-config")
+      .then(r => setCfg(c => ({ ...c, ...r.data, weeklyOffDays: r.data.weeklyOffDays || [0], holidays: r.data.holidays || [] })))
       .catch(() => setMsg({ type: "err", text: "Failed to load settings." }))
       .finally(() => setLoading(false));
   }, [open]);
@@ -318,29 +327,67 @@ function LateLoginSettings() {
     if (type === "ok") setTimeout(() => setMsg({ type: "", text: "" }), 3000);
   };
 
+  const set = (k, v) => setCfg(c => ({ ...c, [k]: v }));
+
+  const toggleWeeklyOff = (day) => {
+    setCfg(c => ({
+      ...c,
+      weeklyOffDays: c.weeklyOffDays.includes(day)
+        ? c.weeklyOffDays.filter(d => d !== day)
+        : [...c.weeklyOffDays, day].sort(),
+    }));
+  };
+
+  const addHoliday = () => {
+    if (!newHolidayDate) { flash("err", "Pick a holiday date first."); return; }
+    if (cfg.holidays.some(h => h.date === newHolidayDate)) { flash("err", "That date is already added."); return; }
+    setCfg(c => ({
+      ...c,
+      holidays: [...c.holidays, { date: newHolidayDate, name: newHolidayName.trim() || "Holiday" }]
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    }));
+    setNewHolidayDate("");
+    setNewHolidayName("");
+  };
+
+  const removeHoliday = (date) => {
+    setCfg(c => ({ ...c, holidays: c.holidays.filter(h => h.date !== date) }));
+  };
+
   const handleSave = async () => {
-    const h = parseInt(hour,   10);
-    const m = parseInt(minute, 10);
-    if (isNaN(h) || h < 0 || h > 23) { flash("err", "Hour must be 0–23."); return; }
-    if (isNaN(m) || m < 0 || m > 59) { flash("err", "Minute must be 0–59."); return; }
     setSaving(true);
     try {
-      await api.put("/admin/company/late-login-config", {
-        lateLoginHour: h, lateLoginMinute: m,
-      });
-      flash("ok", `Late login threshold set to ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
+      await api.put("/admin/company/attendance-config", cfg);
+      flash("ok", "Attendance settings saved for the whole company.");
     } catch (e) {
       flash("err", e.response?.data?.message || "Failed to save.");
     } finally { setSaving(false); }
   };
 
-  const fmtThreshold = `${String(hour).padStart(2,"0")}:${String(minute).padStart(2,"0")}`;
+  const fmt = (h, m) => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  const DAYS = [
+    { n: 1, label: "Mon" }, { n: 2, label: "Tue" }, { n: 3, label: "Wed" },
+    { n: 4, label: "Thu" }, { n: 5, label: "Fri" }, { n: 6, label: "Sat" }, { n: 0, label: "Sun" },
+  ];
+
+  const TimeField = ({ label, h, m, onH, onM, accent = "indigo" }) => (
+    <div>
+      <label className="block text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-1.5">{label}</label>
+      <div className="flex items-center gap-1.5">
+        <input type="number" min={0} max={23} value={h} onChange={e => onH(Number(e.target.value))}
+          className={`w-full px-2 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] font-mono text-center text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-${accent}-400 transition`} />
+        <span className="text-[#8B92A9] font-bold">:</span>
+        <input type="number" min={0} max={59} value={m} onChange={e => onM(Number(e.target.value))}
+          className={`w-full px-2 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] font-mono text-center text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-${accent}-400 transition`} />
+      </div>
+    </div>
+  );
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(v => !v)}
-        title="Late Login Threshold"
+        title="Company Attendance Settings"
         className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-[12px] font-semibold transition-all ${
           open
             ? "bg-amber-50 dark:bg-amber-500/15 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
@@ -348,93 +395,135 @@ function LateLoginSettings() {
         }`}
       >
         <Clock size={15} className="shrink-0" />
-        <span>Late Time</span>
-        <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
-          {fmtThreshold}
-        </span>
+        <span>Attendance Setup</span>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[320px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
-          <PanelHeader
-            icon={Clock}
-            title="Late Login Threshold"
-            subtitle="Employees clocking in after this time are marked Late"
-            onClose={() => setOpen(false)}
-            iconColor="text-amber-500"
-            iconBg="bg-amber-50 dark:bg-amber-500/10"
-          />
+        <div className="absolute right-0 top-full mt-2 w-[400px] max-h-[80vh] overflow-y-auto bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50">
+          <div className="sticky top-0 bg-white dark:bg-[#1A1D27] z-10">
+            <PanelHeader
+              icon={Clock}
+              title="Attendance Setup"
+              subtitle="Company-wide shift, holidays & rules"
+              onClose={() => setOpen(false)}
+              iconColor="text-amber-500"
+              iconBg="bg-amber-50 dark:bg-amber-500/10"
+            />
+          </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-10">
               <Loader2 size={20} className="animate-spin text-[#8B92A9]" />
             </div>
           ) : (
-            <div className="px-5 py-4 space-y-4">
-              <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">
-                Set the company-wide clock-in deadline. Any check-in after{" "}
-                <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">{fmtThreshold}</span>{" "}
-                will be marked as <span className="font-bold text-amber-600 dark:text-amber-400">Late</span>.
-              </p>
+            <div className="px-5 py-4 space-y-5">
 
-              {/* Time pickers */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-1.5">
-                    Hour (0–23)
-                  </label>
-                  <input
-                    type="number" min={0} max={23} value={hour}
-                    onChange={e => setHour(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] font-mono text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-amber-400 transition text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-1.5">
-                    Minute (0–59)
-                  </label>
-                  <input
-                    type="number" min={0} max={59} value={minute}
-                    onChange={e => setMinute(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] font-mono text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-amber-400 transition text-center"
-                  />
-                </div>
-              </div>
-
-              {/* Quick presets */}
+              {/* Shift timings */}
               <div>
-                <p className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-2">Quick Presets</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { label: "9:00 AM", h: 9,  m: 0  },
-                    { label: "9:30 AM", h: 9,  m: 30 },
-                    { label: "10:00 AM", h: 10, m: 0  },
-                    { label: "10:30 AM", h: 10, m: 30 },
-                  ].map(p => (
-                    <button
-                      key={p.label}
-                      onClick={() => { setHour(p.h); setMinute(p.m); }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition ${
-                        Number(hour) === p.h && Number(minute) === p.m
-                          ? "border-amber-400 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                          : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-amber-300 hover:text-amber-600 dark:hover:text-amber-400"
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
+                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5">🕘 Shift Timings</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <TimeField label="Shift Start" h={cfg.shiftStartHour} m={cfg.shiftStartMinute}
+                    onH={v => set("shiftStartHour", v)} onM={v => set("shiftStartMinute", v)} accent="emerald" />
+                  <TimeField label="Shift End" h={cfg.shiftEndHour} m={cfg.shiftEndMinute}
+                    onH={v => set("shiftEndHour", v)} onM={v => set("shiftEndMinute", v)} accent="red" />
                 </div>
-              </div>
-
-              <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-                <Info size={13} className="text-amber-500 shrink-0 mt-0.5" />
-                <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
-                  This affects how <strong>Late</strong> status is calculated in attendance reports and exports. Existing records are re-evaluated on each report load.
+                <p className="text-[10px] text-[#8B92A9] mt-1.5">
+                  Standard working hours: {fmt(cfg.shiftStartHour, cfg.shiftStartMinute)} – {fmt(cfg.shiftEndHour, cfg.shiftEndMinute)}
                 </p>
               </div>
 
+              {/* Late threshold */}
+              <div>
+                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5">🕙 Late Threshold</p>
+                <TimeField label="Mark Late After" h={cfg.lateLoginHour} m={cfg.lateLoginMinute}
+                  onH={v => set("lateLoginHour", v)} onM={v => set("lateLoginMinute", v)} accent="amber" />
+                <p className="text-[10px] text-[#8B92A9] mt-1.5">
+                  Clock-in after <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{fmt(cfg.lateLoginHour, cfg.lateLoginMinute)}</span> is marked Late.
+                </p>
+              </div>
+
+              {/* Day rules */}
+              <div>
+                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5">⏱ Day Rules</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-1.5">Half-Day (min hrs)</label>
+                    <input type="number" min={0} value={(cfg.halfDayMinMinutes / 60).toFixed(1)}
+                      onChange={e => set("halfDayMinMinutes", Math.round(Number(e.target.value) * 60))}
+                      className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] font-mono text-center text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-blue-400 transition" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-1.5">Full-Day (min hrs)</label>
+                    <input type="number" min={0} value={(cfg.fullDayMinMinutes / 60).toFixed(1)}
+                      onChange={e => set("fullDayMinMinutes", Math.round(Number(e.target.value) * 60))}
+                      className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] font-mono text-center text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-emerald-400 transition" />
+                  </div>
+                </div>
+                <p className="text-[10px] text-[#8B92A9] mt-1.5">
+                  Work &lt; {(cfg.halfDayMinMinutes / 60).toFixed(1)}h = Half-Day · ≥ {(cfg.fullDayMinMinutes / 60).toFixed(1)}h = Present
+                </p>
+              </div>
+
+              {/* Weekly off days */}
+              <div>
+                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5">📅 Weekly Off Days</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {DAYS.map(d => {
+                    const isOff = cfg.weeklyOffDays.includes(d.n);
+                    return (
+                      <button key={d.n} onClick={() => toggleWeeklyOff(d.n)}
+                        className={`w-11 py-2 rounded-lg text-[11px] font-bold border transition ${
+                          isOff
+                            ? "border-purple-400 bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-400"
+                            : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-purple-300"
+                        }`}>
+                        {d.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-[#8B92A9] mt-1.5">
+                  {cfg.weeklyOffDays.length === 0 ? "No weekly off set" : `${cfg.weeklyOffDays.length} day(s) marked as weekly off`}
+                </p>
+              </div>
+
+              {/* Holidays */}
+              <div>
+                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5">🎉 Holidays</p>
+
+                {/* Add holiday row */}
+                <div className="flex gap-2 mb-2">
+                  <input type="date" value={newHolidayDate} onChange={e => setNewHolidayDate(e.target.value)}
+                    className="flex-1 px-2.5 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-pink-400 transition" />
+                  <input type="text" placeholder="Name" value={newHolidayName} onChange={e => setNewHolidayName(e.target.value)}
+                    className="w-24 px-2.5 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-pink-400 transition" />
+                  <button onClick={addHoliday}
+                    className="px-3 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-[12px] font-bold transition shrink-0">+</button>
+                </div>
+
+                {/* Holiday list */}
+                {cfg.holidays.length > 0 ? (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                    {cfg.holidays.map(h => (
+                      <div key={h.date} className="flex items-center justify-between px-3 py-2 rounded-lg bg-pink-50 dark:bg-pink-950/20 border border-pink-100 dark:border-pink-900/40">
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-semibold text-pink-700 dark:text-pink-400 truncate">{h.name}</p>
+                          <p className="text-[10px] text-[#8B92A9] font-mono">{h.date}</p>
+                        </div>
+                        <button onClick={() => removeHoliday(h.date)}
+                          className="w-6 h-6 flex items-center justify-center rounded-lg text-pink-400 hover:bg-pink-100 dark:hover:bg-pink-900/40 transition shrink-0">
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-[#8B92A9] italic">No holidays added yet.</p>
+                )}
+              </div>
+
               <Feedback msg={msg} />
-              <SaveButton saving={saving} onClick={handleSave} label="Save Threshold" />
+              <SaveButton saving={saving} onClick={handleSave} label="Save Attendance Settings" />
             </div>
           )}
         </div>
@@ -876,7 +965,7 @@ export default function AttendancePage() {
 
           {/* Late login threshold — superadmin only */}
           {isSuperAdmin && (
-            <LateLoginSettings />
+            <AttendanceSettings />
           )}
 
           {/* Call log sync toggle — superadmin only */}
