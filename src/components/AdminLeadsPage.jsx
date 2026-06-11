@@ -550,7 +550,6 @@ function RecordingsTab({ lead }) {
         >
           <RotateCcw className="w-3 h-3" />
         </button>
-         
       </div>
 
       {callLogs.map((log, li) => (
@@ -703,7 +702,6 @@ function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast 
         </div>
 
         {/* Content */}
-{/* Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="px-6 py-4">
             <PhoneActionsPanel
@@ -2236,12 +2234,33 @@ const showToast = useCallback((message, type = "success") => {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-[12px]">
+              <table className="w-full text-[12px] table-fixed">
+                <colgroup>
+                  <col className="w-[180px]" />                 {/* Lead */}
+                  <col className="w-[170px]" />                 {/* Contact */}
+                  <col className="w-[110px]" />                 {/* Employee */}
+                  <col className="hidden xl:table-column xl:w-[140px]" /> {/* Source / Campaign */}
+                  <col className="hidden lg:table-column lg:w-[120px]" /> {/* Project */}
+                  <col className="w-[90px]" />                  {/* Date */}
+                  <col className="w-[110px]" />                 {/* Status */}
+                  <col className="w-[80px]" />                  {/* Quality */}
+                  <col className="hidden xl:table-column xl:w-[150px]" /> {/* Last Outcome */}
+                  <col className="w-[120px]" />                 {/* Actions */}
+                </colgroup>
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Lead", "Contact", "Employee", "Source / Campaign", "Project", "Date", "Status", "Quality", "Last Outcome", ""].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
-                    ))}
+                    <th className="px-3 py-2.5 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest sticky left-0 bg-[#F8F9FC] dark:bg-[#13161E] z-10">
+                      Lead
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Contact</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Employee</th>
+                    <th className="hidden xl:table-cell px-3 py-2.5 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Source / Campaign</th>
+                    <th className="hidden lg:table-cell px-3 py-2.5 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Project</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Date</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Status</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Quality</th>
+                    <th className="hidden xl:table-cell px-3 py-2.5 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">Last Outcome</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
@@ -2257,49 +2276,45 @@ const showToast = useCallback((message, type = "success") => {
                         className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition cursor-pointer group"
                         onClick={() => setSelected(l)}
                       >
-                        {/* Lead name */}
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2.5">
+                        {/* Lead name — sticky */}
+                        <td className="px-3 py-2.5 sticky left-0 bg-white dark:bg-[#1A1D27] group-hover:bg-[#F8F9FC] dark:group-hover:bg-[#13161E] transition z-10">
+                          <div className="flex items-center gap-2 min-w-0">
                             <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
                               style={{ background: (sc.dot || "#2563EB") + "20", color: sc.dot || "#2563EB" }}>
                               {l.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
                             </div>
-                            <div>
-                              <p className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.name}</p>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{l.name}</p>
                               <p className="text-[10px] text-[#8B92A9]">{daysSince(l._raw_date) || "—"}</p>
                             </div>
                           </div>
                         </td>
 
                         {/* Contact */}
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             {isSuperAdmin ? (
-                              // ── SuperAdmin: plain number, no eye icon, no view count ──
-                              <span className="font-mono text-[#0F1117] dark:text-[#F0F2FA] text-[12px]">
+                              <span className="font-mono text-[#0F1117] dark:text-[#F0F2FA] text-[12px] truncate">
                                 {l.phone || "—"}
                               </span>
                             ) : isRevealed ? (
-                              // ── Admin: revealed state ──
                               <div className="flex items-center gap-1.5">
-                                <span className="font-mono text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap text-[12px] animate-pulse">
+                                <span className="font-mono text-[#0F1117] dark:text-[#F0F2FA] text-[12px] animate-pulse truncate">
                                   {l.phone || "—"}
                                 </span>
-                                <span className="inline-block w-8 h-1 rounded-full bg-[#E4E7EF] dark:bg-[#262A38] overflow-hidden">
+                                <span className="inline-block w-8 h-1 rounded-full bg-[#E4E7EF] dark:bg-[#262A38] overflow-hidden shrink-0">
                                   <span className="block h-full bg-[#2563EB] rounded-full" style={{ animation: "shrink 4s linear forwards" }} />
                                 </span>
                               </div>
                             ) : (
-                              // ── Admin: masked state with eye button ──
-                              <button onClick={(e) => handleRevealPhone(e, l.id)} className="flex items-center gap-1 group/phone" title="Click to reveal number">
-                                <span className="font-mono text-[#8B92A9] dark:text-[#565C75] tracking-widest text-[12px] select-none">
+                              <button onClick={(e) => handleRevealPhone(e, l.id)} className="flex items-center gap-1 group/phone min-w-0" title="Click to reveal number">
+                                <span className="font-mono text-[#8B92A9] dark:text-[#565C75] tracking-widest text-[12px] select-none truncate">
                                   {maskedPhone}
                                 </span>
                                 <Eye className="w-3 h-3 text-[#C4C9D9] dark:text-[#3E4257] group-hover/phone:text-[#2563EB] transition shrink-0" />
                               </button>
                             )}
 
-                            {/* View count badge — hidden for superadmin */}
                             {!isSuperAdmin && viewCount > 0 && (
                               <span
                                 title={`Viewed ${viewCount} time${viewCount > 1 ? "s" : ""} this session`}
@@ -2311,7 +2326,6 @@ const showToast = useCallback((message, type = "success") => {
                                 <Eye className="w-2 h-2" /> {viewCount}
                               </span>
                             )}
-                            {/* Secondary phone indicator */}
                             {l.secondaryPhone && (
                               <span
                                 title="Has secondary phone number"
@@ -2321,64 +2335,64 @@ const showToast = useCallback((message, type = "success") => {
                               </span>
                             )}
                           </div>
-                         {l.email && (
-  <div className="mt-0.5 flex items-center gap-1">
-    {isSuperAdmin ? (
-      <p className="text-[10px] text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[130px] font-mono" title={l.email}>{l.email}</p>
-    ) : revealedEmail === l.id ? (
-      <div className="flex items-center gap-1">
-        <p className="text-[10px] text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[130px] font-mono animate-pulse">{l.email}</p>
-        <span className="inline-block w-6 h-1 rounded-full bg-[#E4E7EF] dark:bg-[#262A38] overflow-hidden shrink-0">
-          <span className="block h-full bg-[#2563EB] rounded-full" style={{ animation: "shrink 4s linear forwards" }} />
-        </span>
-      </div>
-    ) : (
-      <button onClick={(e) => handleRevealEmail(e, l.id)} className="flex items-center gap-1 group/email" title="Click to reveal email">
-        <p className="text-[10px] text-[#8B92A9] truncate max-w-[110px] font-mono select-none">{maskEmail(l.email, isSuperAdmin)}</p>
-        <Eye className="w-2.5 h-2.5 text-[#C4C9D9] dark:text-[#3E4257] group-hover/email:text-[#2563EB] transition shrink-0" />
-      </button>
-    )}
-    {!isSuperAdmin && (emailViewCounts[l.id] || 0) > 0 && (
-      <span
-        title={`Viewed ${emailViewCounts[l.id]} time${emailViewCounts[l.id] > 1 ? "s" : ""} this session`}
-        className={`text-[9px] font-bold px-1 py-0.5 rounded-full shrink-0 leading-none flex items-center gap-0.5
-          ${(emailViewCounts[l.id] || 0) >= 5 ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
-          : (emailViewCounts[l.id] || 0) >= 3 ? "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
-          : "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7]"}`}
-      >
-        <Eye className="w-2 h-2" />{emailViewCounts[l.id]}
-      </span>
-    )}
-  </div>
-)}
+                          {l.email && (
+                            <div className="mt-0.5 flex items-center gap-1 min-w-0">
+                              {isSuperAdmin ? (
+                                <p className="text-[10px] text-[#0F1117] dark:text-[#F0F2FA] truncate font-mono" title={l.email}>{l.email}</p>
+                              ) : revealedEmail === l.id ? (
+                                <div className="flex items-center gap-1 min-w-0">
+                                  <p className="text-[10px] text-[#0F1117] dark:text-[#F0F2FA] truncate font-mono animate-pulse">{l.email}</p>
+                                  <span className="inline-block w-6 h-1 rounded-full bg-[#E4E7EF] dark:bg-[#262A38] overflow-hidden shrink-0">
+                                    <span className="block h-full bg-[#2563EB] rounded-full" style={{ animation: "shrink 4s linear forwards" }} />
+                                  </span>
+                                </div>
+                              ) : (
+                                <button onClick={(e) => handleRevealEmail(e, l.id)} className="flex items-center gap-1 group/email min-w-0" title="Click to reveal email">
+                                  <p className="text-[10px] text-[#8B92A9] truncate font-mono select-none">{maskEmail(l.email, isSuperAdmin)}</p>
+                                  <Eye className="w-2.5 h-2.5 text-[#C4C9D9] dark:text-[#3E4257] group-hover/email:text-[#2563EB] transition shrink-0" />
+                                </button>
+                              )}
+                              {!isSuperAdmin && (emailViewCounts[l.id] || 0) > 0 && (
+                                <span
+                                  title={`Viewed ${emailViewCounts[l.id]} time${emailViewCounts[l.id] > 1 ? "s" : ""} this session`}
+                                  className={`text-[9px] font-bold px-1 py-0.5 rounded-full shrink-0 leading-none flex items-center gap-0.5
+                                    ${(emailViewCounts[l.id] || 0) >= 5 ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
+                                    : (emailViewCounts[l.id] || 0) >= 3 ? "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
+                                    : "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7]"}`}
+                                >
+                                  <Eye className="w-2 h-2" />{emailViewCounts[l.id]}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
 
                         {/* Employee */}
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             <div className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-950/40 flex items-center justify-center text-[8px] font-black text-purple-600 dark:text-purple-400 shrink-0">
                               {(l.agent || "?").charAt(0).toUpperCase()}
                             </div>
-                            <span className="text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[90px]">{l.agent || "Unassigned"}</span>
+                            <span className="text-[#0F1117] dark:text-[#F0F2FA] truncate">{l.agent || "Unassigned"}</span>
                           </div>
                           {l.reassignCount > 0 && (
                             <p className="text-[9px] text-purple-400 mt-0.5">{l.reassignCount} reassign{l.reassignCount > 1 ? "s" : ""}</p>
                           )}
                         </td>
 
-                        {/* Source / Campaign */}
-                        <td className="px-4 py-3">
-                          <p className="text-[#0F1117] dark:text-[#F0F2FA] truncate max-w-[130px]">{l.source}</p>
+                        {/* Source / Campaign — hidden below xl */}
+                        <td className="hidden xl:table-cell px-3 py-2.5">
+                          <p className="text-[#0F1117] dark:text-[#F0F2FA] truncate">{l.source}</p>
                           {l.campaign !== "—" && (
-                            <p className="text-[10px] text-[#8B92A9] truncate max-w-[130px]">{l.campaign}</p>
+                            <p className="text-[10px] text-[#8B92A9] truncate">{l.campaign}</p>
                           )}
                           {l.adSetName && (
-                            <p className="text-[10px] text-[#E1306C] truncate max-w-[130px]">📢 {l.adSetName}</p>
+                            <p className="text-[10px] text-[#E1306C] truncate">{l.adSetName}</p>
                           )}
                         </td>
 
-                        {/* Project */}
-                        <td className="px-4 py-3">
+                        {/* Project — hidden below lg */}
+                        <td className="hidden lg:table-cell px-3 py-2.5">
                           {l.projects && l.projects.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {l.projects.slice(0, 2).map((p, pi) => {
@@ -2408,16 +2422,16 @@ const showToast = useCallback((message, type = "success") => {
                         </td>
 
                         {/* Date */}
-                        <td className="px-4 py-3 whitespace-nowrap text-[#0F1117] dark:text-[#F0F2FA]">{l.date}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap text-[#0F1117] dark:text-[#F0F2FA]">{l.date}</td>
 
                         {/* Status */}
-                        <td className="px-4 py-3"><StatusBadge lead={l} /></td>
+                        <td className="px-3 py-2.5"><StatusBadge lead={l} /></td>
 
                         {/* Quality */}
-                        <td className="px-4 py-3"><TempBadge temp={l.Quality} /></td>
+                        <td className="px-3 py-2.5"><TempBadge temp={l.Quality} /></td>
 
-                        {/* Last Outcome */}
-                        <td className="px-4 py-3">
+                        {/* Last Outcome — hidden below xl */}
+                        <td className="hidden xl:table-cell px-3 py-2.5">
                           {l.lastOutcome ? (
                             <div>
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${
@@ -2428,7 +2442,7 @@ const showToast = useCallback((message, type = "success") => {
                                   : "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
                               }`}>{l.lastOutcome}</span>
                               {l.lastCalledAt && <p className="text-[9px] text-[#8B92A9] mt-0.5">{daysSince(l.lastCalledAt)}</p>}
-                              {l.lastRemark && <p className="text-[9px] text-[#8B92A9] truncate max-w-[140px] italic mt-0.5">"{l.lastRemark}"</p>}
+                              {l.lastRemark && <p className="text-[9px] text-[#8B92A9] truncate italic mt-0.5">"{l.lastRemark}"</p>}
                             </div>
                           ) : (
                             <span className="text-[11px] text-[#8B92A9]">No calls yet</span>
@@ -2436,7 +2450,7 @@ const showToast = useCallback((message, type = "success") => {
                         </td>
 
                         {/* Actions */}
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <div className="flex items-center gap-1.5">
                             <button
                               title="Recordings & AI"
@@ -2444,11 +2458,11 @@ const showToast = useCallback((message, type = "success") => {
                               className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 border border-violet-100 dark:border-violet-900/50 transition whitespace-nowrap"
                             >
                               <Mic className="w-3 h-3" />
-                              Recordings &amp; AI
+                              AI
                             </button>
                             <button
                               onClick={e => { e.stopPropagation(); setSelected(l); }}
-                              className="w-6 h-6 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                              className="w-6 h-6 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] opacity-0 group-hover:opacity-100 transition flex items-center justify-center shrink-0"
                             >
                               <ChevronRight className="w-3 h-3" />
                             </button>
@@ -2538,3 +2552,4 @@ const showToast = useCallback((message, type = "success") => {
     </div>
   );
 }
+Done
