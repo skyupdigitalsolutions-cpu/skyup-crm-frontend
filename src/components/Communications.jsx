@@ -93,6 +93,65 @@ const FIELD_CLS =
 // ─────────────────────────────────────────────────────────────────────────────
 const FIELD = "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition";
 
+// Webhook URL box — shown in WhatsApp Integrations tab so admin can configure
+// MSG91 inbound webhook for instant reply delivery (eliminates 30-40s poll lag).
+function WebhookUrlBox() {
+  const [copied, setCopied] = useState(false);
+  const backendBase = (import.meta.env.VITE_API_URL || "").replace("/api", "");
+  const webhookUrl  = `${backendBase}/msg91-webhook`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="rounded-xl border border-[#BFDBFE] dark:border-[#1e3a5f] bg-[#EFF6FF] dark:bg-[#0c1a2e] p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <svg className="w-4 h-4 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        <p className="text-[12px] font-bold text-[#1D4ED8] dark:text-[#93C5FD]">
+          Set Inbound Webhook for Instant Reply Delivery
+        </p>
+      </div>
+      <p className="text-[11px] text-[#1E40AF] dark:text-[#BFDBFE] leading-relaxed">
+        Without this, lead replies take <strong>30–40 seconds</strong> to appear (poll delay).
+        With this set, replies appear in <strong>under 2 seconds</strong>.
+      </p>
+      <div>
+        <p className="text-[10px] font-semibold text-[#1D4ED8] dark:text-[#93C5FD] mb-1 uppercase tracking-widest">Your Webhook URL</p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 bg-white dark:bg-[#111827] border border-[#BFDBFE] dark:border-[#1e3a5f] rounded-lg px-3 py-2 text-[11px] font-mono text-[#1D4ED8] dark:text-[#93C5FD] break-all select-all">
+            {webhookUrl}
+          </code>
+          <button
+            onClick={handleCopy}
+            className="shrink-0 px-3 py-2 rounded-lg bg-[#2563EB] text-white text-[11px] font-semibold hover:bg-[#1D4ED8] transition"
+          >
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-bold text-[#1D4ED8] dark:text-[#93C5FD] uppercase tracking-widest">Steps to configure in MSG91</p>
+        {[
+          "Go to msg91.com → WhatsApp → Integrated Numbers",
+          "Click on your number → Settings",
+          'Find "Response Webhook" or "Inbound Webhook" field',
+          "Paste the URL above → Save",
+        ].map((s, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className="w-4 h-4 rounded-full bg-[#2563EB]/10 text-[#2563EB] text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+            <p className="text-[11px] text-[#1E40AF] dark:text-[#BFDBFE]">{s}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function IntegrationsModal({ onClose }) {
   const [activeTab, setActiveTab] = useState("whatsapp");
 
@@ -422,6 +481,9 @@ function IntegrationsModal({ onClose }) {
                   </p>
                 </div>
               )}
+
+              {/* ── Inbound Webhook URL — CRITICAL for instant message delivery ── */}
+              {activeTab === "whatsapp" && <WebhookUrlBox />}
 
               {msg91Err && <div className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-[12px] text-red-600 dark:text-red-400">{msg91Err}</div>}
               {msg91Ok  && <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-[12px] text-emerald-700 dark:text-emerald-400">{msg91Ok}</div>}
