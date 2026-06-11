@@ -121,7 +121,11 @@ function WebhookUrlBox() {
       const data = await res.json();
       if (data.success) {
         setRegState("ok");
-        setRegMsg("✅ Webhook registered! Lead replies will now arrive instantly.");
+        setRegMsg(
+          data.autoRegistered
+            ? "✅ Webhook registered with MSG91! Lead replies will now arrive instantly (<2 seconds)."
+            : `⚠️ Auto-registration API unavailable — paste the URL manually in MSG91 dashboard:\nMSG91 → WhatsApp → Integrated Numbers → your number → Settings → Response Webhook`
+        );
       } else {
         setRegState("err");
         setRegMsg(data.message || "Auto-registration failed. Set it manually in MSG91 dashboard.");
@@ -1581,11 +1585,30 @@ function WhatsAppPanel({ currentUser }) {
     socket.on("wa_assigned", () => loadConversations());
     loadConversations();
     loadLeads();
+
+    // ── Auto-register MSG91 inbound webhook on mount ──────────────────────────
+    // This silently attempts to register the webhook with MSG91 so lead replies
+    // arrive via push (<1s) instead of the polling fallback (30-50s delay).
+    // Only runs for admins; fails silently if already registered or config missing.
+    if (isAdmin) {
+      const adminToken = localStorage.getItem("adminToken") || localStorage.getItem("token") || "";
+      fetch(`${API_URL}/admin/company/msg91-register-webhook`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
+      })
+        .then(r => r.json())
+        .then(d => { if (d.success) console.log("✅ MSG91 webhook auto-registered:", d.webhookUrl); })
+        .catch(() => {}); // silent fail — polling is still the fallback
+    }
+
     return () => socket.disconnect();
   }, [currentUser]);
 
   // ── Real-time fallback polling ─────────────────────────────────────────────
-  // Polls every 2s for new messages in the selected conversation.
+  // Polls every 1.5s for new messages in the selected conversation.
+  // This is a safety net — the socket push (wa_message event) is the primary
+  // path. If the MSG91 inbound webhook is registered, messages arrive via
+  // socket in <2s. The poll below catches anything the socket misses.
   // Also checks for messages that landed in a duplicate conversation
   // (same waPhone, different _id) due to the XXX phone masking bug.
   useEffect(() => {
@@ -1629,7 +1652,7 @@ function WhatsAppPanel({ currentUser }) {
           );
         });
       } catch {}
-    }, 2000);
+    }, 1500);
     return () => clearInterval(interval);
   }, [selected?._id]);
 
