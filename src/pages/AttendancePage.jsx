@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import {
   MapPin, Navigation, Save, X, Check, AlertCircle,
   ExternalLink, RefreshCw, Download, MapPinned,
-  LocateFixed, Clock, Activity, Loader2, ChevronRight,
-  Info, ToggleLeft, ToggleRight,
+  LocateFixed, Clock, Activity, Loader2,
+  Info,
 } from "lucide-react";
 import AttendanceFilters from "../components/AttendanceFilters";
 import AttendanceTable   from "../components/AttendanceTable";
@@ -43,26 +43,22 @@ function Toggle({ enabled, onToggle, label, description }) {
   return (
     <button
       onClick={onToggle}
-      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left ${
         enabled
           ? "border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-500/10"
           : "border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] hover:border-[#CBD5E1] dark:hover:border-[#3E4257]"
       }`}
     >
-      <div className="flex items-center gap-3 text-left min-w-0">
-        {enabled
-          ? <ToggleRight size={18} className="text-emerald-500 shrink-0" />
-          : <ToggleLeft  size={18} className="text-[#8B92A9] shrink-0" />
-        }
-        <div className="min-w-0">
-          <p className={`text-[13px] font-semibold truncate ${enabled ? "text-emerald-700 dark:text-emerald-400" : "text-[#0F1117] dark:text-[#F0F2FA]"}`}>
-            {label}
-          </p>
-          <p className="text-[11px] text-[#8B92A9] mt-0.5 truncate">{description}</p>
-        </div>
-      </div>
-      <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ml-3 ${enabled ? "bg-emerald-500" : "bg-[#D1D5DB] dark:bg-[#3E4257]"}`}>
+      {/* Toggle pill — fixed size, always on right, never pushed out */}
+      <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${enabled ? "bg-emerald-500" : "bg-[#D1D5DB] dark:bg-[#3E4257]"}`}>
         <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${enabled ? "translate-x-5" : "translate-x-0.5"}`} />
+      </div>
+      {/* Text — takes remaining space, truncates cleanly */}
+      <div className="flex-1 min-w-0">
+        <p className={`text-[13px] font-semibold leading-tight ${enabled ? "text-emerald-700 dark:text-emerald-400" : "text-[#0F1117] dark:text-[#F0F2FA]"}`}>
+          {label}
+        </p>
+        <p className="text-[11px] text-[#8B92A9] mt-0.5 leading-snug">{description}</p>
       </div>
     </button>
   );
