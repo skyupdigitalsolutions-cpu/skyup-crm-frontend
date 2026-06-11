@@ -10,7 +10,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { getStoredUser, getRole } from '../data/dataService';
-import api from '../data/axiosConfig';
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
@@ -45,8 +44,6 @@ export default function AdminChat() {
 
   const [editingId, setEditingId]     = useState(null);
   const [editingText, setEditingText] = useState('');
-  const [closedNotifs,    setClosedNotifs]    = useState([]); // Lead close notifications
-  const [meetingRequests, setMeetingRequests] = useState([]); // Meeting permission requests
 
   const bottomRef = useRef(null);
 
@@ -57,12 +54,7 @@ export default function AdminChat() {
 
   // ── Socket setup ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const token  = localStorage.getItem('token');
-    const socket = io(SOCKET_URL, {
-      withCredentials: true,
-      transports:      ['websocket', 'polling'],
-      auth:            token ? { token } : undefined,
-    });
+    const socket = io(SOCKET_URL);
     socketRef.current = socket;
 
     // Send join AFTER socket connects to avoid losing the event
@@ -166,31 +158,6 @@ export default function AdminChat() {
 
     socket.on('chat_error', ({ message: err }) => console.warn('Chat error:', err));
 
-    // ── Lead close notification from employee ─────────────────────────────
-    socket.on('lead_closed_by_user', (data) => {
-      const notif = { ...data, id: Date.now() };
-      setClosedNotifs(prev => [notif, ...prev].slice(0, 20));
-      // Browser notification
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        new Notification('🔴 Lead Closed by Employee', {
-          body: `${data.closedBy} closed "${data.leadName}" — ${data.remark}`,
-          icon: '/skyup_logo1.svg',
-        });
-      }
-    });
-
-    // ── Meeting permission request from employee ───────────────────────────
-    socket.on('meeting_permission_requested', (data) => {
-      const req = { ...data, id: `${data.userId}-${Date.now()}`, status: 'pending' };
-      setMeetingRequests(prev => [req, ...prev].slice(0, 20));
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        new Notification('📍 Remote Clock-In Request', {
-          body: `${data.userName} needs remote clock-in permission${data.reason ? ` — ${data.reason}` : ''}`,
-          icon: '/skyup_logo1.svg',
-        });
-      }
-    });
-
     return () => socket.disconnect();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -198,18 +165,6 @@ export default function AdminChat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chats, selectedUsername]);
-
-  // ── Handle meeting permission request (approve / deny) ───────────────────
-  const handleMeetingRequest = useCallback(async (req, grant) => {
-    try {
-      await api.put(`/admin/user/${req.userId}/meeting-permission`, { grant });
-      setMeetingRequests(prev =>
-        prev.map(r => r.id === req.id ? { ...r, status: grant ? 'approved' : 'denied' } : r)
-      );
-    } catch (e) {
-      alert(e.response?.data?.message || `Failed to ${grant ? 'approve' : 'deny'} request.`);
-    }
-  }, []);
 
   // ── Select contact ────────────────────────────────────────────────────────
   const selectUser = useCallback((username) => {
@@ -263,8 +218,7 @@ export default function AdminChat() {
   const employeeContacts = userList.filter((u) => u.role === 'employee');
   const superAdminContact = userList.find((u) => u.role === 'super_admin');
 
-  const totalUnread     = Object.values(unread).reduce((a, b) => a + b, 0);
-  const pendingMeetings = meetingRequests.filter(r => r.status === 'pending').length;
+  const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
 
   // ── Label helper ─────────────────────────────────────────────────────────
   const roleLabel = (r) => {
@@ -276,77 +230,7 @@ export default function AdminChat() {
   // ── FAB (minimised) ───────────────────────────────────────────────────────
   if (!open) {
     return (
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
-
-        {/* Meeting permission request notifications */}
-        {meetingRequests.filter(r => r.status === 'pending').length > 0 && (
-          <div className="w-80 max-h-80 overflow-y-auto bg-white dark:bg-[#1A1D27] border border-indigo-200 dark:border-indigo-800 rounded-2xl shadow-2xl">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-indigo-100 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/40">
-              <span className="text-[12px] font-bold text-indigo-700 dark:text-indigo-400">
-                📍 Remote Clock-In Requests ({meetingRequests.filter(r => r.status === 'pending').length})
-              </span>
-              <button onClick={() => setMeetingRequests([])} className="text-[10px] text-indigo-400 hover:text-indigo-600 font-semibold">Clear</button>
-            </div>
-            {meetingRequests.filter(r => r.status === 'pending').map(req => (
-              <div key={req.id} className="px-4 py-3 border-b border-indigo-50 dark:border-indigo-900/30 last:border-0">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="min-w-0">
-                    <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{req.userName}</p>
-                    {req.reason && (
-                      <p className="text-[11px] text-[#8B92A9] mt-0.5 italic truncate">"{req.reason}"</p>
-                    )}
-                    {req.location && (
-                      <p className="text-[11px] text-[#8B92A9] mt-0.5">📍 {req.location}</p>
-                    )}
-                    <p className="text-[10px] text-[#8B92A9] mt-1">
-                      {req.requestedAt ? new Date(req.requestedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleMeetingRequest(req, true)}
-                    className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition"
-                  >
-                    ✓ Approve
-                  </button>
-                  <button
-                    onClick={() => handleMeetingRequest(req, false)}
-                    className="flex-1 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold transition"
-                  >
-                    ✕ Deny
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Lead-closed notifications panel */}
-        {closedNotifs.length > 0 && (
-          <div className="w-80 max-h-72 overflow-y-auto bg-white dark:bg-[#1A1D27] border border-red-200 dark:border-red-800 rounded-2xl shadow-2xl">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-red-100 dark:border-red-900 bg-red-50 dark:bg-red-950/40">
-              <span className="text-[12px] font-bold text-red-700 dark:text-red-400">🔴 Leads Closed by Employees ({closedNotifs.length})</span>
-              <button onClick={() => setClosedNotifs([])} className="text-[10px] text-red-400 hover:text-red-600 font-semibold">Clear all</button>
-            </div>
-            <div className="divide-y divide-[#F1F4FF] dark:divide-[#1E2130]">
-              {closedNotifs.map(n => (
-                <div key={n.id} className="px-4 py-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[12px] font-semibold text-[#0F1117] dark:text-white truncate">{n.leadName}</p>
-                      <p className="text-[10px] text-red-500 font-semibold">Closed by {n.closedBy} · 📞 {n.phone}</p>
-                      <p className="text-[11px] text-[#4B5168] dark:text-[#E5E7EB] mt-0.5 italic">"{n.remark}"</p>
-                    </div>
-                    <button onClick={() => setClosedNotifs(prev => prev.filter(x => x.id !== n.id))} className="text-[#C4C9D9] hover:text-red-500 shrink-0 mt-0.5">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      <div className="fixed bottom-6 right-6 z-50">
         <button
           onClick={() => setOpen(true)}
           className="relative w-14 h-14 rounded-2xl bg-[#2563EB] hover:bg-blue-700 text-white shadow-2xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
@@ -359,16 +243,6 @@ export default function AdminChat() {
           {totalUnread > 0 && (
             <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-white dark:ring-[#0D0F14]">
               {totalUnread > 9 ? '9+' : totalUnread}
-            </span>
-          )}
-          {closedNotifs.length > 0 && totalUnread === 0 && (
-            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-white dark:ring-[#0D0F14]">
-              {closedNotifs.length > 9 ? '9+' : closedNotifs.length}
-            </span>
-          )}
-          {pendingMeetings > 0 && totalUnread === 0 && closedNotifs.length === 0 && (
-            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-indigo-500 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-white dark:ring-[#0D0F14]">
-              {pendingMeetings}
             </span>
           )}
         </button>
