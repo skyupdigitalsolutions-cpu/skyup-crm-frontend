@@ -1490,24 +1490,22 @@ function WhatsAppPanel({ currentUser }) {
   }, [currentUser]);
 
   // ── Real-time fallback polling ─────────────────────────────────────────────
-  // The socket delivers messages instantly when the phone number is correct.
-  // This 2-second API poll is a safety net: if the socket event arrives for
-  // a different conversationId (e.g. due to duplicate conversations), the
-  // admin would otherwise only see the message after a manual refresh.
-  // This silently fetches new messages every 2s and merges them in.
+  // Polls every 2s for new messages in the selected conversation.
+  // Also checks for messages that landed in a duplicate conversation
+  // (same waPhone, different _id) due to the XXX phone masking bug.
   useEffect(() => {
     if (!selected?._id) return;
     const convId = selected._id;
+    const waPhone = selected.waPhone;
     const interval = setInterval(async () => {
       try {
+        // Primary: fetch messages for the selected conversation
         const { data } = await axios.get(
           `${API_URL}/whatsapp/conversations/${convId}/messages`,
           authHeaders
         );
         const fresh = data.messages || [];
         setMessages((prev) => {
-          if (fresh.length === prev.length) return prev; // no change
-          // Merge: keep optimistic messages, add any new ones from server
           const existingIds = new Set(prev.map((m) => m._id));
           const newMsgs = fresh.filter((m) => !existingIds.has(m._id));
           if (newMsgs.length === 0) return prev;
