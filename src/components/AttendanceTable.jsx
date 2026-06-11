@@ -225,13 +225,38 @@ function EditModal({ rec, onClose, onRefresh }) {
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
 
+  // Live-calculate working hours from the time inputs
+  const calcWorkHours = () => {
+    if (!form.loginTime || !form.logoutTime) return null;
+    const [lh, lm] = form.loginTime.split(":").map(Number);
+    const [oh, om] = form.logoutTime.split(":").map(Number);
+    const loginMins  = lh * 60 + lm;
+    const logoutMins = oh * 60 + om;
+    const diff = logoutMins - loginMins;
+    if (diff <= 0) return null;
+    return `${Math.floor(diff / 60)}h ${String(diff % 60).padStart(2, "0")}m`;
+  };
+  const workHours = calcWorkHours();
+
+  const STATUS_OPTIONS = [
+    { value: "",         label: "— Auto-calculate —",  color: "text-[#8B92A9]" },
+    { value: "present",  label: "✅ Present",           color: "text-emerald-600 dark:text-emerald-400" },
+    { value: "late",     label: "🕙 Late",              color: "text-amber-600 dark:text-amber-400" },
+    { value: "half_day", label: "🌗 Half Day",          color: "text-blue-600 dark:text-blue-400" },
+    { value: "leave",    label: "🏖 Leave",             color: "text-purple-600 dark:text-purple-400" },
+    { value: "holiday",  label: "🎉 Holiday",           color: "text-pink-600 dark:text-pink-400" },
+    { value: "absent",   label: "❌ Absent",            color: "text-red-600 dark:text-red-400" },
+  ];
+
   const handleSave = async () => {
     setSaving(true);
     setError("");
     try {
+      // For holiday/leave/absent — clear times (not applicable)
+      const isNonWorking = ["holiday", "leave", "absent"].includes(form.crmStatus);
       await updateAttendance(rec._id, {
-        loginTime : combineDateTime(rec.date, form.loginTime),
-        logoutTime: combineDateTime(rec.date, form.logoutTime),
+        loginTime : isNonWorking ? null : (combineDateTime(rec.date, form.loginTime) || null),
+        logoutTime: isNonWorking ? null : (combineDateTime(rec.date, form.logoutTime) || null),
         crmStatus : form.crmStatus || null,
         remarks   : form.remarks,
       });
@@ -243,32 +268,127 @@ function EditModal({ rec, onClose, onRefresh }) {
     setSaving(false);
   };
 
+  const isNonWorking = ["holiday", "leave", "absent"].includes(form.crmStatus);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
-        <h3 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Edit Attendance</h3>
-        <p className="text-[12px] text-[#8B92A9] mb-5">{rec.user?.name} — {rec.date}</p>
-        {error && <p className="text-[12px] text-red-500 mb-3">{error}</p>}
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wider block mb-1">Check-In</label>
-              <input type="time" value={form.loginTime}  onChange={e => setForm(f => ({ ...f, loginTime:  e.target.value }))} className={INP} />
-            </div>
-            <div>
-              <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wider block mb-1">Check-Out</label>
-              <input type="time" value={form.logoutTime} onChange={e => setForm(f => ({ ...f, logoutTime: e.target.value }))} className={INP} />
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-indigo-500">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
           </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">{rec.user?.name}</p>
+            <p className="text-[12px] text-[#8B92A9]">{rec.date}</p>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-[#8B92A9] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-4 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-[12px] text-red-600 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {/* Status */}
           <div>
-            <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wider block mb-1">Remarks</label>
-            <input type="text" value={form.remarks} placeholder="Optional note…"
-              onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} className={INP} />
+            <label className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1.5">Attendance Status</label>
+            <select
+              value={form.crmStatus}
+              onChange={e => setForm(f => ({ ...f, crmStatus: e.target.value }))}
+              className={`w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] font-semibold focus:outline-none focus:border-indigo-400 transition ${
+                STATUS_OPTIONS.find(o => o.value === form.crmStatus)?.color || "text-[#0F1117] dark:text-[#F0F2FA]"
+              }`}
+            >
+              {STATUS_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Times — hidden for non-working days */}
+          {!isNonWorking && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1.5">
+                    <span className="flex items-center gap-1">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 text-emerald-500"><path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14"/></svg>
+                      Clock In
+                    </span>
+                  </label>
+                  <input
+                    type="time" value={form.loginTime}
+                    onChange={e => setForm(f => ({ ...f, loginTime: e.target.value }))}
+                    className={INP}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1.5">
+                    <span className="flex items-center gap-1">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 text-red-500"><path strokeLinecap="round" strokeLinejoin="round" d="M13 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                      Clock Out
+                    </span>
+                  </label>
+                  <input
+                    type="time" value={form.logoutTime}
+                    onChange={e => setForm(f => ({ ...f, logoutTime: e.target.value }))}
+                    className={INP}
+                  />
+                </div>
+              </div>
+
+              {/* Working hours — live calculated */}
+              {workHours && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-emerald-500 shrink-0">
+                    <circle cx="12" cy="12" r="10"/><path strokeLinecap="round" d="M12 6v6l4 2"/>
+                  </svg>
+                  <span className="text-[12px] font-semibold text-emerald-700 dark:text-emerald-400">
+                    Total working hours: <strong>{workHours}</strong>
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Holiday / Leave / Absent info banner */}
+          {isNonWorking && (
+            <div className="px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-400">
+              {form.crmStatus === "holiday" && "🎉 Holiday — clock-in/out times are not applicable and will be cleared."}
+              {form.crmStatus === "leave"   && "🏖 Leave — clock-in/out times are not applicable and will be cleared."}
+              {form.crmStatus === "absent"  && "❌ Absent — no clock-in recorded. Times will be cleared."}
+            </div>
+          )}
+
+          {/* Remarks */}
+          <div>
+            <label className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1.5">Remarks</label>
+            <input
+              type="text" value={form.remarks}
+              placeholder={
+                form.crmStatus === "holiday" ? "e.g. Diwali, Public holiday…" :
+                form.crmStatus === "leave"   ? "e.g. Sick leave, Casual leave…" :
+                "Optional note…"
+              }
+              onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))}
+              className={INP}
+            />
           </div>
         </div>
+
         <div className="flex gap-3 mt-6">
-          <button onClick={onClose}    className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-white/5 transition">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] font-semibold transition disabled:opacity-60">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-white/5 transition">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2">
+            {saving && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>}
             {saving ? "Saving…" : "Save Changes"}
           </button>
         </div>
