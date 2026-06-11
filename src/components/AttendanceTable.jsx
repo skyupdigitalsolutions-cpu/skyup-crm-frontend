@@ -318,45 +318,12 @@ function DeleteModal({ id, onClose, onRefresh }) {
 }
 
 // ─── Call Log Card ────────────────────────────────────────────────────────────
-// ─── SummaryBlock ─────────────────────────────────────────────────────────────
-// Shared summary display used by both lead and non-lead call cards
-function SummaryBlock({ summary, accent = "indigo" }) {
-  const colors = {
-    indigo: { bg: "bg-indigo-50 dark:bg-indigo-950/30", border: "border-indigo-100 dark:border-indigo-900/40", label: "text-indigo-600 dark:text-indigo-400", value: "text-indigo-600 dark:text-indigo-400" },
-    violet: { bg: "bg-violet-50 dark:bg-violet-950/30", border: "border-violet-100 dark:border-violet-900/40", label: "text-violet-600 dark:text-violet-400", value: "text-violet-600 dark:text-violet-400" },
-  };
-  const c = colors[accent] || colors.indigo;
-  return (
-    <div className={`${c.bg} rounded-lg px-3 py-2.5 border ${c.border} space-y-2`}>
-      <p className={`text-[10px] font-bold ${c.label} uppercase tracking-wider`}>✨ AI Summary</p>
-      {summary.summary && <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{summary.summary}</p>}
-      {summary.keyPoints?.length > 0 && (
-        <ul className="space-y-0.5">
-          {summary.keyPoints.map((pt, j) => (
-            <li key={j} className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] flex gap-1.5">
-              <span className={`${c.label} shrink-0 mt-0.5`}>•</span>{pt}
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="flex items-center gap-3 pt-0.5 flex-wrap">
-        {summary.sentiment    && <span className="text-[10px] font-semibold text-[#8B92A9]">Sentiment: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{summary.sentiment}</span></span>}
-        {summary.nextAction   && <span className="text-[10px] font-semibold text-[#8B92A9]">Next action: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{summary.nextAction}</span></span>}
-        {summary.suggestedTemp && <span className={`text-[10px] font-semibold text-[#8B92A9]`}>Lead temp: <span className={`${c.value} font-bold`}>{summary.suggestedTemp}</span></span>}
-      </div>
-    </div>
-  );
-}
 
 // ─── CallLogCard ──────────────────────────────────────────────────────────────
 // isSuperAdmin  — unmasks phone numbers for superadmin
-// Non-lead calls (amber border + dot) get an "✨ Get Summary" button that hits
-// POST /call-logs/summarize-unmatched and shows the result inline immediately.
 function CallLogCard({ log, isSuperAdmin }) {
   const [expanded,    setExpanded]    = useState(false);
-  const [summarizing, setSummarizing] = useState(false);
-  const [summaryErr,  setSummaryErr]  = useState("");
-  // Local copy so we can patch in the new summary without waiting for a re-fetch
+  // Local copy so we can patch in state without waiting for a re-fetch
   const [localLog,    setLocalLog]    = useState(log);
 
   useEffect(() => { setLocalLog(log); }, [log]);
@@ -364,7 +331,6 @@ function CallLogCard({ log, isSuperAdmin }) {
   const isUnmatched    = !localLog.matchedLead;
   const hasRecordings  = localLog.recordings?.length > 0;
   const hasSummary     = localLog.recordings?.some(r => r.summary || r.transcript);
-  const alreadySummary = localLog.recordings?.[0]?.summary;
   const dur            = fmtDuration(localLog.duration);
 
   const callTypeColorClass =
@@ -381,25 +347,6 @@ function CallLogCard({ log, isSuperAdmin }) {
     localLog.callType === "missed"    ? "↗" :
     localLog.callType === "rejected"  ? "✕" :
     localLog.callType === "voicemail" ? "✉" : "?";
-
-  const handleSummarize = async (e) => {
-    e.stopPropagation();
-    setSummarizing(true);
-    setSummaryErr("");
-    try {
-      const res = await axios.post(
-        `${BASE}/call-logs/summarize-unmatched`,
-        { logId: localLog._id },
-        { headers: authHeaders() }
-      );
-      setLocalLog(res.data.log);
-      setExpanded(true);
-    } catch (err) {
-      setSummaryErr(err.response?.data?.message || "Failed to generate summary.");
-    } finally {
-      setSummarizing(false);
-    }
-  };
 
   return (
     <div className={`bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border overflow-hidden ${
@@ -454,45 +401,20 @@ function CallLogCard({ log, isSuperAdmin }) {
           <p className="text-[10px] text-[#8B92A9]">{fmtDateTime(localLog.timestamp)}</p>
           {dur && <p className="text-[10px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">{dur}</p>}
 
-          {/* ── Action buttons row ── */}
-          <div className="flex items-center gap-1.5 mt-0.5">
-            {/* AI Summary button — only for non-lead calls that don't yet have a summary */}
-            {isUnmatched && !alreadySummary && (
-              <button
-                onClick={handleSummarize}
-                disabled={summarizing}
-                className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-900/60 transition disabled:opacity-60 flex items-center gap-1"
-                title="Generate AI summary for this call"
-              >
-                {summarizing
-                  ? <><span className="animate-spin inline-block">⏳</span> Generating…</>
-                  : <>✨ Get Summary</>
-                }
-              </button>
-            )}
-            {/* Show/hide details toggle */}
-            {(hasRecordings || hasSummary || alreadySummary) && (
-              <button
-                onClick={() => setExpanded(e => !e)}
-                className={`text-[10px] font-semibold transition mt-0.5 ${
-                  isUnmatched && alreadySummary
-                    ? "text-violet-500 hover:text-violet-700 dark:hover:text-violet-300"
-                    : "text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300"
-                }`}
-              >
-                {expanded ? "Hide ▲" : (isUnmatched && alreadySummary ? "AI Summary ▼" : "Details ▼")}
-              </button>
-            )}
-          </div>
-
-          {summaryErr && (
-            <p className="text-[9px] text-red-500 mt-0.5 max-w-[160px] text-right">{summaryErr}</p>
+          {/* ── Show/hide details toggle ── */}
+          {(hasRecordings || hasSummary) && (
+            <button
+              onClick={() => setExpanded(e => !e)}
+              className="text-[10px] font-semibold transition mt-0.5 text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300"
+            >
+              {expanded ? "Hide ▲" : "Details ▼"}
+            </button>
           )}
         </div>
       </div>
 
       {/* ── Expanded content ── */}
-      {expanded && (hasRecordings || hasSummary || alreadySummary) && (
+      {expanded && (hasRecordings || hasSummary) && (
         <div className="border-t border-[#E4E7EF] dark:border-[#262A38] px-4 py-3 space-y-4">
           {(localLog.recordings || []).map((rec, i) => (
             <div key={rec._id || i} className="space-y-2.5">
@@ -525,10 +447,6 @@ function CallLogCard({ log, isSuperAdmin }) {
                     {rec.transcript}
                   </p>
                 </div>
-              )}
-              {/* Summary — violet accent for non-lead calls, indigo for lead calls */}
-              {rec.summary && (
-                <SummaryBlock summary={rec.summary} accent={isUnmatched ? "violet" : "indigo"} />
               )}
             </div>
           ))}
