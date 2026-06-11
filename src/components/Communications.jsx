@@ -96,14 +96,40 @@ const FIELD = "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border
 // Webhook URL box — shown in WhatsApp Integrations tab so admin can configure
 // MSG91 inbound webhook for instant reply delivery (eliminates 30-40s poll lag).
 function WebhookUrlBox() {
-  const [copied, setCopied] = useState(false);
-  const backendBase = (import.meta.env.VITE_API_URL || "").replace("/api", "");
+  const [copied, setCopied]     = useState(false);
+  const [regState, setRegState] = useState("idle"); // idle | loading | ok | err
+  const [regMsg, setRegMsg]     = useState("");
+  const token = localStorage.getItem("adminToken") || localStorage.getItem("token") || "";
+  const API_URL = import.meta.env.VITE_API_URL || "";
+  const backendBase = API_URL.replace("/api", "");
   const webhookUrl  = `${backendBase}/msg91-webhook`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(webhookUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleRegister = async () => {
+    setRegState("loading");
+    setRegMsg("");
+    try {
+      const res = await fetch(`${API_URL}/admin/company/msg91-register-webhook`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRegState("ok");
+        setRegMsg("✅ Webhook registered! Lead replies will now arrive instantly.");
+      } else {
+        setRegState("err");
+        setRegMsg(data.message || "Auto-registration failed. Set it manually in MSG91 dashboard.");
+      }
+    } catch {
+      setRegState("err");
+      setRegMsg("Network error. Please set the webhook manually in MSG91 dashboard.");
+    }
   };
 
   return (
@@ -113,41 +139,48 @@ function WebhookUrlBox() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
         </svg>
         <p className="text-[12px] font-bold text-[#1D4ED8] dark:text-[#93C5FD]">
-          Set Inbound Webhook for Instant Reply Delivery
+          Enable Instant Reply Delivery (Required)
         </p>
       </div>
       <p className="text-[11px] text-[#1E40AF] dark:text-[#BFDBFE] leading-relaxed">
-        Without this, lead replies take <strong>30–40 seconds</strong> to appear (poll delay).
-        With this set, replies appear in <strong>under 2 seconds</strong>.
+        Without this webhook, lead replies take <strong>30–40 seconds</strong> to appear.
+        Click <strong>Auto-Register</strong> to fix this instantly.
       </p>
-      <div>
-        <p className="text-[10px] font-semibold text-[#1D4ED8] dark:text-[#93C5FD] mb-1 uppercase tracking-widest">Your Webhook URL</p>
-        <div className="flex items-center gap-2">
-          <code className="flex-1 bg-white dark:bg-[#111827] border border-[#BFDBFE] dark:border-[#1e3a5f] rounded-lg px-3 py-2 text-[11px] font-mono text-[#1D4ED8] dark:text-[#93C5FD] break-all select-all">
-            {webhookUrl}
-          </code>
-          <button
-            onClick={handleCopy}
-            className="shrink-0 px-3 py-2 rounded-lg bg-[#2563EB] text-white text-[11px] font-semibold hover:bg-[#1D4ED8] transition"
-          >
-            {copied ? "Copied!" : "Copy"}
-          </button>
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <p className="text-[10px] font-bold text-[#1D4ED8] dark:text-[#93C5FD] uppercase tracking-widest">Steps to configure in MSG91</p>
-        {[
-          "Go to msg91.com → WhatsApp → Integrated Numbers",
-          "Click on your number → Settings",
-          'Find "Response Webhook" or "Inbound Webhook" field',
-          "Paste the URL above → Save",
-        ].map((s, i) => (
-          <div key={i} className="flex items-start gap-2">
-            <span className="w-4 h-4 rounded-full bg-[#2563EB]/10 text-[#2563EB] text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-            <p className="text-[11px] text-[#1E40AF] dark:text-[#BFDBFE]">{s}</p>
+
+      {/* Auto-register button */}
+      <button
+        onClick={handleRegister}
+        disabled={regState === "loading" || regState === "ok"}
+        className="w-full py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-[#1D4ED8] disabled:opacity-60 transition"
+      >
+        {regState === "loading" ? "Registering..." : regState === "ok" ? "✅ Registered!" : "⚡ Auto-Register Webhook with MSG91"}
+      </button>
+      {regMsg && (
+        <p className={`text-[11px] ${regState === "ok" ? "text-green-600" : "text-red-500"}`}>{regMsg}</p>
+      )}
+
+      {/* Manual fallback */}
+      <details className="group">
+        <summary className="text-[10px] font-semibold text-[#1D4ED8] dark:text-[#93C5FD] cursor-pointer select-none">
+          Or set manually in MSG91 dashboard ▸
+        </summary>
+        <div className="mt-2 space-y-2">
+          <div className="flex items-center gap-2">
+            <code className="flex-1 bg-white dark:bg-[#111827] border border-[#BFDBFE] dark:border-[#1e3a5f] rounded-lg px-3 py-2 text-[11px] font-mono text-[#1D4ED8] dark:text-[#93C5FD] break-all select-all">
+              {webhookUrl}
+            </code>
+            <button onClick={handleCopy} className="shrink-0 px-3 py-2 rounded-lg bg-[#2563EB] text-white text-[11px] font-semibold hover:bg-[#1D4ED8] transition">
+              {copied ? "Copied!" : "Copy"}
+            </button>
           </div>
-        ))}
-      </div>
+          {["Go to msg91.com → WhatsApp → Integrated Numbers", "Click your number → Settings", 'Paste URL in "Response Webhook" field → Save'].map((s, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="w-4 h-4 rounded-full bg-[#2563EB]/10 text-[#2563EB] text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+              <p className="text-[11px] text-[#1E40AF] dark:text-[#BFDBFE]">{s}</p>
+            </div>
+          ))}
+        </div>
+      </details>
     </div>
   );
 }
