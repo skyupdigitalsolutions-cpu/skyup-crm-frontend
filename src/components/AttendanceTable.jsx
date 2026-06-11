@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { CalendarDays, Users, Eye, EyeOff } from "lucide-react";
 import { updateAttendance, removeAttendance } from "../services/attendanceService";
-import { getRole } from "../data/dataService";
+import { getRole, getStoredUser } from "../data/dataService";
 import axios from "axios";
 import { maskPhone, maskEmail } from "../utils/maskPhone";
 
@@ -318,31 +318,92 @@ function DeleteModal({ id, onClose, onRefresh }) {
 }
 
 // ─── Call Log Card ────────────────────────────────────────────────────────────
-// isSuperAdmin prop passed down so phone numbers in call logs are masked/shown
+// ─── SummaryBlock ─────────────────────────────────────────────────────────────
+// Shared summary display used by both lead and non-lead call cards
+function SummaryBlock({ summary, accent = "indigo" }) {
+  const colors = {
+    indigo: { bg: "bg-indigo-50 dark:bg-indigo-950/30", border: "border-indigo-100 dark:border-indigo-900/40", label: "text-indigo-600 dark:text-indigo-400", value: "text-indigo-600 dark:text-indigo-400" },
+    violet: { bg: "bg-violet-50 dark:bg-violet-950/30", border: "border-violet-100 dark:border-violet-900/40", label: "text-violet-600 dark:text-violet-400", value: "text-violet-600 dark:text-violet-400" },
+  };
+  const c = colors[accent] || colors.indigo;
+  return (
+    <div className={`${c.bg} rounded-lg px-3 py-2.5 border ${c.border} space-y-2`}>
+      <p className={`text-[10px] font-bold ${c.label} uppercase tracking-wider`}>✨ AI Summary</p>
+      {summary.summary && <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{summary.summary}</p>}
+      {summary.keyPoints?.length > 0 && (
+        <ul className="space-y-0.5">
+          {summary.keyPoints.map((pt, j) => (
+            <li key={j} className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] flex gap-1.5">
+              <span className={`${c.label} shrink-0 mt-0.5`}>•</span>{pt}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex items-center gap-3 pt-0.5 flex-wrap">
+        {summary.sentiment    && <span className="text-[10px] font-semibold text-[#8B92A9]">Sentiment: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{summary.sentiment}</span></span>}
+        {summary.nextAction   && <span className="text-[10px] font-semibold text-[#8B92A9]">Next action: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{summary.nextAction}</span></span>}
+        {summary.suggestedTemp && <span className={`text-[10px] font-semibold text-[#8B92A9]`}>Lead temp: <span className={`${c.value} font-bold`}>{summary.suggestedTemp}</span></span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── CallLogCard ──────────────────────────────────────────────────────────────
+// isSuperAdmin  — unmasks phone numbers for superadmin
+// Non-lead calls (amber border + dot) get an "✨ Get Summary" button that hits
+// POST /call-logs/summarize-unmatched and shows the result inline immediately.
 function CallLogCard({ log, isSuperAdmin }) {
-  const [expanded, setExpanded] = useState(false);
-  const hasRecordings = log.recordings?.length > 0;
-  const hasSummary    = log.recordings?.some(r => r.summary || r.transcript);
-  const dur           = fmtDuration(log.duration);
+  const [expanded,    setExpanded]    = useState(false);
+  const [summarizing, setSummarizing] = useState(false);
+  const [summaryErr,  setSummaryErr]  = useState("");
+  // Local copy so we can patch in the new summary without waiting for a re-fetch
+  const [localLog,    setLocalLog]    = useState(log);
+
+  useEffect(() => { setLocalLog(log); }, [log]);
+
+  const isUnmatched    = !localLog.matchedLead;
+  const hasRecordings  = localLog.recordings?.length > 0;
+  const hasSummary     = localLog.recordings?.some(r => r.summary || r.transcript);
+  const alreadySummary = localLog.recordings?.[0]?.summary;
+  const dur            = fmtDuration(localLog.duration);
 
   const callTypeColorClass =
-    log.callType === "incoming"  ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" :
-    log.callType === "outgoing"  ? "bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"             :
-    log.callType === "missed"    ? "bg-red-100 dark:bg-red-950/40 text-red-500 dark:text-red-400"                 :
-    log.callType === "rejected"  ? "bg-orange-100 dark:bg-orange-950/40 text-orange-500 dark:text-orange-400"     :
-    log.callType === "voicemail" ? "bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400"     :
+    localLog.callType === "incoming"  ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" :
+    localLog.callType === "outgoing"  ? "bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"             :
+    localLog.callType === "missed"    ? "bg-red-100 dark:bg-red-950/40 text-red-500 dark:text-red-400"                 :
+    localLog.callType === "rejected"  ? "bg-orange-100 dark:bg-orange-950/40 text-orange-500 dark:text-orange-400"     :
+    localLog.callType === "voicemail" ? "bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400"     :
     "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400";
 
   const callTypeIcon =
-    log.callType === "incoming"  ? "↙" :
-    log.callType === "outgoing"  ? "↗" :
-    log.callType === "missed"    ? "↗" :
-    log.callType === "rejected"  ? "✕" :
-    log.callType === "voicemail" ? "✉" : "?";
+    localLog.callType === "incoming"  ? "↙" :
+    localLog.callType === "outgoing"  ? "↗" :
+    localLog.callType === "missed"    ? "↗" :
+    localLog.callType === "rejected"  ? "✕" :
+    localLog.callType === "voicemail" ? "✉" : "?";
+
+  const handleSummarize = async (e) => {
+    e.stopPropagation();
+    setSummarizing(true);
+    setSummaryErr("");
+    try {
+      const res = await axios.post(
+        `${BASE}/call-logs/summarize-unmatched`,
+        { logId: localLog._id },
+        { headers: authHeaders() }
+      );
+      setLocalLog(res.data.log);
+      setExpanded(true);
+    } catch (err) {
+      setSummaryErr(err.response?.data?.message || "Failed to generate summary.");
+    } finally {
+      setSummarizing(false);
+    }
+  };
 
   return (
     <div className={`bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border overflow-hidden ${
-      !log.matchedLead
+      isUnmatched
         ? "border-amber-200 dark:border-amber-800/50"
         : "border-[#E4E7EF] dark:border-[#262A38]"
     }`}>
@@ -352,27 +413,30 @@ function CallLogCard({ log, isSuperAdmin }) {
             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[14px] font-bold ${callTypeColorClass}`}>
               {callTypeIcon}
             </div>
-            {/* Red/amber dot — this number is NOT in the CRM leads */}
-            {!log.matchedLead && (
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white dark:border-[#13161E]" title="Not a CRM lead" />
+            {/* Amber dot — number is NOT in CRM leads */}
+            {isUnmatched && (
+              <span
+                className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white dark:border-[#13161E]"
+                title="Not a CRM lead"
+              />
             )}
           </div>
           <div className="min-w-0">
-            {/* ── Phone number: masked for admin, plain for superadmin ── */}
             <PhoneText
-              phone={log.phoneNumber || "Unknown"}
+              phone={localLog.phoneNumber || "Unknown"}
               isSuperAdmin={isSuperAdmin}
               className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]"
             />
-            {log.name && <p className="text-[11px] text-[#8B92A9] truncate">{log.name}</p>}
+            {localLog.name && <p className="text-[11px] text-[#8B92A9] truncate">{localLog.name}</p>}
           </div>
         </div>
+
         <div className="flex flex-col items-end gap-1 shrink-0">
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            <CallTypeBadge callType={log.callType} />
-            {log.matchedLead ? (
+            <CallTypeBadge callType={localLog.callType} />
+            {localLog.matchedLead ? (
               <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400">
-                {log.matchedLead.name}
+                {localLog.matchedLead.name}
               </span>
             ) : (
               <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 flex items-center gap-1">
@@ -382,38 +446,78 @@ function CallLogCard({ log, isSuperAdmin }) {
             )}
             {hasRecordings && (
               <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400">
-                🎙 {log.recordings.length}
+                🎙 {localLog.recordings.length}
               </span>
             )}
           </div>
-          <p className="text-[10px] text-[#8B92A9]">{fmtDateTime(log.timestamp)}</p>
+
+          <p className="text-[10px] text-[#8B92A9]">{fmtDateTime(localLog.timestamp)}</p>
           {dur && <p className="text-[10px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">{dur}</p>}
-          {(hasRecordings || hasSummary) && (
-            <button onClick={() => setExpanded(e => !e)} className="text-[10px] font-semibold text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition mt-0.5">
-              {expanded ? "Hide ▲" : "Details ▼"}
-            </button>
+
+          {/* ── Action buttons row ── */}
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {/* AI Summary button — only for non-lead calls that don't yet have a summary */}
+            {isUnmatched && !alreadySummary && (
+              <button
+                onClick={handleSummarize}
+                disabled={summarizing}
+                className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-900/60 transition disabled:opacity-60 flex items-center gap-1"
+                title="Generate AI summary for this call"
+              >
+                {summarizing
+                  ? <><span className="animate-spin inline-block">⏳</span> Generating…</>
+                  : <>✨ Get Summary</>
+                }
+              </button>
+            )}
+            {/* Show/hide details toggle */}
+            {(hasRecordings || hasSummary || alreadySummary) && (
+              <button
+                onClick={() => setExpanded(e => !e)}
+                className={`text-[10px] font-semibold transition mt-0.5 ${
+                  isUnmatched && alreadySummary
+                    ? "text-violet-500 hover:text-violet-700 dark:hover:text-violet-300"
+                    : "text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300"
+                }`}
+              >
+                {expanded ? "Hide ▲" : (isUnmatched && alreadySummary ? "AI Summary ▼" : "Details ▼")}
+              </button>
+            )}
+          </div>
+
+          {summaryErr && (
+            <p className="text-[9px] text-red-500 mt-0.5 max-w-[160px] text-right">{summaryErr}</p>
           )}
         </div>
       </div>
 
-      {expanded && (hasRecordings || hasSummary) && (
+      {/* ── Expanded content ── */}
+      {expanded && (hasRecordings || hasSummary || alreadySummary) && (
         <div className="border-t border-[#E4E7EF] dark:border-[#262A38] px-4 py-3 space-y-4">
-          {log.recordings.map((rec, i) => (
+          {(localLog.recordings || []).map((rec, i) => (
             <div key={rec._id || i} className="space-y-2.5">
-              {rec.url && (
+              {/* Audio recording — only show if url is real (not the auto-summary placeholder) */}
+              {rec.url && rec.name !== "auto-summary" && (
                 <div>
                   <p className="text-[10px] font-semibold text-[#8B92A9] mb-1.5 uppercase tracking-wider">
-                    Recording {log.recordings.length > 1 ? i + 1 : ""}
+                    Recording {localLog.recordings.length > 1 ? i + 1 : ""}
                   </p>
                   <audio controls src={rec.url} className="w-full" style={{ height: "36px", accentColor: "#6366f1" }} />
                 </div>
               )}
+              {/* Transcription status */}
               {rec.transcribeStatus && rec.transcribeStatus !== "done" && !rec.transcript && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-100 dark:border-amber-900/40">
-                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${rec.transcribeStatus === "processing" ? "bg-amber-400 animate-pulse" : rec.transcribeStatus === "failed" ? "bg-red-400" : "bg-gray-400"}`} />
-                  <p className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold capitalize">Transcription {rec.transcribeStatus}</p>
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    rec.transcribeStatus === "processing" ? "bg-amber-400 animate-pulse" :
+                    rec.transcribeStatus === "failed"     ? "bg-red-400" : "bg-gray-400"
+                  }`} />
+                  <p className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold capitalize">
+                    Transcription {rec.transcribeStatus}
+                  </p>
                 </div>
               )}
+              {/* Transcript */}
               {rec.transcript && (
                 <div>
                   <p className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wider mb-1">Transcript</p>
@@ -422,25 +526,9 @@ function CallLogCard({ log, isSuperAdmin }) {
                   </p>
                 </div>
               )}
+              {/* Summary — violet accent for non-lead calls, indigo for lead calls */}
               {rec.summary && (
-                <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-lg px-3 py-2.5 border border-indigo-100 dark:border-indigo-900/40 space-y-2">
-                  <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">AI Summary</p>
-                  {rec.summary.summary && <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{rec.summary.summary}</p>}
-                  {rec.summary.keyPoints?.length > 0 && (
-                    <ul className="space-y-0.5">
-                      {rec.summary.keyPoints.map((pt, j) => (
-                        <li key={j} className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] flex gap-1.5">
-                          <span className="text-indigo-400 shrink-0 mt-0.5">•</span>{pt}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="flex items-center gap-3 pt-0.5 flex-wrap">
-                    {rec.summary.sentiment   && <span className="text-[10px] font-semibold text-[#8B92A9]">Sentiment: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{rec.summary.sentiment}</span></span>}
-                    {rec.summary.nextAction  && <span className="text-[10px] font-semibold text-[#8B92A9]">Next action: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{rec.summary.nextAction}</span></span>}
-                    {rec.summary.suggestedTemp && <span className="text-[10px] font-semibold text-[#8B92A9]">Lead temp: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{rec.summary.suggestedTemp}</span></span>}
-                  </div>
-                </div>
+                <SummaryBlock summary={rec.summary} accent={isUnmatched ? "violet" : "indigo"} />
               )}
             </div>
           ))}
@@ -468,21 +556,23 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
     setLogsError("");
     setLogsLoading(true);
 
-    // Only fetch call logs from the employee's account creation date onwards.
-    // This prevents showing call logs that were synced before the employee joined
-    // or from devices used by a previous employee with the same phone.
-    // Falls back to 90 days ago if createdAt is not available.
+    // `since` = account creation date so we never show call logs from before
+    // this employee joined (e.g. device reuse, prior employee same number).
     const since = user.createdAt
       ? new Date(user.createdAt).toISOString()
       : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
-    axios.get(`${BASE}/call-logs/all?limit=500&since=${encodeURIComponent(since)}`, { headers: authHeaders() })
+    // Pass userId server-side so the DB filters per-employee — the company-wide
+    // limit no longer starves this user's logs when other employees are active.
+    const url = `${BASE}/call-logs/all?limit=2000`
+      + `&userId=${encodeURIComponent(user._id)}`
+      + `&since=${encodeURIComponent(since)}`;
+
+    axios.get(url, { headers: authHeaders() })
       .then(res => {
-        const all      = res.data?.logs || [];
-        const filtered = all
-          .filter(l => String(l.user?._id || l.user) === String(user._id))
+        const logs = (res.data?.logs || [])
           .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        setCallLogs(filtered);
+        setCallLogs(logs);
       })
       .catch(err => {
         console.error("Call logs fetch failed:", err);
