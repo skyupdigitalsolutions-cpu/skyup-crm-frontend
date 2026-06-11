@@ -290,7 +290,158 @@ function ClockInLocationSettings() {
   );
 }
 
-// ── CallLogSyncSettings ───────────────────────────────────────────────────────
+// ── LateLoginSettings ─────────────────────────────────────────────────────────
+// SuperAdmin sets the company-wide clock-in threshold.
+// Anyone who clocks in after HH:MM gets marked "Late" in the attendance table.
+function LateLoginSettings() {
+  const [open,    setOpen]    = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [hour,    setHour]    = useState(9);
+  const [minute,  setMinute]  = useState(30);
+  const [msg,     setMsg]     = useState({ type: "", text: "" });
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    api.get("/admin/company/late-login-config")
+      .then(r => {
+        setHour(r.data.lateLoginHour ?? 9);
+        setMinute(r.data.lateLoginMinute ?? 30);
+      })
+      .catch(() => setMsg({ type: "err", text: "Failed to load settings." }))
+      .finally(() => setLoading(false));
+  }, [open]);
+
+  const flash = (type, text) => {
+    setMsg({ type, text });
+    if (type === "ok") setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+  };
+
+  const handleSave = async () => {
+    const h = parseInt(hour,   10);
+    const m = parseInt(minute, 10);
+    if (isNaN(h) || h < 0 || h > 23) { flash("err", "Hour must be 0–23."); return; }
+    if (isNaN(m) || m < 0 || m > 59) { flash("err", "Minute must be 0–59."); return; }
+    setSaving(true);
+    try {
+      await api.put("/admin/company/late-login-config", {
+        lateLoginHour: h, lateLoginMinute: m,
+      });
+      flash("ok", `Late login threshold set to ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
+    } catch (e) {
+      flash("err", e.response?.data?.message || "Failed to save.");
+    } finally { setSaving(false); }
+  };
+
+  const fmtThreshold = `${String(hour).padStart(2,"0")}:${String(minute).padStart(2,"0")}`;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Late Login Threshold"
+        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-[12px] font-semibold transition-all ${
+          open
+            ? "bg-amber-50 dark:bg-amber-500/15 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+            : "border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#4B5168] dark:text-[#9DA3BB] hover:border-amber-300 dark:hover:border-amber-700 hover:text-amber-700 dark:hover:text-amber-300"
+        }`}
+      >
+        <Clock size={15} className="shrink-0" />
+        <span>Late Time</span>
+        <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+          {fmtThreshold}
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-[320px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
+          <PanelHeader
+            icon={Clock}
+            title="Late Login Threshold"
+            subtitle="Employees clocking in after this time are marked Late"
+            onClose={() => setOpen(false)}
+            iconColor="text-amber-500"
+            iconBg="bg-amber-50 dark:bg-amber-500/10"
+          />
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 size={20} className="animate-spin text-[#8B92A9]" />
+            </div>
+          ) : (
+            <div className="px-5 py-4 space-y-4">
+              <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">
+                Set the company-wide clock-in deadline. Any check-in after{" "}
+                <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">{fmtThreshold}</span>{" "}
+                will be marked as <span className="font-bold text-amber-600 dark:text-amber-400">Late</span>.
+              </p>
+
+              {/* Time pickers */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-1.5">
+                    Hour (0–23)
+                  </label>
+                  <input
+                    type="number" min={0} max={23} value={hour}
+                    onChange={e => setHour(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] font-mono text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-amber-400 transition text-center"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-1.5">
+                    Minute (0–59)
+                  </label>
+                  <input
+                    type="number" min={0} max={59} value={minute}
+                    onChange={e => setMinute(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] font-mono text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-amber-400 transition text-center"
+                  />
+                </div>
+              </div>
+
+              {/* Quick presets */}
+              <div>
+                <p className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-2">Quick Presets</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: "9:00 AM", h: 9,  m: 0  },
+                    { label: "9:30 AM", h: 9,  m: 30 },
+                    { label: "10:00 AM", h: 10, m: 0  },
+                    { label: "10:30 AM", h: 10, m: 30 },
+                  ].map(p => (
+                    <button
+                      key={p.label}
+                      onClick={() => { setHour(p.h); setMinute(p.m); }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition ${
+                        Number(hour) === p.h && Number(minute) === p.m
+                          ? "border-amber-400 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                          : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-amber-300 hover:text-amber-600 dark:hover:text-amber-400"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                <Info size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                  This affects how <strong>Late</strong> status is calculated in attendance reports and exports. Existing records are re-evaluated on each report load.
+                </p>
+              </div>
+
+              <Feedback msg={msg} />
+              <SaveButton saving={saving} onClick={handleSave} label="Save Threshold" />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 // Superadmin-only toggle. Controls whether employees' phones can sync call logs
 // to the CRM. Uses the existing PUT /superadmin/companies/:id/call-log-sync API.
 function CallLogSyncSettings({ companyId }) {
@@ -670,7 +821,10 @@ export default function AttendancePage() {
   const role         = getRole();
   const isSuperAdmin = role === "superadmin";
   const storedUser   = getStoredUser();
-  const companyId    = storedUser?.company || null;
+  // SuperAdminLogin stores the id under "companyId"; AdminLogin stores it under
+  // both "company" and "companyId". Read both so the toggle appears regardless
+  // of which login path was used.
+  const companyId    = storedUser?.companyId || storedUser?.company || null;
 
   const loadData = useCallback(async (page = 1) => {
     setLoading(true);
@@ -719,6 +873,11 @@ export default function AttendancePage() {
 
           {/* Client meeting GPS tracking */}
           <MeetingTrackingSettings />
+
+          {/* Late login threshold — superadmin only */}
+          {isSuperAdmin && (
+            <LateLoginSettings />
+          )}
 
           {/* Call log sync toggle — superadmin only */}
           {isSuperAdmin && companyId && (
