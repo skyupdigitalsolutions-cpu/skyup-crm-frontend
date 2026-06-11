@@ -611,7 +611,7 @@ const OUTCOME_OPTIONS = ["Call Back","Interested","Not Reachable","Meeting Sched
 function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects = [] }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
   const [temp,         setTemp]         = useState(lead.temperature || lead.Quality || "");
-  const [outcome,      setOutcome]      = useState("");  // empty — user must explicitly pick; prevents remark-only saves from creating call log entries
+  const [outcome,      setOutcome]      = useState("Call Back");
   const [remark,       setRemark]       = useState(lead.remark || "");
   const [followUpDate, setFollowUpDate] = useState(getTomorrowStr());
   const [loading,      setLoading]      = useState(false);
@@ -685,12 +685,8 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects =
 
           {/* Call Outcome */}
           <div>
-            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
-              Call Outcome
-              <span className="ml-1 text-[9px] font-normal text-[#C4C9D9] normal-case">(required to log a call)</span>
-            </label>
+            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Call Outcome</label>
             <select value={outcome} onChange={e => setOutcome(e.target.value)} className={CLS}>
-              <option value="">— Select outcome to log a call —</option>
               {OUTCOME_OPTIONS.map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
@@ -1063,131 +1059,6 @@ function PhoneNumbersModal({ lead, onClose, onLeadUpdated }) {
   );
 }
 
-// ── CloseLeadModal ────────────────────────────────────────────────────────────
-// Employee can close a lead by providing a phone number they called + a remark.
-// On submit the backend marks the lead closed and sends a real-time notification
-// to the admin.
-function CloseLeadModal({ lead, onClose, onClosed }) {
-  const [phone,   setPhone]   = useState("");
-  const [remark,  setRemark]  = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState("");
-
-  const handleClose = async () => {
-    const cleanPhone = phone.replace(/\D/g, "");
-    if (!cleanPhone || cleanPhone.length < 10) {
-      setError("Please enter a valid 10-digit phone number.");
-      return;
-    }
-    if (!remark.trim()) {
-      setError("Please add a remark explaining why you are closing this lead.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const res = await api.post(`/lead/${lead.id || lead._id}/close-by-user`, {
-        phone: cleanPhone,
-        remark: remark.trim(),
-      });
-      onClosed({ ...lead, ...res.data, isClosed: true, status: "Not Interested" });
-      onClose();
-    } catch (e) {
-      setError(e.response?.data?.message || "Failed to close lead. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const CLS = "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#DC2626] transition";
-
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center">
-            <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-          <div>
-            <h3 className="text-[15px] font-bold text-[#0F1117] dark:text-white">Close Lead</h3>
-            <p className="text-[11px] text-[#8B92A9] truncate">{lead.name}</p>
-          </div>
-          <button onClick={onClose} className="ml-auto w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
-        </div>
-
-        {/* Info banner */}
-        <div className="flex items-start gap-2 px-3 py-2.5 mb-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
-          <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <p className="text-[11px] text-red-600 dark:text-red-400 leading-snug">
-            Closing this lead will notify the admin immediately. The lead status will be set to <strong>Not Interested</strong> and marked as closed.
-          </p>
-        </div>
-
-        <div className="space-y-3 mb-4">
-          {/* Phone number called */}
-          <div>
-            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
-              Phone Number Called <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="Enter the number you called (10 digits)"
-              value={phone}
-              onChange={e => { setPhone(e.target.value.replace(/\D/g, "").slice(0, 10)); setError(""); }}
-              className={CLS}
-            />
-            <p className="text-[10px] text-[#8B92A9] mt-1">Enter the phone number you attempted to contact</p>
-          </div>
-
-          {/* Remark / reason */}
-          <div>
-            <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">
-              Closing Remark <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={remark}
-              onChange={e => { setRemark(e.target.value); setError(""); }}
-              rows={3}
-              placeholder="Explain why you are closing this lead…"
-              className={CLS + " resize-none"}
-            />
-          </div>
-        </div>
-
-        {error && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 mb-3">
-            <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>
-          </div>
-        )}
-
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
-            Cancel
-          </button>
-          <button
-            onClick={handleClose}
-            disabled={loading}
-            className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition disabled:opacity-60 flex items-center justify-center gap-2"
-          >
-            {loading
-              ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Closing…</>
-              : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Close Lead & Notify Admin</>
-            }
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── LeadDrawer ────────────────────────────────────────────────────────────────
 // Now accepts `projects` prop and passes it through to UpdateStatusModal.
 function LeadDrawer({ lead, onClose, onUpdate, projects = [] }) {
@@ -1195,7 +1066,6 @@ function LeadDrawer({ lead, onClose, onUpdate, projects = [] }) {
   const [showNIModal, setShowNIModal] = useState(false);
   const [showEdit,    setShowEdit]    = useState(false);
   const [showPhone,   setShowPhone]   = useState(false);
-  const [showClose,   setShowClose]   = useState(false);
   const name  = lead.name || "Unknown";
   const phone = lead.phone || lead.mobile || "—";
   const s = STATUS_CONFIG[lead.status] || STATUS_CONFIG["New"];
@@ -1315,18 +1185,6 @@ function LeadDrawer({ lead, onClose, onUpdate, projects = [] }) {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
             Mark Not Interested & Reassign
           </button>
-          {!lead.isClosed && (
-            <button onClick={() => setShowClose(true)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-red-400 dark:border-red-700 text-red-600 dark:text-red-400 text-[13px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              Close Lead
-            </button>
-          )}
-          {lead.isClosed && (
-            <div className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[13px] font-semibold cursor-not-allowed">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              Lead Closed
-            </div>
-          )}
         </div>
         <div className="flex-1" />
       </div>
@@ -1360,14 +1218,6 @@ function LeadDrawer({ lead, onClose, onUpdate, projects = [] }) {
       {showNIModal && createPortal(
         <NotInterestedModal lead={{ ...lead, _id: lead.id || lead._id }} onClose={() => setShowNIModal(false)}
           onSuccess={updatedLead => { onUpdate({ ...updatedLead, _reassigned: true }); setShowNIModal(false); onClose(); }} />,
-        document.body
-      )}
-      {showClose && createPortal(
-        <CloseLeadModal
-          lead={lead}
-          onClose={() => setShowClose(false)}
-          onClosed={updated => { onUpdate({ ...updated, isClosed: true }); setShowClose(false); onClose(); }}
-        />,
         document.body
       )}
     </div>
@@ -1848,13 +1698,24 @@ function getGreeting() {
 }
 
 function mapLead(l) {
+  // Strip country-code prefix — DB may store "919876543210" from legacy entries or WA webhook.
+  // Always display as clean 10-digit number; sending layers add country code back.
+  function strip91(raw) {
+    if (!raw) return "";
+    const d = String(raw).replace(/\D/g, "");
+    if (d.startsWith("9191") && d.length === 14) return d.slice(4);
+    if (d.startsWith("91")   && d.length === 12) return d.slice(2);
+    return d.slice(-10) || String(raw);
+  }
+
+  const phone = strip91(l.mobile || l.phone || "");
   return {
     id:             String(l._id),
     name:           l.name           || "Unknown",
-    phone:          l.mobile         || l.phone || "",
-    mobile:         l.mobile         || l.phone || "",
-    primaryPhone:   l.primaryPhone   || l.mobile || l.phone || "",
-    secondaryPhone: l.secondaryPhone || "",
+    phone,
+    mobile:         phone,
+    primaryPhone:   strip91(l.primaryPhone || l.mobile || l.phone || ""),
+    secondaryPhone: l.secondaryPhone ? strip91(l.secondaryPhone) : "",
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
     status:         l.status         || "New",
@@ -1868,7 +1729,6 @@ function mapLead(l) {
     previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
     reassignCount:  l.reassignCount  || 0,
     projects:       Array.isArray(l.projects) ? l.projects : [],
-    isClosed:       l.isClosed       || false,
   };
 }
 
@@ -2210,7 +2070,6 @@ export default function UserDashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editLead,      setEditLead]      = useState(null);
   const [phoneLead,     setPhoneLead]     = useState(null);
-  const [closeLead,     setCloseLead]     = useState(null);  // lead to close via CloseLeadModal (table row shortcut)
   const [activeTab,     setActiveTab]     = useState("leads");
   const [csvImporting,  setCsvImporting]  = useState(false);
   const [csvResult,     setCsvResult]     = useState(null);
@@ -2289,8 +2148,6 @@ export default function UserDashboard() {
 
   const handleUpdate = updated => {
     if (updated._reassigned) { setLeads(prev => prev.filter(l => l.id !== (updated.id || String(updated._id)))); setSelected(null); return; }
-    // Remove permanently closed leads from user view
-    if (updated.isClosed) { setLeads(prev => prev.filter(l => l.id !== (updated.id || String(updated._id)))); setSelected(null); return; }
     // Merge: remove the absorbed source lead from the list, update the survivor
     if (updated._mergedAbsorbedId) {
       const absorbedId = String(updated._mergedAbsorbedId);
@@ -2714,11 +2571,6 @@ export default function UserDashboard() {
                                 <button onClick={e => { e.stopPropagation(); setPhoneLead(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#059669] hover:border-[#059669] hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition" title={l.secondaryPhone ? "Manage phone numbers" : "Add secondary number"}>
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
                                 </button>
-                                {!l.isClosed && (
-                                  <button onClick={e => { e.stopPropagation(); setCloseLead(l); }} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-red-500 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition" title="Close lead (notify admin)">
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                                  </button>
-                                )}
                               </div>
                             </td>
                           </tr>
@@ -2807,20 +2659,6 @@ export default function UserDashboard() {
           lead={phoneLead}
           onClose={() => setPhoneLead(null)}
           onLeadUpdated={updated => { handleUpdate(updated); setPhoneLead({ ...phoneLead, ...updated }); }}
-        />,
-        document.body
-      )}
-      {/* Close Lead — opened from table row close button */}
-      {closeLead && createPortal(
-        <CloseLeadModal
-          lead={closeLead}
-          onClose={() => setCloseLead(null)}
-          onClosed={updated => {
-            // Remove immediately from user's list — permanently hidden after close
-            setLeads(prev => prev.filter(l => l.id !== (closeLead.id || String(closeLead._id))));
-            if (selected?.id === (closeLead.id || String(closeLead._id))) setSelected(null);
-            setCloseLead(null);
-          }}
         />,
         document.body
       )}
