@@ -3,12 +3,13 @@ import {
   MapPin, Navigation, Save, X, Check, AlertCircle,
   ExternalLink, RefreshCw, Download, MapPinned,
   LocateFixed, Clock, Activity, Loader2,
-  Info,
+  Info, PhoneCall,
 } from "lucide-react";
 import AttendanceFilters from "../components/AttendanceFilters";
 import AttendanceTable   from "../components/AttendanceTable";
 import { fetchAttendanceReport, fetchAttendanceExport } from "../services/attendanceService";
 import api from "../data/axiosConfig";
+import { getRole, getStoredUser } from "../data/dataService";
 
 // ── xlsx export ───────────────────────────────────────────────────────────────
 async function exportToExcel(params) {
@@ -289,6 +290,116 @@ function ClockInLocationSettings() {
   );
 }
 
+// ── CallLogSyncSettings ───────────────────────────────────────────────────────
+// Superadmin-only toggle. Controls whether employees' phones can sync call logs
+// to the CRM. Uses the existing PUT /superadmin/companies/:id/call-log-sync API.
+function CallLogSyncSettings({ companyId }) {
+  const [open,    setOpen]    = useState(false);
+  const [enabled, setEnabled] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [msg,     setMsg]     = useState({ type: "", text: "" });
+
+  useEffect(() => {
+    if (!open || !companyId) return;
+    setLoading(true);
+    api.get(`/superadmin/companies/${companyId}`)
+      .then(r => {
+        const c = r.data?.company ?? r.data;
+        setEnabled(c?.callLogSyncEnabled !== false);
+      })
+      .catch(() => setMsg({ type: "err", text: "Failed to load sync setting." }))
+      .finally(() => setLoading(false));
+  }, [open, companyId]);
+
+  const flash = (type, text) => {
+    setMsg({ type, text });
+    if (type === "ok") setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/superadmin/companies/${companyId}/call-log-sync`, { enabled });
+      flash("ok", `Call log sync ${enabled ? "enabled" : "disabled"} successfully.`);
+    } catch (e) {
+      flash("err", e.response?.data?.message || "Failed to save.");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Device Call Log Sync Permission"
+        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-[12px] font-semibold transition-all ${
+          open
+            ? "bg-cyan-50 dark:bg-cyan-500/15 border-cyan-300 dark:border-cyan-700 text-cyan-700 dark:text-cyan-300"
+            : "border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#4B5168] dark:text-[#9DA3BB] hover:border-cyan-300 dark:hover:border-cyan-700 hover:text-cyan-700 dark:hover:text-cyan-300"
+        }`}
+      >
+        <PhoneCall size={15} className="shrink-0" />
+        <span>Call Log Sync</span>
+        {/* Live status dot */}
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${enabled ? "bg-emerald-500" : "bg-red-400"}`} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-[340px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
+          <PanelHeader
+            icon={PhoneCall}
+            title="Device Call Log Sync"
+            subtitle="Control whether employees' phones sync call logs"
+            onClose={() => setOpen(false)}
+            iconColor="text-cyan-500"
+            iconBg="bg-cyan-50 dark:bg-cyan-500/10"
+          />
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 size={20} className="animate-spin text-[#8B92A9]" />
+            </div>
+          ) : (
+            <div className="px-5 py-4 space-y-4">
+
+              <Toggle
+                enabled={enabled}
+                onToggle={() => setEnabled(v => !v)}
+                label={enabled ? "Sync enabled" : "Sync disabled"}
+                description={
+                  enabled
+                    ? "Employees' phones are actively syncing call logs to the CRM"
+                    : "All sync requests from this company will be rejected (403)"
+                }
+              />
+
+              {/* Warning when disabling */}
+              {!enabled && (
+                <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
+                  <Info size={13} className="text-red-500 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-red-700 dark:text-red-400 leading-relaxed">
+                    Employees will see a sync-disabled message on their device. Existing logs already in the database are <strong>not</strong> deleted.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38]">
+                <Info size={13} className="text-[#8B92A9] shrink-0 mt-0.5" />
+                <p className="text-[10px] text-[#8B92A9] leading-relaxed">
+                  This setting is company-wide. Individual employee permissions are not affected.
+                </p>
+              </div>
+
+              <Feedback msg={msg} />
+              <SaveButton saving={saving} onClick={handleSave} label="Save Sync Permission" />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── MeetingTrackingSettings ───────────────────────────────────────────────────
 function MeetingTrackingSettings() {
   const [open,     setOpen]     = useState(false);
@@ -555,6 +666,12 @@ export default function AttendancePage() {
   const [exporting,         setExporting]         = useState(false);
   const [showLiveLocations, setShowLiveLocations] = useState(false);
 
+  // ── Role + company ────────────────────────────────────────────────────────
+  const role         = getRole();
+  const isSuperAdmin = role === "superadmin";
+  const storedUser   = getStoredUser();
+  const companyId    = storedUser?.company || null;
+
   const loadData = useCallback(async (page = 1) => {
     setLoading(true);
     try {
@@ -602,6 +719,11 @@ export default function AttendancePage() {
 
           {/* Client meeting GPS tracking */}
           <MeetingTrackingSettings />
+
+          {/* Call log sync toggle — superadmin only */}
+          {isSuperAdmin && companyId && (
+            <CallLogSyncSettings companyId={companyId} />
+          )}
 
           {/* Live locations viewer */}
           <button
