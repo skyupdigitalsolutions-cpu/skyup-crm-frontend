@@ -1489,6 +1489,38 @@ function WhatsAppPanel({ currentUser }) {
     return () => socket.disconnect();
   }, [currentUser]);
 
+  // ── Real-time fallback polling ─────────────────────────────────────────────
+  // The socket delivers messages instantly when the phone number is correct.
+  // This 2-second API poll is a safety net: if the socket event arrives for
+  // a different conversationId (e.g. due to duplicate conversations), the
+  // admin would otherwise only see the message after a manual refresh.
+  // This silently fetches new messages every 2s and merges them in.
+  useEffect(() => {
+    if (!selected?._id) return;
+    const convId = selected._id;
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await axios.get(
+          `${API_URL}/whatsapp/conversations/${convId}/messages`,
+          authHeaders
+        );
+        const fresh = data.messages || [];
+        setMessages((prev) => {
+          if (fresh.length === prev.length) return prev; // no change
+          // Merge: keep optimistic messages, add any new ones from server
+          const existingIds = new Set(prev.map((m) => m._id));
+          const newMsgs = fresh.filter((m) => !existingIds.has(m._id));
+          if (newMsgs.length === 0) return prev;
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+          return [...prev, ...newMsgs].sort((a, b) =>
+            new Date(a.waTimestamp || 0) - new Date(b.waTimestamp || 0)
+          );
+        });
+      } catch {}
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [selected?._id]);
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   const selectConversation = (conv) => {
