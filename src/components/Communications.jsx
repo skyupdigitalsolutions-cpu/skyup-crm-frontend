@@ -96,10 +96,7 @@ const FIELD = "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border
 // Webhook URL box — shown in WhatsApp Integrations tab so admin can configure
 // MSG91 inbound webhook for instant reply delivery (eliminates 30-40s poll lag).
 function WebhookUrlBox() {
-  const [copied, setCopied]     = useState(false);
-  const [regState, setRegState] = useState("idle"); // idle | loading | ok | err
-  const [regMsg, setRegMsg]     = useState("");
-  const token = localStorage.getItem("adminToken") || localStorage.getItem("token") || "";
+  const [copied, setCopied] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL || "";
   const backendBase = API_URL.replace("/api", "");
   const webhookUrl  = `${backendBase}/msg91-webhook`;
@@ -110,84 +107,59 @@ function WebhookUrlBox() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleRegister = async () => {
-    setRegState("loading");
-    setRegMsg("");
-    try {
-      const res = await fetch(`${API_URL}/admin/company/msg91-register-webhook`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setRegState("ok");
-        setRegMsg(
-          data.autoRegistered
-            ? "✅ Webhook registered with MSG91! Lead replies will now arrive instantly (<2 seconds)."
-            : `⚠️ Auto-registration API unavailable — paste the URL manually in MSG91 dashboard:\nMSG91 → WhatsApp → Integrated Numbers → your number → Settings → Response Webhook`
-        );
-      } else {
-        setRegState("err");
-        setRegMsg(data.message || "Auto-registration failed. Set it manually in MSG91 dashboard.");
-      }
-    } catch {
-      setRegState("err");
-      setRegMsg("Network error. Please set the webhook manually in MSG91 dashboard.");
-    }
-  };
-
   return (
-    <div className="rounded-xl border border-[#BFDBFE] dark:border-[#1e3a5f] bg-[#EFF6FF] dark:bg-[#0c1a2e] p-4 space-y-3">
+    <div className="rounded-xl border-2 border-red-400 dark:border-red-600 bg-red-50 dark:bg-red-900/20 p-4 space-y-3">
+      {/* Header */}
       <div className="flex items-center gap-2">
-        <svg className="w-4 h-4 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-        </svg>
-        <p className="text-[12px] font-bold text-[#1D4ED8] dark:text-[#93C5FD]">
-          Enable Instant Reply Delivery (Required)
+        <span className="text-lg">🚨</span>
+        <p className="text-[13px] font-bold text-red-700 dark:text-red-400">
+          ACTION REQUIRED — Set Webhook in MSG91 Dashboard
         </p>
       </div>
-      <p className="text-[11px] text-[#1E40AF] dark:text-[#BFDBFE] leading-relaxed">
-        Without this webhook, lead replies take <strong>30–40 seconds</strong> to appear.
-        Click <strong>Auto-Register</strong> to fix this instantly.
+      <p className="text-[12px] text-red-600 dark:text-red-300 leading-relaxed font-medium">
+        Without this, lead WhatsApp replies will <strong>never appear</strong> in the CRM.
+        This is a one-time setup that takes 30 seconds.
       </p>
 
-      {/* Auto-register button */}
-      <button
-        onClick={handleRegister}
-        disabled={regState === "loading" || regState === "ok"}
-        className="w-full py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-[#1D4ED8] disabled:opacity-60 transition"
-      >
-        {regState === "loading" ? "Registering..." : regState === "ok" ? "✅ Registered!" : "⚡ Auto-Register Webhook with MSG91"}
-      </button>
-      {regMsg && (
-        <p className={`text-[11px] ${regState === "ok" ? "text-green-600" : "text-red-500"}`}>{regMsg}</p>
-      )}
-
-      {/* Manual fallback */}
-      <details className="group">
-        <summary className="text-[10px] font-semibold text-[#1D4ED8] dark:text-[#93C5FD] cursor-pointer select-none">
-          Or set manually in MSG91 dashboard ▸
-        </summary>
-        <div className="mt-2 space-y-2">
-          <div className="flex items-center gap-2">
-            <code className="flex-1 bg-white dark:bg-[#111827] border border-[#BFDBFE] dark:border-[#1e3a5f] rounded-lg px-3 py-2 text-[11px] font-mono text-[#1D4ED8] dark:text-[#93C5FD] break-all select-all">
-              {webhookUrl}
-            </code>
-            <button onClick={handleCopy} className="shrink-0 px-3 py-2 rounded-lg bg-[#2563EB] text-white text-[11px] font-semibold hover:bg-[#1D4ED8] transition">
-              {copied ? "Copied!" : "Copy"}
-            </button>
+      {/* Step by step */}
+      <div className="bg-white dark:bg-[#1a1d27] rounded-xl p-3 space-y-2 border border-red-200 dark:border-red-800">
+        <p className="text-[11px] font-bold text-[#4B5168] dark:text-[#9DA3BB] uppercase tracking-widest">Do these 4 steps right now:</p>
+        {[
+          <>Go to <strong>msg91.com</strong> → Login → <strong>WhatsApp</strong> section</>,
+          <>Click <strong>Integrated Numbers</strong> → click your number <strong>919591327778</strong></>,
+          <>Find the <strong>"Response Webhook"</strong> or <strong>"Webhook URL"</strong> field → paste the URL below</>,
+          <>Click <strong>Save / Update</strong> — done! Replies will arrive in &lt;2 seconds.</>,
+        ].map((step, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className="w-5 h-5 rounded-full bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i+1}</span>
+            <p className="text-[12px] text-[#0F1117] dark:text-[#F0F2FA]">{step}</p>
           </div>
-          {["Go to msg91.com → WhatsApp → Integrated Numbers", "Click your number → Settings", 'Paste URL in "Response Webhook" field → Save'].map((s, i) => (
-            <div key={i} className="flex items-start gap-2">
-              <span className="w-4 h-4 rounded-full bg-[#2563EB]/10 text-[#2563EB] text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-              <p className="text-[11px] text-[#1E40AF] dark:text-[#BFDBFE]">{s}</p>
-            </div>
-          ))}
+        ))}
+      </div>
+
+      {/* URL to copy */}
+      <div>
+        <p className="text-[10px] font-bold text-red-700 dark:text-red-400 uppercase tracking-widest mb-1">Paste this URL in MSG91:</p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 bg-white dark:bg-[#111827] border-2 border-red-300 dark:border-red-700 rounded-lg px-3 py-2 text-[11px] font-mono text-red-700 dark:text-red-300 break-all select-all font-bold">
+            {webhookUrl}
+          </code>
+          <button
+            onClick={handleCopy}
+            className="shrink-0 px-4 py-2 rounded-lg bg-red-600 text-white text-[12px] font-bold hover:bg-red-700 transition"
+          >
+            {copied ? "✓ Copied!" : "Copy URL"}
+          </button>
         </div>
-      </details>
+      </div>
+
+      <p className="text-[11px] text-red-500 dark:text-red-400 text-center">
+        ⚡ Once saved in MSG91, replies appear in CRM within 1–2 seconds
+      </p>
     </div>
   );
 }
+
 
 function IntegrationsModal({ onClose }) {
   const [activeTab, setActiveTab] = useState("whatsapp");
