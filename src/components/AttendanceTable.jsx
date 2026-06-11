@@ -341,11 +341,21 @@ function CallLogCard({ log, isSuperAdmin }) {
     log.callType === "voicemail" ? "✉" : "?";
 
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+    <div className={`bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border overflow-hidden ${
+      !log.matchedLead
+        ? "border-amber-200 dark:border-amber-800/50"
+        : "border-[#E4E7EF] dark:border-[#262A38]"
+    }`}>
       <div className="px-4 py-3 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[14px] font-bold ${callTypeColorClass}`}>
-            {callTypeIcon}
+          <div className="relative">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[14px] font-bold ${callTypeColorClass}`}>
+              {callTypeIcon}
+            </div>
+            {/* Red/amber dot — this number is NOT in the CRM leads */}
+            {!log.matchedLead && (
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white dark:border-[#13161E]" title="Not a CRM lead" />
+            )}
           </div>
           <div className="min-w-0">
             {/* ── Phone number: masked for admin, plain for superadmin ── */}
@@ -360,9 +370,14 @@ function CallLogCard({ log, isSuperAdmin }) {
         <div className="flex flex-col items-end gap-1 shrink-0">
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             <CallTypeBadge callType={log.callType} />
-            {log.matchedLead && (
+            {log.matchedLead ? (
               <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400">
                 {log.matchedLead.name}
+              </span>
+            ) : (
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Not a Lead
               </span>
             )}
             {hasRecordings && (
@@ -452,7 +467,16 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
     setLogsPage(1);
     setLogsError("");
     setLogsLoading(true);
-    axios.get(`${BASE}/call-logs/all?limit=500`, { headers: authHeaders() })
+
+    // Only fetch call logs from the employee's account creation date onwards.
+    // This prevents showing call logs that were synced before the employee joined
+    // or from devices used by a previous employee with the same phone.
+    // Falls back to 90 days ago if createdAt is not available.
+    const since = user.createdAt
+      ? new Date(user.createdAt).toISOString()
+      : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    axios.get(`${BASE}/call-logs/all?limit=500&since=${encodeURIComponent(since)}`, { headers: authHeaders() })
       .then(res => {
         const all      = res.data?.logs || [];
         const filtered = all
@@ -482,6 +506,8 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
   const totalDuration = callLogs.reduce((s, l) => s + (l.duration || 0), 0);
   const withRecording = callLogs.filter(l => l.recordings?.length > 0).length;
   const missedCalls   = callLogs.filter(l => l.callType === "missed").length;
+  // Calls that don't match any lead in the CRM — these are personal/unknown numbers
+  const unmatchedCalls = callLogs.filter(l => !l.matchedLead).length;
 
   const totalPages = Math.ceil(totalCalls / LOGS_PER_PAGE);
   const pagedLogs  = callLogs.slice((logsPage - 1) * LOGS_PER_PAGE, logsPage * LOGS_PER_PAGE);
@@ -654,15 +680,23 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
                 <span className="text-[10px] font-bold text-[#8B92A9]">{logsLoading ? "…" : `${totalCalls} calls`}</span>
               </div>
               {!logsLoading && !logsError && totalCalls > 0 && (
-                <div className="grid grid-cols-4 gap-2 mb-3">
+                <div className="grid grid-cols-5 gap-2 mb-3">
                   {[
-                    { label: "Total",     value: totalCalls,                    color: "#6366f1" },
-                    { label: "Missed",    value: missedCalls,                   color: "#DC2626" },
-                    { label: "Recorded",  value: withRecording,                 color: "#0891b2" },
-                    { label: "Talk time", value: fmtDuration(totalDuration) || "0s", color: "#059669", small: true },
+                    { label: "Total",     value: totalCalls,               color: "#6366f1" },
+                    { label: "Missed",    value: missedCalls,              color: "#DC2626" },
+                    { label: "Recorded",  value: withRecording,            color: "#0891b2" },
+                    { label: "Talk Time", value: fmtDuration(totalDuration) || "0s", color: "#059669", small: true },
+                    { label: "Not Lead",  value: unmatchedCalls,           color: "#F59E0B", dot: true },
                   ].map(s => (
-                    <div key={s.label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-2 text-center border border-[#E4E7EF] dark:border-[#262A38]">
-                      <p className="text-[9px] font-bold text-[#8B92A9] uppercase tracking-wide mb-0.5">{s.label}</p>
+                    <div key={s.label} className={`rounded-xl p-2 text-center border ${
+                      s.dot && unmatchedCalls > 0
+                        ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+                        : "bg-[#F8F9FC] dark:bg-[#13161E] border-[#E4E7EF] dark:border-[#262A38]"
+                    }`}>
+                      <p className="text-[9px] font-bold text-[#8B92A9] uppercase tracking-wide mb-0.5 flex items-center justify-center gap-1">
+                        {s.dot && unmatchedCalls > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 animate-pulse" />}
+                        {s.label}
+                      </p>
                       <p className={`font-black ${s.small ? "text-[11px]" : "text-[15px]"}`} style={{ color: s.color }}>{s.value}</p>
                     </div>
                   ))}
