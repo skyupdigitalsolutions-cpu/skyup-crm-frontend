@@ -673,7 +673,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
 function UpdateDrawer({ lead, onClose, onSaved }) {
   const [status,       setStatus]       = useState(lead.status);
   const [remark,       setRemark]       = useState("");
-  const [outcome,      setOutcome]      = useState("Call Back");
+  const [outcome,      setOutcome]      = useState("");
   const [temperature,  setTemperature]  = useState(lead.temperature || "");
   const [followUpDate, setFollowUpDate] = useState("");
   const [saving,       setSaving]       = useState(false);
@@ -682,6 +682,14 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
   const [showColdModal, setShowColdModal] = useState(false);
 
   const isNI = status === "Not Interested";
+
+  // Already marked Interested? Hide the "Interested" outcome so it can't be repeated.
+  const alreadyInterested = (() => {
+    const s = (lead.status || "").toLowerCase();
+    if (s === "interested" || s === "in progress" || s === "converted") return true;
+    const hist = Array.isArray(lead.callHistory) ? lead.callHistory : [];
+    return hist.some(h => (h.outcome || "").toLowerCase() === "interested");
+  })();
 
   const handleSave = async () => {
     if (!remark.trim()) return setError("Remark is required.");
@@ -864,10 +872,21 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 </div>
                 {!isNI && (
                   <div>
-                    <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Call Outcome</label>
+                    <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
+                      Call Outcome
+                      <span className="ml-1.5 text-[11px] font-normal text-[#8B92A9]">(required to log a call)</span>
+                    </label>
+                    {alreadyInterested && (
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mb-1.5 flex items-center gap-1">
+                        ✓ Lead already marked Interested — choose a different outcome
+                      </p>
+                    )}
                     <select value={outcome} onChange={e => setOutcome(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition">
-                      {OUTCOME_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                      <option value="">— Select outcome to log a call —</option>
+                      {OUTCOME_OPTIONS
+                        .filter(o => !(alreadyInterested && o === "Interested"))
+                        .map(o => <option key={o}>{o}</option>)}
                     </select>
                   </div>
                 )}
