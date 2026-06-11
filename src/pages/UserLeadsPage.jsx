@@ -673,57 +673,18 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
 function UpdateDrawer({ lead, onClose, onSaved }) {
   const [status,       setStatus]       = useState(lead.status);
   const [remark,       setRemark]       = useState("");
-  const [outcome,      setOutcome]      = useState("");  // empty — must be explicitly chosen to log a call
+  const [outcome,      setOutcome]      = useState("Call Back");
   const [temperature,  setTemperature]  = useState(lead.temperature || "");
   const [followUpDate, setFollowUpDate] = useState("");
   const [saving,       setSaving]       = useState(false);
-  const [quickSaving,  setQuickSaving]  = useState(""); // tracks which quick-save is in progress
   const [error,        setError]        = useState("");
   const [activeTab,     setActiveTab]    = useState("update");
   const [showColdModal, setShowColdModal] = useState(false);
 
   const isNI = status === "Not Interested";
 
-  // ── Quick-save: status or quality changed directly → save immediately ──────
-  const quickSaveStatus = async (newStatus) => {
-    setStatus(newStatus);
-    setQuickSaving("status");
-    setError("");
-    try {
-      let updatedLead;
-      if (newStatus === "Not Interested") {
-        const res = await api.patch(`/lead/${lead.id}/not-interested`, { remark: remark.trim() || "Status changed to Not Interested" });
-        updatedLead = res.data?.lead || res.data;
-      } else {
-        const res = await api.patch(`/lead/${lead.id}`, { status: newStatus });
-        updatedLead = res.data?.lead || res.data;
-      }
-      onSaved({ ...lead, ...(updatedLead ? mapLead(updatedLead) : {}), id: lead.id, status: newStatus });
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to update status");
-    } finally {
-      setQuickSaving("");
-    }
-  };
-
-  const quickSaveQuality = async (newQuality) => {
-    if (newQuality === "Cold") { setShowColdModal(true); return; }
-    setTemperature(newQuality);
-    setQuickSaving("quality");
-    setError("");
-    try {
-      const res = await api.patch(`/lead/${lead.id}`, { temperature: newQuality || null, Quality: newQuality || null });
-      const updatedLead = res.data?.lead || res.data;
-      onSaved({ ...lead, ...(updatedLead ? mapLead(updatedLead) : {}), id: lead.id, temperature: newQuality });
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to update quality");
-    } finally {
-      setQuickSaving("");
-    }
-  };
-
   const handleSave = async () => {
-    if (!remark.trim()) return setError("Remark is required to log a call.");
+    if (!remark.trim()) return setError("Remark is required.");
     setSaving(true);
     setError("");
     try {
@@ -738,6 +699,8 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
         const res = await api.patch(`/lead/${lead.id}`, body);
         updatedLead = res.data?.lead || res.data;
       }
+      // Prefer backend response for scheduledCalls so progress is always accurate.
+      // Fall back to optimistic merge only if backend didn't return the lead.
       const newCall = { outcome: isNI ? "Not Interested" : outcome, remark: remark.trim(), calledAt: new Date().toISOString() };
       const mergedCallHistory = updatedLead?.callHistory
         ? (Array.isArray(updatedLead.callHistory) ? updatedLead.callHistory : [...(lead.callHistory || []), newCall])
@@ -748,7 +711,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
       onSaved({
         ...lead,
         ...(updatedLead ? mapLead(updatedLead) : {}),
-        id:             lead.id,
+        id:             lead.id,  // preserve frontend id
         status:         isNI ? "Not Interested" : status,
         remark:         remark.trim(),
         temperature:    temperature || lead.temperature,
@@ -880,67 +843,49 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
               <div className="px-6 py-5 space-y-4">
                 <p className="text-[14px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest">Update Lead</p>
                 <div>
-                  <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
-                    Status
-                    {quickSaving === "status" && <span className="ml-2 text-[11px] font-normal text-[#2563EB]">Saving…</span>}
-                  </label>
+                  <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Status</label>
                   <div className="grid grid-cols-2 gap-2">
                     {STATUS_OPTIONS.map(s => {
                       const sc2   = STATUS_CONFIG[s] || STATUS_CONFIG["New"];
                       const active = status === s;
                       return (
-                        <button key={s} onClick={() => quickSaveStatus(s)}
-                          disabled={quickSaving === "status"}
-                          className={`px-3 py-2 rounded-xl border-2 text-[14px] font-semibold transition flex items-center gap-1.5 disabled:opacity-60 ${
+                        <button key={s} onClick={() => setStatus(s)}
+                          className={`px-3 py-2 rounded-xl border-2 text-[14px] font-semibold transition flex items-center gap-1.5 ${
                             active
                               ? `${sc2.bg} ${sc2.text} border-current`
                               : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-white hover:border-[#CBD5E1]"
                           }`}>
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: active ? sc2.dot : "#CBD5E1" }} />
                           {s}
-                          {active && <span className="ml-auto text-[10px] opacity-60">✓ saved</span>}
                         </button>
                       );
                     })}
                   </div>
-                  <p className="text-[10px] text-[#8B92A9] mt-1.5">Tap a status to save it instantly — no remark needed</p>
                 </div>
                 {!isNI && (
                   <div>
-                    <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
-                      Call Outcome
-                      <span className="ml-1.5 text-[11px] font-normal text-[#8B92A9]">(required to log a call)</span>
-                    </label>
-                    <select value={outcome} onChange={e => {
-                      const val = e.target.value;
-                      setOutcome(val);
-                      // Instantly map outcome → status where it's unambiguous
-                      if (val === "Interested")     { setStatus("In Progress");    quickSaveStatus("In Progress"); }
-                      if (val === "Not Interested") { setStatus("Not Interested"); quickSaveStatus("Not Interested"); }
-                      if (val === "Converted")      { setStatus("Converted");      quickSaveStatus("Converted"); }
-                    }}
+                    <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Call Outcome</label>
+                    <select value={outcome} onChange={e => setOutcome(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition">
-                      <option value="">— Select outcome to log a call —</option>
                       {OUTCOME_OPTIONS.map(o => <option key={o}>{o}</option>)}
                     </select>
-                    <p className="text-[10px] text-[#8B92A9] mt-1">Selecting Interested / Not Interested / Converted saves status instantly</p>
                   </div>
                 )}
                 <div>
-                  <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
-                    Lead Quality
-                    {quickSaving === "quality" && <span className="ml-2 text-[11px] font-normal text-[#2563EB]">Saving…</span>}
-                  </label>
+                  <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Lead Quality</label>
                   <div className="grid grid-cols-4 gap-2">
                     {["", "Hot", "Warm", "Cold"].map(q => {
                       const colors = { Hot: "#DC2626", Warm: "#D97706", Cold: "#2563EB", "": "#8B92A9" };
                       const labels = { Hot: "Hot", Warm: " Warm", Cold: " Cold", "": "— None" };
                       const active = temperature === q;
+                      // Cold quality triggers the ColdReassignModal (same flow as Not Interested)
+                      const handleQualityClick = () => {
+                        if (q === "Cold") { setShowColdModal(true); return; }
+                        setTemperature(q);
+                      };
                       return (
-                        <button key={q} type="button"
-                          onClick={() => quickSaveQuality(q)}
-                          disabled={quickSaving === "quality"}
-                          className={`px-2 py-2 rounded-xl border-2 text-[14px] font-semibold transition disabled:opacity-60 ${
+                        <button key={q} type="button" onClick={handleQualityClick}
+                          className={`px-2 py-2 rounded-xl border-2 text-[14px] font-semibold transition ${
                             active
                               ? "border-current"
                               : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-white hover:border-[#CBD5E1]"
@@ -951,9 +896,8 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                       );
                     })}
                   </div>
-                  <p className="text-[10px] text-[#8B92A9] mt-1.5">Tap a quality to save it instantly</p>
                 </div>
-                {!isNI && (outcome === "Call Back" || outcome === "") && (
+                {!isNI && outcome === "Call Back" && (
                   <div>
                     <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
                       Follow-up Date
@@ -970,8 +914,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 )}
                 <div>
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
-                    Call Remark <span className="text-red-500">*</span>
-                    <span className="ml-1 font-normal text-[11px] text-[#8B92A9]">(required to log this call)</span>
+                    Remark <span className="text-red-500">*</span>
                     {isNI && <span className="ml-1 font-normal text-[14px] text-[#8B92A9]">(reason required)</span>}
                   </label>
                   <textarea
@@ -998,7 +941,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
                 {saving
                   ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saving…</>
-                  : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Log Call & Save</>
+                  : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Save Update</>
                 }
               </button>
             </div>
