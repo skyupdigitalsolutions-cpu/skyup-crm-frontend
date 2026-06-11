@@ -10,6 +10,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { getStoredUser, getRole } from '../data/dataService';
+import api from '../data/axiosConfig';
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
@@ -44,7 +45,8 @@ export default function AdminChat() {
 
   const [editingId, setEditingId]     = useState(null);
   const [editingText, setEditingText] = useState('');
-  const [closedNotifs, setClosedNotifs] = useState([]); // Lead close notifications
+  const [closedNotifs,    setClosedNotifs]    = useState([]); // Lead close notifications
+  const [meetingRequests, setMeetingRequests] = useState([]); // Meeting permission requests
 
   const bottomRef = useRef(null);
 
@@ -177,6 +179,18 @@ export default function AdminChat() {
       }
     });
 
+    // ── Meeting permission request from employee ───────────────────────────
+    socket.on('meeting_permission_requested', (data) => {
+      const req = { ...data, id: `${data.userId}-${Date.now()}`, status: 'pending' };
+      setMeetingRequests(prev => [req, ...prev].slice(0, 20));
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification('📍 Remote Clock-In Request', {
+          body: `${data.userName} needs remote clock-in permission${data.reason ? ` — ${data.reason}` : ''}`,
+          icon: '/skyup_logo1.svg',
+        });
+      }
+    });
+
     return () => socket.disconnect();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -184,6 +198,18 @@ export default function AdminChat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chats, selectedUsername]);
+
+  // ── Handle meeting permission request (approve / deny) ───────────────────
+  const handleMeetingRequest = useCallback(async (req, grant) => {
+    try {
+      await api.put(`/admin/user/${req.userId}/meeting-permission`, { grant });
+      setMeetingRequests(prev =>
+        prev.map(r => r.id === req.id ? { ...r, status: grant ? 'approved' : 'denied' } : r)
+      );
+    } catch (e) {
+      alert(e.response?.data?.message || `Failed to ${grant ? 'approve' : 'deny'} request.`);
+    }
+  }, []);
 
   // ── Select contact ────────────────────────────────────────────────────────
   const selectUser = useCallback((username) => {
@@ -237,7 +263,8 @@ export default function AdminChat() {
   const employeeContacts = userList.filter((u) => u.role === 'employee');
   const superAdminContact = userList.find((u) => u.role === 'super_admin');
 
-  const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
+  const totalUnread     = Object.values(unread).reduce((a, b) => a + b, 0);
+  const pendingMeetings = meetingRequests.filter(r => r.status === 'pending').length;
 
   // ── Label helper ─────────────────────────────────────────────────────────
   const roleLabel = (r) => {
@@ -250,6 +277,51 @@ export default function AdminChat() {
   if (!open) {
     return (
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+
+        {/* Meeting permission request notifications */}
+        {meetingRequests.filter(r => r.status === 'pending').length > 0 && (
+          <div className="w-80 max-h-80 overflow-y-auto bg-white dark:bg-[#1A1D27] border border-indigo-200 dark:border-indigo-800 rounded-2xl shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-indigo-100 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/40">
+              <span className="text-[12px] font-bold text-indigo-700 dark:text-indigo-400">
+                📍 Remote Clock-In Requests ({meetingRequests.filter(r => r.status === 'pending').length})
+              </span>
+              <button onClick={() => setMeetingRequests([])} className="text-[10px] text-indigo-400 hover:text-indigo-600 font-semibold">Clear</button>
+            </div>
+            {meetingRequests.filter(r => r.status === 'pending').map(req => (
+              <div key={req.id} className="px-4 py-3 border-b border-indigo-50 dark:border-indigo-900/30 last:border-0">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{req.userName}</p>
+                    {req.reason && (
+                      <p className="text-[11px] text-[#8B92A9] mt-0.5 italic truncate">"{req.reason}"</p>
+                    )}
+                    {req.location && (
+                      <p className="text-[11px] text-[#8B92A9] mt-0.5">📍 {req.location}</p>
+                    )}
+                    <p className="text-[10px] text-[#8B92A9] mt-1">
+                      {req.requestedAt ? new Date(req.requestedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleMeetingRequest(req, true)}
+                    className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition"
+                  >
+                    ✓ Approve
+                  </button>
+                  <button
+                    onClick={() => handleMeetingRequest(req, false)}
+                    className="flex-1 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold transition"
+                  >
+                    ✕ Deny
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Lead-closed notifications panel */}
         {closedNotifs.length > 0 && (
           <div className="w-80 max-h-72 overflow-y-auto bg-white dark:bg-[#1A1D27] border border-red-200 dark:border-red-800 rounded-2xl shadow-2xl">
@@ -292,6 +364,11 @@ export default function AdminChat() {
           {closedNotifs.length > 0 && totalUnread === 0 && (
             <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-white dark:ring-[#0D0F14]">
               {closedNotifs.length > 9 ? '9+' : closedNotifs.length}
+            </span>
+          )}
+          {pendingMeetings > 0 && totalUnread === 0 && closedNotifs.length === 0 && (
+            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-indigo-500 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-white dark:ring-[#0D0F14]">
+              {pendingMeetings}
             </span>
           )}
         </button>
