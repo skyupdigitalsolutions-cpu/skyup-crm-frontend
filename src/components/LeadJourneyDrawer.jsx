@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { X, Phone, MessageCircle } from "lucide-react";
+import { X } from "lucide-react";
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -473,9 +473,6 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
           </div>
         </div>
 
-        {/* ── Journey progress bar ── */}
-        <JourneyProgressBar lead={lead} totalCalls={totalCalls} scheduledCalls={scheduledCalls} />
-
         {/* ── Quick stats ── */}
         <div className="px-6 py-4 grid grid-cols-2 gap-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {[
@@ -502,18 +499,6 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                 <div className="flex items-center gap-2">
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500 shrink-0">PRIMARY</span>
                   <span className="text-[13px] font-mono font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{displayPhone}</span>
-                  {rawPrimary && (
-                    <div className="ml-auto flex items-center gap-1.5">
-                      <a href={telHref(rawPrimary)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition">
-                        <Phone className="w-3 h-3" /> Call
-                      </a>
-                      <a href={`https://wa.me/${toWaNumber(rawPrimary)}`} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition">
-                        <MessageCircle className="w-3 h-3" /> WhatsApp
-                      </a>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -523,18 +508,6 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500 shrink-0">SECONDARY</span>
                     <span className="text-[13px] font-mono font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{displaySecondaryPhone}</span>
-                    {rawSecondary && (
-                      <div className="ml-auto flex items-center gap-1.5">
-                        <a href={telHref(rawSecondary)}
-                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition">
-                          <Phone className="w-3 h-3" /> Call
-                        </a>
-                        <a href={`https://wa.me/${toWaNumber(rawSecondary)}`} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition">
-                          <MessageCircle className="w-3 h-3" /> WhatsApp
-                        </a>
-                      </div>
-                    )}
                   </div>
                 </div>
               ) : (
