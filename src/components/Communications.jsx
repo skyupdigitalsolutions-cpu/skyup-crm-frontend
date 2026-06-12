@@ -3499,12 +3499,24 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
   const [saving,   setSaving]   = useState(false);
   const [saved,    setSaved]    = useState(false);
   const [error,    setError]    = useState("");
+  const [testing,     setTesting]     = useState(false);
+  const [testResults, setTestResults] = useState(null);
 
   useEffect(() => {
     api.get("/admin/company/auto-template")
       .then(r => setSettings(r.data.autoTemplate || {}))
       .catch(() => setSettings({}));
   }, []);
+
+  const handleTest = async () => {
+    setTesting(true); setTestResults(null); setError("");
+    try {
+      const res = await api.post("/admin/company/auto-template/test", {});
+      setTestResults(res.data);
+    } catch (e) {
+      setError(e.response?.data?.message || "Test failed");
+    } finally { setTesting(false); }
+  };
 
   const update = (channel, key, value) => {
     setSettings(prev => ({
@@ -3556,8 +3568,8 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
             </svg>
           </div>
           <div>
-            <p className={`text-[13px] font-bold ${tok.text} leading-none`}>Auto-Template for New Leads</p>
-            <p className="text-[11px] text-[#8B92A9] mt-0.5">Automatically send a message when a new lead is added</p>
+            <p className={`text-[13px] font-bold ${tok.text} leading-none`}>Auto-Blast Settings</p>
+            <p className="text-[11px] text-[#8B92A9] mt-0.5">Fires when a new lead is added, and again when a lead is marked Interested</p>
           </div>
         </div>
         <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
@@ -3701,11 +3713,33 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
           </>
         )}
 
+        {testResults && (
+          <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] p-3 space-y-1.5 bg-[#FAFBFD] dark:bg-[#13151D]">
+            <p className="text-[11px] font-bold text-[#4B5168] dark:text-[#9DA3BB]">
+              Test blast → {testResults.lead?.name} ({testResults.lead?.mobile || "no phone"}{testResults.lead?.email ? `, ${testResults.lead.email}` : ", no email"})
+            </p>
+            {(testResults.results || []).map((r, i) => (
+              <p key={i} className={`text-[11px] ${r.status === "sent" ? "text-[#059669]" : r.status === "failed" ? "text-[#DC2626]" : "text-[#B45309]"}`}>
+                {r.status === "sent" ? "✓" : r.status === "failed" ? "✗" : "⚠"} <span className="font-semibold uppercase">{r.channel}</span> — {r.status}: {r.detail}
+              </p>
+            ))}
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex items-center justify-between pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
           {error  && <p className="text-[11px] text-[#DC2626]">⚠ {error}</p>}
           {saved  && <p className="text-[11px] text-[#059669] font-semibold">✓ Settings saved</p>}
           {!error && !saved && <span />}
+          <div className="flex items-center gap-2">
+          <button
+            onClick={handleTest}
+            disabled={testing || saving}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F5F6FA] dark:hover:bg-[#262A38] transition disabled:opacity-50"
+            title="Sends a real blast to your most recent lead and shows per-channel results"
+          >
+            {testing ? "Testing…" : "Send Test"}
+          </button>
           <button
             onClick={handleSave}
             disabled={saving}
@@ -3720,12 +3754,12 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
               : "Save Settings"
             }
           </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ── MAIN COMMUNICATIONS PAGE ──────────────────────────────────────────────────
@@ -3761,7 +3795,7 @@ export default function Communications({ currentUser }) {
           {isAdmin && (
             <button
               onClick={() => setShowSettings(s => !s)}
-              title="Lead Automation — New Lead Blast"
+              title="Auto-Blast Settings — fires on New Lead creation and when a lead is marked Interested"
               className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border text-[12px] sm:text-[13px] font-semibold transition ${
                 showSettings
                   ? tab === "email"   ? "border-[#7C3AED] bg-[#f5f3ff] dark:bg-[#1e1040] text-[#7C3AED]"
@@ -3773,25 +3807,22 @@ export default function Communications({ currentUser }) {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
               </svg>
-              <span className="hidden sm:inline">Lead Automation</span>
+              <span className="hidden sm:inline">New Lead</span>
               <span className={`w-1.5 h-1.5 rounded-full ${
                 tab === "email" ? "bg-[#7C3AED]" : tab === "sms" ? "bg-[#EA580C]" : "bg-[#25D366]"
               } ${showSettings ? "opacity-100" : "opacity-50"}`} />
             </button>
           )}
-
         </div>
       </div>
 
-      {/* Auto-template settings panel (collapsible) */}
+      {/* Auto-blast settings panel (collapsible) — used for New Lead + Interested triggers */}
       {isAdmin && showSettings && (
         <AutoTemplateSettingsPanel
           activeTab={tab}
           onClose={() => setShowSettings(false)}
         />
       )}
-
-
 
       {/* Panel area — fills remaining height */}
       <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
