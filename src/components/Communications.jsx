@@ -3613,6 +3613,7 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
                       placeholder="crm_followup_leads"
                       className={FIELD_CLS}
                     />
+                    <p className="text-[10px] text-[#8B92A9] mt-0.5">Enter the exact approved template name you already use in WhatsApp chat / bulk blast — it must exist in your MSG91 account.</p>
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Language</label>
@@ -3692,14 +3693,14 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
               <div className="space-y-3 pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">DLT Template ID</label>
-                    <input type="text" value={sm.templateId || ""} onChange={e => update("sms", "templateId", e.target.value)} placeholder="1234567890123456789" className={FIELD_CLS} />
-                    <p className="text-[10px] text-[#8B92A9] mt-0.5">Required for Indian numbers (MSG91)</p>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">MSG91 Flow ID <span className="font-normal text-[#8B92A9]">(optional)</span></label>
+                    <input type="text" value={sm.templateId || ""} onChange={e => update("sms", "templateId", e.target.value)} placeholder="6a1ffe028c6272147b00b233" className={FIELD_CLS} />
+                    <p className="text-[10px] text-[#8B92A9] mt-0.5">From MSG91 → SMS → Flows (24-char ID, NOT the 19-digit DLT number). Leave blank to use your saved Greetings flow.</p>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Sender ID</label>
-                    <input type="text" maxLength={6} value={sm.senderId || ""} onChange={e => update("sms", "senderId", e.target.value.toUpperCase())} placeholder="SKYCRM" className={FIELD_CLS} />
-                    <p className="text-[10px] text-[#8B92A9] mt-0.5">6-char DLT-approved sender</p>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Sender ID <span className="font-normal text-[#8B92A9]">(optional)</span></label>
+                    <input type="text" maxLength={6} value={sm.senderId || ""} onChange={e => update("sms", "senderId", e.target.value.toUpperCase())} placeholder="695382" className={FIELD_CLS} />
+                    <p className="text-[10px] text-[#8B92A9] mt-0.5">Must match the sender registered for the flow above. Leave blank to use your saved Greetings sender.</p>
                   </div>
                 </div>
                 <div>
