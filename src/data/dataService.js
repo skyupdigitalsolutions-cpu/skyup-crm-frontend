@@ -83,9 +83,9 @@ async function fetchUserData() {
 // ── Admin: fetch company leads + users (paginated) ─────────────────────────
 async function fetchAdminData() {
   const [leadsRes, usersRes] = await Promise.all([
-    // FIX: limit=50 was silently truncating — bumped to 500.
-    // Also fixed response parsing: backend returns { leads[], total } not a plain array.
-    api.get("/admin/company/leads?page=1&limit=500"),
+    // FIX PERFORMANCE: Reduced from 500 to 100 for faster initial load.
+    // Pages that need more leads use paginated getAdminLeads() directly.
+    api.get("/admin/company/leads?page=1&limit=100"),
     api.get("/admin/company/users"),
   ]);
 
@@ -110,7 +110,8 @@ async function fetchAdminData() {
 
 async function fetchSuperAdminData() {
   const [leadsRes, usersRes, dashboardRes] = await Promise.all([
-    api.get("/admin/company/leads?page=1&limit=500"),
+    // FIX PERFORMANCE: Reduced from 500 to 100 for faster initial load.
+    api.get("/admin/company/leads?page=1&limit=100"),
     api.get("/admin/company/users"),
     api.get("/superadmin/dashboard"), // returns { users, leads, admins } scoped to caller's company
   ]);
