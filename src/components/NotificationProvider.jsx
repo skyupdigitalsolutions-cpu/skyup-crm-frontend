@@ -403,6 +403,46 @@ export function NotificationProvider({ children }) {
       });
     });
 
+    // lead_closed_by_user — an employee closed a lead with a remark.
+    // The backend (closeLeadByUser) emits this to admin_room:${adminId}, but
+    // nothing was listening, so admins never saw a notification. Wire it here
+    // so the bell updates on whatever page the admin is on.
+    socket.on('lead_closed_by_user', ({ leadId, leadName, phone, remark, closedBy, closedAt }) => {
+      handleUpsert({
+        id:        `lead-closed-${leadId}`,
+        type:      'lead_closed',
+        title:     '✅ Lead Closed',
+        body:      `${closedBy || 'An employee'} closed "${leadName || 'a lead'}"${remark ? ` — ${remark}` : ''}`,
+        leadId,
+        leadName,
+        phone:     phone || '',
+        remark:    remark || '',
+        closedBy:  closedBy || 'Employee',
+        timestamp: closedAt || new Date().toISOString(),
+        urgent:    false,
+      }, setNotifications, setUnreadCount);
+    });
+
+    // meeting_permission_requested — an employee is requesting remote (client-
+    // meeting) clock-in. Backend emits to admin_room:${adminId}, but nothing was
+    // listening, so admins never knew a request came in and the employee stayed
+    // blocked. Wire it here so the admin bell surfaces it and they can approve
+    // from Employee Management.
+    socket.on('meeting_permission_requested', ({ userId: empId, userName, reason, location, requestedAt }) => {
+      handleUpsert({
+        id:        `meeting-perm-${empId}`,
+        type:      'meeting_permission',
+        title:     '📍 Remote Clock-in Request',
+        body:      `${userName || 'An employee'} requested remote clock-in${location ? ` from ${location}` : ''}${reason ? ` — ${reason}` : ''}. Approve in Employee Management.`,
+        userId:    empId,
+        userName:  userName || 'Employee',
+        reason:    reason || '',
+        location:  location || '',
+        timestamp: requestedAt || new Date().toISOString(),
+        urgent:    true,
+      }, setNotifications, setUnreadCount);
+    });
+
     return () => {
       socket.off();           // remove all listeners before disconnect
       socket.disconnect();
@@ -541,6 +581,8 @@ function NotificationItem({ notif }) {
     notif.subType === 'overdue'                                 ? 'bg-red-500'    :
     notif.type === 'follow_up'                                  ? 'bg-amber-400'  :
     notif.type === 'new_lead'                                   ? 'bg-emerald-500':
+    notif.type === 'lead_closed'                                ? 'bg-green-500'  :
+    notif.type === 'meeting_permission'                         ? 'bg-orange-500' :
                                                                   'bg-amber-500';
 
   const showCompanies = notif.type === 'subscription_expiry' && notif.companies?.length > 0;
