@@ -340,27 +340,6 @@ export default function CompanyDetails() {
                 {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            {/* Call Log Sync toggle — developer can enable/disable per company */}
-            <button
-              onClick={async () => {
-                const newVal = !(company.callLogSyncEnabled !== false);
-                try {
-                  await api.put(`/developer/companies/${id}/call-log-sync`, { enabled: newVal });
-                  setData(prev => prev ? { ...prev, company: { ...prev.company, callLogSyncEnabled: newVal } } : prev);
-                } catch (e) { alert(e.response?.data?.message || "Failed to update."); }
-              }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
-                company.callLogSyncEnabled !== false
-                  ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                  : "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"
-              }`}
-              title="Toggle device call-log sync for this company"
-            >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-              Call Log Sync: {company.callLogSyncEnabled !== false ? "ON" : "OFF"}
-            </button>
           </div>
         </div>
         {ent.readOnly && (
