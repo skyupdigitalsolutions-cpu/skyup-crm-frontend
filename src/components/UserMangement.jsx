@@ -498,17 +498,26 @@ function MemberRow({ member, onRequestRemove, onViewCreds, onReassign, onMeeting
         {!isAdmin && onMeetingPermission && (
           <button
             onClick={() => onMeetingPermission(member)}
-            className={`w-6 h-6 flex items-center justify-center rounded-lg border transition ${
-              member.clientMeetingPermission
+            className={`relative w-6 h-6 flex items-center justify-center rounded-lg border transition ${
+              member.meetingPermissionStatus === 'pending'
+                ? 'border-orange-400 text-orange-500 bg-orange-50 dark:bg-orange-950/30 animate-pulse'
+                : member.clientMeetingPermission
                 ? 'border-emerald-400 text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
                 : 'border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-emerald-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
             }`}
-            title={member.clientMeetingPermission ? "Revoke remote clock-in permission" : "Grant remote clock-in (client meeting)"}
+            title={
+              member.meetingPermissionStatus === 'pending'
+                ? `Pending request${member.meetingPermissionLocation ? ` — ${member.meetingPermissionLocation}` : ''}${member.meetingPermissionReason ? ` (${member.meetingPermissionReason})` : ''}. Click to approve.`
+                : member.clientMeetingPermission ? "Revoke remote clock-in permission" : "Grant remote clock-in (client meeting)"
+            }
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
+            {member.meetingPermissionStatus === 'pending' && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-orange-500 border border-white dark:border-[#1A1D27]" />
+            )}
           </button>
         )}
         {onRequestRemove && !isSuperAdmin && (
@@ -810,16 +819,52 @@ export default function UserManagement({
   const handleMeetingPermission = async (member) => {
     const uid = member._id || member.id;
     const currentlyGranted = member.clientMeetingPermission;
-    if (!window.confirm(
-      currentlyGranted
+    const isPending = member.meetingPermissionStatus === 'pending';
+
+    let confirmMsg;
+    if (isPending) {
+      const details = [
+        member.meetingPermissionLocation ? `Location: ${member.meetingPermissionLocation}` : null,
+        member.meetingPermissionReason   ? `Reason: ${member.meetingPermissionReason}`     : null,
+      ].filter(Boolean).join('\n');
+      confirmMsg = `${member.name} requested remote clock-in.\n${details ? details + '\n\n' : ''}Approve for 24 hours?\n\n(Cancel will deny the request.)`;
+    } else {
+      confirmMsg = currentlyGranted
         ? `Revoke remote clock-in permission for ${member.name}?`
-        : `Grant ${member.name} remote clock-in permission for 24 hours (client meeting)?`
-    )) return;
+        : `Grant ${member.name} remote clock-in permission for 24 hours (client meeting)?`;
+    }
+
+    const proceed = window.confirm(confirmMsg);
+
+    // Pending request + Cancel = explicit deny
+    if (isPending && !proceed) {
+      try {
+        await api.put(`/admin/user/${uid}/meeting-permission`, { grant: false });
+        setUsers(u => u.map(m =>
+          (m._id || m.id) === uid
+            ? { ...m, clientMeetingPermission: false, clientMeetingPermissionGrantedAt: null, meetingPermissionStatus: 'denied', meetingPermissionRequested: false }
+            : m
+        ));
+      } catch (e) {
+        alert(e.response?.data?.message || "Failed to update permission.");
+      }
+      return;
+    }
+
+    if (!proceed) return;
+
+    const grant = isPending ? true : !currentlyGranted;
     try {
-      await api.put(`/admin/user/${uid}/meeting-permission`, { grant: !currentlyGranted });
+      await api.put(`/admin/user/${uid}/meeting-permission`, { grant });
       setUsers(u => u.map(m =>
         (m._id || m.id) === uid
-          ? { ...m, clientMeetingPermission: !currentlyGranted, clientMeetingPermissionGrantedAt: !currentlyGranted ? new Date().toISOString() : null }
+          ? {
+              ...m,
+              clientMeetingPermission: grant,
+              clientMeetingPermissionGrantedAt: grant ? new Date().toISOString() : null,
+              meetingPermissionStatus: grant ? 'approved' : 'denied',
+              meetingPermissionRequested: false,
+            }
           : m
       ));
     } catch (e) {
