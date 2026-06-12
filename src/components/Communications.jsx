@@ -3518,7 +3518,8 @@ function InterestedBlastPanel({ activeTab, onClose }) {
   const handleSave = async () => {
     setSaving(true); setError(""); setSaved(false);
     try {
-      await api.put("/admin/company/interested-blast", settings);
+      const res = await api.put("/admin/company/interested-blast", settings);
+      setSettings(res.data.interestedBlast || settings);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e) {
@@ -3720,7 +3721,8 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
   const handleSave = async () => {
     setSaving(true); setError(""); setSaved(false);
     try {
-      await api.put("/admin/company/auto-template", settings);
+      const res = await api.put("/admin/company/auto-template", settings);
+      setSettings(res.data.autoTemplate || settings);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e) {
