@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import api from "../data/axiosConfig";
 import LeadJourneyDrawer from "./LeadJourneyDrawer";
+import ClientMeetingTab from "./ClientMeetingTab";
 import CRMEncryption from "../utils/CRMEncryption";
 import { getRole } from "../data/dataService";
 import { normalizePhone, isSamePhone } from "../utils/normalizePhone";
@@ -658,6 +659,7 @@ function RecordingsTab({ lead }) {
 // ── RecordingsDrawer — standalone side panel for admin ────────────────────────
 function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast }) {
   const { config: sc } = getLeadDisplayStatus(lead);
+  const [drawerTab, setDrawerTab] = useState("recordings"); // recordings | meeting
 
   return (
     <div className="fixed inset-0 z-[60] flex justify-end" onClick={onClose}>
@@ -696,24 +698,47 @@ function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast 
 
         {/* Tab bar */}
         <div className="px-6 shrink-0 flex border-b border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]">
-          <div className="flex items-center gap-1.5 px-3 py-3 text-[12px] font-semibold border-b-2 border-[#2563EB] text-[#2563EB] -mb-px">
+          <button
+            onClick={() => setDrawerTab("recordings")}
+            className={`flex items-center gap-1.5 px-3 py-3 text-[12px] font-semibold border-b-2 transition -mb-px ${
+              drawerTab === "recordings"
+                ? "border-[#2563EB] text-[#2563EB]"
+                : "border-transparent text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-white"
+            }`}
+          >
             <Mic className="w-3 h-3" />
             Recordings &amp; AI
-          </div>
+          </button>
+          <button
+            onClick={() => setDrawerTab("meeting")}
+            className={`flex items-center gap-1.5 px-3 py-3 text-[12px] font-semibold border-b-2 transition -mb-px ${
+              drawerTab === "meeting"
+                ? "border-[#2563EB] text-[#2563EB]"
+                : "border-transparent text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-white"
+            }`}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Client Meeting
+          </button>
         </div>
 
         {/* Content */}
-{/* Content */}
         <div className="flex-1 overflow-y-auto">
-          <div className="px-6 py-4">
-            <PhoneActionsPanel
-              lead={lead}
-              isSuperAdmin={isSuperAdmin}
-              onLeadUpdated={onLeadUpdated}
-              onToast={onToast}
-            />
-          </div>
-          <RecordingsTab lead={lead} />
+          {drawerTab === "recordings" ? (
+            <>
+              <div className="px-6 py-4">
+                <PhoneActionsPanel
+                  lead={lead}
+                  isSuperAdmin={isSuperAdmin}
+                  onLeadUpdated={onLeadUpdated}
+                  onToast={onToast}
+                />
+              </div>
+              <RecordingsTab lead={lead} />
+            </>
+          ) : (
+            <ClientMeetingTab lead={lead} />
+          )}
         </div>
       </div>
     </div>
