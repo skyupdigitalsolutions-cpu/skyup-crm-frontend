@@ -7,6 +7,7 @@ import api from "./data/axiosConfig";
 import ExpiryBanner, { SuspensionScreen } from "./components/ExpiryBanner";
 import EntitlementStatusBanner from "./components/EntitlementStatusBanner";
 import FeatureGate from "./components/FeatureGate";
+import ClockInGate from "./components/ClockInGate";
 import { NotificationProvider, NotificationBell } from "./components/NotificationProvider";
 import { clearFeaturesCache } from "./hooks/usePlanFeatures";
 import TelegramSettings from "./components/TelegramSettings";
@@ -284,8 +285,6 @@ function CompanyHeader() {
   const { user } = getStoredAuth();
   const role = (user?.role || "user").toLowerCase();
 
-  if (role === "developer") return null;
-
   const [brand, setBrand] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; }
   });
@@ -311,6 +310,9 @@ function CompanyHeader() {
     window.addEventListener("company_brand_updated", handler);
     return () => window.removeEventListener("company_brand_updated", handler);
   }, []);
+
+  // Render gate AFTER hooks so hook order stays stable across renders.
+  if (role === "developer") return null;
 
   const headerName = brand?.name || brand?.headerName || "SKYUP";
   const headerLogo = brand?.logoUrl || brand?.headerLogoUrl || "/skyup_logo1.svg";
@@ -379,18 +381,20 @@ function AppLayout({ children }) {
 
   return (
     <NotificationProvider>
-      <div className="flex h-screen overflow-hidden">
-        <Sidebar />
-        <main className="flex-1 overflow-hidden flex flex-col min-w-0">
-          {/* Expiry / suspension banners — ordered from most to least severe */}
-          <ExpiryBanner onGoToPlans={goToPlans} />
-          {/* EntitlementStatusBanner: persistent read-only indicator
-              (separate from ExpiryBanner's "expiring soon" warning) */}
-          <EntitlementStatusBanner onGoToPlans={goToPlans} />
-          <CompanyHeader />
-          <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
-        </main>
-      </div>
+      <ClockInGate>
+        <div className="flex h-screen overflow-hidden">
+          <Sidebar />
+          <main className="flex-1 overflow-hidden flex flex-col min-w-0">
+            {/* Expiry / suspension banners — ordered from most to least severe */}
+            <ExpiryBanner onGoToPlans={goToPlans} />
+            {/* EntitlementStatusBanner: persistent read-only indicator
+                (separate from ExpiryBanner's "expiring soon" warning) */}
+            <EntitlementStatusBanner onGoToPlans={goToPlans} />
+            <CompanyHeader />
+            <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+          </main>
+        </div>
+      </ClockInGate>
     </NotificationProvider>
   );
 }
