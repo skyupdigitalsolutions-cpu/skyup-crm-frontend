@@ -3,7 +3,7 @@ import {
   MapPin, Navigation, Save, X, Check, AlertCircle,
   ExternalLink, RefreshCw, Download, MapPinned,
   LocateFixed, Clock, Activity, Loader2,
-  Info, PhoneCall,
+  Info, PhoneCall, UserCheck, Bell,
 } from "lucide-react";
 import AttendanceFilters from "../components/AttendanceFilters";
 import AttendanceTable   from "../components/AttendanceTable";
@@ -897,6 +897,138 @@ function LiveLocationsPanel({ open, onClose }) {
   );
 }
 
+// ── PendingRemoteClockInPanel ─────────────────────────────────────────────────
+// Shows employees with a pending remote clock-in (client meeting) request so
+// admins can approve/deny directly from the Attendance page, even if they
+// missed the bell notification (e.g. notifications were off on their device).
+function PendingRemoteClockInPanel() {
+  const [requests, setRequests] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [busyId,   setBusyId]   = useState(null);
+  const [msg,      setMsg]      = useState({ type: "", text: "" });
+
+  const fmtAgo = (iso) => {
+    if (!iso) return "";
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1)  return "just now";
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    return `${h}h ago`;
+  };
+
+  const flash = (type, text) => {
+    setMsg({ type, text });
+    if (type === "ok") setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+  };
+
+  const loadRequests = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/admin/company/users");
+      const users = res.data?.users || [];
+      setRequests(users.filter(u => u.meetingPermissionStatus === "pending"));
+    } catch {
+      /* silent — non-critical panel */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadRequests(); }, [loadRequests]);
+
+  // Auto-refresh every 30s alongside the team attendance view
+  useEffect(() => {
+    const t = setInterval(loadRequests, 30000);
+    return () => clearInterval(t);
+  }, [loadRequests]);
+
+  const respond = async (user, grant) => {
+    const uid = user._id || user.id;
+    setBusyId(uid);
+    try {
+      await api.put(`/admin/user/${uid}/meeting-permission`, { grant });
+      setRequests(prev => prev.filter(r => (r._id || r.id) !== uid));
+      flash("ok", `${user.name} ${grant ? "approved for remote clock-in (24h)" : "request denied"}.`);
+    } catch (e) {
+      flash("err", e.response?.data?.message || "Failed to update request.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (!loading && requests.length === 0) return null;
+
+  return (
+    <div className="bg-white dark:bg-[#1A1D27] border border-orange-200 dark:border-orange-900/40 rounded-2xl p-5 mb-4">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center shrink-0">
+          <Bell size={16} className="text-orange-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-[15px] font-bold text-gray-800 dark:text-gray-100">Pending Remote Clock-In Requests</h3>
+          <p className="text-[11px] text-gray-400">Employees requesting permission to clock in from a client meeting</p>
+        </div>
+        {requests.length > 0 && (
+          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 shrink-0">
+            {requests.length} pending
+          </span>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2].map(i => <div key={i} className="h-14 rounded-xl bg-gray-100 dark:bg-white/5 animate-pulse" />)}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {requests.map((u) => {
+            const uid = u._id || u.id;
+            const isBusy = busyId === uid;
+            return (
+              <div key={uid} className="flex items-center gap-3 p-3 rounded-xl bg-orange-50/60 dark:bg-orange-500/[0.06] border border-orange-100 dark:border-orange-900/30">
+                <div className="w-9 h-9 rounded-full bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center text-[12px] font-bold text-orange-600 dark:text-orange-400 shrink-0">
+                  {(u.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-gray-800 dark:text-gray-100 truncate">{u.name}</p>
+                  <div className="flex flex-wrap gap-2 mt-0.5 text-[10px] text-gray-400">
+                    {u.meetingPermissionLocation && <span>📍 {u.meetingPermissionLocation}</span>}
+                    {u.meetingPermissionReason && <span>· {u.meetingPermissionReason}</span>}
+                    <span>· requested {fmtAgo(u.meetingPermissionRequestedAt)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => respond(u, false)}
+                    disabled={isBusy}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] text-[11px] font-semibold hover:border-red-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition disabled:opacity-50"
+                  >
+                    <X size={12} />
+                    Deny
+                  </button>
+                  <button
+                    onClick={() => respond(u, true)}
+                    disabled={isBusy}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-[11px] font-semibold transition"
+                  >
+                    {isBusy ? <Loader2 size={12} className="animate-spin" /> : <UserCheck size={12} />}
+                    Approve
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="mt-3">
+        <Feedback msg={msg} />
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function AttendancePage() {
   const [filters,           setFilters]           = useState(DEFAULT_FILTERS);
@@ -994,6 +1126,9 @@ export default function AttendancePage() {
           </button>
         </div>
       </div>
+
+      {/* ── Pending Remote Clock-In Requests ──────────────────────────────────── */}
+      <PendingRemoteClockInPanel />
 
       {/* ── Summary Pills ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
