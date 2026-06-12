@@ -124,9 +124,20 @@ function deriveState(overrides = {}) {
     const v = overrides[f.key];
     limits[f.key] = v === null || v === undefined ? "" : String(v);
   }
+  // Per-field expiry + price metadata (from devOverrides.limitMeta)
+  const meta = overrides.limitMeta || {};
+  const limitMeta = {};
+  for (const f of LIMIT_FIELDS) {
+    const m = meta[f.key] || {};
+    limitMeta[f.key] = {
+      // <input type="date"> wants YYYY-MM-DD
+      expiresAt: m.expiresAt ? new Date(m.expiresAt).toISOString().slice(0, 10) : "",
+      price:     m.price != null && m.price !== 0 ? String(m.price) : "",
+    };
+  }
   const rec = overrides.recordingEnabled;
   const recording = rec === null || rec === undefined ? "inherit" : rec ? "on" : "off";
-  return { features, limits, recording };
+  return { features, limits, limitMeta, recording };
 }
 
 // ── Tri-state segmented control ───────────────────────────────────────────────
@@ -171,6 +182,7 @@ export default function CompanyDetails() {
 
   const [featureState, setFeatureState]   = useState({});
   const [limitState,   setLimitState]     = useState({});
+  const [limitMetaState, setLimitMetaState] = useState({});
   const [recordState,  setRecordState]    = useState("inherit");
 
   const [savingFeatures, setSavingFeatures] = useState(false);
@@ -185,6 +197,7 @@ export default function CompanyDetails() {
     const s = deriveState(overrides || {});
     setFeatureState(s.features);
     setLimitState(s.limits);
+    setLimitMetaState(s.limitMeta);
     setRecordState(s.recording);
   }, []);
 
@@ -240,10 +253,23 @@ export default function CompanyDetails() {
     setSavingLimits(true);
     try {
       const body = { reason: "Limits updated from Company Details" };
+      const limitMeta = {};
       for (const f of LIMIT_FIELDS) {
         const v = limitState[f.key];
-        body[f.key] = v === "" || v === null ? null : Number(v);
+        const hasValue = !(v === "" || v === null);
+        body[f.key] = hasValue ? Number(v) : null;
+
+        // Only attach meta for fields that actually have a value set.
+        if (hasValue) {
+          const m = limitMetaState[f.key] || {};
+          limitMeta[f.key] = {
+            expiresAt: m.expiresAt ? new Date(m.expiresAt).toISOString() : null,
+            price:     m.price === "" || m.price == null ? 0 : Number(m.price),
+            currency:  "INR",
+          };
+        }
       }
+      body.limitMeta = limitMeta;
       body.recordingEnabled = recordState === "inherit" ? null : recordState === "on";
       const { data: res } = await api.put(`/developer/companies/${id}/override`, body);
       setData(prev => prev ? {
@@ -253,7 +279,10 @@ export default function CompanyDetails() {
       } : prev);
       applyOverridesToState(res.devOverrides);
       window.dispatchEvent(new Event("plan_updated"));
-      showToast("Limits saved.", true);
+      const invCount = res.invoices?.length || 0;
+      showToast(invCount ? `Limits saved. ${invCount} invoice(s) created.` : "Limits saved.", true);
+      // Refresh details so the new invoices + meta show immediately
+      if (invCount) load();
     } catch (e) {
       showToast(e.response?.data?.message || "Failed to save limits", false);
     } finally {
@@ -447,13 +476,16 @@ export default function CompanyDetails() {
 
           <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-[12px] text-blue-700 dark:text-blue-300">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>Leave a field <strong>blank</strong> to inherit the plan + addon value. Enter a number to set an absolute cap for this company only.</span>
+            <span>Leave a field <strong>blank</strong> to inherit the plan + addon value. Enter a number to set an absolute cap for this company only. Set a <strong>Time Limit</strong> to auto-revert to the plan value on that date, and a <strong>Price</strong> to record a billed invoice for the extra capacity.</span>
           </div>
 
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {LIMIT_FIELDS.map(f => (
-                <div key={f.key}>
+              {LIMIT_FIELDS.map(f => {
+                const hasValue = !(limitState[f.key] === "" || limitState[f.key] == null);
+                const meta = limitMetaState[f.key] || {};
+                return (
+                <div key={f.key} className="rounded-2xl border border-[#E5E7EB] dark:border-[#262A38] p-3">
                   <label className="block text-[11px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider mb-1.5">{f.label}</label>
                   <input
                     type="number" min={0}
@@ -462,9 +494,40 @@ export default function CompanyDetails() {
                     onChange={e => setLimitState(prev => ({ ...prev, [f.key]: e.target.value }))}
                     className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#C4C9DA] focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   />
-                  <p className="text-[10px] text-[#9DA3BB] mt-1">Effective now: {ent[f.key] ?? "—"}</p>
+                  {/* Time limit + price — only relevant when an override value is set */}
+                  {hasValue && (
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div>
+                        <label className="block text-[9px] font-semibold text-[#9DA3BB] uppercase tracking-wider mb-1">Time Limit</label>
+                        <input
+                          type="date"
+                          value={meta.expiresAt || ""}
+                          min={new Date().toISOString().slice(0, 10)}
+                          onChange={e => setLimitMetaState(prev => ({ ...prev, [f.key]: { ...(prev[f.key] || {}), expiresAt: e.target.value } }))}
+                          className="w-full px-2.5 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-blue-500"
+                          title="Leave blank for no expiry. On this date the limit reverts to the plan value."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-semibold text-[#9DA3BB] uppercase tracking-wider mb-1">Price (₹)</label>
+                        <input
+                          type="number" min={0} step="0.01"
+                          value={meta.price || ""}
+                          placeholder="0"
+                          onChange={e => setLimitMetaState(prev => ({ ...prev, [f.key]: { ...(prev[f.key] || {}), price: e.target.value } }))}
+                          className="w-full px-2.5 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#C4C9DA] focus:outline-none focus:border-blue-500"
+                          title="Amount charged for this additional limit. A price creates an invoice entry on save."
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-[#9DA3BB] mt-1.5">
+                    Effective now: {ent[f.key] ?? "—"}
+                    {hasValue && meta.expiresAt && <span className="text-amber-600 dark:text-amber-400"> · expires {fmtDate(meta.expiresAt)}</span>}
+                  </p>
                 </div>
-              ))}
+                );
+              })}
 
               {/* recordingEnabled tri-state */}
               <div>
@@ -482,6 +545,49 @@ export default function CompanyDetails() {
               </button>
             </div>
           </div>
+
+          {/* ── Billed limit overrides (invoices) ── */}
+          {(data.limitInvoices?.length > 0) && (
+            <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-5">
+              <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mb-3 flex items-center gap-1.5">
+                <ScrollText className="w-4 h-4 text-blue-500" /> Billed Limit Overrides
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase tracking-wider text-[#9DA3BB] border-b border-[#E5E7EB] dark:border-[#262A38]">
+                      <th className="py-2 pr-3">Invoice</th>
+                      <th className="py-2 pr-3">Limit</th>
+                      <th className="py-2 pr-3">Value</th>
+                      <th className="py-2 pr-3">Price</th>
+                      <th className="py-2 pr-3">Granted</th>
+                      <th className="py-2 pr-3">Expires</th>
+                      <th className="py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.limitInvoices.map(inv => (
+                      <tr key={inv._id} className="border-b border-[#F0F2FA] dark:border-[#1E2130] text-[#4B5168] dark:text-[#9DA3BB]">
+                        <td className="py-2 pr-3 font-mono text-[11px]">{inv.invoiceId}</td>
+                        <td className="py-2 pr-3">{inv.limitLabel || inv.limitKey}</td>
+                        <td className="py-2 pr-3">{inv.value}</td>
+                        <td className="py-2 pr-3 font-semibold text-[#0F1117] dark:text-[#F0F2FA]">₹{Number(inv.price).toLocaleString()}</td>
+                        <td className="py-2 pr-3">{fmtDate(inv.grantedAt)}</td>
+                        <td className="py-2 pr-3">{inv.expiresAt ? fmtDate(inv.expiresAt) : "No expiry"}</td>
+                        <td className="py-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                            inv.status === "paid" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                            : inv.status === "void" ? "bg-gray-100 dark:bg-gray-500/10 text-gray-500"
+                            : "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                          }`}>{inv.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
