@@ -3494,6 +3494,209 @@ function SmsPanel() {
 // ── AUTO TEMPLATE SETTINGS PANEL ─────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Interested Blast Settings Panel ─────────────────────────────────────────
+function InterestedBlastPanel({ activeTab, onClose }) {
+  const [settings, setSettings] = useState(null);
+  const [saving,   setSaving]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [error,    setError]    = useState("");
+
+  useEffect(() => {
+    api.get("/admin/company/interested-blast")
+      .then(r => setSettings(r.data.interestedBlast || {}))
+      .catch(() => setSettings({}));
+  }, []);
+
+  const update = (channel, key, value) => {
+    setSettings(prev => ({
+      ...prev,
+      [channel]: { ...(prev?.[channel] || {}), [key]: value },
+    }));
+    setSaved(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true); setError(""); setSaved(false);
+    try {
+      await api.put("/admin/company/interested-blast", settings);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to save settings");
+    } finally { setSaving(false); }
+  };
+
+  if (!settings) return (
+    <div className="flex items-center justify-center py-8 gap-2 text-[#8B92A9]">
+      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+      Loading…
+    </div>
+  );
+
+  const wa = settings.whatsapp || {};
+  const em = settings.email    || {};
+  const sm = settings.sms      || {};
+
+  const tokens = {
+    whatsapp: { ring: "#25D366", bg: "bg-[#f0fdf4] dark:bg-[#052e1c]", text: "text-[#25D366]", border: "border-[#25D366]" },
+    email:    { ring: "#7C3AED", bg: "bg-[#f5f3ff] dark:bg-[#1e1040]", text: "text-[#7C3AED]", border: "border-[#7C3AED]" },
+    sms:      { ring: "#EA580C", bg: "bg-[#fff7ed] dark:bg-[#1c0a00]", text: "text-[#EA580C]", border: "border-[#EA580C]" },
+  };
+  const tok = tokens[activeTab] || tokens.whatsapp;
+
+  return (
+    <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden mb-4 shadow-sm">
+      <div className={`flex items-center justify-between px-5 py-3.5 ${tok.bg} border-b border-[#E4E7EF] dark:border-[#262A38]`}>
+        <div className="flex items-center gap-2.5">
+          <div className={`w-7 h-7 rounded-lg ${tok.bg} border ${tok.border} flex items-center justify-center`}>
+            <svg className={`w-3.5 h-3.5 ${tok.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 3l14 9-14 9V3z"/>
+            </svg>
+          </div>
+          <div>
+            <p className={`text-[13px] font-bold ${tok.text} leading-none`}>Auto-Blast for Interested Leads</p>
+            <p className="text-[11px] text-[#8B92A9] mt-0.5">Fires automatically when a lead status is changed to "Interested"</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div className="px-5 py-4 space-y-4">
+        {activeTab === "whatsapp" && (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Send WhatsApp to Interested Leads</p>
+                <p className="text-[11px] text-[#8B92A9] mt-0.5">Auto-sends when any lead is marked Interested</p>
+              </div>
+              <button
+                onClick={() => update("whatsapp", "enabled", !wa.enabled)}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${wa.enabled ? "bg-[#25D366]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${wa.enabled ? "translate-x-5" : "translate-x-0"}`} />
+              </button>
+            </div>
+            {wa.enabled && (
+              <div className="space-y-3 pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Template Name <span className="text-[#DC2626]">*</span></label>
+                    <input type="text" value={wa.templateName || ""} onChange={e => update("whatsapp", "templateName", e.target.value)} placeholder="skyup_interested" className={FIELD_CLS} />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Language</label>
+                    <select value={wa.languageCode || "en"} onChange={e => update("whatsapp", "languageCode", e.target.value)} className={FIELD_CLS}>
+                      <option value="en">English (en)</option>
+                      <option value="en_US">English US (en_US)</option>
+                      <option value="hi">Hindi (hi)</option>
+                      <option value="mr">Marathi (mr)</option>
+                      <option value="gu">Gujarati (gu)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === "email" && (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Send Email to Interested Leads</p>
+                <p className="text-[11px] text-[#8B92A9] mt-0.5">Auto-sends when any lead is marked Interested</p>
+              </div>
+              <button
+                onClick={() => update("email", "enabled", !em.enabled)}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${em.enabled ? "bg-[#7C3AED]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${em.enabled ? "translate-x-5" : "translate-x-0"}`} />
+              </button>
+            </div>
+            {em.enabled && (
+              <div className="space-y-3 pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Subject <span className="text-[#DC2626]">*</span></label>
+                    <input type="text" value={em.subject || ""} onChange={e => update("email", "subject", e.target.value)} placeholder="You're a priority lead!" className={FIELD_CLS} />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">From Name</label>
+                    <input type="text" value={em.fromName || ""} onChange={e => update("email", "fromName", e.target.value)} placeholder="SkyUp CRM Team" className={FIELD_CLS} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Email Body (HTML)</label>
+                  <p className="text-[10px] text-[#8B92A9] mb-1.5">Use <code className="bg-[#f5f3ff] dark:bg-[#1e1040] text-[#7C3AED] px-1 rounded">{"{{name}}"}</code> <code className="bg-[#f5f3ff] dark:bg-[#1e1040] text-[#7C3AED] px-1 rounded">{"{{mobile}}"}</code> as merge tags</p>
+                  <textarea rows={5} value={em.bodyTemplate || ""} onChange={e => update("email", "bodyTemplate", e.target.value)} className={FIELD_CLS + " font-mono text-[12px] resize-y"} />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === "sms" && (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Send SMS to Interested Leads</p>
+                <p className="text-[11px] text-[#8B92A9] mt-0.5">Auto-sends via MSG91 when any lead is marked Interested</p>
+              </div>
+              <button
+                onClick={() => update("sms", "enabled", !sm.enabled)}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${sm.enabled ? "bg-[#EA580C]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${sm.enabled ? "translate-x-5" : "translate-x-0"}`} />
+              </button>
+            </div>
+            {sm.enabled && (
+              <div className="space-y-3 pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">DLT Template ID</label>
+                    <input type="text" value={sm.templateId || ""} onChange={e => update("sms", "templateId", e.target.value)} placeholder="1234567890123456789" className={FIELD_CLS} />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Sender ID</label>
+                    <input type="text" maxLength={6} value={sm.senderId || ""} onChange={e => update("sms", "senderId", e.target.value.toUpperCase())} placeholder="SKYCRM" className={FIELD_CLS} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Message <span className="text-[#DC2626]">*</span></label>
+                  <textarea rows={3} value={sm.message || ""} onChange={e => update("sms", "message", e.target.value)} className={FIELD_CLS + " resize-y"} placeholder="Hi {{name}}, you're a priority lead! Our team will call you shortly." />
+                  <p className="text-[10px] text-[#8B92A9] mt-1">{(sm.message || "").length} chars</p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="flex items-center justify-between pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
+          {error  && <p className="text-[11px] text-[#DC2626]">⚠ {error}</p>}
+          {saved  && <p className="text-[11px] text-[#059669] font-semibold">✓ Settings saved</p>}
+          {!error && !saved && <span />}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[13px] font-semibold text-white transition disabled:opacity-50 ${
+              activeTab === "email" ? "bg-[#7C3AED] hover:bg-purple-700" :
+              activeTab === "sms"   ? "bg-[#EA580C] hover:bg-orange-700" :
+                                      "bg-[#25D366] hover:bg-[#1da851]"
+            }`}
+          >
+            {saving
+              ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saving…</>
+              : "Save Settings"
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AutoTemplateSettingsPanel({ activeTab, onClose }) {
   const [settings, setSettings] = useState(null);
   const [saving,   setSaving]   = useState(false);
@@ -3731,6 +3934,7 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
 export default function Communications({ currentUser }) {
   const [tab,               setTab]               = useState("whatsapp");
   const [showSettings,      setShowSettings]      = useState(false);
+  const [showInterestedSettings, setShowInterestedSettings] = useState(false);
   const [showIntegrations,  setShowIntegrations]  = useState(false);
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
 
@@ -3771,10 +3975,31 @@ export default function Communications({ currentUser }) {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
               </svg>
-              <span className="hidden sm:inline">Auto-Template</span>
+              <span className="hidden sm:inline">New Lead</span>
               <span className={`w-1.5 h-1.5 rounded-full ${
                 tab === "email" ? "bg-[#7C3AED]" : tab === "sms" ? "bg-[#EA580C]" : "bg-[#25D366]"
               } ${showSettings ? "opacity-100" : "opacity-50"}`} />
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setShowInterestedSettings(s => !s)}
+              title="Auto-Blast for Interested Leads"
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border text-[12px] sm:text-[13px] font-semibold transition ${
+                showInterestedSettings
+                  ? tab === "email"   ? "border-[#7C3AED] bg-[#f5f3ff] dark:bg-[#1e1040] text-[#7C3AED]"
+                  : tab === "sms"     ? "border-[#EA580C] bg-[#fff7ed] dark:bg-[#1c0a00] text-[#EA580C]"
+                                      : "border-[#25D366] bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366]"
+                  : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]"
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3l14 9-14 9V3z"/>
+              </svg>
+              <span className="hidden sm:inline">Interested</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                tab === "email" ? "bg-[#7C3AED]" : tab === "sms" ? "bg-[#EA580C]" : "bg-[#25D366]"
+              } ${showInterestedSettings ? "opacity-100" : "opacity-50"}`} />
             </button>
           )}
         </div>
@@ -3785,6 +4010,14 @@ export default function Communications({ currentUser }) {
         <AutoTemplateSettingsPanel
           activeTab={tab}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {/* Interested lead blast settings panel (collapsible) */}
+      {isAdmin && showInterestedSettings && (
+        <InterestedBlastPanel
+          activeTab={tab}
+          onClose={() => setShowInterestedSettings(false)}
         />
       )}
 
