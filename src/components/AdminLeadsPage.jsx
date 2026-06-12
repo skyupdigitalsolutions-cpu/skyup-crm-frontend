@@ -4,7 +4,7 @@ import LeadJourneyDrawer from "./LeadJourneyDrawer";
 import ClientMeetingTab from "./ClientMeetingTab";
 import CRMEncryption from "../utils/CRMEncryption";
 import { getRole } from "../data/dataService";
-import { normalizePhone, isSamePhone } from "../utils/normalizePhone";
+import { normalizePhone } from "../utils/normalizePhone";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
 import {
   RefreshCw,
@@ -98,10 +98,6 @@ function canonicalPhone(val) {
   if (n.startsWith("0")) n = n.slice(1);
   if (n.startsWith("91") && n.length > 10) n = n.slice(2);
   return n;
-}
-function fmtDate(iso) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 function daysSince(iso) {
   if (!iso) return null;
@@ -306,7 +302,7 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
 }
 
 // ── LeadCombinedSummaryPanel ──────────────────────────────────────────────────
-function LeadCombinedSummaryPanel({ leadId, leadName }) {
+function LeadCombinedSummaryPanel({ leadId }) {
   const [open,    setOpen]    = useState(false);
   const [loading, setLoading] = useState(false);
   const [data,    setData]    = useState(null);
@@ -650,7 +646,7 @@ function RecordingsTab({ lead }) {
         </div>
       ))}
       {lead.id && (
-        <LeadCombinedSummaryPanel leadId={lead.id} leadName={lead.name} />
+        <LeadCombinedSummaryPanel leadId={lead.id} />
       )}
     </div>
   );
