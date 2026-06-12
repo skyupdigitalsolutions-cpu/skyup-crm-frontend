@@ -282,7 +282,7 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
 }
 
 // ── LeadCombinedSummaryPanel ──────────────────────────────────────────────────
-function LeadCombinedSummaryPanel({ leadId, leadName }) {
+function LeadCombinedSummaryPanel({ leadId }) {
   const [open,    setOpen]    = useState(false);
   const [loading, setLoading] = useState(false);
   const [data,    setData]    = useState(null);
@@ -484,7 +484,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
     } finally {
       setLoading(false);
     }
-  }, [lead.id, lead.phone]);
+  }, [lead.id, lead.phone, lead.primaryPhone, lead.secondaryPhone]);
 
   useEffect(() => { fetchCallLogs(); }, [fetchCallLogs]);
 
@@ -664,7 +664,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
         </div>
       ))}
         {lead.id && (
-        <LeadCombinedSummaryPanel leadId={lead.id} leadName={lead.name} />
+        <LeadCombinedSummaryPanel leadId={lead.id} />
       )}
     </div>
   );
@@ -735,7 +735,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
     }
   };
 
-  const { label: currentDisplayLabel, config: sc } = getLeadDisplayStatus({ ...lead, status });
+  const { config: sc } = getLeadDisplayStatus({ ...lead, status });
 
   return (
     <>
