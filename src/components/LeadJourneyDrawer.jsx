@@ -205,6 +205,82 @@ function ScheduledCard({ sc: call }) {
   );
 }
 
+// ── Client visit / meeting card ───────────────────────────────────────────────
+const MEETING_TYPE_ICON = {
+  "In-Person":  "🤝",
+  "Site Visit": "📍",
+  "Demo":       "🖥️",
+  "Video Call": "🎥",
+  "Phone Call": "📞",
+};
+
+function MeetingCard({ visit }) {
+  const icon  = MEETING_TYPE_ICON[visit.meetingType] || "🗓️";
+  const oStyle = OUTCOME_STYLE[visit.outcome] || { bg: "bg-gray-100 dark:bg-gray-900/40", text: "text-gray-500 dark:text-gray-400" };
+  return (
+    <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] p-3 mb-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[14px]">{icon}</span>
+          <div className="min-w-0">
+            <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+              {visit.meetingType || "Visit"}
+              {visit.userName ? <span className="font-normal text-[#8B92A9]"> · {visit.userName}</span> : null}
+            </p>
+            <p className="text-[10px] text-[#8B92A9]">{fmtDateTime(visit.metAt)}</p>
+          </div>
+        </div>
+        {visit.outcome ? (
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${oStyle.bg} ${oStyle.text}`}>
+            {visit.outcome}
+          </span>
+        ) : null}
+      </div>
+
+      {visit.remark ? (
+        <p className="mt-2 text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic leading-relaxed">"{visit.remark}"</p>
+      ) : null}
+
+      {visit.location ? (
+        <p className="mt-1.5 text-[10px] text-[#8B92A9] flex items-center gap-1">
+          <span>📍</span><span className="truncate">{visit.location}</span>
+        </p>
+      ) : null}
+
+      {visit.followUpDate ? (
+        <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+          <span>📅</span><span>Follow-up: {fmtDateTime(visit.followUpDate)}</span>
+        </p>
+      ) : null}
+
+      {(visit.documentUrl || visit.recordingUrl) ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {visit.documentUrl ? (
+            <a
+              href={visit.documentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition"
+            >
+              <span>📎</span>{visit.documentName || "View attachment"}
+            </a>
+          ) : null}
+          {visit.recordingUrl ? (
+            <a
+              href={visit.recordingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/20 transition"
+            >
+              <span>🎙️</span>{visit.recordingName || "Play recording"}
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function EmployeeCard({ agent, isCurrent }) {
   const name = typeof agent === "string" ? agent : agent.name || "Unknown";
   const initial = name.charAt(0).toUpperCase();
@@ -262,19 +338,20 @@ function defaultMaskEmail(email, isSuperAdmin) {
 
 // ── Main drawer ───────────────────────────────────────────────────────────────
 export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false, maskPhone, maskEmail }) {
-  if (!lead) return null;
+  // Hooks below must run unconditionally — keep the null check AFTER them.
+  const safeLead = lead || {};
 
   const masker      = maskPhone  || defaultMaskPhone;
   const emailMasker = maskEmail  || defaultMaskEmail;
 
-  const displayPhone          = masker(lead.primaryPhone || lead.phone || lead.mobile, isSuperAdmin);
-  const displaySecondaryPhone = lead.secondaryPhone ? masker(lead.secondaryPhone, isSuperAdmin) : null;
-  const displayEmail          = emailMasker(lead.email, isSuperAdmin);
+  const displayPhone          = masker(safeLead.primaryPhone || safeLead.phone || safeLead.mobile, isSuperAdmin);
+  const displaySecondaryPhone = safeLead.secondaryPhone ? masker(safeLead.secondaryPhone, isSuperAdmin) : null;
+  const displayEmail          = emailMasker(safeLead.email, isSuperAdmin);
 
   // Raw (unmasked) numbers for tel: / WhatsApp actions. The number stays
   // visually masked for non-superadmins, but the action still needs to dial.
-  const rawPrimary   = lead.primaryPhone || lead.phone || lead.mobile || "";
-  const rawSecondary = lead.secondaryPhone || "";
+  const rawPrimary   = safeLead.primaryPhone || safeLead.phone || safeLead.mobile || "";
+  const rawSecondary = safeLead.secondaryPhone || "";
   // WhatsApp needs international format with no "+". Default missing country
   // code to 91 for bare 10-digit Indian numbers.
   const toWaNumber = (raw) => {
@@ -288,11 +365,12 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
   };
   const telHref = (raw) => `tel:${String(raw || "").replace(/[^\d+]/g, "")}`;
 
-  const sc = STATUS_COLOR[lead.status] || STATUS_COLOR["New"];
-  const name = lead.name || "Unknown";
-  const callHistory    = lead.callHistory    || [];
-  const scheduledCalls = lead.scheduledCalls || [];
-  const previousAgents = lead.previousAgents || [];
+  const sc = STATUS_COLOR[safeLead.status] || STATUS_COLOR["New"];
+  const name = safeLead.name || "Unknown";
+  const callHistory    = safeLead.callHistory    || [];
+  const scheduledCalls = safeLead.scheduledCalls || [];
+  const previousAgents = safeLead.previousAgents || [];
+  const meetingRemarks = safeLead.meetingRemarks || [];
 
   const sortedCalls = useMemo(() =>
     [...callHistory].sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt)),
@@ -302,12 +380,16 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
     [...scheduledCalls].sort((a, b) => new Date(b.scheduledAt) - new Date(a.scheduledAt)),
   [scheduledCalls]);
 
+  const sortedVisits = useMemo(() =>
+    [...meetingRemarks].sort((a, b) => new Date(b.metAt) - new Date(a.metAt)),
+  [meetingRemarks]);
+
   const totalCalls   = callHistory.length;
   const lastCallAt   = sortedCalls[0]?.calledAt || null;
   const overdueCalls = scheduledCalls.filter(c => !c.done && new Date(c.scheduledAt) < new Date()).length;
 
   const allAgents = useMemo(() => {
-    const currentAgentName = lead.agent;
+    const currentAgentName = safeLead.agent;
     const prevNames = new Set(previousAgents.map(a => (typeof a === "string" ? a : a.name)));
     const list = previousAgents.map(a => ({
       ...(typeof a === "object" ? a : { name: a }),
@@ -317,7 +399,10 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
       list.push({ name: currentAgentName, _isCurrent: true });
     }
     return list;
-  }, [lead.agent, previousAgents]);
+  }, [safeLead.agent, previousAgents]);
+
+  // Render gate — after all hooks so hook order stays stable.
+  if (!lead) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -530,6 +615,16 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
               </div>
             )}
           </div>
+
+          {/* ── Client Visits (field meetings logged from mobile) ── */}
+          {sortedVisits.length > 0 && (
+            <div>
+              <SectionLabel icon="🗺️" label={`Client Visits (${sortedVisits.length})`} />
+              {sortedVisits.map((v, i) => (
+                <MeetingCard key={v._id || i} visit={v} />
+              ))}
+            </div>
+          )}
 
           {/* ── Scheduled / Follow-up Calls ── */}
           {sortedSched.length > 0 && (
