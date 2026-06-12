@@ -681,6 +681,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
   const [error,        setError]        = useState("");
   const [activeTab,     setActiveTab]    = useState("update");
   const [showColdModal, setShowColdModal] = useState(false);
+  const [blastTriggered, setBlastTriggered] = useState(false);
 
   const isNI = status === "Not Interested";
 
@@ -696,6 +697,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
     if (!remark.trim()) return setError("Remark is required.");
     setSaving(true);
     setError("");
+    setBlastTriggered(false);
     try {
       let updatedLead;
       if (isNI) {
@@ -720,14 +722,20 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
       onSaved({
         ...lead,
         ...(updatedLead ? mapLead(updatedLead) : {}),
-        id:             lead.id,  // preserve frontend id
+        id:             lead.id,
         status:         isNI ? "Not Interested" : status,
         remark:         remark.trim(),
         temperature:    temperature || lead.temperature,
         callHistory:    mergedCallHistory,
         scheduledCalls: mergedScheduled,
       });
-      onClose();
+      // If outcome was "Interested", show blast confirmation before closing
+      if (!isNI && outcome === "Interested" && !alreadyInterested) {
+        setBlastTriggered(true);
+        setTimeout(() => { onClose(); }, 2800);
+      } else {
+        onClose();
+      }
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Update failed");
     } finally {
@@ -852,7 +860,13 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 </div>
               )}
               <div className="px-6 py-5 space-y-4">
-                <p className="text-[14px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest">Update Lead</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[14px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest">Update Lead</p>
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    Auto-blast active
+                  </span>
+                </div>
                 <div>
                   <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Status</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -891,6 +905,17 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                         .filter(o => !(alreadyInterested && o === "Interested"))
                         .map(o => <option key={o}>{o}</option>)}
                     </select>
+                    {outcome === "Interested" && !alreadyInterested && (
+                      <div className="mt-2 flex items-start gap-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-2.5">
+                        <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        <div>
+                          <p className="text-[12px] font-semibold text-emerald-700 dark:text-emerald-400">Auto-blast will be triggered</p>
+                          <p className="text-[11px] text-emerald-600 dark:text-emerald-500 mt-0.5">WhatsApp + Email + SMS will be sent to this lead automatically on save</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div>
@@ -954,18 +979,35 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 )}
               </div>
             </div>
-            <div className="px-6 pb-6 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-3 shrink-0">
-              <button onClick={onClose}
-                className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-white hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
-                Cancel
-              </button>
-              <button onClick={handleSave} disabled={saving || !remark.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
-                {saving
-                  ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saving…</>
-                  : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Save Update</>
-                }
-              </button>
+            <div className="px-6 pb-6 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex flex-col gap-3 shrink-0">
+              {blastTriggered && (
+                <div className="flex items-start gap-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-2.5">
+                  <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                  </svg>
+                  <div>
+                    <p className="text-[12px] font-semibold text-emerald-700 dark:text-emerald-400">Lead saved & auto-blast triggered!</p>
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-500 mt-0.5">WhatsApp, Email & SMS are being sent to this lead now</p>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button onClick={onClose}
+                  className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-white hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
+                  Cancel
+                </button>
+                <button onClick={handleSave} disabled={saving || !remark.trim() || blastTriggered}
+                  className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+                  {saving
+                    ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saving…</>
+                    : blastTriggered
+                      ? <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Blast Sent</>
+                      : outcome === "Interested" && !alreadyInterested
+                        ? <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Save & Trigger Blast</>
+                        : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Save Update</>
+                  }
+                </button>
+              </div>
             </div>
           </div>
         )}
