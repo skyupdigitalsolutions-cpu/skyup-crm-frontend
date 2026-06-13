@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import axios from 'axios';
+import { Users, MessageCircle, AlertTriangle, Image as ImageIcon, FileText, Music, Video, MapPin, ClipboardList, Send } from 'lucide-react';
 
 const API_URL    = import.meta.env.VITE_API_URL;   // e.g. http://localhost:5000/api
 const SOCKET_URL = API_URL.replace('/api', '');     // e.g. http://localhost:5000
@@ -510,7 +511,7 @@ export default function WhatsAppChat({ currentUser }) {
       {/* ── RIGHT: Chat Window ────────────────────────────────────────────── */}
       {!selected ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-tertiary)' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>{activeTab === 'leads' ? '👥' : '💬'}</div>
+          <div style={{ marginBottom: 12 }}>{activeTab === 'leads' ? <Users size={44} strokeWidth={1.5} /> : <MessageCircle size={44} strokeWidth={1.5} />}</div>
           <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--color-text-secondary)' }}>
             {activeTab === 'leads' ? 'Start a WhatsApp conversation' : 'Select a conversation'}
           </div>
@@ -548,7 +549,7 @@ export default function WhatsAppChat({ currentUser }) {
           {/* Session banner */}
           {session && (
             <div style={{ padding: '8px 16px', fontSize: 12, background: session.expired ? 'var(--color-background-danger)' : 'var(--color-background-warning)', color: session.expired ? 'var(--color-text-danger)' : 'var(--color-text-warning)', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-              ⚠️ {session.text}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={14} /> {session.text}</span>
             </div>
           )}
 
@@ -562,7 +563,7 @@ export default function WhatsAppChat({ currentUser }) {
                   <div style={{ maxWidth: '70%', padding: '8px 12px', borderRadius: isOut ? '16px 16px 4px 16px' : '16px 16px 16px 4px', background: isOut ? '#dcfce7' : '#ffffff', border: '0.5px solid', borderColor: isOut ? '#bbf7d0' : '#e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
                     {isAdmin && isOut && msg.sentBy && <div style={{ fontSize: 10, color: '#166534', fontWeight: 500, marginBottom: 2 }}>{msg.sentBy.name}</div>}
                     <div style={{ fontSize: 14, color: '#111827', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {msg.messageType === 'image' && '🖼️ '}{msg.messageType === 'document' && '📄 '}{msg.messageType === 'audio' && '🎵 '}{msg.messageType === 'video' && '🎥 '}{msg.messageType === 'location' && '📍 '}{msg.messageType === 'template' && '📋 '}
+                      {msg.messageType === 'image' && <ImageIcon size={13} style={{ display: 'inline', marginRight: 3, verticalAlign: 'text-bottom' }} />}{msg.messageType === 'document' && <FileText size={13} style={{ display: 'inline', marginRight: 3, verticalAlign: 'text-bottom' }} />}{msg.messageType === 'audio' && <Music size={13} style={{ display: 'inline', marginRight: 3, verticalAlign: 'text-bottom' }} />}{msg.messageType === 'video' && <Video size={13} style={{ display: 'inline', marginRight: 3, verticalAlign: 'text-bottom' }} />}{msg.messageType === 'location' && <MapPin size={13} style={{ display: 'inline', marginRight: 3, verticalAlign: 'text-bottom' }} />}{msg.messageType === 'template' && <ClipboardList size={13} style={{ display: 'inline', marginRight: 3, verticalAlign: 'text-bottom' }} />}
                       {msg.body}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4, marginTop: 4 }}>
@@ -590,7 +591,7 @@ export default function WhatsAppChat({ currentUser }) {
             {(session?.expired || !selected.sessionExpiresAt) && selected.status !== 'closed' ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>
-                  ⚠️ {!selected.sessionExpiresAt ? 'No active session — start with a template message (WhatsApp rule)' : '24h session expired — re-engage with a template message'}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={14} /> {!selected.sessionExpiresAt ? 'No active session — start with a template message (WhatsApp rule)' : '24h session expired — re-engage with a template message'}</span>
                 </div>
                 <button
                   onClick={() => openStartModal(selected.lead || { _id: selected.lead, name: selected.contactName, mobile: selected.waPhone, cleanPhone: selected.waPhone })}
@@ -683,7 +684,7 @@ export default function WhatsAppChat({ currentUser }) {
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setStartModal(null)} style={{ flex: 1, padding: '10px', fontSize: 13, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-tertiary)', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>Cancel</button>
               <button onClick={handleStartConversation} disabled={starting || !templateName.trim()} style={{ flex: 1, padding: '10px', fontSize: 13, borderRadius: 'var(--border-radius-md)', border: 'none', background: templateName.trim() && !starting ? '#25D366' : '#9ca3af', color: '#fff', fontWeight: 600, cursor: templateName.trim() && !starting ? 'pointer' : 'default', transition: 'background 0.2s' }}>
-                {starting ? 'Sending...' : '📤 Send & Open Chat'}
+                {starting ? 'Sending...' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Send size={14} /> Send & Open Chat</span>}
               </button>
             </div>
           </div>
