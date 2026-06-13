@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { CalendarDays, Users, Eye, EyeOff } from "lucide-react";
+import { CalendarDays, Users, Eye, EyeOff, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Voicemail, Ban, Phone, Mic, Lock, AlertTriangle, ClipboardList, Smartphone } from "lucide-react";
 import { updateAttendance, removeAttendance } from "../services/attendanceService";
 import { getRole, getStoredUser } from "../data/dataService";
 import axios from "axios";
@@ -44,13 +44,13 @@ const CRM_STATUS_STYLE = {
 };
 
 const CALL_TYPE_STYLE = {
-  incoming : { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-700 dark:text-emerald-400", icon: "↙", label: "Incoming"  },
-  outgoing : { bg: "bg-blue-100 dark:bg-blue-950/40",       text: "text-blue-700 dark:text-blue-400",       icon: "↗", label: "Outgoing"  },
-  missed   : { bg: "bg-red-100 dark:bg-red-950/40",         text: "text-red-700 dark:text-red-400",         icon: "↗", label: "Missed"    },
-  rejected : { bg: "bg-orange-100 dark:bg-orange-950/40",   text: "text-orange-700 dark:text-orange-400",   icon: "✕", label: "Rejected"  },
-  blocked  : { bg: "bg-gray-100 dark:bg-gray-800",          text: "text-gray-600 dark:text-gray-400",       icon: "⊘", label: "Blocked"   },
-  voicemail: { bg: "bg-purple-100 dark:bg-purple-950/40",   text: "text-purple-700 dark:text-purple-400",   icon: "✉", label: "Voicemail" },
-  unknown  : { bg: "bg-gray-100 dark:bg-gray-800",          text: "text-gray-600 dark:text-gray-400",       icon: "?", label: "Unknown"   },
+  incoming : { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-700 dark:text-emerald-400", Icon: PhoneIncoming, label: "Incoming"  },
+  outgoing : { bg: "bg-blue-100 dark:bg-blue-950/40",       text: "text-blue-700 dark:text-blue-400",       Icon: PhoneOutgoing, label: "Outgoing"  },
+  missed   : { bg: "bg-red-100 dark:bg-red-950/40",         text: "text-red-700 dark:text-red-400",         Icon: PhoneMissed, label: "Missed"    },
+  rejected : { bg: "bg-orange-100 dark:bg-orange-950/40",   text: "text-orange-700 dark:text-orange-400",   Icon: PhoneOff, label: "Rejected"  },
+  blocked  : { bg: "bg-gray-100 dark:bg-gray-800",          text: "text-gray-600 dark:text-gray-400",       Icon: Ban, label: "Blocked"   },
+  voicemail: { bg: "bg-purple-100 dark:bg-purple-950/40",   text: "text-purple-700 dark:text-purple-400",   Icon: Voicemail, label: "Voicemail" },
+  unknown  : { bg: "bg-gray-100 dark:bg-gray-800",          text: "text-gray-600 dark:text-gray-400",       Icon: Phone, label: "Unknown"   },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -115,7 +115,7 @@ function CallTypeBadge({ callType }) {
   const s = CALL_TYPE_STYLE[callType] ?? CALL_TYPE_STYLE.unknown;
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold ${s.bg} ${s.text}`}>
-      <span>{s.icon}</span>{s.label}
+      <s.Icon className="w-3 h-3" />{s.label}
     </span>
   );
 }
@@ -169,7 +169,7 @@ function LoginHistoryModal({ user, onClose }) {
         <div className="max-h-[420px] overflow-y-auto divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
           {history.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <span className="text-[32px]">🔐</span>
+              <span className="text-[#8B92A9]"><Lock className="w-8 h-8" strokeWidth={1.5} /></span>
               <p className="text-[12px] text-[#8B92A9]">No login history available</p>
             </div>
           ) : history.map((entry, i) => {
@@ -240,12 +240,12 @@ function EditModal({ rec, onClose, onRefresh }) {
 
   const STATUS_OPTIONS = [
     { value: "",         label: "— Auto-calculate —",  color: "text-[#8B92A9]" },
-    { value: "present",  label: "✅ Present",           color: "text-emerald-600 dark:text-emerald-400" },
-    { value: "late",     label: "🕙 Late",              color: "text-amber-600 dark:text-amber-400" },
-    { value: "half_day", label: "🌗 Half Day",          color: "text-blue-600 dark:text-blue-400" },
-    { value: "leave",    label: "🏖 Leave",             color: "text-purple-600 dark:text-purple-400" },
-    { value: "holiday",  label: "🎉 Holiday",           color: "text-pink-600 dark:text-pink-400" },
-    { value: "absent",   label: "❌ Absent",            color: "text-red-600 dark:text-red-400" },
+    { value: "present",  label: "Present",           color: "text-emerald-600 dark:text-emerald-400" },
+    { value: "late",     label: "Late",              color: "text-amber-600 dark:text-amber-400" },
+    { value: "half_day", label: "Half Day",          color: "text-blue-600 dark:text-blue-400" },
+    { value: "leave",    label: "Leave",             color: "text-purple-600 dark:text-purple-400" },
+    { value: "holiday",  label: "Holiday",           color: "text-pink-600 dark:text-pink-400" },
+    { value: "absent",   label: "Absent",            color: "text-red-600 dark:text-red-400" },
   ];
 
   const handleSave = async () => {
@@ -361,9 +361,9 @@ function EditModal({ rec, onClose, onRefresh }) {
           {/* Holiday / Leave / Absent info banner */}
           {isNonWorking && (
             <div className="px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-400">
-              {form.crmStatus === "holiday" && "🎉 Holiday — clock-in/out times are not applicable and will be cleared."}
-              {form.crmStatus === "leave"   && "🏖 Leave — clock-in/out times are not applicable and will be cleared."}
-              {form.crmStatus === "absent"  && "❌ Absent — no clock-in recorded. Times will be cleared."}
+              {form.crmStatus === "holiday" && "Holiday — clock-in/out times are not applicable and will be cleared."}
+              {form.crmStatus === "leave"   && "Leave — clock-in/out times are not applicable and will be cleared."}
+              {form.crmStatus === "absent"  && "Absent — no clock-in recorded. Times will be cleared."}
             </div>
           )}
 
@@ -462,11 +462,11 @@ function CallLogCard({ log, isSuperAdmin }) {
     "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400";
 
   const callTypeIcon =
-    localLog.callType === "incoming"  ? "↙" :
-    localLog.callType === "outgoing"  ? "↗" :
-    localLog.callType === "missed"    ? "↗" :
-    localLog.callType === "rejected"  ? "✕" :
-    localLog.callType === "voicemail" ? "✉" : "?";
+    localLog.callType === "incoming"  ? <PhoneIncoming className="w-3 h-3" /> :
+    localLog.callType === "outgoing"  ? <PhoneOutgoing className="w-3 h-3" /> :
+    localLog.callType === "missed"    ? <PhoneMissed className="w-3 h-3" /> :
+    localLog.callType === "rejected"  ? <PhoneOff className="w-3 h-3" /> :
+    localLog.callType === "voicemail" ? <Voicemail className="w-3 h-3" /> : <Phone className="w-3 h-3" />;
 
   return (
     <div className={`bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border overflow-hidden ${
@@ -512,8 +512,8 @@ function CallLogCard({ log, isSuperAdmin }) {
               </span>
             )}
             {hasRecordings && (
-              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400">
-                🎙 {localLog.recordings.length}
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400">
+                <Mic className="w-2.5 h-2.5" /> {localLog.recordings.length}
               </span>
             )}
           </div>
@@ -836,7 +836,7 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
                 </div>
               ) : logsError ? (
                 <div className="flex flex-col items-center justify-center py-6 gap-2 bg-red-50 dark:bg-red-950/20 rounded-xl border border-dashed border-red-200 dark:border-red-900/40">
-                  <span className="text-[28px]">⚠️</span>
+                  <span className="text-red-500"><AlertTriangle className="w-7 h-7" strokeWidth={1.5} /></span>
                   <p className="text-[12px] text-red-500">{logsError}</p>
                 </div>
               ) : pagedLogs.length > 0 ? (
@@ -857,7 +857,7 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                  <span className="text-[28px]">📵</span>
+                  <span className="text-[#8B92A9]"><PhoneOff className="w-7 h-7" strokeWidth={1.5} /></span>
                   <p className="text-[12px] text-[#8B92A9]">No call logs synced for this user</p>
                 </div>
               )}
@@ -889,7 +889,7 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                  <span className="text-[28px]">📅</span>
+                  <span className="text-[#8B92A9]"><CalendarDays className="w-7 h-7" strokeWidth={1.5} /></span>
                   <p className="text-[12px] text-[#8B92A9]">No attendance records found for this filter</p>
                 </div>
               )}
@@ -946,7 +946,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
             ) : records.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-4 py-12 text-center">
-                  <span className="text-[36px] block mb-2">📋</span>
+                  <span className="block mb-2 flex justify-center text-[#8B92A9]"><ClipboardList className="w-9 h-9" strokeWidth={1.5} /></span>
                   <p className="text-[14px] text-[#8B92A9]">No attendance records found.</p>
                 </td>
               </tr>
@@ -1023,7 +1023,7 @@ function UsersTab({ records, onUserClick, isSuperAdmin }) {
   if (users.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <span className="text-[48px]">👥</span>
+        <span className="text-[#8B92A9]"><Users className="w-12 h-12" strokeWidth={1.5} /></span>
         <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">No users found</p>
         <p className="text-[12px] text-[#8B92A9]">Employees will appear here once attendance records are loaded.</p>
       </div>
@@ -1123,7 +1123,7 @@ function UsersTab({ records, onUserClick, isSuperAdmin }) {
 
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 min-w-0">
-                <span className="text-[11px]">📱</span>
+                <span className="text-[#8B92A9]"><Smartphone className="w-3 h-3" /></span>
                 <span className="text-[11px] text-[#8B92A9] truncate">{deviceInfo || "No device info"}</span>
               </div>
               <span className="text-[11px] text-[#8B92A9] shrink-0">{daysSince(lastRec?.date || lastRec?.loginTime)}</span>
