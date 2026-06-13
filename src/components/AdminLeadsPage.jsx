@@ -126,7 +126,7 @@ function StatusBadge({ lead, status }) {
   }
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${config.bg} ${config.text}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[13px] font-semibold ${config.bg} ${config.text}`}
     >
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: config.dot }} />
       {label}
@@ -138,7 +138,7 @@ function TempBadge({ temp }) {
   const s = TEMP_CONFIG[temp];
   if (!s) return null;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${s.bg} ${s.text}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[13px] font-semibold ${s.bg} ${s.text}`}>
       {temp}
     </span>
   );
@@ -194,7 +194,7 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
       <div className="mt-2">
         <button
           onClick={handleTranscribe}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-[#DBEAFE] transition"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-[#DBEAFE] transition"
         >
           <Sparkles className="w-3 h-3" />
           AI Transcribe &amp; Summarize
@@ -207,7 +207,7 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
     return (
       <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#F1F4FF] dark:bg-[#1A2540]">
         <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2563EB]" />
-        <span className="text-[11px] text-[#2563EB] font-medium">Transcribing with Whisper AI…</span>
+        <span className="text-[13px] text-[#2563EB] font-medium">Transcribing with Whisper AI…</span>
       </div>
     );
   }
@@ -217,9 +217,9 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
       <div className="mt-2 space-y-1.5">
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20">
           <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-          <span className="text-[11px] text-red-500">{error || "Transcription failed."}</span>
+          <span className="text-[13px] text-red-500">{error || "Transcription failed."}</span>
         </div>
-        <button onClick={handleTranscribe} className="text-[11px] text-[#2563EB] underline pl-1">Retry</button>
+        <button onClick={handleTranscribe} className="text-[13px] text-[#2563EB] underline pl-1">Retry</button>
       </div>
     );
   }
@@ -238,12 +238,12 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
       >
         <div className="flex items-center gap-2 flex-wrap">
           <Sparkles className="w-3.5 h-3.5 text-[#2563EB]" />
-          <span className="text-[11px] font-bold text-[#2563EB]">AI Summary</span>
+          <span className="text-[13px] font-bold text-[#2563EB]">AI Summary</span>
           {sent && (
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
+            <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
           )}
           {temp && tempStyle && (
-            <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${tempStyle.bg} ${tempStyle.text}`}>
+            <span className={`flex items-center gap-1 text-[12px] font-semibold px-2 py-0.5 rounded-full ${tempStyle.bg} ${tempStyle.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${tempStyle.dot}`} />
               {temp}
             </span>
@@ -256,16 +256,16 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
         <div className="px-3 py-3 space-y-3 bg-white dark:bg-[#13161E]">
           {summary?.summary && (
             <div>
-              <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Summary</p>
-              <p className="text-[12px] text-[#4B5168] dark:text-white leading-relaxed">{summary.summary}</p>
+              <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Summary</p>
+              <p className="text-[14px] text-[#4B5168] dark:text-white leading-relaxed">{summary.summary}</p>
             </div>
           )}
           {Array.isArray(summary?.keyPoints) && summary.keyPoints.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Key Points</p>
+              <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Key Points</p>
               <ul className="space-y-1">
                 {summary.keyPoints.map((pt, i) => (
-                  <li key={i} className="flex items-start gap-1.5 text-[12px] text-[#4B5168] dark:text-white">
+                  <li key={i} className="flex items-start gap-1.5 text-[14px] text-[#4B5168] dark:text-white">
                     <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#2563EB] shrink-0" />
                     {pt}
                   </li>
@@ -277,19 +277,19 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
             <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-[#F0FDF4] dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30">
               <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
               <div>
-                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Next Action</p>
-                <p className="text-[12px] text-emerald-700 dark:text-emerald-300">{summary.nextAction}</p>
+                <p className="text-[12px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Next Action</p>
+                <p className="text-[14px] text-emerald-700 dark:text-emerald-300">{summary.nextAction}</p>
               </div>
             </div>
           )}
           {transcript && (
             <details className="group">
-              <summary className="cursor-pointer text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest select-none list-none flex items-center gap-1">
+              <summary className="cursor-pointer text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest select-none list-none flex items-center gap-1">
                 <ChevronRight className="w-3 h-3 group-open:rotate-90 transition-transform" />
                 Full Transcript
               </summary>
               <div className="mt-2 max-h-40 overflow-y-auto">
-                <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] leading-relaxed whitespace-pre-wrap font-mono bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-lg px-3 py-2">
+                <p className="text-[13px] text-[#64748B] dark:text-[#94A3B8] leading-relaxed whitespace-pre-wrap font-mono bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-lg px-3 py-2">
                   {transcript}
                 </p>
               </div>
@@ -341,15 +341,15 @@ function LeadCombinedSummaryPanel({ leadId }) {
       >
         <div className="flex items-center gap-2 flex-wrap">
           <Sparkles className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400 shrink-0" />
-          <span className="text-[12px] font-bold text-violet-700 dark:text-violet-300">Lead AI Summary</span>
-          <span className="text-[10px] text-violet-500 dark:text-violet-400">
+          <span className="text-[14px] font-bold text-violet-700 dark:text-violet-300">Lead AI Summary</span>
+          <span className="text-[12px] text-violet-500 dark:text-violet-400">
             {data ? `${data.summarizedCalls} call${data.summarizedCalls !== 1 ? "s" : ""} combined` : "All transcribed calls combined"}
           </span>
           {sent && (
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
+            <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
           )}
           {temp && tempStyle && (
-            <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${tempStyle.bg} ${tempStyle.text}`}>
+            <span className={`flex items-center gap-1 text-[12px] font-semibold px-2 py-0.5 rounded-full ${tempStyle.bg} ${tempStyle.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${tempStyle.dot}`} />
               {temp}
             </span>
@@ -374,24 +374,24 @@ function LeadCombinedSummaryPanel({ leadId }) {
           {loading && (
             <div className="flex items-center gap-2 py-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-500" />
-              <span className="text-[12px] text-violet-500 font-medium">Generating combined summary…</span>
+              <span className="text-[14px] text-violet-500 font-medium">Generating combined summary…</span>
             </div>
           )}
           {error && !loading && (
             <div className="space-y-2">
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20">
                 <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                <span className="text-[12px] text-red-500">{error}</span>
+                <span className="text-[14px] text-red-500">{error}</span>
               </div>
-              <button onClick={fetchSummary} className="text-[12px] text-violet-600 underline pl-1">Retry</button>
+              <button onClick={fetchSummary} className="text-[14px] text-violet-600 underline pl-1">Retry</button>
             </div>
           )}
           {data && !cs && !loading && !error && (
             <div className="flex items-start gap-2 px-3 py-3 rounded-lg bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38]">
               <Mic className="w-3.5 h-3.5 text-[#8B92A9] shrink-0 mt-0.5" />
               <div>
-                <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{data.message}</p>
-                <p className="text-[10px] text-[#8B92A9] mt-1">
+                <p className="text-[14px] text-[#4B5168] dark:text-[#9DA3BB]">{data.message}</p>
+                <p className="text-[12px] text-[#8B92A9] mt-1">
                   {data.totalCalls} call{data.totalCalls !== 1 ? "s" : ""} logged · 0 transcribed
                 </p>
               </div>
@@ -400,34 +400,34 @@ function LeadCombinedSummaryPanel({ leadId }) {
           {cs && !loading && !error && (
             <>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-[#F1F4FF] dark:bg-[#1E2130] text-[#4B5168] dark:text-[#9DA3BB]">
+                <span className="text-[12px] font-semibold px-2.5 py-1 rounded-lg bg-[#F1F4FF] dark:bg-[#1E2130] text-[#4B5168] dark:text-[#9DA3BB]">
                   {data.totalCalls} total call{data.totalCalls !== 1 ? "s" : ""}
                 </span>
-                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400">
+                <span className="text-[12px] font-semibold px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400">
                   {data.summarizedCalls} transcribed &amp; summarised
                 </span>
               </div>
               {cs.overallSummary && (
                 <div>
-                  <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Overall Summary</p>
-                  <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{cs.overallSummary}</p>
+                  <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Overall Summary</p>
+                  <p className="text-[15px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{cs.overallSummary}</p>
                 </div>
               )}
               {cs.relationshipStatus && (
                 <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540]">
                   <User className="w-3.5 h-3.5 text-[#2563EB] shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-[10px] font-bold text-[#2563EB] dark:text-[#4F8EF7] uppercase tracking-wide mb-0.5">Relationship Status</p>
-                    <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{cs.relationshipStatus}</p>
+                    <p className="text-[12px] font-bold text-[#2563EB] dark:text-[#4F8EF7] uppercase tracking-wide mb-0.5">Relationship Status</p>
+                    <p className="text-[14px] text-[#4B5168] dark:text-[#9DA3BB]">{cs.relationshipStatus}</p>
                   </div>
                 </div>
               )}
               {Array.isArray(cs.keyInsights) && cs.keyInsights.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Key Insights</p>
+                  <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Key Insights</p>
                   <ul className="space-y-1.5">
                     {cs.keyInsights.map((pt, i) => (
-                      <li key={i} className="flex items-start gap-2 text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+                      <li key={i} className="flex items-start gap-2 text-[14px] text-[#4B5168] dark:text-[#9DA3BB]">
                         <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
                         {pt}
                       </li>
@@ -439,8 +439,8 @@ function LeadCombinedSummaryPanel({ leadId }) {
                 <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-[#F0FDF4] dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30">
                   <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Recommended Next Action</p>
-                    <p className="text-[12px] text-emerald-700 dark:text-emerald-300">{cs.recommendedNextAction}</p>
+                    <p className="text-[12px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Recommended Next Action</p>
+                    <p className="text-[14px] text-emerald-700 dark:text-emerald-300">{cs.recommendedNextAction}</p>
                   </div>
                 </div>
               )}
@@ -503,15 +503,15 @@ function RecordingsTab({ lead }) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3 text-[#8B92A9]">
         <Loader2 className="w-5 h-5 animate-spin text-[#2563EB]" />
-        <span className="text-[13px]">Loading recordings…</span>
+        <span className="text-[15px]">Loading recordings…</span>
       </div>
     );
   }
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
-        <p className="text-[13px] text-red-500">{error}</p>
-        <button onClick={fetchCallLogs} className="text-[12px] text-[#2563EB] underline">Retry</button>
+        <p className="text-[15px] text-red-500">{error}</p>
+        <button onClick={fetchCallLogs} className="text-[14px] text-[#2563EB] underline">Retry</button>
       </div>
     );
   }
@@ -519,13 +519,13 @@ function RecordingsTab({ lead }) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3 px-6 text-center">
         <Mic className="w-10 h-10 text-[#E4E7EF] dark:text-[#262A38]" />
-        <p className="text-[13px] font-semibold text-[#4B5168] dark:text-white">No recordings found</p>
-        <p className="text-[11px] text-[#8B92A9]">
+        <p className="text-[15px] font-semibold text-[#4B5168] dark:text-white">No recordings found</p>
+        <p className="text-[13px] text-[#8B92A9]">
           Recordings upload automatically from the mobile app after calls.
         </p>
         <button
           onClick={fetchCallLogs}
-          className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-white hover:border-[#2563EB] hover:text-[#2563EB] transition"
+          className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[14px] font-semibold text-[#4B5168] dark:text-white hover:border-[#2563EB] hover:text-[#2563EB] transition"
         >
           <RotateCcw className="w-3 h-3" />
           Refresh
@@ -537,7 +537,7 @@ function RecordingsTab({ lead }) {
   return (
     <div className="px-6 py-4 space-y-5">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest">
+        <p className="text-[13px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest">
           {callLogs.length} Call Log{callLogs.length > 1 ? "s" : ""} with Recordings
         </p>
         <button
@@ -555,29 +555,29 @@ function RecordingsTab({ lead }) {
           {/* Call log header */}
           <div className="flex items-center justify-between px-3 py-2.5 bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
             <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-md bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 flex items-center justify-center text-[10px] font-black shrink-0">
+              <span className="w-5 h-5 rounded-md bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 flex items-center justify-center text-[12px] font-black shrink-0">
                 {li + 1}
               </span>
               <div>
-                <p className="text-[12px] font-semibold text-[#0F1117] dark:text-white leading-none">
+                <p className="text-[14px] font-semibold text-[#0F1117] dark:text-white leading-none">
                   {new Date(log.timestamp).toLocaleString("en-IN", {
                     day: "2-digit", month: "short", year: "numeric",
                     hour: "2-digit", minute: "2-digit",
                   })}
                 </p>
                 {log.user?.name && (
-                  <p className="text-[10px] text-[#8B92A9] mt-0.5">Employee: {log.user.name}</p>
+                  <p className="text-[12px] text-[#8B92A9] mt-0.5">Employee: {log.user.name}</p>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-2">
               <span
-                className="px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize"
+                className="px-2 py-0.5 rounded-full text-[12px] font-semibold capitalize"
                 style={{ backgroundColor: callTypeColor(log.callType) + "20", color: callTypeColor(log.callType) }}
               >
                 {log.callType || "call"}
               </span>
-              <span className="flex items-center gap-1 text-[11px] font-semibold text-[#4B5168] dark:text-white">
+              <span className="flex items-center gap-1 text-[13px] font-semibold text-[#4B5168] dark:text-white">
                 <Clock className="w-3 h-3" />
                 {fmtDuration(log.duration)}
               </span>
@@ -586,7 +586,7 @@ function RecordingsTab({ lead }) {
 
           {log.remark && (
             <div className="px-3 py-2 border-b border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]">
-              <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] italic">"{log.remark}"</p>
+              <p className="text-[13px] text-[#64748B] dark:text-[#94A3B8] italic">"{log.remark}"</p>
             </div>
           )}
 
@@ -599,18 +599,18 @@ function RecordingsTab({ lead }) {
                   className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden bg-[#F8F9FC] dark:bg-[#13161E]"
                 >
                   <div className="flex items-center justify-between px-3 py-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    <span className="text-[11px] font-semibold text-[#4B5168] dark:text-white">
+                    <span className="text-[13px] font-semibold text-[#4B5168] dark:text-white">
                       Recording {ri + 1}
                     </span>
                     {r.transcribeStatus === "done" ? (
-                      <span className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded-full">
+                      <span className="flex items-center gap-1 text-[12px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded-full">
                         <Check className="w-2.5 h-2.5" />
                         Transcribed
                       </span>
                     ) : r.transcribeStatus === "processing" ? (
-                      <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full">Processing…</span>
+                      <span className="text-[12px] font-semibold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full">Processing…</span>
                     ) : (
-                      <span className="text-[10px] font-semibold text-[#8B92A9] bg-[#F1F4FF] dark:bg-[#1E2130] px-2 py-0.5 rounded-full">Not transcribed</span>
+                      <span className="text-[12px] font-semibold text-[#8B92A9] bg-[#F1F4FF] dark:bg-[#1E2130] px-2 py-0.5 rounded-full">Not transcribed</span>
                     )}
                   </div>
                   <div className="px-3 pt-2.5 pb-1">
@@ -625,7 +625,7 @@ function RecordingsTab({ lead }) {
                         onError={e => { e.target.style.display = "none"; }}
                       />
                     ) : (
-                      <p className="text-[11px] text-[#8B92A9] italic py-1">Audio file not available</p>
+                      <p className="text-[13px] text-[#8B92A9] italic py-1">Audio file not available</p>
                     )}
                   </div>
                   <div className="px-3 pb-3">
@@ -642,7 +642,7 @@ function RecordingsTab({ lead }) {
                 <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={audioUrl(log.recordingUrl)} className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none" />
               </div>
             ) : (
-              <p className="text-[11px] text-[#8B92A9] italic">Recording file not available</p>
+              <p className="text-[13px] text-[#8B92A9] italic">Recording file not available</p>
             )}
           </div>
         </div>
@@ -670,20 +670,20 @@ function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast 
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black shrink-0"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-black shrink-0"
                 style={{ background: (sc.dot || "#2563EB") + "20", color: sc.dot || "#2563EB" }}
               >
                 {lead.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
               </div>
               <div>
-                <p className="text-[15px] font-bold text-[#0F1117] dark:text-white leading-none">{lead.name}</p>
-                <p className="text-[12px] text-[#8B92A9] mt-0.5">{lead.agent || "Unassigned"}</p>
+                <p className="text-[17px] font-bold text-[#0F1117] dark:text-white leading-none">{lead.name}</p>
+                <p className="text-[14px] text-[#8B92A9] mt-0.5">{lead.agent || "Unassigned"}</p>
               </div>
             </div>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <StatusBadge lead={lead} />
               {lead.Quality && <TempBadge temp={lead.Quality} />}
-              <span className="text-[10px] text-[#8B92A9]">{lead.source}</span>
+              <span className="text-[12px] text-[#8B92A9]">{lead.source}</span>
             </div>
           </div>
           <button
@@ -698,7 +698,7 @@ function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast 
         <div className="px-6 shrink-0 flex border-b border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]">
           <button
             onClick={() => setDrawerTab("recordings")}
-            className={`flex items-center gap-1.5 px-3 py-3 text-[12px] font-semibold border-b-2 transition -mb-px ${
+            className={`flex items-center gap-1.5 px-3 py-3 text-[14px] font-semibold border-b-2 transition -mb-px ${
               drawerTab === "recordings"
                 ? "border-[#2563EB] text-[#2563EB]"
                 : "border-transparent text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-white"
@@ -709,7 +709,7 @@ function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast 
           </button>
           <button
             onClick={() => setDrawerTab("meeting")}
-            className={`flex items-center gap-1.5 px-3 py-3 text-[12px] font-semibold border-b-2 transition -mb-px ${
+            className={`flex items-center gap-1.5 px-3 py-3 text-[14px] font-semibold border-b-2 transition -mb-px ${
               drawerTab === "meeting"
                 ? "border-[#2563EB] text-[#2563EB]"
                 : "border-transparent text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-white"
@@ -790,13 +790,13 @@ function AgentSelect({ value, onChange, agents, className }) {
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="Search employee…"
-                className="w-full pl-7 pr-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition"
+                className="w-full pl-7 pr-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition"
               />
             </div>
           </div>
           <div className="max-h-52 overflow-y-auto py-1">
             {filtered.length === 0 ? (
-              <p className="px-3 py-2.5 text-[12px] text-[#8B92A9] italic">No employees found</p>
+              <p className="px-3 py-2.5 text-[14px] text-[#8B92A9] italic">No employees found</p>
             ) : filtered.map(agent => {
               const isSelected  = agent === value;
               const displayName = agent === "All" ? "All employees" : agent;
@@ -805,7 +805,7 @@ function AgentSelect({ value, onChange, agents, className }) {
                   key={agent}
                   type="button"
                   onClick={() => select(agent)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-[14px] text-left transition ${
                     isSelected
                       ? "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] font-semibold"
                       : "text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A]"
@@ -837,7 +837,7 @@ function Toast({ message, type = "success", onDismiss }) {
     return () => clearTimeout(t);
   }, [onDismiss]);
   return (
-    <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-[13px] font-semibold animate-fade-in
+    <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-[15px] font-semibold animate-fade-in
       ${type === "success"
         ? "bg-emerald-50 dark:bg-emerald-950/80 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
         : "bg-red-50 dark:bg-red-950/80 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"}`}>
@@ -973,23 +973,23 @@ const handleMergeFromPanel = async () => {
     <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
       {/* Phone numbers display */}
       <div className="px-4 py-3 bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-        <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">Phone Numbers</p>
+        <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">Phone Numbers</p>
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">Primary</span>
-            <span className="font-mono text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+            <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">Primary</span>
+            <span className="font-mono text-[15px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
               {maskPhone(primaryPhone, isSuperAdmin)}
             </span>
           </div>
           {secondaryPhone ? (
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">Secondary</span>
-              <span className="font-mono text-[13px] text-[#4B5168] dark:text-[#9DA3BB]">
+              <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">Secondary</span>
+              <span className="font-mono text-[15px] text-[#4B5168] dark:text-[#9DA3BB]">
                 {maskPhone(secondaryPhone, isSuperAdmin)}
               </span>
             </div>
           ) : (
-            <p className="text-[11px] text-[#8B92A9] italic">No secondary number</p>
+            <p className="text-[13px] text-[#8B92A9] italic">No secondary number</p>
           )}
         </div>
       </div>
@@ -998,7 +998,7 @@ const handleMergeFromPanel = async () => {
       <div className="px-4 py-3 bg-white dark:bg-[#1A1D27] flex flex-wrap gap-2">
         <button
           onClick={() => setMode(mode === "add" ? null : "add")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-blue-100 dark:hover:bg-[#1E2D4D] transition"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-blue-100 dark:hover:bg-[#1E2D4D] transition"
         >
           <Plus className="w-3 h-3" />
           {secondaryPhone ? "Update Secondary" : "Add Secondary"}
@@ -1007,14 +1007,14 @@ const handleMergeFromPanel = async () => {
           <>
             <button
               onClick={() => setMode(mode === "remove" ? null : "remove")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 transition"
             >
               <X className="w-3 h-3" />
               Remove Secondary
             </button>
             <button
               onClick={() => { setMode("swap"); setSwapConfirm(true); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition"
             >
               <RotateCcw className="w-3 h-3" />
               Swap Numbers
@@ -1026,7 +1026,7 @@ const handleMergeFromPanel = async () => {
       {/* Add/Update form */}
       {mode === "add" && (
         <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
-          <label className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest">
+          <label className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest">
             {secondaryPhone ? "New Secondary Number" : "Secondary Number"}
           </label>
           <input
@@ -1034,17 +1034,17 @@ const handleMergeFromPanel = async () => {
             placeholder="9876543210 or +91..."
             value={secInput}
             onChange={e => { setSecInput(e.target.value); setError(""); }}
-            className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition"
+            className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition"
           />
           {error && (
-            <p className="text-[11px] text-red-500 flex items-center gap-1">
+            <p className="text-[13px] text-red-500 flex items-center gap-1">
               <AlertCircle className="w-3 h-3 shrink-0" />{error}
             </p>
           )}
           <div className="flex gap-2">
-            <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+            <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
             <button onClick={handleAddSecondary} disabled={loading}
-              className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+              className="flex-1 py-2 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
               {loading ? <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</> : "Save"}
             </button>
           </div>
@@ -1057,22 +1057,22 @@ const handleMergeFromPanel = async () => {
                       normalizeMobile(mergeLead.primaryPhone || mergeLead.mobile || "");
   return (
     <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
-      <p className="text-[12px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+      <p className="text-[14px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
         <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
         Number belongs to &quot;{mergeLead.name}&quot;
       </p>
-      <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
+      <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB]">
         Add <span className="font-mono font-semibold">{numberToAdd}</span> as the secondary number of <span className="font-semibold">this lead</span> and fold in &quot;{mergeLead.name}&quot;? All of its call logs, WhatsApp, notes and history move here, and &quot;{mergeLead.name}&quot; is hidden.
       </p>
       {error && (
-        <p className="text-[11px] text-red-500 flex items-center gap-1">
+        <p className="text-[13px] text-red-500 flex items-center gap-1">
           <AlertCircle className="w-3 h-3 shrink-0" />{error}
         </p>
       )}
       <div className="flex gap-2">
-        <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+        <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
         <button onClick={handleMergeFromPanel} disabled={merging}
-          className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+          className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[14px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
           {merging
             ? <><Loader2 className="w-3 h-3 animate-spin" /> Merging…</>
             : "Add as Secondary & Merge"
@@ -1086,18 +1086,18 @@ const handleMergeFromPanel = async () => {
       {/* Remove confirm */}
       {mode === "remove" && (
         <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
-          <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+          <p className="text-[14px] text-[#4B5168] dark:text-[#9DA3BB]">
             Remove <span className="font-mono font-semibold">{maskPhone(secondaryPhone, isSuperAdmin)}</span> as secondary number?
           </p>
           {error && (
-            <p className="text-[11px] text-red-500 flex items-center gap-1">
+            <p className="text-[13px] text-red-500 flex items-center gap-1">
               <AlertCircle className="w-3 h-3 shrink-0" />{error}
             </p>
           )}
           <div className="flex gap-2">
-            <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+            <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
             <button onClick={handleRemoveSecondary} disabled={loading}
-              className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[12px] font-semibold hover:bg-red-700 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+              className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[14px] font-semibold hover:bg-red-700 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
               {loading ? <><Loader2 className="w-3 h-3 animate-spin" /> Removing…</> : "Remove"}
             </button>
           </div>
@@ -1109,28 +1109,28 @@ const handleMergeFromPanel = async () => {
         <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-3">
           <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            <p className="text-[12px] text-amber-700 dark:text-amber-300 font-semibold">Confirm phone swap</p>
+            <p className="text-[14px] text-amber-700 dark:text-amber-300 font-semibold">Confirm phone swap</p>
           </div>
           <div className="space-y-1 px-1">
-            <p className="text-[11px] text-[#8B92A9]">After swap:</p>
+            <p className="text-[13px] text-[#8B92A9]">After swap:</p>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 shrink-0">New Primary</span>
-              <span className="font-mono text-[12px] text-[#0F1117] dark:text-[#F0F2FA]">{maskPhone(secondaryPhone, isSuperAdmin)}</span>
+              <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 shrink-0">New Primary</span>
+              <span className="font-mono text-[14px] text-[#0F1117] dark:text-[#F0F2FA]">{maskPhone(secondaryPhone, isSuperAdmin)}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 shrink-0">New Secondary</span>
-              <span className="font-mono text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{maskPhone(primaryPhone, isSuperAdmin)}</span>
+              <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 shrink-0">New Secondary</span>
+              <span className="font-mono text-[14px] text-[#4B5168] dark:text-[#9DA3BB]">{maskPhone(primaryPhone, isSuperAdmin)}</span>
             </div>
           </div>
           {error && (
-            <p className="text-[11px] text-red-500 flex items-center gap-1">
+            <p className="text-[13px] text-red-500 flex items-center gap-1">
               <AlertCircle className="w-3 h-3 shrink-0" />{error}
             </p>
           )}
           <div className="flex gap-2">
-            <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+            <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
             <button onClick={handleSwap} disabled={loading}
-              className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+              className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[14px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
               {loading ? <><Loader2 className="w-3 h-3 animate-spin" /> Swapping…</> : "Confirm Swap"}
             </button>
           </div>
@@ -1384,11 +1384,11 @@ const canSubmit =
   dupCheck.state !== "duplicate" && dupCheck.state !== "checking";
   
   const inp = (key) =>
-    `w-full px-3 py-2.5 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
+    `w-full px-3 py-2.5 rounded-xl border text-[15px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
     ${errors[key] ? "border-red-400 dark:border-red-500 focus:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`;
 
   const ErrMsg = ({ k }) => errors[k]
-    ? <span className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
+    ? <span className="text-[13px] text-red-500 flex items-center gap-1 mt-0.5">
         <AlertCircle className="w-3 h-3 shrink-0" />
         {errors[k]}
       </span>
@@ -1404,31 +1404,31 @@ const canSubmit =
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Add New Lead</h2>
+          <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Add New Lead</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
             <X className="w-4 h-4" />
           </button>
         </div>
         <div className="space-y-3">
           <div>
-            <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Lead Name <span className="text-red-500">*</span></label>
+            <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Lead Name <span className="text-red-500">*</span></label>
             <input type="text" placeholder="Full name" value={form.name} onChange={e => set("name", e.target.value)} className={inp("name")} />
             <ErrMsg k="name" />
           </div>
           <div>
-            <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">
+            <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">
               Mobile Number <span className="text-red-500">*</span>
-              <span className="ml-1 normal-case text-[10px] font-normal text-[#8B92A9]">(with or without +91 prefix)</span>
+              <span className="ml-1 normal-case text-[12px] font-normal text-[#8B92A9]">(with or without +91 prefix)</span>
             </label>
             <input type="tel" placeholder="9876543210 or +919876543210" value={form.mobile} onChange={e => set("mobile", e.target.value)} className={inp("mobile")} />
             <ErrMsg k="mobile" />
             {dupCheck.state === "checking" && (
-              <p className="text-[11px] text-[#9DA3BB] mt-1 flex items-center gap-1.5">
+              <p className="text-[13px] text-[#9DA3BB] mt-1 flex items-center gap-1.5">
                 <Loader2 className="w-3 h-3 animate-spin" /> Checking for duplicates…
               </p>
             )}
             {dupCheck.state === "ok" && (
-              <p className="text-[11px] text-emerald-500 mt-1 flex items-center gap-1">
+              <p className="text-[13px] text-emerald-500 mt-1 flex items-center gap-1">
                 <Check className="w-3 h-3" /> Number is available
               </p>
             )}
@@ -1446,13 +1446,13 @@ const canSubmit =
     <div className="mt-2 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600 overflow-hidden">
       {/* Header */}
       <div className="px-3 py-2.5 border-b border-amber-200 dark:border-amber-800">
-        <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+        <p className="text-[14px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
           This number belongs to existing lead &quot;{existingLead.name}&quot;
         </p>
       </div>
       {/* Existing lead details */}
-      <div className="px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300 space-y-0.5">
+      <div className="px-3 py-2 text-[13px] text-amber-700 dark:text-amber-300 space-y-0.5">
         <p><span className="font-semibold">Primary:</span>{" "}
           <span className="font-mono">{maskPhone(existingLead.primaryPhone || existingLead.mobile, isSuperAdmin)}</span>
         </p>
@@ -1470,35 +1470,35 @@ const canSubmit =
       <div className="px-3 pb-3 space-y-2">
         {canMerge ? (
           <>
-            <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wide">Choose an action:</p>
+            <p className="text-[12px] text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wide">Choose an action:</p>
             {mergeError && (
-              <p className="text-[11px] text-red-500 flex items-center gap-1">
+              <p className="text-[13px] text-red-500 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3 shrink-0" />{mergeError}
               </p>
             )}
             <div className="flex gap-2">
               <button
                 onClick={() => { setDupCheck({ state: "idle", lead: null }); setMergeError(""); }}
-                className="flex-1 py-2 rounded-xl border border-amber-300 dark:border-amber-700 text-[12px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition"
+                className="flex-1 py-2 rounded-xl border border-amber-300 dark:border-amber-700 text-[14px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleMerge}
                 disabled={merging}
-                className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5"
+                className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[14px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5"
               >
                 {merging
                   ? <><Loader2 className="w-3 h-3 animate-spin" /> Merging…</>
                   : "Add as Secondary & Merge Leads"}
               </button>
             </div>
-            <p className="text-[10px] text-amber-600/80 dark:text-amber-500/70 leading-snug">
+            <p className="text-[12px] text-amber-600/80 dark:text-amber-500/70 leading-snug">
               This will add <span className="font-mono font-semibold">{normalizeMobile(form.mobile)}</span> as the secondary number of &quot;{existingLead.name}&quot; and transfer all call logs, WhatsApp, notes, tasks, and timeline entries.
             </p>
           </>
         ) : (
-          <p className="text-[11px] text-red-500 flex items-center gap-1.5 pb-1">
+          <p className="text-[13px] text-red-500 flex items-center gap-1.5 pb-1">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             Cannot merge — &quot;{existingLead.name}&quot; already has two numbers (max limit). Open that lead to manage its numbers.
           </p>
@@ -1509,10 +1509,10 @@ const canSubmit =
 })()}
 {dupCheck.state === "duplicate" && !dupCheck.lead && (
   <div className="mt-2 p-3 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600">
-    <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+    <p className="text-[14px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
       <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> This number is already registered as a lead.
     </p>
-    <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+    <p className="text-[13px] text-amber-600 dark:text-amber-400 mt-1">
       Search for the existing lead to update or merge it.
     </p>
   </div>
@@ -1520,8 +1520,8 @@ const canSubmit =
           </div>
           {/* ── Secondary Phone (optional) ───────────────────────────────── */}
           <div>
-            <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">
-              Secondary Phone <span className="normal-case font-normal text-[10px]">(optional)</span>
+            <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">
+              Secondary Phone <span className="normal-case font-normal text-[12px]">(optional)</span>
             </label>
             <input
               type="tel"
@@ -1533,14 +1533,14 @@ const canSubmit =
             <ErrMsg k="secondaryPhone" />
           </div>
           <div>
-            <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Assign to Employee <span className="text-red-500">*</span></label>
+            <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Assign to Employee <span className="text-red-500">*</span></label>
             {loading ? (
               <div className={`${inp("userId")} flex items-center gap-2 text-[#8B92A9]`}><Spinner /> Loading employees…</div>
             ) : users.length === 0 ? (
               <div className={`${inp("userId")} text-red-500`}>No employees found. Add employees first.</div>
             ) : (
               <select value={form.userId} onChange={e => set("userId", e.target.value)}
-                className={`w-full px-3 py-2.5 rounded-xl border text-[13px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none transition ${errors.userId ? "border-red-400 dark:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`}>
+                className={`w-full px-3 py-2.5 rounded-xl border text-[15px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none transition ${errors.userId ? "border-red-400 dark:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`}>
                 <option value="">— Select employee —</option>
                 {users.map(u => <option key={u._id} value={u._id}>{u.name} ({u.email})</option>)}
               </select>
@@ -1549,53 +1549,53 @@ const canSubmit =
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Source</label>
+              <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Source</label>
               <select value={form.source} onChange={e => set("source", e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]">
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]">
                 {ALL_SOURCES.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
               {form.source === "Other" && (
                 <input type="text" placeholder="Enter custom source" value={customSource} onChange={e => setCustomSource(e.target.value)}
-                  className="mt-2 w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB]" />
+                  className="mt-2 w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB]" />
               )}
               <ErrMsg k="source" />
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Status</label>
+              <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Status</label>
               <select value={form.status} onChange={e => set("status", e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]">
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]">
                 {ALL_STATUSES.map(o => <option key={o}>{o}</option>)}
               </select>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Email</label>
+              <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Email</label>
               <input type="email" placeholder="email@example.com" value={form.email} onChange={e => set("email", e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB]" />
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB]" />
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Campaign</label>
+              <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Campaign</label>
               <input type="text" placeholder="Campaign name" value={form.campaign} onChange={e => set("campaign", e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB]" />
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB]" />
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Remark</label>
+              <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Remark</label>
               <input type="text" placeholder="Notes" value={form.remark} onChange={e => set("remark", e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB]" />
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB]" />
             </div>
           </div>
         </div>
         {errors.submit && (
-          <div className="mt-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-[12px] text-red-600 dark:text-red-400 flex items-center gap-2">
+          <div className="mt-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-[14px] text-red-600 dark:text-red-400 flex items-center gap-2">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             {errors.submit}
           </div>
         )}
         <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[15px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
           <button onClick={handleSubmit} disabled={!canSubmit}
-            className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+            className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[15px] font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
             {btnLabel()}
           </button>
         </div>
@@ -1693,7 +1693,7 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Import CSV</h2>
+          <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Import CSV</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]">
             <X className="w-4 h-4" />
           </button>
@@ -1701,26 +1701,26 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
         {!result ? (
           <>
             <div className="bg-[#EFF6FF] dark:bg-[#1A2540] border border-blue-100 dark:border-blue-900/40 rounded-xl p-4 mb-5">
-              <p className="text-[12px] font-semibold text-[#1D4ED8] dark:text-[#4F8EF7] mb-2">CSV Format</p>
-              <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] mb-1">
+              <p className="text-[14px] font-semibold text-[#1D4ED8] dark:text-[#4F8EF7] mb-2">CSV Format</p>
+              <p className="text-[14px] text-[#4B5168] dark:text-[#9DA3BB] mb-1">
                 Required: <code className="font-mono bg-white dark:bg-[#0D0F14] px-1 rounded">Name</code>,{" "}
                 <code className="font-mono bg-white dark:bg-[#0D0F14] px-1 rounded">Primary Number</code>
               </p>
-              <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+              <p className="text-[14px] text-[#4B5168] dark:text-[#9DA3BB]">
                 Optional: <code className="font-mono bg-white dark:bg-[#0D0F14] px-1 rounded">Secondary Number</code>, Email, Source, Campaign, Status, Remark
               </p>
-              <p className="text-[11px] text-[#8B92A9] mt-2">
+              <p className="text-[13px] text-[#8B92A9] mt-2">
                 Duplicate numbers (primary or secondary, with or without +91) are automatically skipped. Leads round-robin assigned to your team.
               </p>
             </div>
             <div className="flex gap-2">
               <button onClick={downloadTemplate}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#7C3AED] dark:text-[#A78BFA] hover:bg-purple-50 dark:hover:bg-purple-950/30 transition">
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[15px] font-semibold text-[#7C3AED] dark:text-[#A78BFA] hover:bg-purple-50 dark:hover:bg-purple-950/30 transition">
                 <Download className="w-4 h-4" /> Download Template
               </button>
               <input ref={importRef} type="file" accept=".csv" className="hidden" onChange={handleFile} />
               <button onClick={() => importRef.current?.click()} disabled={importing}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#7C3AED] text-white text-[13px] font-semibold hover:bg-violet-700 disabled:opacity-50 transition">
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#7C3AED] text-white text-[15px] font-semibold hover:bg-violet-700 disabled:opacity-50 transition">
                 {importing ? <><Spinner /> Importing…</> : <><Upload className="w-4 h-4" /> Choose CSV File</>}
               </button>
             </div>
@@ -1729,20 +1729,20 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
           <div>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 rounded-xl p-3 text-center">
-                <p className="text-[24px] font-bold text-emerald-600 dark:text-emerald-400">{result.savedCount}</p>
-                <p className="text-[12px] text-emerald-600 dark:text-emerald-400 font-semibold">Imported</p>
+                <p className="text-[26px] font-bold text-emerald-600 dark:text-emerald-400">{result.savedCount}</p>
+                <p className="text-[14px] text-emerald-600 dark:text-emerald-400 font-semibold">Imported</p>
               </div>
               <div className={`border rounded-xl p-3 text-center ${result.errorCount > 0 ? "bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900/40" : "bg-gray-50 dark:bg-gray-900/20 border-gray-100 dark:border-gray-800"}`}>
-                <p className={`text-[24px] font-bold ${result.errorCount > 0 ? "text-red-600 dark:text-red-400" : "text-[#8B92A9]"}`}>{result.errorCount}</p>
-                <p className={`text-[12px] font-semibold ${result.errorCount > 0 ? "text-red-600 dark:text-red-400" : "text-[#8B92A9]"}`}>Skipped</p>
+                <p className={`text-[26px] font-bold ${result.errorCount > 0 ? "text-red-600 dark:text-red-400" : "text-[#8B92A9]"}`}>{result.errorCount}</p>
+                <p className={`text-[14px] font-semibold ${result.errorCount > 0 ? "text-red-600 dark:text-red-400" : "text-[#8B92A9]"}`}>Skipped</p>
               </div>
             </div>
             {result.errors?.length > 0 && (
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-3 mb-4 max-h-48 overflow-y-auto">
-                <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">Skipped rows</p>
+                <p className="text-[13px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">Skipped rows</p>
                 <div className="space-y-1.5">
                   {result.errors.map((e, i) => (
-                    <div key={i} className="flex items-start gap-2 text-[12px]">
+                    <div key={i} className="flex items-start gap-2 text-[14px]">
                       <X className="w-3 h-3 text-red-400 shrink-0 mt-0.5" />
                       <span className="text-[#4B5168] dark:text-[#9DA3BB]">{e.row ? `Row "${e.row}": ` : ""}{e.message}</span>
                     </div>
@@ -1753,11 +1753,11 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
             <div className="flex gap-2">
               {result.savedCount === 0 && (
                 <button onClick={() => { setResult(null); importRef.current?.click(); }}
-                  className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] hover:bg-[#F1F4FF] transition">
+                  className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[15px] font-semibold text-[#4B5168] hover:bg-[#F1F4FF] transition">
                   Try Again
                 </button>
               )}
-              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[15px] font-semibold hover:bg-blue-700 transition">
                 {result.savedCount > 0 ? "Done" : "Close"}
               </button>
             </div>
@@ -2115,7 +2115,7 @@ const showToast = useCallback((message, type = "success") => {
     a.click(); URL.revokeObjectURL(a.href);
   }, [displayed]);
 
-  const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition";
+  const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition";
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-3 py-4 md:px-6 md:py-8">
@@ -2127,30 +2127,30 @@ const showToast = useCallback((message, type = "success") => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Lead Management</h1>
-          <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
+          <h1 className="text-[26px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Lead Management</h1>
+          <p className="text-[15px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
             Full pipeline view — click any lead to see its complete journey
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {!isSuperAdmin && (
             <button onClick={() => setShowAdd(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#059669] text-white text-[12px] font-semibold hover:bg-emerald-700 transition">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#059669] text-white text-[14px] font-semibold hover:bg-emerald-700 transition">
               <Plus className="w-3.5 h-3.5" /> Add Lead
             </button>
           )}
          {!isSuperAdmin && (
             <button onClick={() => setShowImport(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#7C3AED] text-white text-[12px] font-semibold hover:bg-violet-700 transition">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#7C3AED] text-white text-[14px] font-semibold hover:bg-violet-700 transition">
               <Upload className="w-3.5 h-3.5" /> Import CSV
             </button>
           )}
           {isSuperAdmin && (
             <button onClick={exportToCSV} disabled={!displayed.length}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-40 disabled:cursor-not-allowed transition">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[14px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-40 disabled:cursor-not-allowed transition">
               <Download className="w-3.5 h-3.5" /> Export CSV
               {displayed.length > 0 && (
-                <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[12px] font-bold px-1.5 py-0.5 rounded-full">
                   {displayed.length}
                 </span>
               )}
@@ -2175,9 +2175,9 @@ const showToast = useCallback((message, type = "success") => {
         ].map(s => (
           <button key={s.label}
             onClick={() => { setFilterSt(filterSt === s.filter ? "All" : s.filter); setPage(1); }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition font-semibold text-[13px] ${s.bg} ${s.text} ${filterSt === s.filter ? "" : "border-transparent"}`}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition font-semibold text-[15px] ${s.bg} ${s.text} ${filterSt === s.filter ? "" : "border-transparent"}`}
             style={{ borderColor: filterSt === s.filter ? s.color : undefined }}>
-            <span className="text-[18px] font-black">{s.value}</span>
+            <span className="text-[20px] font-black">{s.value}</span>
             {s.label}
           </button>
         ))}
@@ -2217,19 +2217,19 @@ const showToast = useCallback((message, type = "success") => {
           </select>
           {(search || filterSt !== "All" || filterAgent !== "All" || filterSrc !== "All" || filterTemp !== "All" || filterProject !== "All" || dateFrom || dateTo) && (
             <button onClick={clearFilters}
-              className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[12px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition">
+              className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[14px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition">
               <span className="flex items-center gap-1"><X className="w-3 h-3" /> Clear</span>
             </button>
           )}
         </div>
-        <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-2">
+        <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-2">
           {displayed.length} leads found{displayed.length !== allLeads.length ? ` (filtered from ${allLeads.length})` : ""}
         </p>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-[12px]">
+        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-[14px]">
           <AlertCircle className="w-4 h-4 shrink-0" />
           {error}
           <button onClick={fetchLeads} className="ml-auto underline font-semibold">Retry</button>
@@ -2241,23 +2241,23 @@ const showToast = useCallback((message, type = "success") => {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-[#8B92A9]">
             <Loader2 className="w-6 h-6 animate-spin" />
-            <span className="text-[13px]">Loading leads…</span>
+            <span className="text-[15px]">Loading leads…</span>
           </div>
         ) : paged.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Search className="w-12 h-12 text-[#E4E7EF] dark:text-[#262A38]" />
-            <p className="text-[16px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+            <p className="text-[18px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
               {allLeads.length === 0 ? "No leads yet" : "No leads match your filters"}
             </p>
             {allLeads.length === 0 ? (
               !isSuperAdmin && (
                 <button onClick={() => setShowAdd(true)}
-                  className="mt-1 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] text-white text-[13px] font-semibold hover:bg-emerald-700 transition">
+                  className="mt-1 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] text-white text-[15px] font-semibold hover:bg-emerald-700 transition">
                   <Plus className="w-3.5 h-3.5" /> Add first lead
                 </button>
               )
             ) : (
-              <button onClick={clearFilters} className="mt-1 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-blue-700 transition">
+              <button onClick={clearFilters} className="mt-1 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 transition">
                 Clear Filters
               </button>
             )}
@@ -2265,7 +2265,7 @@ const showToast = useCallback((message, type = "success") => {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-[12px] table-fixed">
+              <table className="w-full text-[14px] table-fixed">
                 <colgroup>
                   <col className="w-[160px]" /> {/* Lead */}
                   <col className="w-[140px]" /> {/* Contact */}
@@ -2292,7 +2292,7 @@ const showToast = useCallback((message, type = "success") => {
                       "Last Outcome",
                       "",
                     ].map(h => (
-                      <th key={h} className="px-2.5 py-2.5 text-left text-[9px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
+                      <th key={h} className="px-2.5 py-2.5 text-left text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -2312,13 +2312,13 @@ const showToast = useCallback((message, type = "success") => {
                         {/* Lead name */}
                         <td className="px-2.5 py-2.5">
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-black shrink-0"
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0"
                               style={{ background: (sc.dot || "#2563EB") + "20", color: sc.dot || "#2563EB" }}>
                               {l.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
                             </div>
                             <div className="min-w-0">
-                              <p className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate text-[12px]">{l.name}</p>
-                              <p className="text-[9px] text-[#8B92A9]">{daysSince(l._raw_date) || "—"}</p>
+                              <p className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate text-[14px]">{l.name}</p>
+                              <p className="text-[11px] text-[#8B92A9]">{daysSince(l._raw_date) || "—"}</p>
                             </div>
                           </div>
                         </td>
@@ -2327,23 +2327,23 @@ const showToast = useCallback((message, type = "success") => {
                         <td className="px-2.5 py-2.5">
                           <div className="flex items-center gap-1 flex-wrap">
                             {isSuperAdmin ? (
-                              <span className="font-mono text-[#0F1117] dark:text-[#F0F2FA] text-[11px]">{l.phone || "—"}</span>
+                              <span className="font-mono text-[#0F1117] dark:text-[#F0F2FA] text-[13px]">{l.phone || "—"}</span>
                             ) : isRevealed ? (
                               <div className="flex items-center gap-1">
-                                <span className="font-mono text-[#0F1117] dark:text-[#F0F2FA] text-[11px] animate-pulse">{l.phone || "—"}</span>
+                                <span className="font-mono text-[#0F1117] dark:text-[#F0F2FA] text-[13px] animate-pulse">{l.phone || "—"}</span>
                                 <span className="inline-block w-6 h-1 rounded-full bg-[#E4E7EF] dark:bg-[#262A38] overflow-hidden">
                                   <span className="block h-full bg-[#2563EB] rounded-full" style={{ animation: "shrink 4s linear forwards" }} />
                                 </span>
                               </div>
                             ) : (
                               <button onClick={(e) => handleRevealPhone(e, l.id)} className="flex items-center gap-1 group/phone" title="Click to reveal number">
-                                <span className="font-mono text-[#8B92A9] dark:text-[#565C75] tracking-widest text-[11px] select-none">{maskedPhone}</span>
+                                <span className="font-mono text-[#8B92A9] dark:text-[#565C75] tracking-widest text-[13px] select-none">{maskedPhone}</span>
                                 <Eye className="w-3 h-3 text-[#C4C9D9] dark:text-[#3E4257] group-hover/phone:text-[#2563EB] transition shrink-0" />
                               </button>
                             )}
                             {!isSuperAdmin && viewCount > 0 && (
                               <span title={`Viewed ${viewCount}x`}
-                                className={`text-[9px] font-bold px-1 py-0.5 rounded-full leading-none flex items-center gap-0.5 shrink-0
+                                className={`text-[11px] font-bold px-1 py-0.5 rounded-full leading-none flex items-center gap-0.5 shrink-0
                                   ${viewCount >= 5 ? "bg-red-100 dark:bg-red-950/40 text-red-600"
                                   : viewCount >= 3 ? "bg-amber-100 dark:bg-amber-950/40 text-amber-600"
                                   : "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB]"}`}>
@@ -2351,18 +2351,18 @@ const showToast = useCallback((message, type = "success") => {
                               </span>
                             )}
                             {l.secondaryPhone && (
-                              <span title="Has secondary number" className="text-[9px] font-bold px-1 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-600 shrink-0">+1</span>
+                              <span title="Has secondary number" className="text-[11px] font-bold px-1 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-600 shrink-0">+1</span>
                             )}
                           </div>
                           {l.email && (
                             <div className="mt-0.5 flex items-center gap-1">
                               {isSuperAdmin ? (
-                                <p className="text-[9px] text-[#0F1117] dark:text-[#F0F2FA] truncate font-mono" title={l.email}>{l.email}</p>
+                                <p className="text-[11px] text-[#0F1117] dark:text-[#F0F2FA] truncate font-mono" title={l.email}>{l.email}</p>
                               ) : revealedEmail === l.id ? (
-                                <p className="text-[9px] text-[#0F1117] dark:text-[#F0F2FA] truncate font-mono animate-pulse">{l.email}</p>
+                                <p className="text-[11px] text-[#0F1117] dark:text-[#F0F2FA] truncate font-mono animate-pulse">{l.email}</p>
                               ) : (
                                 <button onClick={(e) => handleRevealEmail(e, l.id)} className="flex items-center gap-0.5 group/email" title="Reveal email">
-                                  <p className="text-[9px] text-[#8B92A9] truncate font-mono select-none">{maskEmail(l.email, isSuperAdmin)}</p>
+                                  <p className="text-[11px] text-[#8B92A9] truncate font-mono select-none">{maskEmail(l.email, isSuperAdmin)}</p>
                                   <Eye className="w-2.5 h-2.5 text-[#C4C9D9] group-hover/email:text-[#2563EB] transition shrink-0" />
                                 </button>
                               )}
@@ -2373,24 +2373,24 @@ const showToast = useCallback((message, type = "success") => {
                         {/* Employee */}
                         <td className="px-2.5 py-2.5">
                           <div className="flex items-center gap-1.5">
-                            <div className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-950/40 flex items-center justify-center text-[8px] font-black text-purple-600 dark:text-purple-400 shrink-0">
+                            <div className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-950/40 flex items-center justify-center text-[10px] font-black text-purple-600 dark:text-purple-400 shrink-0">
                               {(l.agent || "?").charAt(0).toUpperCase()}
                             </div>
-                            <span className="text-[#0F1117] dark:text-[#F0F2FA] truncate text-[11px]">{l.agent || "Unassigned"}</span>
+                            <span className="text-[#0F1117] dark:text-[#F0F2FA] truncate text-[13px]">{l.agent || "Unassigned"}</span>
                           </div>
                           {l.reassignCount > 0 && (
-                            <p className="text-[9px] text-purple-400 mt-0.5">{l.reassignCount}× reassigned</p>
+                            <p className="text-[11px] text-purple-400 mt-0.5">{l.reassignCount}× reassigned</p>
                           )}
                         </td>
 
                         {showSourceCol && (
                           <td className="px-2.5 py-2.5">
-                            <p className="text-[#0F1117] dark:text-[#F0F2FA] truncate text-[11px]">{l.source}</p>
+                            <p className="text-[#0F1117] dark:text-[#F0F2FA] truncate text-[13px]">{l.source}</p>
                             {l.campaign !== "—" && (
-                              <p className="text-[9px] text-[#8B92A9] truncate">{l.campaign}</p>
+                              <p className="text-[11px] text-[#8B92A9] truncate">{l.campaign}</p>
                             )}
                             {l.adSetName && (
-                              <p className="text-[9px] text-[#E1306C] truncate">📢 {l.adSetName}</p>
+                              <p className="text-[11px] text-[#E1306C] truncate">📢 {l.adSetName}</p>
                             )}
                           </td>
                         )}
@@ -2405,7 +2405,7 @@ const showToast = useCallback((message, type = "success") => {
                                 return (
                                   <span
                                     key={pi}
-                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold truncate"
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold truncate"
                                     style={{ background: pColor + "18", color: pColor }}
                                     title={pName}
                                   >
@@ -2415,16 +2415,16 @@ const showToast = useCallback((message, type = "success") => {
                                 );
                               })}
                               {l.projects.length > 2 && (
-                                <span className="text-[9px] font-semibold text-[#2563EB] dark:text-[#4F8EF7]">+{l.projects.length - 2} more</span>
+                                <span className="text-[11px] font-semibold text-[#2563EB] dark:text-[#4F8EF7]">+{l.projects.length - 2} more</span>
                               )}
                             </div>
                           ) : (
-                            <span className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257]">—</span>
+                            <span className="text-[13px] text-[#C4C9D9] dark:text-[#3E4257]">—</span>
                           )}
                         </td>
 
                         {showDateCol && (
-                          <td className="px-2.5 py-2.5 text-[11px] text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.date}</td>
+                          <td className="px-2.5 py-2.5 text-[13px] text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.date}</td>
                         )}
                         {showStatusCol && (
                           <td className="px-2.5 py-2.5"><StatusBadge lead={l} /></td>
@@ -2437,18 +2437,18 @@ const showToast = useCallback((message, type = "success") => {
                         <td className="px-2.5 py-2.5">
                           {l.lastOutcome ? (
                             <div>
-                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold whitespace-nowrap ${
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${
                                 l.lastOutcome === "Interested" || l.lastOutcome === "Converted"
                                   ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
                                   : l.lastOutcome === "Not Interested" || l.lastOutcome === "Not Reachable"
                                   ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
                                   : "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
                               }`}>{l.lastOutcome}</span>
-                              {l.lastCalledAt && <p className="text-[9px] text-[#8B92A9] mt-0.5">{daysSince(l.lastCalledAt)}</p>}
-                              {l.lastRemark && <p className="text-[9px] text-[#8B92A9] truncate italic mt-0.5">"{l.lastRemark}"</p>}
+                              {l.lastCalledAt && <p className="text-[11px] text-[#8B92A9] mt-0.5">{daysSince(l.lastCalledAt)}</p>}
+                              {l.lastRemark && <p className="text-[11px] text-[#8B92A9] truncate italic mt-0.5">"{l.lastRemark}"</p>}
                             </div>
                           ) : (
-                            <span className="text-[10px] text-[#8B92A9]">No calls</span>
+                            <span className="text-[12px] text-[#8B92A9]">No calls</span>
                           )}
                         </td>
 
@@ -2458,7 +2458,7 @@ const showToast = useCallback((message, type = "success") => {
                             <button
                               title="Recordings & AI"
                               onClick={e => { e.stopPropagation(); setRecordingsLead(l); }}
-                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 border border-violet-100 dark:border-violet-900/50 transition whitespace-nowrap"
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] font-semibold bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 border border-violet-100 dark:border-violet-900/50 transition whitespace-nowrap"
                             >
                               <Mic className="w-3 h-3" />
                               AI
@@ -2493,7 +2493,7 @@ const showToast = useCallback((message, type = "success") => {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="px-5 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between bg-[#F8F9FC] dark:bg-[#13161E]">
-                <span className="text-[11px] text-[#8B92A9]">
+                <span className="text-[13px] text-[#8B92A9]">
                   Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, displayed.length)} of {displayed.length}
                 </span>
                 <div className="flex items-center gap-1">
@@ -2505,7 +2505,7 @@ const showToast = useCallback((message, type = "success") => {
                     const n = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
                     return (
                       <button key={n} onClick={() => setPage(n)}
-                        className={`w-7 h-7 rounded-lg text-[11px] font-semibold transition ${page === n ? "bg-[#2563EB] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27]"}`}>
+                        className={`w-7 h-7 rounded-lg text-[13px] font-semibold transition ${page === n ? "bg-[#2563EB] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27]"}`}>
                         {n}
                       </button>
                     );
