@@ -48,15 +48,6 @@ const FEATURE_GROUPS = [
     { key: "callRecording",     label: "Call Recording" },
     { key: "callTranscription", label: "Call Transcription" },
     { key: "aiSummary",         label: "AI Summary" },
-    { key: "voiceBot",          label: "Voice Bot" },
-  ]},
-  { group: "Platform & Branding", items: [
-    { key: "apiAccess",      label: "API Access" },
-    { key: "webhookAccess",  label: "Webhook Access" },
-    { key: "customReports",  label: "Custom Reports" },
-    { key: "whiteLabel",     label: "White Label" },
-    { key: "customDomain",   label: "Custom Domain" },
-    { key: "customBranding", label: "Custom Branding" },
   ]},
   { group: "Operations", items: [
     { key: "projects",        label: "Projects" },
@@ -78,7 +69,6 @@ const LIMIT_FIELDS = [
   { key: "storageMB",           label: "Storage (MB)" },
   { key: "transcriptionsLimit", label: "Transcriptions / month" },
   { key: "summariesLimit",      label: "AI Summaries / month" },
-  { key: "voiceBotLimit",       label: "Voice Bot / month" },
 ];
 
 // Benefit / addon enum → friendly label (same enum on both endpoints)
@@ -458,7 +448,6 @@ export default function CompanyDetails() {
             {[
               { k: "transcriptions", label: "Transcriptions" },
               { k: "summaries",      label: "AI Summaries" },
-              { k: "voiceBot",       label: "Voice Bot" },
               { k: "recordings",     label: "Recordings" },
             ].map(m => (
               <div key={m.k} className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl px-4 py-3">
@@ -810,7 +799,6 @@ function AiCreditsPanel({ companyId, usage, remaining, onRefresh, showToast }) {
         {[
           { k: "transcriptions", label: "Transcriptions" },
           { k: "summaries",      label: "AI Summaries" },
-          { k: "voiceBot",       label: "Voice Bot" },
         ].map(m => (
           <div key={m.k} className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl px-4 py-3">
             <p className="text-[11px] text-[#8B92A9]">{m.label}</p>
