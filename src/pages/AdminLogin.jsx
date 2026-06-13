@@ -82,11 +82,11 @@ export default function AdminLogin() {
           }
         } catch {
           // If privacy check fails, proceed to dashboard anyway
-          toast.success("🔐 Admin login successful! Welcome back.");
+          toast.success("Admin login successful! Welcome back.");
           navigate("/dashboard");
         }
       } else {
-        toast.success("🔐 Admin login successful! Welcome back.");
+        toast.success("Admin login successful! Welcome back.");
         navigate("/dashboard");
       }
     } catch (err) {
@@ -100,7 +100,7 @@ export default function AdminLogin() {
   const handleMnemonicConfirmed = () => {
     setShowMnemonicModal(false);
     setGeneratedMnemonic("");
-    toast.success("🔐 Admin login successful! Welcome back.");
+    toast.success("Admin login successful! Welcome back.");
     navigate("/dashboard");
   };
 
@@ -116,7 +116,7 @@ export default function AdminLogin() {
         pendingToken
       );
       setShowRestoreModal(false);
-      toast.success("🔐 Admin login successful! Welcome back.");
+      toast.success("Admin login successful! Welcome back.");
       navigate("/dashboard");
     } catch (err) {
       setRestoreError(err.message || "Could not restore key. Check your phrase.");

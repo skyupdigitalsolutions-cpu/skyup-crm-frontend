@@ -58,14 +58,14 @@ export default function UserLogin() {
 
       // ── Developer → straight to developer dashboard, no encryption needed ──
       if (role === "developer") {
-        toast.success("🛠️ Developer login successful! Welcome back.");
+        toast.success("Developer login successful! Welcome back.");
         navigate("/developer/dashboard");
         return;
       }
 
       // ── Employee → straight to user dashboard ─────────────────────────────
       if (role === "employee" || role === "user") {
-        toast.success("🎉 Employee login successful! Welcome back.");
+        toast.success("Employee login successful! Welcome back.");
         navigate("/user/dashboard");
         return;
       }
@@ -94,11 +94,11 @@ export default function UserLogin() {
               return;
             }
           } catch {
-            toast.success("🔐 Admin login successful! Welcome back.");
+            toast.success("Admin login successful! Welcome back.");
             navigate("/dashboard");
           }
         } else {
-          toast.success("🔐 Admin login successful! Welcome back.");
+          toast.success("Admin login successful! Welcome back.");
           navigate("/dashboard");
         }
         return;
@@ -123,7 +123,7 @@ export default function UserLogin() {
   const handleMnemonicConfirmed = () => {
     setShowMnemonicModal(false);
     setGeneratedMnemonic("");
-    toast.success("🔐 Admin login successful! Welcome back.");
+    toast.success("Admin login successful! Welcome back.");
     navigate("/dashboard");
   };
 
@@ -138,7 +138,7 @@ export default function UserLogin() {
         pendingToken
       );
       setShowRestoreModal(false);
-      toast.success("🔐 Admin login successful! Welcome back.");
+      toast.success("Admin login successful! Welcome back.");
       navigate("/dashboard");
     } catch (err) {
       setRestoreError(err.message || "Could not restore key. Check your phrase.");

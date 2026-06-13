@@ -125,7 +125,7 @@ export default function SuperAdminLogin() {
       }));
       // Notify same-tab listeners (window 'storage' event doesn't fire in the same tab)
       window.dispatchEvent(new Event("user_changed"));
-      toast.success("👑 Super Admin login successful! Welcome back.");
+      toast.success("Super Admin login successful! Welcome back.");
       navigate("/superadmin/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "OTP verification failed.");
