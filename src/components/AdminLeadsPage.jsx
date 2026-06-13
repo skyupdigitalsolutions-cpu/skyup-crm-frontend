@@ -27,6 +27,7 @@ import {
   Clock,
   RotateCcw,
   Filter,
+  Megaphone,
 } from "lucide-react";
 
 const crm = new CRMEncryption();
@@ -2413,7 +2414,7 @@ export default function AdminLeadsPage() {
                               <p className="text-[11px] text-[#8B92A9] truncate">{l.campaign}</p>
                             )}
                             {l.adSetName && (
-                              <p className="text-[11px] text-[#E1306C] truncate">📢 {l.adSetName}</p>
+                              <p className="text-[11px] text-[#E1306C] truncate flex items-center gap-1"><Megaphone className="w-3 h-3 shrink-0" /> {l.adSetName}</p>
                             )}
                           </td>
                         )}
