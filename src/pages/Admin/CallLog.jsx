@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../data/axiosConfig';
+import { Phone, PhoneOutgoing, PhoneIncoming, PhoneMissed, Mic } from 'lucide-react';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtDuration(secs) {
@@ -34,18 +35,19 @@ function maskPhone(phone) {
 
 // ── Type config ───────────────────────────────────────────────────────────────
 const TYPE_STYLE = {
-  outgoing: { bg: 'bg-[#ECFDF5] dark:bg-[#052E1C]', text: 'text-[#059669] dark:text-[#34D399]', icon: '↗', label: 'Outgoing' },
-  incoming: { bg: 'bg-[#EEF3FF] dark:bg-[#1A2540]', text: 'text-[#2563EB] dark:text-[#4F8EF7]', icon: '↙', label: 'Incoming' },
-  missed:   { bg: 'bg-[#FEF2F2] dark:bg-[#2D0A0A]', text: 'text-[#DC2626] dark:text-[#F87171]', icon: '✕', label: 'Missed'   },
-  rejected: { bg: 'bg-[#FFF0F3] dark:bg-[#2D0A14]', text: 'text-[#E1306C] dark:text-[#F77FAD]', icon: '⊘', label: 'Rejected' },
-  unknown:  { bg: 'bg-[#F1F5F9] dark:bg-[#1A1D27]', text: 'text-[#8B92A9] dark:text-[#565C75]', icon: '?', label: 'Unknown'  },
+  outgoing: { bg: 'bg-[#ECFDF5] dark:bg-[#052E1C]', text: 'text-[#059669] dark:text-[#34D399]', Icon: PhoneOutgoing, label: 'Outgoing' },
+  incoming: { bg: 'bg-[#EEF3FF] dark:bg-[#1A2540]', text: 'text-[#2563EB] dark:text-[#4F8EF7]', Icon: PhoneIncoming, label: 'Incoming' },
+  missed:   { bg: 'bg-[#FEF2F2] dark:bg-[#2D0A0A]', text: 'text-[#DC2626] dark:text-[#F87171]', Icon: PhoneMissed, label: 'Missed'   },
+  rejected: { bg: 'bg-[#FFF0F3] dark:bg-[#2D0A14]', text: 'text-[#E1306C] dark:text-[#F77FAD]', Icon: PhoneMissed, label: 'Rejected' },
+  unknown:  { bg: 'bg-[#F1F5F9] dark:bg-[#1A1D27]', text: 'text-[#8B92A9] dark:text-[#565C75]', Icon: Phone, label: 'Unknown'  },
 };
 
 function CallTypeBadge({ type }) {
   const s = TYPE_STYLE[type] || TYPE_STYLE.unknown;
+  const Icon = s.Icon;
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${s.bg} ${s.text}`}>
-      <span>{s.icon}</span>{s.label}
+      <Icon className="w-3 h-3" />{s.label}
     </span>
   );
 }
@@ -154,15 +156,15 @@ export default function CallLogs() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Total Calls',  value: total,         icon: '📞', color: '#2563EB' },
-          { label: 'Outgoing',     value: outgoing,      icon: '↗',  color: '#059669' },
-          { label: 'Missed',       value: missed,        icon: '✕',  color: '#DC2626' },
-          { label: 'Recordings',   value: withRecording, icon: '🎙', color: '#7C3AED' },
+          { label: 'Total Calls',  value: total,         Icon: Phone,         color: '#2563EB' },
+          { label: 'Outgoing',     value: outgoing,      Icon: PhoneOutgoing, color: '#059669' },
+          { label: 'Missed',       value: missed,        Icon: PhoneMissed,   color: '#DC2626' },
+          { label: 'Recordings',   value: withRecording, Icon: Mic,           color: '#7C3AED' },
         ].map(s => (
           <div key={s.label} className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
             <div className="flex items-start justify-between mb-3">
               <span className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">{s.label}</span>
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[15px]" style={{ background: s.color + '20' }}>{s.icon}</div>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: s.color + '20', color: s.color }}><s.Icon className="w-4 h-4" /></div>
             </div>
             <div className="text-[28px] font-bold text-[#0F1117] dark:text-white leading-none">{s.value}</div>
           </div>
