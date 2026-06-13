@@ -19,6 +19,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Settings, AlertTriangle, Lightbulb } from 'lucide-react';
 
 // ── localStorage keys ─────────────────────────────────────────────────────────
 const LS_API_KEY    = 'vf_api_key';
@@ -255,7 +256,7 @@ export default function VoiceflowChat() {
               <div>
                 <p className="text-[13px] font-bold leading-tight">SkyUp Assistant</p>
                 <p className="text-[10px] text-blue-200 leading-tight">
-                  {connected ? '● Online' : isConfigured ? 'Connecting…' : '⚙ Setup required'}
+                  {connected ? '● Online' : isConfigured ? 'Connecting…' : <span className="inline-flex items-center gap-1"><Settings className="w-3 h-3" /> Setup required</span>}
                 </p>
               </div>
             </div>
@@ -375,7 +376,7 @@ export default function VoiceflowChat() {
               {error && (
                 <div className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800
                                 text-[11px] text-red-600 dark:text-red-400">
-                  ⚠️ {error}
+                  <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {error}</span>
                 </div>
               )}
 
@@ -402,7 +403,7 @@ export default function VoiceflowChat() {
               {/* Help callout */}
               <div className="px-3 py-3 rounded-xl bg-blue-50 dark:bg-[#1A2540] border border-blue-100 dark:border-[#1E3A6E]">
                 <p className="text-[10px] text-[#2563EB] dark:text-[#4F8EF7] leading-relaxed font-medium">
-                  💡 How to get your keys
+                  <span className="inline-flex items-center gap-1"><Lightbulb className="w-3.5 h-3.5" /> How to get your keys</span>
                 </p>
                 <ol className="text-[10px] text-[#565C75] dark:text-[#8B92A9] leading-relaxed mt-1 space-y-0.5 list-decimal list-inside">
                   <li>Go to <span className="font-mono">creator.voiceflow.com</span></li>
@@ -427,7 +428,7 @@ export default function VoiceflowChat() {
                     </div>
                     <div>
                       <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Setup Required</p>
-                      <p className="text-[11px] text-[#8B92A9] mt-1">Click the ⚙ icon above to add your Voiceflow API Key.</p>
+                      <p className="text-[11px] text-[#8B92A9] mt-1">Click the gear icon above to add your Voiceflow API Key.</p>
                     </div>
                     <button
                       onClick={() => { setFormKey(''); setFormProject(''); setFormVersion('production'); setSettingsOpen(true); }}
@@ -489,7 +490,7 @@ export default function VoiceflowChat() {
                 {error && !settingsOpen && (
                   <div className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800
                                   text-[11px] text-red-600 dark:text-red-400">
-                    ⚠️ {error}
+                    <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {error}</span>
                   </div>
                 )}
 
