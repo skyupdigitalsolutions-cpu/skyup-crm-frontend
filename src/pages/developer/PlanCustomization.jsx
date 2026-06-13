@@ -41,21 +41,12 @@ const FEATURE_GROUPS = [
     { key: "call-recording",     label: "Call Recording",     desc: "Store call recordings" },
     { key: "call-transcription", label: "Call Transcription", desc: "Speech-to-text on calls" },
     { key: "ai-summary",         label: "AI Summary",         desc: "AI call summaries" },
-    { key: "voice-bot",          label: "Voice Bot",          desc: "Automated voice agent" },
   ]},
   { group: "Operations", items: [
     { key: "projects",         label: "Projects",         desc: "Project management board" },
     { key: "tasks",            label: "Tasks",            desc: "Task assignment & tracking" },
     { key: "payroll",          label: "Payroll",          desc: "Payroll calculation & history" },
     { key: "website-tracking", label: "Website Tracking", desc: "Pixel / website lead capture" },
-  ]},
-  { group: "Platform & Branding", items: [
-    { key: "api-access",      label: "API Access",     desc: "REST API keys" },
-    { key: "webhook-access",  label: "Webhook Access", desc: "Per-tenant webhooks" },
-    { key: "custom-reports",  label: "Custom Reports", desc: "Build your own reports" },
-    { key: "white-label",     label: "White Label",    desc: "Remove platform branding" },
-    { key: "custom-domain",   label: "Custom Domain",  desc: "Use your own domain" },
-    { key: "custom-branding", label: "Custom Branding",desc: "Logo & theme control" },
   ]},
 ];
 const ALL_FEATURE_KEYS = FEATURE_GROUPS.flatMap(g => g.items.map(i => i.key));
@@ -245,7 +236,6 @@ function PlanCard({ planId, plan, onChange }) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <NumberField label="Transcriptions / mo" value={plan.transcriptionsPerMonth} onChange={v => onChange(planId, "transcriptionsPerMonth", v)} />
               <NumberField label="Summaries / mo"      value={plan.summariesPerMonth}      onChange={v => onChange(planId, "summariesPerMonth", v)} />
-              <NumberField label="Voice Bot / mo"      value={plan.voiceBotPerMonth}       onChange={v => onChange(planId, "voiceBotPerMonth", v)} />
               <BoolToggle  label="Recording Enabled"   value={!!plan.recordingEnabled}     onChange={v => onChange(planId, "recordingEnabled", v)} />
             </div>
           </div>
