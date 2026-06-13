@@ -187,6 +187,93 @@ const HIDDEN_FEATURE_KEYS = new Set([
   "custom-branding", "customBranding",
 ]);
 
+// ── Feature label catalogue ───────────────────────────────────────────────────
+// Maps a feature key → human label so features enabled in the developer
+// Plan Customization page render with a proper name on the upgrade cards.
+// Keys/labels mirror FEATURE_GROUPS in PlanCustomization.jsx.
+const FEATURE_LABELS = {
+  "leads":               "Lead Management",
+  "contacts":            "Contacts",
+  "basic-reports":       "Basic Reports",
+  "attendance":          "Attendance",
+  "daily-report":        "Daily Report",
+  "sms-blast":           "SMS Blast",
+  "whatsapp-blast":      "WhatsApp Blast",
+  "email-blast":         "Email Blast",
+  "campaigns":           "Campaigns",
+  "whatsapp-automation": "WhatsApp Automation",
+  "google-ads":          "Google Ads",
+  "meta-ads":            "Meta Ads",
+  "call-recording":      "Call Recordings",
+  "call-transcription":  "Call Transcription",
+  "ai-summary":          "AI Summary",
+  "projects":            "Projects",
+  "tasks":               "Tasks",
+  "payroll":             "Payroll",
+  "website-tracking":    "Website Tracking",
+};
+
+function prettyFeatureLabel(key) {
+  return (
+    FEATURE_LABELS[key] ||
+    String(key)
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
+
+// Merge the developer-configured plan config (from /developer/plans/config)
+// into the UI plan shape. The config keys plans by id and stores `features`
+// as a string[] of ENABLED keys; the UI needs a `[{key,label,enabled}]` list.
+//   • Price/name/maxUsers are taken from the config when present.
+//   • The feature list = union of the plan's existing UI features and any new
+//     keys the developer enabled, each marked enabled/disabled from the config.
+function mergeConfigIntoDefaults(defaults, config) {
+  if (!config || typeof config !== "object") return defaults;
+  const merged = {};
+
+  for (const id of PLAN_ORDER) {
+    const base = defaults[id] || { id, name: id, features: [] };
+    const cfg = config[id];
+
+    if (!cfg || typeof cfg !== "object") {
+      merged[id] = base;
+      continue;
+    }
+
+    const enabledKeys = Array.isArray(cfg.features) ? cfg.features : null;
+
+    let features = base.features;
+    if (enabledKeys) {
+      const enabledSet = new Set(enabledKeys);
+      // Start from the base UI features (preserves order/labels)...
+      const seen = new Set();
+      features = base.features.map((f) => {
+        seen.add(f.key);
+        return { ...f, enabled: enabledSet.has(f.key) };
+      });
+      // ...then append any enabled keys the base list didn't already include.
+      for (const key of enabledKeys) {
+        if (!seen.has(key)) {
+          features.push({ key, label: prettyFeatureLabel(key), enabled: true });
+          seen.add(key);
+        }
+      }
+    }
+
+    merged[id] = {
+      ...base,
+      name:         cfg.name != null ? cfg.name : base.name,
+      monthlyPrice: cfg.monthlyPrice != null ? Number(cfg.monthlyPrice) : base.monthlyPrice,
+      yearlyPrice:  cfg.yearlyPrice  != null ? Number(cfg.yearlyPrice)  : base.yearlyPrice,
+      maxUsers:     cfg.maxUsers     != null ? Number(cfg.maxUsers)     : base.maxUsers,
+      features,
+    };
+  }
+
+  return merged;
+}
+
 // ── Default plan shapes (shown while API loads) ───────────────────────────────
 const PLAN_DEFAULTS = {
   basic: {
@@ -258,11 +345,30 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
   const [showDowngrade, setShowDowngrade] = useState(false);
   const { openCheckout } = useRazorpay();
 
-  // ── Plan definitions are hardcoded in PLAN_DEFAULTS — no backend fetch ──
-  useEffect(() => {
-    // Plans are always driven by PLAN_DEFAULTS (hardcoded).
-    // The developer /plans page has been removed; no API fetch needed here.
+  // ── Load developer-configured plan definitions ───────────────────────────
+  // Prices, names, user limits and feature flags are set in the developer
+  // Plan Customization page (POST /developer/plans/config). Fetch them so the
+  // upgrade cards reflect those edits; fall back to PLAN_DEFAULTS if missing.
+  const loadPlanConfig = useCallback(async () => {
+    try {
+      const { data } = await api.get("/developer/plans/config");
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        setPlanDefs(mergeConfigIntoDefaults(PLAN_DEFAULTS, data));
+      }
+    } catch {
+      // Endpoint unavailable (e.g. plain user, or API down) — keep defaults.
+    }
+  }, []);
 
+  useEffect(() => {
+    loadPlanConfig();
+    // Refresh when the developer saves changes in the same session.
+    const onPlanUpdated = () => loadPlanConfig();
+    window.addEventListener("plan_updated", onPlanUpdated);
+    return () => window.removeEventListener("plan_updated", onPlanUpdated);
+  }, [loadPlanConfig]);
+
+  useEffect(() => {
     // Fetch my company's resolved features (plan is set by fetchSubscription)
     const role = localStorage.getItem("role");
     if (role === "user") return; // users don't have subscription access
