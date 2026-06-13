@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
 import { maskPhone } from "../utils/maskPhone";
 import { io } from "socket.io-client";
-import { FlameIcon, UsersIcon, LoaderIcon, CheckIcon, AlertTriangle } from "lucide-react";
+import { FlameIcon, UsersIcon, LoaderIcon, CheckIcon, AlertTriangle, CloudSun, Snowflake, MessageCircle, Flame, Sun, Check } from "lucide-react";
 import NotInterestedModal from "../components/Notinterestedmodal";
 import { normalizePhone } from "../utils/normalizePhone";
 import { getRole } from "../data/dataService";
@@ -332,7 +332,7 @@ function AttendanceMiniWidget() {
           {idleWarning && (
             <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 flex items-center justify-between gap-2">
               <div>
-                <p className="text-[11px] font-bold text-red-600 dark:text-red-400">⚠ Idle for 5 mins</p>
+                <p className="text-[11px] font-bold text-red-600 dark:text-red-400 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Idle for 5 mins</p>
                 <p className="text-[10px] text-red-400">Break started automatically.</p>
               </div>
               <button onClick={endBreak} className="shrink-0 px-2.5 py-1 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold transition">Resume</button>
@@ -696,14 +696,14 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects =
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Lead Quality</label>
             <div className="grid grid-cols-4 gap-2">
               {[
-                {val:"",    label:"None",    color:"#8B92A9", bg:"bg-gray-50 dark:bg-gray-900/30"},
-                {val:"Hot", label:" Hot",   color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30"},
-                {val:"Warm",label:"🌤 Warm", color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30"},
-                {val:"Cold",label:"❄️ Cold", color:"#2563EB", bg:"bg-blue-50 dark:bg-blue-950/30"},
+                {val:"",    label:"None",  Icon:null,      color:"#8B92A9", bg:"bg-gray-50 dark:bg-gray-900/30"},
+                {val:"Hot", label:"Hot",   Icon:Flame,     color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30"},
+                {val:"Warm",label:"Warm",  Icon:CloudSun,  color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30"},
+                {val:"Cold",label:"Cold",  Icon:Snowflake, color:"#2563EB", bg:"bg-blue-50 dark:bg-blue-950/30"},
               ].map(q => (
                 <button key={q.val} type="button" onClick={() => setTemp(q.val)}
                   className={`py-2 px-1 rounded-xl border-2 text-[11px] font-semibold transition ${q.bg} ${temp === q.val ? "border-current scale-[1.03]" : "border-transparent opacity-60 hover:opacity-100"}`}
-                  style={{ color: q.color, borderColor: temp === q.val ? q.color : undefined }}>{q.label}
+                  style={{ color: q.color, borderColor: temp === q.val ? q.color : undefined }}><span className="inline-flex items-center justify-center gap-1">{q.Icon && <q.Icon className="w-3 h-3" />}{q.label}</span>
                 </button>
               ))}
             </div>
@@ -1629,7 +1629,7 @@ function UserChatWidget() {
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-[#F8F9FC] dark:bg-[#13161E]">
             {messages.length === 0 && (
               <div className="text-center py-8">
-                <p className="text-[28px] mb-2">💬</p>
+                <p className="mb-2 flex justify-center text-[#8B92A9]"><MessageCircle className="w-7 h-7" strokeWidth={1.5} /></p>
                 <p className="text-[12px] text-[#8B92A9]">Hi {user?.name?.split(" ")[0] || "there"}! How can we help?</p>
               </div>
             )}
@@ -1816,9 +1816,9 @@ function ProjectsCard({ projects, leads, projectFilter, setProjectFilter, setAct
             {/* Quality pills */}
             {(hot > 0 || warm > 0 || cold > 0) && (
               <div className="flex items-center gap-1.5 flex-wrap">
-                {hot  > 0 && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-500">🔥 {hot} Hot</span>}
-                {warm > 0 && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-600">☀ {warm} Warm</span>}
-                {cold > 0 && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-500">❄ {cold} Cold</span>}
+                {hot  > 0 && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-500 inline-flex items-center gap-0.5"><Flame className="w-2.5 h-2.5" /> {hot} Hot</span>}
+                {warm > 0 && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-600 inline-flex items-center gap-0.5"><Sun className="w-2.5 h-2.5" /> {warm} Warm</span>}
+                {cold > 0 && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-500 inline-flex items-center gap-0.5"><Snowflake className="w-2.5 h-2.5" /> {cold} Cold</span>}
               </div>
             )}
 
@@ -1985,7 +1985,7 @@ function TelegramSetupWidget({ user }) {
                 ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
                 : "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
             }`}>
-              <span>{isConfigured ? "✓ Active" : "⚠ Not configured"}</span>
+              <span className="inline-flex items-center gap-1">{isConfigured ? <><Check className="w-3 h-3" /> Active</> : <><AlertTriangle className="w-3 h-3" /> Not configured</>}</span>
               <span className="font-normal opacity-75">
                 {isConfigured ? "You'll receive lead notifications on Telegram" : "Add your chat ID to get notified when leads are assigned"}
               </span>
