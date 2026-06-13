@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from 'react';
+import { Phone, AlertTriangle, CalendarDays } from 'lucide-react';
 import { getRole } from '../data/dataService';
 import { useDailyReport } from '../hooks/useDailyReport';
 import { addDays, formatLong, formatMedium, isToday } from '../utils/dateUtils';
@@ -227,7 +228,7 @@ export default function DailyReport() {
         <div className="space-y-5">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <StatCard label="New Leads"   value={summary.total}      sub="Received today"                       color="#2563EB" icon="↑" trend={summary.trendTotal} />
-            <StatCard label="Contacted"   value={summary.contacted}  sub={`${summary.newLeads || 0} not reached`} color="#0891B2" icon="☎" />
+            <StatCard label="Contacted"   value={summary.contacted}  sub={`${summary.newLeads || 0} not reached`} color="#0891B2" icon={<Phone className="w-3.5 h-3.5" />} />
             <StatCard label="Converted"   value={summary.converted}  sub={`${summary.convRate || 0}% rate`}     color="#059669" icon="✓" trend={summary.trendConverted} />
             <StatCard label="In Progress" value={summary.inProgress} sub="Active follow-ups"                    color="#D97706" icon="⟳" />
             <StatCard label="Unassigned"  value={summary.unassigned} sub="Needs assignment"                     color="#DC2626" icon="!" />
@@ -404,7 +405,7 @@ export default function DailyReport() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <StatCard label="Total"    value={followUps.length}                                      sub="Pending follow-ups"  color="#D97706" icon="⟳" />
             <StatCard label="Overdue"  value={followUps.filter(f => f.urgency === 'overdue').length}  sub="Past due date"       color="#DC2626" icon="!" />
-            <StatCard label="Due Today" value={followUps.filter(f => f.urgency === 'today').length}   sub="Need call today"     color="#D97706" icon="☎" />
+            <StatCard label="Due Today" value={followUps.filter(f => f.urgency === 'today').length}   sub="Need call today"     color="#D97706" icon={<Phone className="w-3.5 h-3.5" />} />
             <StatCard label="Upcoming" value={followUps.filter(f => f.urgency === 'upcoming').length} sub="Scheduled ahead"     color="#2563EB" icon="↑" />
           </div>
           <Card title="Pending follow-ups" badge={followUps.length} bc="#D97706">
@@ -435,7 +436,7 @@ export default function DailyReport() {
                             <span className="text-[11px] text-[#8B92A9] ml-2 font-mono">{maskPhone(f.mobile, isSuperAdmin)}</span>
                           </div>
                           <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 ${badgeCls}`}>
-                            {isOverdue && '⚠'}{isToday_ && '☎'}{!isOverdue && !isToday_ && '📅'} {f.daysLabel}
+                            {isOverdue && <AlertTriangle className="w-3 h-3" />}{isToday_ && <Phone className="w-3 h-3" />}{!isOverdue && !isToday_ && <CalendarDays className="w-3 h-3" />} {f.daysLabel}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2">
@@ -458,7 +459,7 @@ export default function DailyReport() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <StatCard label="Deals Closed"  value={conversions.length}       sub={formatMedium(viewDate)} color="#059669" icon="✓" />
             <StatCard label="Conv. Rate"    value={`${summary.convRate || 0}%`} sub="For this day"          color="#7C3AED" icon="~" />
-            <StatCard label="Calls Today"   value={summary.callsMadeToday || 0} sub="Total calls made"     color="#2563EB" icon="☎" />
+            <StatCard label="Calls Today"   value={summary.callsMadeToday || 0} sub="Total calls made"     color="#2563EB" icon={<Phone className="w-3.5 h-3.5" />} />
             <StatCard label="Total Leads"   value={summary.total || 0}        sub="For this date"          color="#D97706" icon="Σ" />
           </div>
 
