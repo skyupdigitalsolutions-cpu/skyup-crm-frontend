@@ -96,7 +96,7 @@ function StatusBadge({ lead, status }) {
     label  = status || "New";
   }
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${config.bg} ${config.text}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[13px] font-semibold ${config.bg} ${config.text}`}>
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: config.dot }} />
       {label}
     </span>
@@ -107,7 +107,7 @@ function TempBadge({ temp }) {
   const s = TEMP_CONFIG[temp];
   if (!s) return null;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[14px] font-semibold ${s.bg} ${s.text}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[16px] font-semibold ${s.bg} ${s.text}`}>
       {s.icon} {temp}
     </span>
   );
@@ -162,7 +162,7 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
     return (
       <div className="mt-2">
         <button onClick={handleTranscribe}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-[#DBEAFE] transition">
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-[#DBEAFE] transition">
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
           </svg>
@@ -179,7 +179,7 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
         </svg>
-        <span className="text-[14px] text-[#2563EB] font-medium">Transcribing with Whisper AI…</span>
+        <span className="text-[16px] text-[#2563EB] font-medium">Transcribing with Whisper AI…</span>
       </div>
     );
   }
@@ -191,9 +191,9 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
           <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
-          <span className="text-[14px] text-red-500">{error || "Transcription failed."}</span>
+          <span className="text-[16px] text-red-500">{error || "Transcription failed."}</span>
         </div>
-        <button onClick={handleTranscribe} className="text-[14px] text-[#2563EB] underline pl-1">Retry</button>
+        <button onClick={handleTranscribe} className="text-[16px] text-[#2563EB] underline pl-1">Retry</button>
       </div>
     );
   }
@@ -212,12 +212,12 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
           <svg className="w-3.5 h-3.5 text-[#2563EB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
           </svg>
-          <span className="text-[14px] font-bold text-[#2563EB]">AI Summary</span>
+          <span className="text-[16px] font-bold text-[#2563EB]">AI Summary</span>
           {sent && (
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
+            <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
           )}
           {temp && tempStyle && (
-            <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${tempStyle.bg} ${tempStyle.text}`}>
+            <span className={`flex items-center gap-1 text-[12px] font-semibold px-2 py-0.5 rounded-full ${tempStyle.bg} ${tempStyle.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${tempStyle.dot}`}/>
               {temp}
             </span>
@@ -232,16 +232,16 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
         <div className="px-3 py-3 space-y-3 bg-white dark:bg-[#13161E]">
           {summary?.summary && (
             <div>
-              <p className="text-[14px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Summary</p>
-              <p className="text-[14px] text-[#4B5168] dark:text-white leading-relaxed">{summary.summary}</p>
+              <p className="text-[16px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Summary</p>
+              <p className="text-[16px] text-[#4B5168] dark:text-white leading-relaxed">{summary.summary}</p>
             </div>
           )}
           {Array.isArray(summary?.keyPoints) && summary.keyPoints.length > 0 && (
             <div>
-              <p className="text-[14px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Key Points</p>
+              <p className="text-[16px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Key Points</p>
               <ul className="space-y-1">
                 {summary.keyPoints.map((pt, i) => (
-                  <li key={i} className="flex items-start gap-1.5 text-[12px] text-[#4B5168] dark:text-white">
+                  <li key={i} className="flex items-start gap-1.5 text-[14px] text-[#4B5168] dark:text-white">
                     <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#2563EB] shrink-0"/>
                     {pt}
                   </li>
@@ -255,21 +255,21 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
               <div>
-                <p className="text-[14px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Next Action</p>
-                <p className="text-[14px] text-emerald-700 dark:text-emerald-300">{summary.nextAction}</p>
+                <p className="text-[16px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Next Action</p>
+                <p className="text-[16px] text-emerald-700 dark:text-emerald-300">{summary.nextAction}</p>
               </div>
             </div>
           )}
           {transcript && (
             <details className="group">
-              <summary className="cursor-pointer text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest select-none list-none flex items-center gap-1">
+              <summary className="cursor-pointer text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest select-none list-none flex items-center gap-1">
                 <svg className="w-3 h-3 group-open:rotate-90 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
                 </svg>
                 Full Transcript
               </summary>
               <div className="mt-2 max-h-40 overflow-y-auto">
-                <p className="text-[14px] text-[#64748B] dark:text-[#94A3B8] leading-relaxed whitespace-pre-wrap font-mono bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-lg px-3 py-2">
+                <p className="text-[16px] text-[#64748B] dark:text-[#94A3B8] leading-relaxed whitespace-pre-wrap font-mono bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-lg px-3 py-2">
                   {transcript}
                 </p>
               </div>
@@ -323,15 +323,15 @@ function LeadCombinedSummaryPanel({ leadId }) {
           <svg className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
           </svg>
-          <span className="text-[12px] font-bold text-violet-700 dark:text-violet-300">Lead AI Summary</span>
-          <span className="text-[10px] text-violet-500 dark:text-violet-400">
+          <span className="text-[14px] font-bold text-violet-700 dark:text-violet-300">Lead AI Summary</span>
+          <span className="text-[12px] text-violet-500 dark:text-violet-400">
             {data ? `${data.summarizedCalls} call${data.summarizedCalls !== 1 ? "s" : ""} combined` : "All transcribed calls combined"}
           </span>
           {sent && (
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
+            <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full ${sentStyle.bg} ${sentStyle.text}`}>{sent}</span>
           )}
           {temp && tempStyle && (
-            <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${tempStyle.bg} ${tempStyle.text}`}>
+            <span className={`flex items-center gap-1 text-[12px] font-semibold px-2 py-0.5 rounded-full ${tempStyle.bg} ${tempStyle.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${tempStyle.dot}`} />
               {temp}
             </span>
@@ -363,7 +363,7 @@ function LeadCombinedSummaryPanel({ leadId }) {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
               </svg>
-              <span className="text-[12px] text-violet-500 font-medium">Generating combined summary…</span>
+              <span className="text-[14px] text-violet-500 font-medium">Generating combined summary…</span>
             </div>
           )}
           {error && !loading && (
@@ -372,9 +372,9 @@ function LeadCombinedSummaryPanel({ leadId }) {
                 <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
-                <span className="text-[12px] text-red-500">{error}</span>
+                <span className="text-[14px] text-red-500">{error}</span>
               </div>
-              <button onClick={fetchSummary} className="text-[12px] text-violet-600 underline pl-1">Retry</button>
+              <button onClick={fetchSummary} className="text-[14px] text-violet-600 underline pl-1">Retry</button>
             </div>
           )}
           {data && !cs && !loading && !error && (
@@ -383,8 +383,8 @@ function LeadCombinedSummaryPanel({ leadId }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
               </svg>
               <div>
-                <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{data.message}</p>
-                <p className="text-[10px] text-[#8B92A9] mt-1">
+                <p className="text-[14px] text-[#4B5168] dark:text-[#9DA3BB]">{data.message}</p>
+                <p className="text-[12px] text-[#8B92A9] mt-1">
                   {data.totalCalls} call{data.totalCalls !== 1 ? "s" : ""} logged · 0 transcribed
                 </p>
               </div>
@@ -393,17 +393,17 @@ function LeadCombinedSummaryPanel({ leadId }) {
           {cs && !loading && !error && (
             <>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-[#F1F4FF] dark:bg-[#1E2130] text-[#4B5168] dark:text-[#9DA3BB]">
+                <span className="text-[12px] font-semibold px-2.5 py-1 rounded-lg bg-[#F1F4FF] dark:bg-[#1E2130] text-[#4B5168] dark:text-[#9DA3BB]">
                   {data.totalCalls} total call{data.totalCalls !== 1 ? "s" : ""}
                 </span>
-                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400">
+                <span className="text-[12px] font-semibold px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400">
                   {data.summarizedCalls} transcribed &amp; summarised
                 </span>
               </div>
               {cs.overallSummary && (
                 <div>
-                  <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Overall Summary</p>
-                  <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{cs.overallSummary}</p>
+                  <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Overall Summary</p>
+                  <p className="text-[15px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{cs.overallSummary}</p>
                 </div>
               )}
               {cs.relationshipStatus && (
@@ -412,17 +412,17 @@ function LeadCombinedSummaryPanel({ leadId }) {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                   </svg>
                   <div>
-                    <p className="text-[10px] font-bold text-[#2563EB] dark:text-[#4F8EF7] uppercase tracking-wide mb-0.5">Relationship Status</p>
-                    <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{cs.relationshipStatus}</p>
+                    <p className="text-[12px] font-bold text-[#2563EB] dark:text-[#4F8EF7] uppercase tracking-wide mb-0.5">Relationship Status</p>
+                    <p className="text-[14px] text-[#4B5168] dark:text-[#9DA3BB]">{cs.relationshipStatus}</p>
                   </div>
                 </div>
               )}
               {Array.isArray(cs.keyInsights) && cs.keyInsights.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Key Insights</p>
+                  <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Key Insights</p>
                   <ul className="space-y-1.5">
                     {cs.keyInsights.map((pt, i) => (
-                      <li key={i} className="flex items-start gap-2 text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+                      <li key={i} className="flex items-start gap-2 text-[14px] text-[#4B5168] dark:text-[#9DA3BB]">
                         <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
                         {pt}
                       </li>
@@ -436,8 +436,8 @@ function LeadCombinedSummaryPanel({ leadId }) {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                   <div>
-                    <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Recommended Next Action</p>
-                    <p className="text-[12px] text-emerald-700 dark:text-emerald-300">{cs.recommendedNextAction}</p>
+                    <p className="text-[12px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Recommended Next Action</p>
+                    <p className="text-[14px] text-emerald-700 dark:text-emerald-300">{cs.recommendedNextAction}</p>
                   </div>
                 </div>
               )}
@@ -515,7 +515,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
         </svg>
-        <span className="text-[13px]">Loading recordings…</span>
+        <span className="text-[15px]">Loading recordings…</span>
       </div>
     );
   }
@@ -523,8 +523,8 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
-        <p className="text-[13px] text-red-500">{error}</p>
-        <button onClick={fetchCallLogs} className="text-[12px] text-[#2563EB] underline">Retry</button>
+        <p className="text-[15px] text-red-500">{error}</p>
+        <button onClick={fetchCallLogs} className="text-[14px] text-[#2563EB] underline">Retry</button>
       </div>
     );
   }
@@ -536,12 +536,12 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
           <path strokeLinecap="round" strokeLinejoin="round"
             d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
         </svg>
-        <p className="text-[13px] font-semibold text-[#4B5168] dark:text-white">No recordings found</p>
-        <p className="text-[11px] text-[#8B92A9]">
+        <p className="text-[15px] font-semibold text-[#4B5168] dark:text-white">No recordings found</p>
+        <p className="text-[13px] text-[#8B92A9]">
           Recordings upload automatically from the mobile app after calls.
         </p>
         <button onClick={fetchCallLogs}
-          className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-white hover:border-[#2563EB] hover:text-[#2563EB] transition">
+          className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[14px] font-semibold text-[#4B5168] dark:text-white hover:border-[#2563EB] hover:text-[#2563EB] transition">
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
@@ -554,7 +554,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
   return (
     <div className="px-6 py-4 space-y-5">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest">
+        <p className="text-[13px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest">
           {callLogs.length} Call Log{callLogs.length > 1 ? "s" : ""} with Recordings
         </p>
         <button onClick={fetchCallLogs}
@@ -571,27 +571,27 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
           {/* Call log header */}
           <div className="flex items-center justify-between px-3 py-2.5 bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
             <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-md bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 flex items-center justify-center text-[10px] font-black shrink-0">
+              <span className="w-5 h-5 rounded-md bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 flex items-center justify-center text-[12px] font-black shrink-0">
                 {li + 1}
               </span>
               <div>
-                <p className="text-[12px] font-semibold text-[#0F1117] dark:text-white leading-none">
+                <p className="text-[14px] font-semibold text-[#0F1117] dark:text-white leading-none">
                   {new Date(log.timestamp).toLocaleString("en-IN", {
                     day: "2-digit", month: "short", year: "numeric",
                     hour: "2-digit", minute: "2-digit",
                   })}
                 </p>
                 {log.user?.name && (
-                  <p className="text-[10px] text-[#8B92A9] mt-0.5">Employee: {log.user.name}</p>
+                  <p className="text-[12px] text-[#8B92A9] mt-0.5">Employee: {log.user.name}</p>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize"
+              <span className="px-2 py-0.5 rounded-full text-[12px] font-semibold capitalize"
                 style={{ backgroundColor: callTypeColor(log.callType) + "20", color: callTypeColor(log.callType) }}>
                 {log.callType || "call"}
               </span>
-              <span className="flex items-center gap-1 text-[11px] font-semibold text-[#4B5168] dark:text-white">
+              <span className="flex items-center gap-1 text-[13px] font-semibold text-[#4B5168] dark:text-white">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
@@ -602,7 +602,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
 
           {log.remark && (
             <div className="px-3 py-2 border-b border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]">
-              <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] italic">"{log.remark}"</p>
+              <p className="text-[13px] text-[#64748B] dark:text-[#94A3B8] italic">"{log.remark}"</p>
             </div>
           )}
 
@@ -614,20 +614,20 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
                   className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden bg-[#F8F9FC] dark:bg-[#13161E]">
 
                   <div className="flex items-center justify-between px-3 py-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    <span className="text-[11px] font-semibold text-[#4B5168] dark:text-white">
+                    <span className="text-[13px] font-semibold text-[#4B5168] dark:text-white">
                       Recording {ri + 1}
                     </span>
                     {r.transcribeStatus === "done" ? (
-                      <span className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded-full">
+                      <span className="flex items-center gap-1 text-[12px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded-full">
                         <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
                         </svg>
                         Transcribed
                       </span>
                     ) : r.transcribeStatus === "processing" ? (
-                      <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full">Processing…</span>
+                      <span className="text-[12px] font-semibold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full">Processing…</span>
                     ) : (
-                      <span className="text-[10px] font-semibold text-[#8B92A9] bg-[#F1F4FF] dark:bg-[#1E2130] px-2 py-0.5 rounded-full">Not transcribed</span>
+                      <span className="text-[12px] font-semibold text-[#8B92A9] bg-[#F1F4FF] dark:bg-[#1E2130] px-2 py-0.5 rounded-full">Not transcribed</span>
                     )}
                   </div>
 
@@ -639,7 +639,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
                         onError={e => { e.target.style.display = "none"; }}
                       />
                     ) : (
-                      <p className="text-[11px] text-[#8B92A9] italic py-1">Audio file not available</p>
+                      <p className="text-[13px] text-[#8B92A9] italic py-1">Audio file not available</p>
                     )}
                   </div>
 
@@ -658,7 +658,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
                   className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none"/>
               </div>
             ) : (
-              <p className="text-[11px] text-[#8B92A9] italic">Recording file not available</p>
+              <p className="text-[13px] text-[#8B92A9] italic">Recording file not available</p>
             )}
           </div>
         </div>
@@ -747,20 +747,20 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
         <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-start justify-between shrink-0">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black"
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-black"
                 style={{ background: (sc.dot || "#2563EB") + "20", color: sc.dot || "#2563EB" }}>
                 {lead.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
               </div>
               <div>
-                <p className="text-[15px] font-bold text-[#0F1117] dark:text-white leading-none">{lead.name}</p>
+                <p className="text-[17px] font-bold text-[#0F1117] dark:text-white leading-none">{lead.name}</p>
 <div className="flex flex-col gap-0.5 mt-0.5">
-                  <p className="text-[12px] text-[#8B92A9] dark:text-gray-400 font-mono">
-                    <span className="text-[9px] font-bold bg-emerald-500/15 text-emerald-500 px-1 rounded mr-1">PRIMARY</span>
+                  <p className="text-[14px] text-[#8B92A9] dark:text-gray-400 font-mono">
+                    <span className="text-[11px] font-bold bg-emerald-500/15 text-emerald-500 px-1 rounded mr-1">PRIMARY</span>
                     {maskPhone(lead.primaryPhone || lead.phone)}
                   </p>
                   {lead.secondaryPhone && (
-                    <p className="text-[12px] text-[#8B92A9] dark:text-gray-400 font-mono">
-                      <span className="text-[9px] font-bold bg-blue-500/15 text-blue-500 px-1 rounded mr-1">SECONDARY</span>
+                    <p className="text-[14px] text-[#8B92A9] dark:text-gray-400 font-mono">
+                      <span className="text-[11px] font-bold bg-blue-500/15 text-blue-500 px-1 rounded mr-1">SECONDARY</span>
                       {maskPhone(lead.secondaryPhone)}
                     </p>
                   )}
@@ -770,7 +770,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <StatusBadge lead={lead} />
               {lead.temperature && <TempBadge temp={lead.temperature} />}
-              <span className="text-[10px] text-[#8B92A9]">{lead.source}</span>
+              <span className="text-[12px] text-[#8B92A9]">{lead.source}</span>
             </div>
           </div>
           <button onClick={onClose}
@@ -790,8 +790,8 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             { label: "Calls",    value: lead.callHistory.length || 0 },
           ].map(({ label, value }) => (
             <div key={label}>
-              <p className="text-[9px] font-bold text-[#8B92A9] uppercase tracking-widest">{label}</p>
-              <p className="text-[12px] font-semibold text-[#0F1117] dark:text-white truncate">{value}</p>
+              <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest">{label}</p>
+              <p className="text-[14px] font-semibold text-[#0F1117] dark:text-white truncate">{value}</p>
             </div>
           ))}
         </div>
@@ -807,7 +807,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
               icon: <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg> },
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-3 text-[12px] font-semibold border-b-2 transition -mb-px ${
+              className={`flex items-center gap-1.5 px-3 py-3 text-[14px] font-semibold border-b-2 transition -mb-px ${
                 activeTab === tab.id
                   ? "border-[#2563EB] text-[#2563EB]"
                   : "border-transparent text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-white"
@@ -824,25 +824,25 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             <div className="flex-1 overflow-y-auto">
               {lead.remark && (
                 <div className="px-6 py-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
-                  <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Last Remark</p>
-                  <p className="text-[12px] text-[#4B5168] dark:text-white italic">"{lead.remark}"</p>
+                  <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Last Remark</p>
+                  <p className="text-[14px] text-[#4B5168] dark:text-white italic">"{lead.remark}"</p>
                 </div>
               )}
               {lead.callHistory.length > 0 && (
                 <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
-                  <p className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">
+                  <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">
                     Call History ({lead.callHistory.length})
                   </p>
                   <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
                     {[...lead.callHistory].reverse().map((h, i) => (
-                      <div key={i} className="flex gap-2.5 text-[11px]">
+                      <div key={i} className="flex gap-2.5 text-[13px]">
                         <div className="w-1.5 shrink-0 mt-1">
                           <div className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-semibold text-[#0F1117] dark:text-white truncate">{h.outcome || "Call Back"}</span>
-                            <span className="text-[#8B92A9] shrink-0 text-[10px]">{h.calledAt ? fmtDate(h.calledAt) : "—"}</span>
+                            <span className="text-[#8B92A9] shrink-0 text-[12px]">{h.calledAt ? fmtDate(h.calledAt) : "—"}</span>
                           </div>
                           <p className="text-[#4B5168] dark:text-white italic truncate">{h.remark || "—"}</p>
                         </div>
@@ -852,16 +852,16 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 </div>
               )}
               <div className="px-6 py-5 space-y-4">
-                <p className="text-[14px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest">Update Lead</p>
+                <p className="text-[16px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest">Update Lead</p>
                 <div>
-                  <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Status</label>
+                  <label className="block text-[16px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Status</label>
                   <div className="grid grid-cols-2 gap-2">
                     {STATUS_OPTIONS.map(s => {
                       const sc2   = STATUS_CONFIG[s] || STATUS_CONFIG["New"];
                       const active = status === s;
                       return (
                         <button key={s} onClick={() => setStatus(s)}
-                          className={`px-3 py-2 rounded-xl border-2 text-[14px] font-semibold transition flex items-center gap-1.5 ${
+                          className={`px-3 py-2 rounded-xl border-2 text-[16px] font-semibold transition flex items-center gap-1.5 ${
                             active
                               ? `${sc2.bg} ${sc2.text} border-current`
                               : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-white hover:border-[#CBD5E1]"
@@ -875,17 +875,17 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 </div>
                 {!isNI && (
                   <div>
-                    <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
+                    <label className="block text-[16px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
                       Call Outcome
-                      <span className="ml-1.5 text-[11px] font-normal text-[#8B92A9]">(required to log a call)</span>
+                      <span className="ml-1.5 text-[13px] font-normal text-[#8B92A9]">(required to log a call)</span>
                     </label>
                     {alreadyInterested && (
-                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mb-1.5 flex items-center gap-1">
+                      <p className="text-[13px] text-emerald-600 dark:text-emerald-400 mb-1.5 flex items-center gap-1">
                         ✓ Lead already marked Interested — choose a different outcome
                       </p>
                     )}
                     <select value={outcome} onChange={e => setOutcome(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition">
+                      className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[16px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition">
                       <option value="">— Select outcome to log a call —</option>
                       {OUTCOME_OPTIONS
                         .filter(o => !(alreadyInterested && o === "Interested"))
@@ -894,7 +894,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                   </div>
                 )}
                 <div>
-                  <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Lead Quality</label>
+                  <label className="block text-[16px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Lead Quality</label>
                   <div className="grid grid-cols-4 gap-2">
                     {["", "Hot", "Warm", "Cold"].map(q => {
                       const colors = { Hot: "#DC2626", Warm: "#D97706", Cold: "#2563EB", "": "#8B92A9" };
@@ -907,7 +907,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                       };
                       return (
                         <button key={q} type="button" onClick={handleQualityClick}
-                          className={`px-2 py-2 rounded-xl border-2 text-[14px] font-semibold transition ${
+                          className={`px-2 py-2 rounded-xl border-2 text-[16px] font-semibold transition ${
                             active
                               ? "border-current"
                               : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-white hover:border-[#CBD5E1]"
@@ -921,34 +921,34 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 </div>
                 {!isNI && outcome === "Call Back" && (
                   <div>
-                    <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
+                    <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
                       Follow-up Date
-                      <span className="ml-1 font-normal text-[11px] text-[#8B92A9]">(optional — defaults to tomorrow)</span>
+                      <span className="ml-1 font-normal text-[13px] text-[#8B92A9]">(optional — defaults to tomorrow)</span>
                     </label>
                     <input
                       type="date"
                       value={followUpDate}
                       min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
                       onChange={e => setFollowUpDate(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
+                      className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
                     />
                   </div>
                 )}
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
+                  <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
                     Remark <span className="text-red-500">*</span>
-                    {isNI && <span className="ml-1 font-normal text-[14px] text-[#8B92A9]">(reason required)</span>}
+                    {isNI && <span className="ml-1 font-normal text-[16px] text-[#8B92A9]">(reason required)</span>}
                   </label>
                   <textarea
                     value={remark}
                     onChange={e => { setRemark(e.target.value); setError(""); }}
                     rows={4}
                     placeholder="Add your call notes…"
-                    className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition resize-none"
+                    className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-white placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition resize-none"
                   />
                 </div>
                 {error && (
-                  <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5 text-[12px] text-red-600 dark:text-red-400">
+                  <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5 text-[14px] text-red-600 dark:text-red-400">
                     ⚠️ {error}
                   </div>
                 )}
@@ -956,11 +956,11 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             </div>
             <div className="px-6 pb-6 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-3 shrink-0">
               <button onClick={onClose}
-                className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-white hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
+                className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[15px] font-semibold text-[#4B5168] dark:text-white hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
                 Cancel
               </button>
               <button onClick={handleSave} disabled={saving || !remark.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 rounded-xl bg-[#2563EB] text-white text-[16px] font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
                 {saving
                   ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saving…</>
                   : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Save Update</>
@@ -1008,9 +1008,9 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
 function KpiPill({ label, value, color, bg, text, active, onClick }) {
   return (
     <button onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition font-semibold text-[13px] ${bg} ${text} ${active ? "" : "border-transparent"}`}
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition font-semibold text-[15px] ${bg} ${text} ${active ? "" : "border-transparent"}`}
       style={{ borderColor: active ? color : undefined }}>
-      <span className="text-[18px] font-black">{value}</span>
+      <span className="text-[20px] font-black">{value}</span>
       {label}
     </button>
   );
@@ -1119,15 +1119,15 @@ export default function UserLeadsPage() {
   const showTempCol   = filterTemp !== "All";
 
 
-  const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition";
+  const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[16px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition";
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-3 py-4 md:px-6 md:py-8">
 
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-white">My Leads</h1>
-          <p className="text-[14px] text-[#8B92A9] dark:text-gray-400 mt-0.5">
+          <h1 className="text-[26px] font-bold text-[#0F1117] dark:text-white">My Leads</h1>
+          <p className="text-[16px] text-[#8B92A9] dark:text-gray-400 mt-0.5">
             Your assigned leads — click any row to update status &amp; add call notes
           </p>
         </div>
@@ -1154,9 +1154,9 @@ export default function UserLeadsPage() {
         {kpi.hot > 0 && (
           <button
             onClick={() => { setFilterTemp(filterTemp === "Hot" ? "All" : "Hot"); setPage(1); }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition font-semibold text-[13px] bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 ${filterTemp === "Hot" ? "" : "border-transparent"}`}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition font-semibold text-[15px] bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 ${filterTemp === "Hot" ? "" : "border-transparent"}`}
             style={{ borderColor: filterTemp === "Hot" ? "#DC2626" : undefined }}>
-            <span className="text-[18px] font-black">{kpi.hot}</span>
+            <span className="text-[20px] font-black">{kpi.hot}</span>
              Hot
           </button>
         )}
@@ -1194,18 +1194,18 @@ export default function UserLeadsPage() {
           </select>
           {hasFilter && (
             <button onClick={clearFilters}
-              className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[12px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition">
+              className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[14px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition">
               ✕ Clear
             </button>
           )}
         </div>
-        <p className="text-[14px] text-[#8B92A9] dark:text-gray-400 mt-2">
+        <p className="text-[16px] text-[#8B92A9] dark:text-gray-400 mt-2">
           {displayed.length} leads {displayed.length !== leads.length ? `(filtered from ${leads.length})` : ""}
         </p>
       </div>
 
       {error && (
-        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-[12px]">
+        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-[14px]">
           <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
@@ -1221,17 +1221,17 @@ export default function UserLeadsPage() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
             </svg>
-            <span className="text-[14px]">Loading your leads…</span>
+            <span className="text-[16px]">Loading your leads…</span>
           </div>
         ) : paged.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <span className="text-[48px]"></span>
-            <p className="text-[14px] font-semibold text-[#0F1117] dark:text-white">
+            <span className="text-[50px]"></span>
+            <p className="text-[16px] font-semibold text-[#0F1117] dark:text-white">
               {leads.length === 0 ? "No leads assigned yet" : "No leads match your filters"}
             </p>
             {leads.length > 0 && (
               <button onClick={clearFilters}
-                className="mt-1 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 transition">
+                className="mt-1 px-4 py-2 rounded-xl bg-[#2563EB] text-white text-[16px] font-semibold hover:bg-blue-700 transition">
                 Clear Filters
               </button>
             )}
@@ -1239,7 +1239,7 @@ export default function UserLeadsPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-[14px]">
+              <table className="w-full text-[16px]">
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
                     {[
@@ -1252,7 +1252,7 @@ export default function UserLeadsPage() {
                       "Calls",
                       "",
                     ].map((h, i) => (
-                      <th key={i} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                      <th key={i} className="px-4 py-3 text-left text-[12px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1266,32 +1266,32 @@ export default function UserLeadsPage() {
 
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-black shrink-0"
                               style={{ background: (sc.dot || "#2563EB") + "20", color: sc.dot || "#2563EB" }}>
                               {l.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
                             </div>
                             <div>
                               <p className="font-semibold text-[#0F1117] dark:text-white whitespace-nowrap">{l.name}</p>
-                              <p className="text-[14px] text-[#8B92A9]">{daysSince(l._raw_date) || "—"}</p>
+                              <p className="text-[16px] text-[#8B92A9]">{daysSince(l._raw_date) || "—"}</p>
                             </div>
                           </div>
                         </td>
 
                       <td className="px-4 py-3">
                           <div className="flex flex-col gap-0.5">
-                            <span className="font-mono text-[#4B5168] dark:text-white tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[11px] inline-flex items-center gap-1">
-                              <span className="text-[8px] font-bold text-emerald-500">P</span>
+                            <span className="font-mono text-[#4B5168] dark:text-white tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[13px] inline-flex items-center gap-1">
+                              <span className="text-[10px] font-bold text-emerald-500">P</span>
                               {maskPhone(l.primaryPhone || l.phone)}
                             </span>
                             {l.secondaryPhone && (
-                              <span className="font-mono text-[#8B92A9] tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[11px] inline-flex items-center gap-1">
-                                <span className="text-[8px] font-bold text-blue-500">S</span>
+                              <span className="font-mono text-[#8B92A9] tracking-wider bg-[#F1F4FF] dark:bg-[#1A2540] px-2 py-0.5 rounded-lg text-[13px] inline-flex items-center gap-1">
+                                <span className="text-[10px] font-bold text-blue-500">S</span>
                                 {maskPhone(l.secondaryPhone)}
                               </span>
                             )}
                           </div>
                           {l.email && (
-                            <p className="text-[14px] text-[#8B92A9] mt-0.5 truncate max-w-[120px]">
+                            <p className="text-[16px] text-[#8B92A9] mt-0.5 truncate max-w-[120px]">
                               {l.email.replace(/(.{2})(.*)(@.*)/, "$1••••$3")}
                             </p>
                           )}
@@ -1301,10 +1301,10 @@ export default function UserLeadsPage() {
                           <td className="px-4 py-3">
                             <p className="text-[#0F1117] dark:text-white truncate max-w-[130px]">{l.source}</p>
                             {l.campaign !== "—" && (
-                              <p className="text-[14px] text-[#8B92A9] truncate max-w-[130px]">{l.campaign}</p>
+                              <p className="text-[16px] text-[#8B92A9] truncate max-w-[130px]">{l.campaign}</p>
                             )}
                             {l.adSetName && (
-                              <p className="text-[11px] text-[#E1306C] truncate max-w-[130px]"> {l.adSetName}</p>
+                              <p className="text-[13px] text-[#E1306C] truncate max-w-[130px]"> {l.adSetName}</p>
                             )}
                           </td>
                         )}
@@ -1319,7 +1319,7 @@ export default function UserLeadsPage() {
                                 return (
                                   <span
                                     key={pi}
-                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold truncate max-w-[100px]"
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold truncate max-w-[100px]"
                                     style={{ background: pColor + "18", color: pColor }}
                                     title={pName}
                                   >
@@ -1329,13 +1329,13 @@ export default function UserLeadsPage() {
                                 );
                               })}
                               {l.projects.length > 2 && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7]">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7]">
                                   +{l.projects.length - 2}
                                 </span>
                               )}
                             </div>
                           ) : (
-                            <span className="text-[11px] text-[#C4C9D9] dark:text-[#3E4257]">—</span>
+                            <span className="text-[13px] text-[#C4C9D9] dark:text-[#3E4257]">—</span>
                           )}
                         </td>
 
@@ -1348,11 +1348,11 @@ export default function UserLeadsPage() {
 
                         <td className="px-4 py-3">
                           {l.callHistory.length > 0 ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[14px] font-semibold bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[16px] font-semibold bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
                                {l.callHistory.length}
                             </span>
                           ) : (
-                            <span className="text-[14px] text-[#8B92A9]">—</span>
+                            <span className="text-[16px] text-[#8B92A9]">—</span>
                           )}
                         </td>
 
@@ -1361,7 +1361,7 @@ export default function UserLeadsPage() {
                           <button
                             title="View recordings & AI summary"
                             onClick={e => { e.stopPropagation(); setSelected(l); }}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[14px] font-semibold bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 border border-violet-100 dark:border-violet-900/50 transition">
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[16px] font-semibold bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 border border-violet-100 dark:border-violet-900/50 transition">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round"
                                 d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
@@ -1378,7 +1378,7 @@ export default function UserLeadsPage() {
 
             {totalPages > 1 && (
               <div className="px-5 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between bg-[#F8F9FC] dark:bg-[#13161E]">
-                <span className="text-[14px] text-[#8B92A9]">
+                <span className="text-[16px] text-[#8B92A9]">
                   Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, displayed.length)} of {displayed.length}
                 </span>
                 <div className="flex items-center gap-1">
@@ -1390,7 +1390,7 @@ export default function UserLeadsPage() {
                     const n = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
                     return (
                       <button key={n} onClick={() => setPage(n)}
-                        className={`w-7 h-7 rounded-lg text-[14px] font-semibold transition ${page === n ? "bg-[#2563EB] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27]"}`}>
+                        className={`w-7 h-7 rounded-lg text-[16px] font-semibold transition ${page === n ? "bg-[#2563EB] text-white" : "border border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:bg-white dark:hover:bg-[#1A1D27]"}`}>
                         {n}
                       </button>
                     );
