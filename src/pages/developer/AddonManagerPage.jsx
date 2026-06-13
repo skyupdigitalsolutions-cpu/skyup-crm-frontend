@@ -1,5 +1,4 @@
 // src/components/AddonManager.jsx — NEW FILE
-// Reusable component used inside CompanyDetails page.
 // Shows addon list with status badges, expiry dates, renew/disable actions.
 
 import { useState } from "react";
