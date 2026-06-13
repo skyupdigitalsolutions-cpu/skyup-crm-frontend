@@ -212,6 +212,8 @@ function Skeleton() {
 
 // ── Manage Projects Modal (Admin) ─────────────────────────────────────────────
 function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
+  const role = getRole();
+  const canDelete = role === "superadmin";
   const [name,        setName]        = useState("");
   const [description, setDescription] = useState("");
   const [color,       setColor]       = useState("#2563EB");
@@ -414,14 +416,16 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
                 }
                 {updating ? "Saving…" : "Save Changes"}
               </button>
-              <button
-                onClick={() => handleDelete(detail._id)}
-                disabled={deleting === detail._id}
-                className="px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[13px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50 transition flex items-center gap-1.5"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                Delete
-              </button>
+              {canDelete && (
+                <button
+                  onClick={() => handleDelete(detail._id)}
+                  disabled={deleting === detail._id}
+                  className="px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[13px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50 transition flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  Delete
+                </button>
+              )}
             </div>
           </div>
 
@@ -530,17 +534,19 @@ function ManageProjectsModal({ projects, onClose, onProjectsChange }) {
                     {p.isGlobal ? "Global" : "Admin"}
                   </button>
 
-                  <button
-                    onClick={() => handleDelete(p._id)}
-                    disabled={deleting === p._id}
-                    className="w-6 h-6 flex items-center justify-center rounded-lg text-[#C4C9D9] dark:text-[#3E4257] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition disabled:opacity-40 shrink-0"
-                    title="Delete project"
-                  >
-                    {deleting === p._id
-                      ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                      : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    }
-                  </button>
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDelete(p._id)}
+                      disabled={deleting === p._id}
+                      className="w-6 h-6 flex items-center justify-center rounded-lg text-[#C4C9D9] dark:text-[#3E4257] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition disabled:opacity-40 shrink-0"
+                      title="Delete project"
+                    >
+                      {deleting === p._id
+                        ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                        : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      }
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -1064,7 +1070,7 @@ function RecordingModal({ lead, role, onClose }) {
                   )}
                   {h.recordingUrl && (
                     <div className="mt-2">
-                      <audio controls controlsList="nodownload" src={`https://skyup-crm-backend.onrender.com${h.recordingUrl}`} className="w-full h-7 rounded-lg accent-[#2563EB]" />
+                      <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={`https://skyup-crm-backend.onrender.com${h.recordingUrl}`} className="w-full h-7 rounded-lg accent-[#2563EB]" />
                     </div>
                   )}
                 </div>
@@ -1117,7 +1123,7 @@ function RecordingModal({ lead, role, onClose }) {
                     <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic mb-1.5">"{log.remark}"</p>
                   )}
                   {(log.recordings || []).map((rec, ri) => (
-                    <audio key={ri} controls controlsList="nodownload"
+                    <audio key={ri} controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()}
                       src={rec.url?.startsWith("http") ? rec.url : `https://skyup-crm-backend.onrender.com${rec.url}`}
                       preload="none"
                       onError={(e) => { e.target.style.display = "none"; }}
