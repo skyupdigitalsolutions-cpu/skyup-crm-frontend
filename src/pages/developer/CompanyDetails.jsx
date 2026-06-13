@@ -43,18 +43,14 @@ const FEATURE_GROUPS = [
   { group: "Advertising", items: [
     { key: "googleAds", label: "Google Ads" },
     { key: "metaAds",   label: "Meta / Facebook Ads" },
+    { key: "websiteTracking", label: "Website Tracking" },
   ]},
   { group: "Calls & AI", items: [
     { key: "callRecording",     label: "Call Recording" },
     { key: "callTranscription", label: "Call Transcription" },
     { key: "aiSummary",         label: "AI Summary" },
   ]},
-  { group: "Operations", items: [
-    { key: "projects",        label: "Projects" },
-    { key: "tasks",           label: "Tasks" },
-    { key: "payroll",         label: "Payroll" },
-    { key: "websiteTracking", label: "Website Tracking" },
-  ]},
+ 
 ];
 const ALL_FEATURE_KEYS = FEATURE_GROUPS.flatMap(g => g.items.map(i => i.key));
 
@@ -66,21 +62,17 @@ const LIMIT_FIELDS = [
   { key: "websites",            label: "Websites" },
   { key: "metaCampaigns",       label: "Meta Campaigns" },
   { key: "googleAccounts",      label: "Google Accounts" },
-  { key: "storageMB",           label: "Storage (MB)" },
   { key: "transcriptionsLimit", label: "Transcriptions / month" },
   { key: "summariesLimit",      label: "AI Summaries / month" },
 ];
 
 // Benefit / addon enum → friendly label (same enum on both endpoints)
 const TYPE_LABELS = {
-  extra_admin: "Extra Admin", extra_users_5: "Extra Users (+5)",
-  extra_leads_5000: "Extra Leads (+5,000)", extra_website: "Extra Website",
-  extra_meta_campaign: "Extra Meta Campaign", extra_google_account: "Extra Google Account",
-  storage_1gb: "Storage +1 GB", storage_5gb: "Storage +5 GB", storage_10gb: "Storage +10 GB",
+  extra_admin: "Additional Admin", extra_users_5: "Additional Users (+5)",
+  extra_leads_5000: "Additional Leads (+5,000)", extra_website: "Additional Website",
+  extra_meta_campaign: "Additional Meta Campaign", extra_google_account: "Additional Google Account",
   call_recording: "Call Recording", call_transcription: "Call Transcription",
-  ai_summary: "AI Summary", voice_bot: "Voice Bot", whatsapp_automation: "WhatsApp Automation",
-  api_access: "API Access", webhook_access: "Webhook Access", white_label: "White Label",
-  custom_domain: "Custom Domain", custom_branding: "Custom Branding",
+  ai_summary: "AI Summary",  whatsapp_automation: "WhatsApp Automation",
   transcriptions_100: "AI Transcriptions +100", transcriptions_500: "AI Transcriptions +500",
   summaries_100: "AI Summaries +100", summaries_500: "AI Summaries +500",
 };
