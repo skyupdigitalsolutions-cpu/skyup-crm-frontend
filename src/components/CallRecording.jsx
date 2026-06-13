@@ -4,6 +4,7 @@
 
 import React, { useEffect, useState } from 'react';
 import api from '../data/axiosConfig';
+import { User, UserRound } from 'lucide-react';
 
 const BACKEND_ROOT = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
@@ -191,8 +192,8 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
                       const isSpk1  = speaker === 'Speaker 1';
                       return (
                         <div key={i} className={`flex flex-col ${isSpk1 ? 'items-start' : 'items-end'}`}>
-                          <span className="text-[9px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-0.5 px-1">
-                            {isSpk1 ? '👤 Agent' : '🙋 Customer'}
+                          <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-0.5 px-1">
+                            {isSpk1 ? <><User className="w-2.5 h-2.5" /> Agent</> : <><UserRound className="w-2.5 h-2.5" /> Customer</>}
                           </span>
                           <div className={`max-w-[85%] px-2.5 py-1.5 rounded-xl text-[11px] leading-relaxed ${
                             isSpk1
