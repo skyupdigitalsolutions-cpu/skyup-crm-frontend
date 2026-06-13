@@ -8,11 +8,12 @@
 
 import { useState } from "react";
 import useEntitlements from "../hooks/useEntitlements";
+import { Lock, PauseCircle, AlertTriangle, Ban } from "lucide-react";
 
 const STATUS_CONFIG = {
   suspended: {
     bg:       "bg-red-600",
-    icon:     "🔒",
+    Icon:     Lock,
     msg:      "Account suspended — your CRM is in read-only mode. Creating, editing, and exporting data is disabled.",
     sub:      "Contact support at support@skyupcrm.com to restore access.",
     showRenew: false,
@@ -20,7 +21,7 @@ const STATUS_CONFIG = {
   },
   paused: {
     bg:       "bg-amber-500",
-    icon:     "⏸️",
+    Icon:     PauseCircle,
     msg:      "Subscription paused — your CRM is in read-only mode. No changes can be made until the subscription is resumed.",
     sub:      "Contact your administrator to resume the subscription.",
     showRenew: false,
@@ -28,7 +29,7 @@ const STATUS_CONFIG = {
   },
   expired: {
     bg:       "bg-orange-600",
-    icon:     "⚠️",
+    Icon:     AlertTriangle,
     msg:      "Subscription expired — your CRM is in read-only mode. Renew your plan to restore full access.",
     sub:      null,
     showRenew: true,
@@ -36,7 +37,7 @@ const STATUS_CONFIG = {
   },
   cancelled: {
     bg:       "bg-red-700",
-    icon:     "🚫",
+    Icon:     Ban,
     msg:      "Subscription cancelled — your CRM is in read-only mode.",
     sub:      "Contact support to re-activate your account.",
     showRenew: false,
@@ -64,7 +65,7 @@ export default function EntitlementStatusBanner({ onGoToPlans }) {
     >
       {/* Left: icon + message */}
       <div className="flex items-start gap-2">
-        <span className="text-base shrink-0 leading-5">{config.icon}</span>
+        <span className="shrink-0 leading-5"><config.Icon className="w-4 h-4" /></span>
         <div>
           <span>{config.msg}</span>
           {config.sub && (
