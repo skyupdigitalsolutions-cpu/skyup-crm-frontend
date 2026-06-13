@@ -1,11 +1,9 @@
-
-
 import { useState, useMemo } from 'react';
 import { useDailyReport } from '../hooks/useDailyReport';
 import {
   addDays, formatLong, formatMedium, isToday as isTodayFn,
 } from '../utils/dateUtils';
-import { FlameIcon, CheckIcon, LoaderIcon, TrendingUpIcon} from "lucide-react";
+import { FlameIcon, CheckIcon, LoaderIcon, TrendingUpIcon, CloudSun, Snowflake, Bell, AlertTriangle, Phone, PartyPopper, TrendingUp, ClipboardList, Target } from "lucide-react";
 
 const STATUS_STYLE = {
   'New':            { bg: 'bg-[#EEF3FF] dark:bg-[#1A2540]', text: 'text-[#2563EB] dark:text-[#4F8EF7]', dot: '#2563EB' },
@@ -14,9 +12,9 @@ const STATUS_STYLE = {
   'Not Interested': { bg: 'bg-[#FEF2F2] dark:bg-[#2D0A0A]', text: 'text-[#DC2626] dark:text-[#F87171]', dot: '#DC2626' },
 };
 const TEMP_STYLE = {
-  Hot:  { bg: 'bg-[#FEF2F2] dark:bg-[#2D0A0A]', text: 'text-[#DC2626] dark:text-[#F87171]', icon: '🔥' },
-  Warm: { bg: 'bg-[#FFFBEB] dark:bg-[#2D1F00]', text: 'text-[#D97706] dark:text-[#FCD34D]', icon: '🌤' },
-  Cold: { bg: 'bg-[#EEF3FF] dark:bg-[#1A2540]', text: 'text-[#2563EB] dark:text-[#4F8EF7]', icon: '❄' },
+  Hot:  { bg: 'bg-[#FEF2F2] dark:bg-[#2D0A0A]', text: 'text-[#DC2626] dark:text-[#F87171]', Icon: FlameIcon },
+  Warm: { bg: 'bg-[#FFFBEB] dark:bg-[#2D1F00]', text: 'text-[#D97706] dark:text-[#FCD34D]', Icon: CloudSun },
+  Cold: { bg: 'bg-[#EEF3FF] dark:bg-[#1A2540]', text: 'text-[#2563EB] dark:text-[#4F8EF7]', Icon: Snowflake },
 };
 const SOURCE_COLORS = {
   'Google Ads': '#2563EB', 'Facebook Ads': '#0891B2', 'Web Form': '#059669',
@@ -56,7 +54,7 @@ function TempBadge({ quality }) {
   if (!s) return null;
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${s.bg} ${s.text}`}>
-      {s.icon} {quality}
+      <s.Icon className="w-3 h-3" /> {quality}
     </span>
   );
 }
@@ -323,7 +321,7 @@ export default function UserDailyReport() {
         <Card title={`Leads on ${formatMedium(viewDate)}`} badge={leads.length} bc="#2563EB">
           {leads.length === 0 ? (
             <div className="py-14 text-center">
-              <div className="text-[40px] mb-3">📋</div>
+              <div className="mb-3 flex justify-center text-[#8B92A9]"><ClipboardList className="w-10 h-10" strokeWidth={1.5} /></div>
               <p className="text-[13px] text-[#8B92A9]">No leads for {formatMedium(viewDate)}.</p>
             </div>
           ) : (
@@ -364,13 +362,13 @@ export default function UserDailyReport() {
       {activeTab === 'followups' && (
         <div className="space-y-5">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <StatCard label="Total follow-ups" value={followUps.length}                                    icon="🔔" color="#D97706" sub="Pending" />
-            <StatCard label="Overdue"          value={followUps.filter(f => f.urgency === 'overdue').length} icon="⚠" color="#DC2626" sub="Past due" />
-            <StatCard label="Due today"        value={followUps.filter(f => f.urgency === 'today').length}   icon="☎" color="#D97706" sub="Call now" />
+            <StatCard label="Total follow-ups" value={followUps.length}                                    icon={<Bell className="w-4 h-4" />} color="#D97706" sub="Pending" />
+            <StatCard label="Overdue"          value={followUps.filter(f => f.urgency === 'overdue').length} icon={<AlertTriangle className="w-4 h-4" />} color="#DC2626" sub="Past due" />
+            <StatCard label="Due today"        value={followUps.filter(f => f.urgency === 'today').length}   icon={<Phone className="w-4 h-4" />} color="#D97706" sub="Call now" />
           </div>
           <Card title="Pending follow-ups" badge={followUps.length} bc="#D97706">
             {followUps.length === 0 ? (
-              <p className="text-[13px] text-center text-[#8B92A9] py-10">No pending follow-ups. Great work! 🎉</p>
+              <p className="text-[13px] text-center text-[#8B92A9] py-10">No pending follow-ups. Great work!</p>
             ) : (
               <div className="space-y-2">
                 {followUps.map((f, i) => {
@@ -408,16 +406,16 @@ export default function UserDailyReport() {
       {activeTab === 'conversions' && (
         <div className="space-y-5">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="Today's closures" value={conversions.length}          icon="🎉" color="#059669" sub={formatMedium(viewDate)} trend={summary.trendConverted} />
-            <StatCard label="Conv. rate today" value={`${summary.convRate || 0}%`} icon="📈" color="#7C3AED" sub="For selected day" />
-            <StatCard label="Calls made today" value={summary.callsMadeToday || 0} icon="☎" color="#2563EB" sub="Total calls" />
-            <StatCard label="Total leads"      value={summary.total || 0}          icon="📋" color="#D97706" sub="For this date" />
+            <StatCard label="Today's closures" value={conversions.length}          icon={<PartyPopper className="w-4 h-4" />} color="#059669" sub={formatMedium(viewDate)} trend={summary.trendConverted} />
+            <StatCard label="Conv. rate today" value={`${summary.convRate || 0}%`} icon={<TrendingUp className="w-4 h-4" />} color="#7C3AED" sub="For selected day" />
+            <StatCard label="Calls made today" value={summary.callsMadeToday || 0} icon={<Phone className="w-4 h-4" />} color="#2563EB" sub="Total calls" />
+            <StatCard label="Total leads"      value={summary.total || 0}          icon={<ClipboardList className="w-4 h-4" />} color="#D97706" sub="For this date" />
           </div>
 
           <Card title={`Conversions on ${formatMedium(viewDate)}`} badge={conversions.length} bc="#059669">
             {conversions.length === 0 ? (
               <div className="py-14 text-center">
-                <div className="text-[40px] mb-3">🎯</div>
+                <div className="mb-3 flex justify-center text-[#8B92A9]"><Target className="w-10 h-10" strokeWidth={1.5} /></div>
                 <p className="text-[14px] text-[#8B92A9]">No conversions on {formatMedium(viewDate)}.</p>
               </div>
             ) : (
