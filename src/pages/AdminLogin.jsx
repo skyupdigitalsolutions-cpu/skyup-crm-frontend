@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import api from "../data/axiosConfig";
 import CRMEncryption from "../utils/CRMEncryption";
 import toast from "react-hot-toast";
+import { CheckCircle2 } from "lucide-react";
 
 const crm = new CRMEncryption();
 
@@ -239,8 +240,8 @@ export default function AdminLogin() {
               ))}
             </div>
 
-            <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-5">
-              ✅ A backup file was also downloaded to your computer.
+            <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-5 inline-flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> A backup file was also downloaded to your computer.
             </p>
 
             <label className="flex items-start gap-3 cursor-pointer mb-5">
