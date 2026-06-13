@@ -15,6 +15,7 @@ import axios from "axios";
 import api from "../data/axiosConfig";
 import { maskPhone } from "../utils/maskPhone";
 import FeatureGate from "../components/FeatureGate";
+import { Image as ImageIcon, FileText, Music, Video, ClipboardList, AlertTriangle, Target, Users, Smartphone } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://skyup-crm-backend.onrender.com/api";
 const SOCKET_URL =
@@ -75,11 +76,11 @@ function Bubble({ msg, isOwn }) {
             : "bg-white dark:bg-[#202C33] text-[#111B21] dark:text-[#E9EDEF] rounded-bl-none border border-[#E4E7EF] dark:border-transparent"
         }`}
       >
-        {msg.messageType === "image"    && <span>🖼️ </span>}
-        {msg.messageType === "document" && <span>📄 </span>}
-        {msg.messageType === "audio"    && <span>🎵 </span>}
-        {msg.messageType === "video"    && <span>🎥 </span>}
-        {msg.messageType === "template" && <span>📋 </span>}
+        {msg.messageType === "image"    && <ImageIcon className="w-3.5 h-3.5 inline mr-1" />}
+        {msg.messageType === "document" && <FileText className="w-3.5 h-3.5 inline mr-1" />}
+        {msg.messageType === "audio"    && <Music className="w-3.5 h-3.5 inline mr-1" />}
+        {msg.messageType === "video"    && <Video className="w-3.5 h-3.5 inline mr-1" />}
+        {msg.messageType === "template" && <ClipboardList className="w-3.5 h-3.5 inline mr-1" />}
         <p className="break-words leading-relaxed inline">{msg.body || msg.text || msg.message}</p>
         <div className="flex items-center justify-end gap-1 mt-0.5">
           <p className="text-[10px] opacity-50">
@@ -169,7 +170,7 @@ function ReEngageWidget({ conversationId, authHeaders, onSent }) {
           {loading ? "…" : "Re-engage"}
         </button>
       </div>
-      {error && <p className="text-[11px] text-[#DC2626]">⚠ {error}</p>}
+      {error && <p className="text-[11px] text-[#DC2626] flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {error}</p>}
     </div>
   );
 }
@@ -622,7 +623,7 @@ function SmsBlastTab() {
         </div>
         {configured === false && (
           <div className="ml-auto bg-[#DC2626]/20 text-[#FCA5A5] text-[10px] font-semibold px-2.5 py-1 rounded-lg">
-            ⚠ SMS not configured — ask admin
+            <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> SMS not configured — ask admin</span>
           </div>
         )}
       </div>
@@ -634,7 +635,7 @@ function SmsBlastTab() {
         <div className="flex justify-center">
           <div className="bg-[#FFF7C7] dark:bg-[#2A2519] rounded-lg px-4 py-2 max-w-sm text-center shadow-sm">
             <p className="text-[11px] text-[#7B6914] dark:text-[#CDB648] leading-relaxed">
-              📋 MSG91 requires a <strong>DLT Template ID</strong>. SMS is only sent to <strong>your assigned leads</strong>.
+              <ClipboardList className="w-3.5 h-3.5 inline mr-1" /> MSG91 requires a <strong>DLT Template ID</strong>. SMS is only sent to <strong>your assigned leads</strong>.
             </p>
           </div>
         </div>
@@ -644,10 +645,10 @@ function SmsBlastTab() {
           <p className="text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] uppercase tracking-wide mb-2">Send to</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
-              { key: "campaign", label: "My Campaign",   icon: "🎯" },
-              { key: "all",      label: "All My Leads",  icon: "👥" },
-              { key: "single",   label: "Single Number", icon: "📱" },
-              { key: "csv",      label: "CSV Upload",    icon: "📄" },
+              { key: "campaign", label: "My Campaign",   Icon: Target },
+              { key: "all",      label: "All My Leads",  Icon: Users },
+              { key: "single",   label: "Single Number", Icon: Smartphone },
+              { key: "csv",      label: "CSV Upload",    Icon: FileText },
             ].map((m) => (
               <button key={m.key} onClick={() => setMode(m.key)}
                 className={`py-2 px-2 rounded-xl text-[11px] font-semibold border transition ${
@@ -655,7 +656,7 @@ function SmsBlastTab() {
                     ? "bg-[#FFF7ED] dark:bg-[#2D1000] border-[#EA580C] text-[#EA580C]"
                     : "border-[#E4E7EF] dark:border-[#2A3942] text-[#8B92A9] hover:border-[#EA580C] hover:text-[#EA580C]"
                 }`}>
-                <span className="mr-1">{m.icon}</span>{m.label}
+                <span className="inline-flex items-center gap-1"><m.Icon className="w-3.5 h-3.5" />{m.label}</span>
               </button>
             ))}
           </div>
@@ -718,7 +719,7 @@ function SmsBlastTab() {
               <div className="flex items-center gap-2 mt-1.5">
                 <button onClick={parseCsv} className="px-3 py-1.5 rounded-lg bg-[#F1F5F9] dark:bg-[#2A3942] text-[11px] font-semibold text-[#4B5168] border border-[#E4E7EF] dark:border-[#2A3942] hover:border-[#EA580C] hover:text-[#EA580C] transition">Parse CSV</button>
                 {csvParsed && <span className="text-[11px] text-[#059669] font-semibold">✓ {csvParsed.length} valid rows</span>}
-                {csvError  && <span className="text-[11px] text-[#DC2626]">⚠ {csvError}</span>}
+                {csvError  && <span className="text-[11px] text-[#DC2626] inline-flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {csvError}</span>}
               </div>
             </div>
           )}
@@ -743,7 +744,7 @@ function SmsBlastTab() {
           {/* Quick-fill approved template */}
           <div className="mb-3 p-3 bg-[#FFF7ED] dark:bg-[#1c0a00] border border-[#FED7AA] dark:border-[#7c3a00] rounded-xl flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-[#EA580C] mb-0.5">📋 Approved Template</p>
+              <p className="text-[11px] font-bold text-[#EA580C] mb-0.5 flex items-center gap-1"><ClipboardList className="w-3 h-3" /> Approved Template</p>
               <p className="text-[10px] text-[#9A3412] dark:text-[#FED7AA] font-mono truncate">
                 Sender: <strong>695382</strong> · DLT: <strong>1007503933418344595</strong>
               </p>
@@ -810,7 +811,7 @@ function SmsBlastTab() {
         )}
 
         {error && (
-          <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">⚠ {error}</div>
+          <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 shrink-0" /> {error}</div>
         )}
       </div>
 
@@ -1636,7 +1637,7 @@ export default function UserLeadCommunication() {
                 <div className={`px-4 py-2 text-[11px] border-b border-[#E4E7EF] dark:border-[#2A3942] ${
                   session.expired ? "bg-[#FEF2F2] text-[#DC2626]" : "bg-[#FFFBEB] text-[#D97706]"
                 }`}>
-                  ⚠️ {session.text}
+                  <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {session.text}</span>
                 </div>
               )}
 
