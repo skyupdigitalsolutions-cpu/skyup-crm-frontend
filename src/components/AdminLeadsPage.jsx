@@ -617,6 +617,8 @@ function RecordingsTab({ lead }) {
                     {r.url ? (
                       <audio
                         controls
+                        controlsList="nodownload noplaybackrate"
+                        onContextMenu={e => e.preventDefault()}
                         src={audioUrl(r.url)}
                         className="w-full h-8 rounded-xl accent-[#2563EB]"
                         preload="none"
@@ -637,7 +639,7 @@ function RecordingsTab({ lead }) {
               ))
             ) : log.recordingUrl ? (
               <div className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] p-3 bg-[#F8F9FC] dark:bg-[#13161E]">
-                <audio controls src={audioUrl(log.recordingUrl)} className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none" />
+                <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={audioUrl(log.recordingUrl)} className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none" />
               </div>
             ) : (
               <p className="text-[11px] text-[#8B92A9] italic">Recording file not available</p>
@@ -2091,6 +2093,12 @@ const showToast = useCallback((message, type = "success") => {
     setFilterTemp("All"); setFilterProject("All"); setDateFrom(""); setDateTo(""); setPage(1);
   };
 
+  // Columns hidden by default, revealed only when the user filters by them.
+  const showSourceCol = filterSrc  !== "All";
+  const showStatusCol = filterSt   !== "All";
+  const showTempCol   = filterTemp !== "All";
+  const showDateCol   = !!dateFrom || !!dateTo;
+
   const exportToCSV = useCallback(() => {
     if (!displayed.length) return;
     const headers = ["Name","Phone","Email","Employee","Source","Campaign","Date","Status","Quality","Calls","Last Outcome","Last Called","Remark"];
@@ -2262,17 +2270,28 @@ const showToast = useCallback((message, type = "success") => {
                   <col className="w-[160px]" /> {/* Lead */}
                   <col className="w-[140px]" /> {/* Contact */}
                   <col className="w-[110px]" /> {/* Employee */}
-                  <col className="w-[120px]" /> {/* Source */}
+                  {showSourceCol && <col className="w-[120px]" />} {/* Source */}
                   <col className="w-[100px]" /> {/* Project */}
-                  <col className="w-[80px]" />  {/* Date */}
-                  <col className="w-[90px]" />  {/* Status */}
-                  <col className="w-[70px]" />  {/* Quality */}
+                  {showDateCol   && <col className="w-[80px]" />}  {/* Date */}
+                  {showStatusCol && <col className="w-[90px]" />}  {/* Status */}
+                  {showTempCol   && <col className="w-[70px]" />}  {/* Quality */}
                   <col className="w-[120px]" /> {/* Last Outcome */}
                   <col className="w-[100px]" /> {/* Actions */}
                 </colgroup>
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Lead", "Contact", "Employee", "Source", "Project", "Date", "Status", "Quality", "Last Outcome", ""].map(h => (
+                    {[
+                      "Lead",
+                      "Contact",
+                      "Employee",
+                      ...(showSourceCol ? ["Source"] : []),
+                      "Project",
+                      ...(showDateCol ? ["Date"] : []),
+                      ...(showStatusCol ? ["Status"] : []),
+                      ...(showTempCol ? ["Quality"] : []),
+                      "Last Outcome",
+                      "",
+                    ].map(h => (
                       <th key={h} className="px-2.5 py-2.5 text-left text-[9px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -2364,16 +2383,17 @@ const showToast = useCallback((message, type = "success") => {
                           )}
                         </td>
 
-                        {/* Source */}
-                        <td className="px-2.5 py-2.5">
-                          <p className="text-[#0F1117] dark:text-[#F0F2FA] truncate text-[11px]">{l.source}</p>
-                          {l.campaign !== "—" && (
-                            <p className="text-[9px] text-[#8B92A9] truncate">{l.campaign}</p>
-                          )}
-                          {l.adSetName && (
-                            <p className="text-[9px] text-[#E1306C] truncate">📢 {l.adSetName}</p>
-                          )}
-                        </td>
+                        {showSourceCol && (
+                          <td className="px-2.5 py-2.5">
+                            <p className="text-[#0F1117] dark:text-[#F0F2FA] truncate text-[11px]">{l.source}</p>
+                            {l.campaign !== "—" && (
+                              <p className="text-[9px] text-[#8B92A9] truncate">{l.campaign}</p>
+                            )}
+                            {l.adSetName && (
+                              <p className="text-[9px] text-[#E1306C] truncate">📢 {l.adSetName}</p>
+                            )}
+                          </td>
+                        )}
 
                         {/* Project */}
                         <td className="px-2.5 py-2.5">
@@ -2403,14 +2423,15 @@ const showToast = useCallback((message, type = "success") => {
                           )}
                         </td>
 
-                        {/* Date */}
-                        <td className="px-2.5 py-2.5 text-[11px] text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.date}</td>
-
-                        {/* Status */}
-                        <td className="px-2.5 py-2.5"><StatusBadge lead={l} /></td>
-
-                        {/* Quality */}
-                        <td className="px-2.5 py-2.5"><TempBadge temp={l.Quality} /></td>
+                        {showDateCol && (
+                          <td className="px-2.5 py-2.5 text-[11px] text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.date}</td>
+                        )}
+                        {showStatusCol && (
+                          <td className="px-2.5 py-2.5"><StatusBadge lead={l} /></td>
+                        )}
+                        {showTempCol && (
+                          <td className="px-2.5 py-2.5"><TempBadge temp={l.Quality} /></td>
+                        )}
 
                         {/* Last Outcome */}
                         <td className="px-2.5 py-2.5">
