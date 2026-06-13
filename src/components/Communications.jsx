@@ -7,6 +7,7 @@ import { maskPhone, maskEmail } from "../utils/maskPhone";
 import { io } from "socket.io-client";
 import axios from "axios";
 import api from "../data/axiosConfig";
+import { AlertOctagon, Lightbulb, ClipboardList, BarChart3, RefreshCw, MessageCircle, Inbox, Smartphone, Target, FileText, Image as ImageIcon, Music, Video, MapPin, AlertTriangle, Zap, X, Check } from "lucide-react";
 
 const API_URL    = import.meta.env.VITE_API_URL;
 const SOCKET_URL = API_URL.replace("/api", "");
@@ -111,7 +112,7 @@ function WebhookUrlBox() {
     <div className="rounded-xl border-2 border-red-400 dark:border-red-600 bg-red-50 dark:bg-red-900/20 p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <span className="text-lg">🚨</span>
+        <span className="text-red-500"><AlertOctagon className="w-5 h-5" /></span>
         <p className="text-[13px] font-bold text-red-700 dark:text-red-400">
           ACTION REQUIRED — Set Webhook in MSG91 Dashboard
         </p>
@@ -148,13 +149,13 @@ function WebhookUrlBox() {
             onClick={handleCopy}
             className="shrink-0 px-4 py-2 rounded-lg bg-red-600 text-white text-[12px] font-bold hover:bg-red-700 transition"
           >
-            {copied ? "✓ Copied!" : "Copy URL"}
+            {copied ? "Copied!" : "Copy URL"}
           </button>
         </div>
       </div>
 
       <p className="text-[11px] text-red-500 dark:text-red-400 text-center">
-        ⚡ Once saved in MSG91, replies appear in CRM within 1–2 seconds
+        <span className="inline-flex items-center gap-1"><Zap className="w-3 h-3" /> Once saved in MSG91, replies appear in CRM within 1–2 seconds</span>
       </p>
     </div>
   );
@@ -231,7 +232,7 @@ function IntegrationsModal({ onClose }) {
     try {
       const r = await api.put("/admin/company/msg91-config", { authKey: msg91Key.trim(), integratedNumber: msg91Num.trim(), namespace: msg91NS.trim() });
       setMsg91(r.data); setMsg91Key("••••••••••••••••");
-      setMsg91Ok("✓ MSG91 connected! WhatsApp and SMS are now active.");
+      setMsg91Ok("MSG91 connected! WhatsApp and SMS are now active.");
       setTimeout(() => setMsg91Ok(""), 4000);
     } catch (e) { setMsg91Err(e.response?.data?.message || "Failed to save MSG91 config"); }
     finally { setMsg91Saving(false); }
@@ -257,7 +258,7 @@ function IntegrationsModal({ onClose }) {
         senderName: brevoName.trim() || "CRM",
       });
       setBrevo(r.data); setBrevoKey("••••••••••••••••");
-      setBrevoOk("✓ Brevo connected! Email blasts are now active.");
+      setBrevoOk("Brevo connected! Email blasts are now active.");
       setTimeout(() => setBrevoOk(""), 4000);
     } catch (e) { setBrevoErr(e.response?.data?.message || "Failed to save Brevo config"); }
     finally { setBrevoSaving(false); }
@@ -285,7 +286,7 @@ function IntegrationsModal({ onClose }) {
         senderName: m91EmailName.trim() || "CRM",
       });
       setM91Email(r.data); setM91EmailKey("••••••••••••••••");
-      setM91EmailOk("✓ MSG91 Email connected! Email blasts will now use MSG91 (up to 5,000/day), then fallback to Brevo.");
+      setM91EmailOk("MSG91 Email connected! Email blasts will now use MSG91 (up to 5,000/day), then fallback to Brevo.");
       setTimeout(() => setM91EmailOk(""), 5000);
     } catch (e) { setM91EmailErr(e.response?.data?.message || "Failed to save MSG91 Email config"); }
     finally { setM91EmailSaving(false); }
@@ -465,7 +466,7 @@ function IntegrationsModal({ onClose }) {
                 <div className="rounded-xl border border-[#FED7AA] dark:border-[#7c3a00] bg-[#FFF7ED] dark:bg-[#1c0a00] p-4">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-[11px] font-bold text-[#EA580C] uppercase tracking-widest">
-                      📋 Approved DLT Template
+                      <span className="inline-flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5" /> Approved DLT Template</span>
                     </p>
                     <span className="px-2 py-0.5 rounded-full bg-[#DCFCE7] dark:bg-[#052e16] text-[#15803D] text-[10px] font-bold">
                       Active
@@ -530,7 +531,7 @@ function IntegrationsModal({ onClose }) {
               {/* Quota status banner if connected */}
               {m91EmailConnected && m91Email && (
                 <div className="bg-[#EFF6FF] dark:bg-[#0c1a2e] border border-[#BFDBFE] dark:border-[#1e3a5f] rounded-xl px-4 py-3">
-                  <p className="text-[12px] font-semibold text-[#1e40af] dark:text-[#60a5fa] mb-1">📊 Daily Quota (resets midnight UTC)</p>
+                  <p className="text-[12px] font-semibold text-[#1e40af] dark:text-[#60a5fa] mb-1 flex items-center gap-1"><BarChart3 className="w-3 h-3" /> Daily Quota (resets midnight UTC)</p>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 bg-[#DBEAFE] dark:bg-[#1e3a5f] rounded-full h-2 overflow-hidden">
                       <div
@@ -548,7 +549,7 @@ function IntegrationsModal({ onClose }) {
               {/* Fallback info */}
               <div className="bg-[#F0FDF4] dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-3">
                 <p className="text-[12px] text-emerald-700 dark:text-emerald-400">
-                  <strong>🔄 Smart fallback:</strong> MSG91 Email is the <strong>primary</strong> sender (free 5,000/day quota).
+                  <strong className="inline-flex items-center gap-1"><RefreshCw className="w-3 h-3" /> Smart fallback:</strong> MSG91 Email is the <strong>primary</strong> sender (free 5,000/day quota).
                   When the daily limit is reached, the CRM <strong>automatically falls back to Brevo</strong> — zero downtime.
                   Make sure Brevo is also connected as your backup.
                 </p>
@@ -831,7 +832,7 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
 
           {/* Info banner */}
           <div className="flex gap-2.5 bg-[#FFFBEB] dark:bg-[#1c1600] border border-[#FDE68A] dark:border-[#78350f] rounded-xl px-4 py-3">
-            <span className="text-[14px] shrink-0 mt-0.5">💡</span>
+            <span className="shrink-0 mt-0.5 text-amber-500"><Lightbulb className="w-3.5 h-3.5" /></span>
             <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] leading-relaxed">
               WhatsApp requires a <strong>pre-approved template</strong> to initiate a new conversation.
               Once the client replies, you can send free-form messages for 24 hours.
@@ -906,7 +907,7 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
 
           {error && (
             <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">
-              ⚠ {error}
+              <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {error}</span>
             </div>
           )}
         </div>
@@ -993,7 +994,7 @@ function ReEngageModal({ conversationId, authHeaders, onSent }) {
           Re-engage
         </button>
       </div>
-      {error && <p className="text-[11px] text-[#DC2626]">⚠ {error}</p>}
+      {error && <p className="text-[11px] text-[#DC2626] flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {error}</p>}
     </div>
   );
 }
@@ -1242,9 +1243,9 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
               <p className="text-[10px] text-[#8B92A9] mt-1 mb-2">Required column: <code className="bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366] px-1 rounded">phone</code> or <code className="bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366] px-1 rounded">mobile</code>. Optional: <code className="bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366] px-1 rounded">name</code>. Include country code.</p>
               <div className="flex items-center gap-2 mt-2">
                 <button onClick={parseCSV} className="px-4 py-2 rounded-xl bg-[#f0fdf4] dark:bg-[#052e1c] text-[#25D366] text-[12px] font-semibold hover:bg-[#dcfce7] transition border border-[#25D366]/30">Parse CSV</button>
-                {csvParsed && <span className="text-[12px] text-[#25D366] font-semibold">✓ {csvParsed.length} recipients found</span>}
+                {csvParsed && <span className="text-[12px] text-[#25D366] font-semibold inline-flex items-center gap-1"><Check className="w-3 h-3" /> {csvParsed.length} recipients found</span>}
               </div>
-              {csvError && <p className="text-[11px] text-[#DC2626] mt-1">⚠ {csvError}</p>}
+              {csvError && <p className="text-[11px] text-[#DC2626] mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {csvError}</p>}
             </div>
           )}
 
@@ -1298,7 +1299,7 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
             
             <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-3">WhatsApp Template</p>
             <div className="flex gap-2.5 bg-[#FFFBEB] dark:bg-[#1c1600] border border-[#FDE68A] dark:border-[#78350f] rounded-xl px-4 py-3 mb-4">
-              <span className="text-[14px] shrink-0 mt-0.5">💡</span>
+              <span className="shrink-0 mt-0.5 text-amber-500"><Lightbulb className="w-3.5 h-3.5" /></span>
               <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] leading-relaxed">
                 WhatsApp requires a <strong>pre-approved template</strong> to send bulk messages. The template name must exactly match what is approved in your MSG91 / Meta dashboard.
               </p>
@@ -1330,7 +1331,7 @@ function WhatsAppBlastModal({ onClose, authHeaders }) {
           </div>
 
           {error && (
-            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">⚠ {error}</div>
+            <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {error}</div>
           )}
         </div>
 
@@ -1519,7 +1520,7 @@ function WhatsAppPanel({ currentUser }) {
           normalizeWaPhone(sel.waPhone) === normalizeWaPhone(inboundWaPhone) &&
           sel._id !== conversationId
         ) {
-          console.warn(`⚠️  Admin viewing conv ${sel._id} but inbound arrived for conv ${conversationId} (same phone ${inboundWaPhone}) — reloading messages`);
+          console.warn(`Admin viewing conv ${sel._id} but inbound arrived for conv ${conversationId} (same phone ${inboundWaPhone}) — reloading messages`);
           // Re-fetch the correct conversation's messages so the UI is consistent
           axios.get(`${API_URL}/whatsapp/conversations/${conversationId}/messages`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
             .then(({ data }) => {
@@ -1569,7 +1570,7 @@ function WhatsAppPanel({ currentUser }) {
         headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
       })
         .then(r => r.json())
-        .then(d => { if (d.success) console.log("✅ MSG91 webhook auto-registered:", d.webhookUrl); })
+        .then(d => { if (d.success) console.log("MSG91 webhook auto-registered:", d.webhookUrl); })
         .catch(() => {}); // silent fail — polling is still the fallback
     }
 
@@ -1729,7 +1730,7 @@ function WhatsAppPanel({ currentUser }) {
         {sideTab === "chats" && <div className="flex-1 overflow-y-auto">
           {filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-10 gap-3">
-              <span className="text-3xl">💬</span>
+              <span className="text-[#8B92A9]"><MessageCircle className="w-8 h-8" strokeWidth={1.5} /></span>
               <p className="text-[#8B92A9] text-[12px]">No conversations yet</p>
               <button onClick={() => setSideTab("leads")} className="text-[11px] text-[#25D366] hover:underline font-semibold">Go to Leads →</button>
             </div>
@@ -1753,7 +1754,7 @@ function WhatsAppPanel({ currentUser }) {
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
                     <span className={`text-[11px] truncate max-w-[130px] ${isZombie ? "text-[#DC2626]" : "text-[#8B92A9]"}`}>
-                      {isZombie ? "⚠ Template failed — tap to delete" : conv.lastMessage || "No messages yet"}
+                      {isZombie ? <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Template failed — tap to delete</span> : conv.lastMessage || "No messages yet"}
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: conv.status === "waiting" ? "#f59e0b" : conv.status === "open" ? "#22c55e" : "#9ca3af" }} />
@@ -1894,7 +1895,7 @@ function WhatsAppPanel({ currentUser }) {
 
           {session && (
             <div className={`px-4 py-2 text-[11px] border-b border-[#E4E7EF] dark:border-[#262A38] ${session.expired ? "bg-[#FEF2F2] text-[#DC2626]" : "bg-[#FFFBEB] text-[#D97706]"}`}>
-              ⚠️ {session.text}
+              <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {session.text}</span>
             </div>
           )}
 
@@ -1910,12 +1911,12 @@ function WhatsAppPanel({ currentUser }) {
                       <div className="text-[9px] text-[#166534] font-semibold mb-0.5">{msg.sentBy.name}</div>
                     )}
                     <div className="text-[13px] text-[#111827] leading-[1.5] whitespace-pre-wrap break-words">
-                      {msg.messageType === "image" && "🖼️ "}
-                      {msg.messageType === "document" && "📄 "}
-                      {msg.messageType === "audio" && "🎵 "}
-                      {msg.messageType === "video" && "🎥 "}
-                      {msg.messageType === "location" && "📍 "}
-                      {msg.messageType === "template" && "📋 "}
+                      {msg.messageType === "image" && <ImageIcon className="w-3.5 h-3.5 inline mr-1" />}
+                      {msg.messageType === "document" && <FileText className="w-3.5 h-3.5 inline mr-1" />}
+                      {msg.messageType === "audio" && <Music className="w-3.5 h-3.5 inline mr-1" />}
+                      {msg.messageType === "video" && <Video className="w-3.5 h-3.5 inline mr-1" />}
+                      {msg.messageType === "location" && <MapPin className="w-3.5 h-3.5 inline mr-1" />}
+                      {msg.messageType === "template" && <ClipboardList className="w-3.5 h-3.5 inline mr-1" />}
                       {msg.body}
                     </div>
                     <div className="flex justify-end items-center gap-1 mt-1">
@@ -1941,7 +1942,7 @@ function WhatsAppPanel({ currentUser }) {
           {error && (
             <div className="px-4 py-2 bg-[#FEF2F2] text-[#DC2626] text-[11px] border-t border-[#FECACA] flex items-center justify-between">
               {error}
-              <button onClick={() => setError("")} className="ml-2 text-inherit">✕</button>
+              <button onClick={() => setError("")} className="ml-2 text-inherit"><X className="w-3 h-3 inline" /></button>
             </div>
           )}
 
@@ -2294,9 +2295,9 @@ function EmailBlastModal({ onClose }) {
               <textarea value={csvText} onChange={(e) => { setCsvText(e.target.value); setCsvParsed(null); setCsvError(""); }} rows={4} className={FIELD_CLS + " font-mono text-[12px] resize-y"} placeholder="name,email\nRahul,rahul@gmail.com" />
               <div className="flex items-center gap-2 mt-2">
                 <button onClick={parseCSV} className="px-4 py-2 rounded-xl bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] text-[12px] font-semibold hover:bg-[#dce7ff] transition">Parse CSV</button>
-                {csvParsed && <span className="text-[12px] text-[#059669] font-semibold">✓ {csvParsed.length} recipients found</span>}
+                {csvParsed && <span className="text-[12px] text-[#059669] font-semibold inline-flex items-center gap-1"><Check className="w-3 h-3" /> {csvParsed.length} recipients found</span>}
               </div>
-              {csvError && <p className="text-[11px] text-[#DC2626] mt-1">⚠ {csvError}</p>}
+              {csvError && <p className="text-[11px] text-[#DC2626] mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {csvError}</p>}
             </div>
           )}
 
@@ -2335,7 +2336,7 @@ function EmailBlastModal({ onClose }) {
             </div>
           )}
 
-          {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">⚠ {error}</div>}
+          {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {error}</div>}
         </div>
 
         <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-3 shrink-0">
@@ -2479,7 +2480,7 @@ function EmailPanel() {
           <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => { setDateFrom(e.target.value); fetchLogs(1, search, campaignFilter, sortOrder, e.target.value, dateTo); }} className="flex-1 sm:flex-none px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition sm:w-[140px]" title="From date" />
           <span className="text-[12px] text-[#8B92A9] hidden sm:inline">to</span>
           <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => { setDateTo(e.target.value); fetchLogs(1, search, campaignFilter, sortOrder, dateFrom, e.target.value); }} className="flex-1 sm:flex-none px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition sm:w-[140px]" title="To date" />
-          {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); fetchLogs(1, search, campaignFilter, sortOrder, "", ""); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] text-[#8B92A9] hover:text-[#DC2626] hover:border-[#DC2626] transition">✕ Clear</button>}
+          {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); fetchLogs(1, search, campaignFilter, sortOrder, "", ""); }} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] text-[#8B92A9] hover:text-[#DC2626] hover:border-[#DC2626] transition"><span className="inline-flex items-center gap-1"><X className="w-3 h-3" /> Clear</span></button>}
           <select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); fetchLogs(1, search, campaignFilter, e.target.value, dateFrom, dateTo); }} className="flex-1 sm:flex-none px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB] transition">
             <option value="desc">Newest first</option>
             <option value="asc">Oldest first</option>
@@ -2487,7 +2488,7 @@ function EmailPanel() {
         </div>
       </div>
 
-      {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] mb-3 shrink-0">⚠ {error}</div>}
+      {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] mb-3 shrink-0 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {error}</div>}
 
       {/* Table */}
       <div className="flex-1 overflow-auto bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl">
@@ -2502,7 +2503,7 @@ function EmailPanel() {
           <tbody className="divide-y divide-[#E4E7EF] dark:divide-[#262A38]">
             {loading ? Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />) : logs.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-16 text-center">
-                <div className="text-[36px] mb-3">📭</div>
+                <div className="mb-3 flex justify-center text-[#8B92A9]"><Inbox className="w-9 h-9" strokeWidth={1.5} /></div>
                 <p className="text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No email logs found</p>
                 <p className="text-[12px] text-[#8B92A9] mt-1">{search || campaignFilter || dateFrom || dateTo ? "Try clearing your filters." : "Send emails to start tracking history."}</p>
               </td></tr>
@@ -2661,7 +2662,7 @@ function SmsLeadRow({ lead, isActive, onClick }) {
             </span>
           )}
           {failedCount === 0 && sentCount > 0 && (
-            <span className="shrink-0 text-[10px] text-[#059669] font-semibold">{sentCount} ✓</span>
+            <span className="shrink-0 text-[10px] text-[#059669] font-semibold inline-flex items-center gap-1">{sentCount} <Check className="w-2.5 h-2.5" /></span>
           )}
           {!hasSms && (
             <span className="shrink-0 text-[10px] text-[#8B92A9] italic">no SMS</span>
@@ -2821,7 +2822,7 @@ function SmsBlastComposer({ onSent }) {
         <div className="flex justify-center">
           <div className="bg-[#FFF7C7] dark:bg-[#2A2519] rounded-lg px-4 py-2 max-w-sm text-center shadow-sm">
             <p className="text-[11px] text-[#7B6914] dark:text-[#CDB648] leading-relaxed">
-              📋 MSG91 requires a <strong>DLT Template ID</strong> for Indian numbers.
+              <span className="inline-flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5" /> MSG91 requires a <strong>DLT Template ID</strong> for Indian numbers.</span>
               Use <code className="bg-yellow-200 dark:bg-yellow-900 px-1 rounded">{"{{name}}"}</code> to personalise.
             </p>
           </div>
@@ -2832,9 +2833,9 @@ function SmsBlastComposer({ onSent }) {
           <p className="text-[11px] font-semibold text-[#667781] dark:text-[#8696A0] uppercase tracking-wide mb-2">Send to</p>
           <div className="flex gap-2">
             {[
-              { key: "campaign", label: "CRM Campaign", icon: "🎯" },
-              { key: "single",   label: "Single Number", icon: "📱" },
-              { key: "csv",      label: "CSV Upload",    icon: "📄" },
+              { key: "campaign", label: "CRM Campaign", Icon: Target },
+              { key: "single",   label: "Single Number", Icon: Smartphone },
+              { key: "csv",      label: "CSV Upload",    Icon: FileText },
             ].map((m) => (
               <button key={m.key} onClick={() => setMode(m.key)}
                 className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-semibold border transition ${
@@ -2842,7 +2843,7 @@ function SmsBlastComposer({ onSent }) {
                     ? "bg-[#DCF8C6] dark:bg-[#005C4B] border-[#25D366] text-[#075E54] dark:text-[#E9EDEF]"
                     : "border-[#E4E7EF] dark:border-[#2A3942] text-[#8B92A9] hover:border-[#25D366] hover:text-[#075E54]"
                 }`}>
-                <span className="mr-1">{m.icon}</span>{m.label}
+                <span className="inline-flex items-center gap-1"><m.Icon className="w-3.5 h-3.5" />{m.label}</span>
               </button>
             ))}
           </div>
@@ -2886,8 +2887,8 @@ function SmsBlastComposer({ onSent }) {
               <textarea value={csvText} onChange={(e) => { setCsvText(e.target.value); setCsvParsed(null); setCsvError(""); }} rows={4} className={FIELD_CLS + " font-mono text-[11px] resize-y"} />
               <div className="flex items-center gap-2 mt-1.5">
                 <button onClick={parseCsv} className="px-3 py-1.5 rounded-lg bg-[#F1F5F9] dark:bg-[#2A3942] text-[11px] font-semibold text-[#4B5168] hover:border-[#25D366] hover:text-[#075E54] border border-[#E4E7EF] dark:border-[#2A3942] transition">Parse CSV</button>
-                {csvParsed && <span className="text-[11px] text-[#059669] font-semibold">✓ {csvParsed.length} valid rows</span>}
-                {csvError  && <span className="text-[11px] text-[#DC2626]">⚠ {csvError}</span>}
+                {csvParsed && <span className="text-[11px] text-[#059669] font-semibold inline-flex items-center gap-1"><Check className="w-3 h-3" /> {csvParsed.length} valid rows</span>}
+                {csvError  && <span className="text-[11px] text-[#DC2626] inline-flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {csvError}</span>}
               </div>
             </div>
           )}
@@ -2913,7 +2914,7 @@ function SmsBlastComposer({ onSent }) {
           {/* ── Skyup_greetings quick-fill banner ── */}
           <div className="mb-3 p-3 bg-[#FFF7ED] dark:bg-[#1c0a00] border border-[#FED7AA] dark:border-[#7c3a00] rounded-xl flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-[#EA580C] mb-0.5">📋 Approved Template</p>
+              <p className="text-[11px] font-bold text-[#EA580C] mb-0.5 flex items-center gap-1"><ClipboardList className="w-3 h-3" /> Approved Template</p>
               <p className="text-[10px] text-[#9A3412] dark:text-[#FED7AA] font-mono truncate">
                 Sender: <strong>695382</strong> · DLT: <strong>1007503933418344595</strong>
               </p>
@@ -2980,7 +2981,7 @@ function SmsBlastComposer({ onSent }) {
         )}
 
         {error && (
-          <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626]">⚠ {error}</div>
+          <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {error}</div>
         )}
       </div>
 
@@ -3187,7 +3188,7 @@ function SmsLeadThread({ lead, onBack, onSend }) {
                 disabled={configSaving || !authKey.trim()}
                 className="px-4 py-2 rounded-lg bg-[#25D366] hover:bg-[#20B858] disabled:opacity-40 text-white text-[11px] font-semibold transition whitespace-nowrap"
               >
-                {configSaving ? "Saving…" : configSaved ? "✓ Saved!" : "Save"}
+                {configSaving ? "Saving…" : configSaved ? "Saved!" : "Save"}
               </button>
             </div>
           </div>
@@ -3437,7 +3438,7 @@ function SmsPanel() {
             ))
           ) : filteredLeads.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 p-8 opacity-60">
-              <div className="text-4xl">📱</div>
+              <div className="text-[#8B92A9]"><Smartphone className="w-9 h-9" strokeWidth={1.5} /></div>
               <p className="text-[13px] text-[#667781] text-center">No SMS contacts yet. Send your first blast!</p>
             </div>
           ) : (
@@ -3598,7 +3599,7 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
             {wa.enabled && (
               <div className="space-y-3 pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
                 <div className="flex gap-2.5 bg-[#FFFBEB] dark:bg-[#1c1600] border border-[#FDE68A] dark:border-[#78350f] rounded-xl px-4 py-3">
-                  <span className="text-[14px] shrink-0">💡</span>
+                  <span className="shrink-0 text-amber-500"><Lightbulb className="w-3.5 h-3.5" /></span>
                   <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] leading-relaxed">
                     The template name must exactly match an approved template in your <strong>MSG91 / Meta dashboard</strong>.
                   </p>
@@ -3721,7 +3722,7 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
             </p>
             {(testResults.results || []).map((r, i) => (
               <p key={i} className={`text-[11px] ${r.status === "sent" ? "text-[#059669]" : r.status === "failed" ? "text-[#DC2626]" : "text-[#B45309]"}`}>
-                {r.status === "sent" ? "✓" : r.status === "failed" ? "✗" : "⚠"} <span className="font-semibold uppercase">{r.channel}</span> — {r.status}: {r.detail}
+                {r.status === "sent" ? <Check className="w-3 h-3 inline" /> : r.status === "failed" ? <X className="w-3 h-3 inline" /> : <AlertTriangle className="w-3 h-3 inline" />} <span className="font-semibold uppercase">{r.channel}</span> — {r.status}: {r.detail}
               </p>
             ))}
           </div>
@@ -3729,8 +3730,8 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-1 border-t border-[#E4E7EF] dark:border-[#262A38]">
-          {error  && <p className="text-[11px] text-[#DC2626]">⚠ {error}</p>}
-          {saved  && <p className="text-[11px] text-[#059669] font-semibold">✓ Settings saved</p>}
+          {error  && <p className="text-[11px] text-[#DC2626] flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {error}</p>}
+          {saved  && <p className="text-[11px] text-[#059669] font-semibold flex items-center gap-1"><Check className="w-3 h-3" /> Settings saved</p>}
           {!error && !saved && <span />}
           <div className="flex items-center gap-2">
           <button
