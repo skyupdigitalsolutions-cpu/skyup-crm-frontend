@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { X } from "lucide-react";
+import { X, Flame, Sun, Snowflake, CheckCircle2, AlertTriangle, Clock, Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays, Paperclip, Mic, User, RefreshCw, ClipboardList, Inbox, Map as MapIcon, Users, BarChart3, PartyPopper, XCircle, Zap, Sparkles } from "lucide-react";
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -35,7 +35,7 @@ const STATUS_COLOR = {
   "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",      text: "text-red-600 dark:text-red-400",      dot: "#DC2626" },
 };
 
-const TEMP_ICON = { Hot: "🔥", Warm: "☀️", Cold: "❄️" };
+const TEMP_ICON = { Hot: Flame, Warm: Sun, Cold: Snowflake };
 const TEMP_STYLE = {
   Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400" },
   Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400" },
@@ -167,7 +167,7 @@ function ScheduledCard({ sc: call }) {
     : isOverdue
     ? "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
     : "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400";
-  const icon = call.done ? "✅" : isOverdue ? "⚠️" : "🕐";
+  const Icon = call.done ? CheckCircle2 : isOverdue ? AlertTriangle : Clock;
 
   return (
     <div className={`rounded-xl border p-3 mb-2 ${
@@ -179,7 +179,7 @@ function ScheduledCard({ sc: call }) {
     }`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-[14px]">{icon}</span>
+          <span className="text-[#8B92A9]"><Icon className="w-3.5 h-3.5" /></span>
           <div>
             <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
               {call.type === "follow-up" ? "Follow-up Call" : "Verification Call"}
@@ -207,21 +207,21 @@ function ScheduledCard({ sc: call }) {
 
 // ── Client visit / meeting card ───────────────────────────────────────────────
 const MEETING_TYPE_ICON = {
-  "In-Person":  "🤝",
-  "Site Visit": "📍",
-  "Demo":       "🖥️",
-  "Video Call": "🎥",
-  "Phone Call": "📞",
+  "In-Person":  Handshake,
+  "Site Visit": MapPin,
+  "Demo":       Monitor,
+  "Video Call": Video,
+  "Phone Call": Phone,
 };
 
 function MeetingCard({ visit }) {
-  const icon  = MEETING_TYPE_ICON[visit.meetingType] || "🗓️";
+  const MIcon = MEETING_TYPE_ICON[visit.meetingType] || CalendarClock;
   const oStyle = OUTCOME_STYLE[visit.outcome] || { bg: "bg-gray-100 dark:bg-gray-900/40", text: "text-gray-500 dark:text-gray-400" };
   return (
     <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] p-3 mb-2">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[14px]">{icon}</span>
+          <span className="text-[#2563EB]"><MIcon className="w-3.5 h-3.5" /></span>
           <div className="min-w-0">
             <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
               {visit.meetingType || "Visit"}
@@ -243,13 +243,13 @@ function MeetingCard({ visit }) {
 
       {visit.location ? (
         <p className="mt-1.5 text-[10px] text-[#8B92A9] flex items-center gap-1">
-          <span>📍</span><span className="truncate">{visit.location}</span>
+          <MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{visit.location}</span>
         </p>
       ) : null}
 
       {visit.followUpDate ? (
         <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-          <span>📅</span><span>Follow-up: {fmtDateTime(visit.followUpDate)}</span>
+          <CalendarDays className="w-3 h-3 shrink-0" /><span>Follow-up: {fmtDateTime(visit.followUpDate)}</span>
         </p>
       ) : null}
 
@@ -262,7 +262,7 @@ function MeetingCard({ visit }) {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition"
             >
-              <span>📎</span>{visit.documentName || "View attachment"}
+              <Paperclip className="w-3 h-3" />{visit.documentName || "View attachment"}
             </a>
           ) : null}
           {visit.recordingUrl ? (
@@ -272,7 +272,7 @@ function MeetingCard({ visit }) {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/20 transition"
             >
-              <span>🎙️</span>{visit.recordingName || "Play recording"}
+              <Mic className="w-3 h-3" />{visit.recordingName || "Play recording"}
             </a>
           ) : null}
         </div>
@@ -457,17 +457,17 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
             </span>
             {lead.Quality && TEMP_STYLE[lead.Quality] && (
               <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${TEMP_STYLE[lead.Quality].bg} ${TEMP_STYLE[lead.Quality].text}`}>
-                {TEMP_ICON[lead.Quality]} {lead.Quality}
+                {(() => { const I = TEMP_ICON[lead.Quality]; return I ? <I className="w-3 h-3" /> : null; })()} {lead.Quality}
               </span>
             )}
             {lead.agent && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
-                👤 {lead.agent}
+                <User className="w-3 h-3" /> {lead.agent}
               </span>
             )}
             {lead.reassignCount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 dark:bg-gray-900/40 text-gray-500 dark:text-gray-400">
-                🔄 Reassigned {lead.reassignCount}×
+                <RefreshCw className="w-3 h-3" /> Reassigned {lead.reassignCount}×
               </span>
             )}
           </div>
@@ -491,7 +491,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
 
           {/* ── Contact Numbers ── */}
           <div>
-            <SectionLabel icon="📞" label="Contact Numbers" />
+            <SectionLabel icon={<Phone className="w-3.5 h-3.5" />} label="Contact Numbers" />
             <div className="space-y-2">
 
               {/* Primary Number */}
@@ -521,7 +521,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
 
           {/* ── Lead Details ── */}
           <div>
-            <SectionLabel icon="📋" label="Lead Details" />
+            <SectionLabel icon={<ClipboardList className="w-3.5 h-3.5" />} label="Lead Details" />
             <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
               {[
                 { label: "Source",           value: lead.source || "—" },
@@ -576,14 +576,14 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
 
           {/* ── Call History ── */}
           <div>
-            <SectionLabel icon="📞" label={`Call History (${sortedCalls.length})`} />
+            <SectionLabel icon={<Phone className="w-3.5 h-3.5" />} label={`Call History (${sortedCalls.length})`} />
             {sortedCalls.length > 0 ? (
               sortedCalls.map((call, i) => (
                 <CallCard key={i} call={call} displayIndex={i + 1} />
               ))
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-                <span className="text-[28px]">📭</span>
+                <span className="text-[#8B92A9]"><Inbox className="w-7 h-7" strokeWidth={1.5} /></span>
                 <p className="text-[12px] text-[#8B92A9]">No calls recorded yet</p>
               </div>
             )}
@@ -592,7 +592,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
           {/* ── Client Visits (field meetings logged from mobile) ── */}
           {sortedVisits.length > 0 && (
             <div>
-              <SectionLabel icon="🗺️" label={`Client Visits (${sortedVisits.length})`} />
+              <SectionLabel icon={<MapIcon className="w-3.5 h-3.5" />} label={`Client Visits (${sortedVisits.length})`} />
               {sortedVisits.map((v, i) => (
                 <MeetingCard key={v._id || i} visit={v} />
               ))}
@@ -602,7 +602,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
           {/* ── Scheduled / Follow-up Calls ── */}
           {sortedSched.length > 0 && (
             <div>
-              <SectionLabel icon="📅" label={`Follow-ups & Scheduled Calls (${sortedSched.length})`} />
+              <SectionLabel icon={<CalendarDays className="w-3.5 h-3.5" />} label={`Follow-ups & Scheduled Calls (${sortedSched.length})`} />
               {sortedSched.map((s, i) => (
                 <ScheduledCard key={i} sc={s} />
               ))}
@@ -612,7 +612,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
           {/* ── Employee History ── */}
           {allAgents.length > 0 && (
             <div>
-              <SectionLabel icon="👥" label={`Employee History (${allAgents.length})`} />
+              <SectionLabel icon={<Users className="w-3.5 h-3.5" />} label={`Employee History (${allAgents.length})`} />
               <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-4 py-2">
                 {allAgents.map((ag, i) => (
                   <EmployeeCard key={i} agent={ag} isCurrent={ag._isCurrent} />
@@ -623,7 +623,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
 
           {/* ── Current Status Summary ── */}
           <div>
-            <SectionLabel icon="📊" label="Current Status Summary" />
+            <SectionLabel icon={<BarChart3 className="w-3.5 h-3.5" />} label="Current Status Summary" />
             <div
               className="rounded-xl border p-4"
               style={{ borderColor: sc.dot + "40", background: sc.dot + "08" }}
@@ -633,10 +633,10 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-[20px]"
                   style={{ background: sc.dot + "15" }}
                 >
-                  {lead.status === "Converted"        ? "🎉"
-                   : lead.status === "Not Interested" ? "❌"
-                   : lead.status === "In Progress"    ? "⚡"
-                   : "🆕"}
+                  {lead.status === "Converted"        ? <PartyPopper className="w-5 h-5" />
+                   : lead.status === "Not Interested" ? <XCircle className="w-5 h-5" />
+                   : lead.status === "In Progress"    ? <Zap className="w-5 h-5" />
+                   : <Sparkles className="w-5 h-5" />}
                 </div>
                 <div>
                   <p className="text-[13px] font-bold" style={{ color: sc.dot }}>{lead.status}</p>
@@ -666,7 +666,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
 
               {overdueCalls > 0 && (
                 <div className="mt-2.5 flex items-center gap-2 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
-                  <span className="text-[13px]">⚠️</span>
+                  <span className="text-red-500"><AlertTriangle className="w-3.5 h-3.5" /></span>
                   <p className="text-[11px] font-semibold text-red-600 dark:text-red-400">
                     {overdueCalls} overdue follow-up{overdueCalls > 1 ? "s" : ""} — action needed
                   </p>
