@@ -4,6 +4,7 @@ import ColdReassignModal from "../components/ColdReassignModal";
 import ClientMeetingTab from "../components/ClientMeetingTab";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
 import { maskPhone as _maskPhone } from "../utils/maskPhone";
+import { Check, AlertTriangle, X } from "lucide-react";
 
 const BACKEND_ROOT = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace(/\/api$/, "")
@@ -751,8 +752,9 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 style={{ background: (sc.dot || "#2563EB") + "20", color: sc.dot || "#2563EB" }}>
                 {lead.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
               </div>
-              <div>
-                <p className="text-[17px] font-bold text-[#0F1117] dark:text-white leading-none">{lead.name}</p>
+              <div className="min-w-0">
+                {/* MOBILE CHANGE: truncate long names with ellipsis */}
+                <p className="text-[17px] font-bold text-[#0F1117] dark:text-white leading-none truncate max-w-[200px] sm:max-w-none" title={lead.name}>{lead.name}</p>
 <div className="flex flex-col gap-0.5 mt-0.5">
                   <p className="text-[14px] text-[#8B92A9] dark:text-gray-400 font-mono">
                     <span className="text-[11px] font-bold bg-emerald-500/15 text-emerald-500 px-1 rounded mr-1">PRIMARY</span>
@@ -881,7 +883,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                     </label>
                     {alreadyInterested && (
                       <p className="text-[13px] text-emerald-600 dark:text-emerald-400 mb-1.5 flex items-center gap-1">
-                        ✓ Lead already marked Interested — choose a different outcome
+                        <Check className="w-3.5 h-3.5 shrink-0" /> Lead already marked Interested — choose a different outcome
                       </p>
                     )}
                     <select value={outcome} onChange={e => setOutcome(e.target.value)}
@@ -948,8 +950,8 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                   />
                 </div>
                 {error && (
-                  <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5 text-[14px] text-red-600 dark:text-red-400">
-                    ⚠️ {error}
+                  <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5 text-[14px] text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
                   </div>
                 )}
               </div>
@@ -1032,7 +1034,11 @@ export default function UserLeadsPage() {
   const [filterProject, setFilterProject] = useState("All");
   const [projects,      setProjects]      = useState([]);
   const [sortBy,     setSortBy]     = useState("date_desc");
+  const [dateFrom,   setDateFrom]   = useState("");
+  const [dateTo,     setDateTo]     = useState("");
   const [page,       setPage]       = useState(1);
+  // MOBILE CHANGE: collapsible secondary filter panel (source + project + date + sort)
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -1094,7 +1100,10 @@ export default function UserLeadsPage() {
         (l.projects || []).some(p =>
           (p?._id ? String(p._id) : String(p)) === filterProject
         );
-      return matchSearch && matchSt && matchTemp && matchSrc && matchProject;
+      let matchDate = true;
+      if (dateFrom) matchDate = matchDate && new Date(l._raw_date) >= new Date(dateFrom);
+      if (dateTo)   matchDate = matchDate && new Date(l._raw_date) <= new Date(dateTo + "T23:59:59");
+      return matchSearch && matchSt && matchTemp && matchSrc && matchProject && matchDate;
     });
     return res.slice().sort((a, b) => {
       if (sortBy === "date_desc") return new Date(b._raw_date || 0) - new Date(a._raw_date || 0);
@@ -1103,15 +1112,17 @@ export default function UserLeadsPage() {
       if (sortBy === "status")    return a.status.localeCompare(b.status);
       return 0;
     });
-  }, [leads, search, filterSt, filterTemp, filterSrc, filterProject, sortBy]);
+  }, [leads, search, filterSt, filterTemp, filterSrc, filterProject, sortBy, dateFrom, dateTo]);
 
   const totalPages = Math.ceil(displayed.length / PER_PAGE);
   const paged      = displayed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const clearFilters = () => {
-    setSearch(""); setFilterSt("All"); setFilterTemp("All"); setFilterSrc("All"); setFilterProject("All"); setPage(1);
+    setSearch(""); setFilterSt("All"); setFilterTemp("All"); setFilterSrc("All"); setFilterProject("All"); setDateFrom(""); setDateTo(""); setPage(1);
   };
-  const hasFilter = search || filterSt !== "All" || filterTemp !== "All" || filterSrc !== "All" || filterProject !== "All";
+  const hasFilter = search || filterSt !== "All" || filterTemp !== "All" || filterSrc !== "All" || filterProject !== "All" || dateFrom || dateTo;
+  // MOBILE CHANGE: count of filters living inside the collapsible panel
+  const hasSecondaryFilters = filterSrc !== "All" || filterProject !== "All" || !!dateFrom || !!dateTo;
 
   // Columns hidden by default, revealed only when the user filters by them.
   const showSourceCol = filterSrc  !== "All";
@@ -1172,11 +1183,11 @@ export default function UserLeadsPage() {
               placeholder="Search name, source, campaign…"
               className={INP + " pl-9 w-full"} />
           </div>
-          <select value={filterSrc} onChange={e => { setFilterSrc(e.target.value); setPage(1); }} className={INP}>
+          <select value={filterSrc} onChange={e => { setFilterSrc(e.target.value); setPage(1); }} className={`${INP} hidden sm:block`}>
             <option value="All">All sources</option>
             {sources.map(s => <option key={s}>{s}</option>)}
           </select>
-          <select value={filterProject} onChange={e => { setFilterProject(e.target.value); setPage(1); }} className={INP}>
+          <select value={filterProject} onChange={e => { setFilterProject(e.target.value); setPage(1); }} className={`${INP} hidden sm:block`}>
             <option value="All">All Projects</option>
             {projects.map(p => (
               <option key={String(p._id)} value={String(p._id)}>{p.name}</option>
@@ -1186,19 +1197,100 @@ export default function UserLeadsPage() {
             <option value="All">All quality</option>
             <option>Hot</option><option>Warm</option><option>Cold</option>
           </select>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={INP}>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={`${INP} hidden sm:block`}>
             <option value="date_desc">Newest first</option>
             <option value="date_asc">Oldest first</option>
             <option value="name_asc">Name A–Z</option>
             <option value="status">By status</option>
           </select>
+          {/* Desktop-only: Date range */}
+          <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className={`${INP} hidden sm:block`} title="From date" />
+          <input type="date" value={dateTo}   onChange={e => { setDateTo(e.target.value);   setPage(1); }} className={`${INP} hidden sm:block`} title="To date" />
+
+          {/* MOBILE CHANGE: "Filters" toggle button — only visible on mobile */}
+          <button
+            onClick={() => setShowMoreFilters(v => !v)}
+            className={`sm:hidden relative flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[14px] font-semibold transition
+              ${showMoreFilters || hasSecondaryFilters
+                ? "border-[#2563EB] text-[#2563EB] bg-[#EEF3FF] dark:bg-[#1A2540] dark:border-[#2563EB]"
+                : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] bg-white dark:bg-[#13161E]"}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M6 10h12M10 16h4" />
+            </svg>
+            Filters
+            {hasSecondaryFilters && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-[#2563EB] text-white text-[10px] font-black flex items-center justify-center leading-none">
+                {(filterSrc !== "All" ? 1 : 0) + (filterProject !== "All" ? 1 : 0) + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)}
+              </span>
+            )}
+          </button>
+
           {hasFilter && (
             <button onClick={clearFilters}
-              className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[14px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition">
-              ✕ Clear
+              className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[14px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition inline-flex items-center gap-1">
+              <X className="w-3.5 h-3.5" /> Clear
             </button>
           )}
         </div>
+
+        {/* MOBILE CHANGE: expanded secondary filters — mobile only */}
+        {showMoreFilters && (
+          <div className="sm:hidden mt-3 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex flex-col gap-3">
+            {/* Source */}
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Source</p>
+              <select value={filterSrc} onChange={e => { setFilterSrc(e.target.value); setPage(1); }} className={INP + " w-full"}>
+                <option value="All">All sources</option>
+                {sources.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+
+            {/* Project */}
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Project</p>
+              <select value={filterProject} onChange={e => { setFilterProject(e.target.value); setPage(1); }} className={INP + " w-full"}>
+                <option value="All">All Projects</option>
+                {projects.map(p => (
+                  <option key={String(p._id)} value={String(p._id)}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Date range — two inputs side by side on mobile */}
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Date Range</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[11px] text-[#8B92A9] mb-1">From</p>
+                  <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className={INP + " w-full"} />
+                </div>
+                <div>
+                  <p className="text-[11px] text-[#8B92A9] mb-1">To</p>
+                  <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} className={INP + " w-full"} />
+                </div>
+              </div>
+            </div>
+
+            {/* Sort — mobile */}
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Sort</p>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={INP + " w-full"}>
+                <option value="date_desc">Newest first</option>
+                <option value="date_asc">Oldest first</option>
+                <option value="name_asc">Name A–Z</option>
+                <option value="status">By status</option>
+              </select>
+            </div>
+
+            <button
+              onClick={() => setShowMoreFilters(false)}
+              className="w-full py-2.5 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 transition"
+            >
+              Apply Filters
+            </button>
+          </div>
+        )}
         <p className="text-[16px] text-[#8B92A9] dark:text-gray-400 mt-2">
           {displayed.length} leads {displayed.length !== leads.length ? `(filtered from ${leads.length})` : ""}
         </p>
