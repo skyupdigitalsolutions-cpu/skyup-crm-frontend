@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import api from "../data/axiosConfig";
 import CRMEncryption from "../utils/CRMEncryption";
 import toast from "react-hot-toast";
+import { ShieldCheck, ArrowRight, CheckCircle2 } from "lucide-react";
 
 const crm = new CRMEncryption();
 
@@ -236,8 +237,8 @@ export default function UserLogin() {
           <Link to="/forgot-password" className="block text-[12px] text-[#8B92A9] hover:text-blue-600 dark:hover:text-blue-400 transition">
             Forgot your password?
           </Link>
-          <Link to="/superadmin/login" className="block text-[12px] text-[#8B92A9] hover:text-amber-500 dark:hover:text-amber-400 transition">
-            🔐 Super Admin secure login →
+          <Link to="/superadmin/login" className="inline-flex items-center justify-center gap-1.5 text-[12px] text-[#8B92A9] hover:text-amber-500 dark:hover:text-amber-400 transition">
+            <ShieldCheck className="w-3.5 h-3.5" /> Super Admin secure login <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
@@ -264,8 +265,8 @@ export default function UserLogin() {
                 </div>
               ))}
             </div>
-            <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-5">
-              ✅ A backup file was also downloaded to your computer.
+            <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-5 inline-flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> A backup file was also downloaded to your computer.
             </p>
             <label className="flex items-start gap-3 cursor-pointer mb-5">
               <input type="checkbox" checked={mnemonicConfirmed} onChange={e => setMnemonicConfirmed(e.target.checked)}
