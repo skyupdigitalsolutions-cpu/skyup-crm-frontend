@@ -3,6 +3,7 @@ import {
   Loader2, X, Check, BarChart3, RefreshCw, Globe, Info, AlertCircle,
   Lock, ChevronRight, ChevronLeft, Mail, Eye as EyeIcon, EyeOff as EyeOffIcon, Plus, UploadCloud,
   Search, Users, User, Send, Pencil as PencilIcon,
+  Flame, Thermometer, Snowflake, ClipboardList, Inbox, Radio, CheckCircle2,
 } from "lucide-react";
 import api from "../data/axiosConfig";
 import VoiceBotPanel from "./VoiceBotPanel";
@@ -193,7 +194,7 @@ function SyncMetaModal({ onClose, onSynced, prefillPageId, parentName = "" }) {
 
         {result && (
           <div className="mb-4 bg-[#ECFDF5] dark:bg-[#052E1C] border border-[#A7F3D0] rounded-xl px-4 py-3 text-[12px] text-[#059669]">
-            ✅ {result.created} ad sets created, {result.skipped} already existed.
+            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> {result.created} ad sets created, {result.skipped} already existed.</span>
             <ul className="mt-2 space-y-1">
               {result.forms.map((f, i) => (
                 <li key={i} className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
@@ -316,9 +317,9 @@ function LeadDrawer({ campaign, onClose }) {
             <div className="flex gap-1.5 flex-wrap">
               {[
                 { key: "All",  label: `All (${leads.length})`,  color: "text-[#4B5168] dark:text-[#9DA3BB]", activeBg: "bg-[#EEF3FF] dark:bg-[#1A2540]", activeText: "text-[#2563EB]" },
-                { key: "Hot",  label: `🔥 Hot (${hotCount})`,   color: "text-[#DC2626]", activeBg: "bg-[#FEF2F2]", activeText: "text-[#DC2626]" },
-                { key: "Warm", label: `🌡 Warm (${warmCount})`, color: "text-[#D97706]", activeBg: "bg-[#FFFBEB]", activeText: "text-[#D97706]" },
-                { key: "Cold", label: `❄️ Cold (${coldCount})`, color: "text-[#2563EB]", activeBg: "bg-[#EEF3FF]", activeText: "text-[#2563EB]" },
+                { key: "Hot",  label: `Hot (${hotCount})`,   Icon: Flame,      color: "text-[#DC2626]", activeBg: "bg-[#FEF2F2]", activeText: "text-[#DC2626]" },
+                { key: "Warm", label: `Warm (${warmCount})`, Icon: Thermometer, color: "text-[#D97706]", activeBg: "bg-[#FFFBEB]", activeText: "text-[#D97706]" },
+                { key: "Cold", label: `Cold (${coldCount})`, Icon: Snowflake,  color: "text-[#2563EB]", activeBg: "bg-[#EEF3FF]", activeText: "text-[#2563EB]" },
               ].map((f) => (
                 <button
                   key={f.key}
@@ -329,7 +330,7 @@ function LeadDrawer({ campaign, onClose }) {
                       : "bg-white dark:bg-[#1A1D27] border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-[#CBD5E1]"
                   }`}
                 >
-                  {f.label}
+                  <span className="inline-flex items-center gap-1">{f.Icon && <f.Icon className="w-3 h-3" />}{f.label}</span>
                 </button>
               ))}
             </div>
@@ -1646,12 +1647,12 @@ function QualificationModal({ adSet, onClose, onSaved }) {
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   {[
-                    { label: "🔥 Hot", color: "#DC2626", bg: "bg-[#FEF2F2]", desc: `Score ≥ ${thresholds.hot}%` },
-                    { label: "🌡 Warm", color: "#D97706", bg: "bg-[#FFFBEB]", desc: `Score ≥ ${thresholds.warm}% and < ${thresholds.hot}%` },
-                    { label: "❄️ Cold", color: "#2563EB", bg: "bg-[#EEF3FF]", desc: `Score < ${thresholds.warm}%` },
+                    { label: "Hot", Icon: Flame, color: "#DC2626", bg: "bg-[#FEF2F2]", desc: `Score ≥ ${thresholds.hot}%` },
+                    { label: "Warm", Icon: Thermometer, color: "#D97706", bg: "bg-[#FFFBEB]", desc: `Score ≥ ${thresholds.warm}% and < ${thresholds.hot}%` },
+                    { label: "Cold", Icon: Snowflake, color: "#2563EB", bg: "bg-[#EEF3FF]", desc: `Score < ${thresholds.warm}%` },
                   ].map((t) => (
                     <div key={t.label} className={`${t.bg} rounded-xl px-3 py-2 text-center`}>
-                      <div className="text-[12px] font-bold" style={{ color: t.color }}>{t.label}</div>
+                      <div className="text-[12px] font-bold inline-flex items-center gap-1 justify-center" style={{ color: t.color }}><t.Icon className="w-3 h-3" />{t.label}</div>
                       <div className="text-[10px] text-[#8B92A9] mt-0.5">{t.desc}</div>
                     </div>
                   ))}
@@ -1678,7 +1679,7 @@ function QualificationModal({ adSet, onClose, onSaved }) {
 
                 {rules.length === 0 && (
                   <div className="text-center py-10 rounded-2xl border-2 border-dashed border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] dark:text-[#565C75]">
-                    <div className="text-[32px] mb-2">📋</div>
+                    <div className="mb-2 flex justify-center text-[#8B92A9]"><ClipboardList className="w-8 h-8" strokeWidth={1.5} /></div>
                     <p className="text-[13px] font-medium">No questions yet</p>
                     <p className="text-[11px] mt-1">
                       {adSet.formId
@@ -1812,7 +1813,7 @@ function AdSetLeadsPanel({ adSet }) {
 
   if (!leads.length) return (
     <div className="text-center py-14 text-[#8B92A9] dark:text-[#565C75]">
-      <div className="text-[36px] mb-2">📭</div>
+      <div className="mb-2 flex justify-center text-[#8B92A9]"><Inbox className="w-9 h-9" strokeWidth={1.5} /></div>
       <p className="text-[13px] font-medium">No leads yet for this ad set.</p>
     </div>
   );
@@ -2567,7 +2568,7 @@ export default function Campaigns() {
           {/* Empty state */}
           {Object.keys(groupedMeta).length === 0 && ungrouped.length === 0 && (
             <div className="text-center py-20 text-[#8B92A9] dark:text-[#565C75]">
-              <div className="text-[40px] mb-3">📡</div>
+              <div className="mb-3 flex justify-center text-[#8B92A9]"><Radio className="w-10 h-10" strokeWidth={1.5} /></div>
               <p className="text-[15px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">No campaigns connected</p>
               <p className="text-[13px] mt-1">Connect a Meta, Google Ads, or Website campaign to start receiving leads automatically.</p>
             </div>
