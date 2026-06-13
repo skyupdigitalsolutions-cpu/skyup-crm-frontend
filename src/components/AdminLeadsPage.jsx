@@ -26,6 +26,7 @@ import {
   User,
   Clock,
   RotateCcw,
+  Filter,
 } from "lucide-react";
 
 const crm = new CRMEncryption();
@@ -35,7 +36,6 @@ const BACKEND_ROOT = import.meta.env.VITE_API_URL
   : "https://skyup-crm-backend.onrender.com";
 
 // ── Phone masking utility ─────────────────────────────────────────────────────
-// Superadmin always sees the full number; admin sees last 2 digits only.
 function maskPhone(phone, isSuperAdmin) {
   if (!phone) return "—";
   if (isSuperAdmin) return phone;
@@ -45,7 +45,6 @@ function maskPhone(phone, isSuperAdmin) {
 }
 
 // ── Email masking utility ──────────────────────────────────────────────────────
-// Superadmin always sees the full email; admin sees masked version.
 function maskEmail(email, isSuperAdmin) {
   if (!email) return null;
   if (isSuperAdmin) return email;
@@ -67,8 +66,6 @@ function maskEmail(email, isSuperAdmin) {
   return `${maskedLocal}@${maskedDomain}`;
 }
 
-// STATUS_CONFIG and ALL_STATUSES are imported from ../utils/statusConfig
-// (includes virtual statuses: Merged=Yellow, Closed=Red)
 const TEMP_CONFIG = {
   Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400" },
   Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400" },
@@ -86,10 +83,7 @@ const TEMP_STYLE = {
 };
 
 const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral", "CSV Import", "Channel Partner", "Other"];
-// ALL_STATUSES imported from statusConfig (includes Merged + Closed)
 
-// normalizeMobile: returns 10-digit string or null — never falls back to raw digits
-// (the raw-digit fallback bypassed 10-digit enforcement allowing "91" or "123" to pass)
 function normalizeMobile(val) {
   return normalizePhone(val);
 }
@@ -109,13 +103,6 @@ function daysSince(iso) {
 }
 
 // ── Badges ────────────────────────────────────────────────────────────────────
-/**
- * StatusBadge — renders a coloured pill badge for a lead's display status.
- *
- * Pass the full `lead` object (preferred) so that virtual statuses
- * Merged (Yellow) and Closed (Red) are correctly resolved via getLeadDisplayStatus.
- * Legacy: pass just `status` string if no lead object is available.
- */
 function StatusBadge({ lead, status }) {
   let label, config;
   if (lead) {
@@ -224,7 +211,6 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
     );
   }
 
-  // done
   const sent      = summary?.sentiment;
   const temp      = summary?.suggestedTemp;
   const sentStyle = SENTIMENT_STYLE[sent] || SENTIMENT_STYLE.Neutral;
@@ -547,12 +533,10 @@ function RecordingsTab({ lead }) {
         >
           <RotateCcw className="w-3 h-3" />
         </button>
-         
       </div>
 
       {callLogs.map((log, li) => (
         <div key={log._id || li} className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
-          {/* Call log header */}
           <div className="flex items-center justify-between px-3 py-2.5 bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-md bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 flex items-center justify-center text-[12px] font-black shrink-0">
@@ -590,7 +574,6 @@ function RecordingsTab({ lead }) {
             </div>
           )}
 
-          {/* Recordings inside this call log */}
           <div className="p-3 space-y-3 bg-white dark:bg-[#1A1D27]">
             {Array.isArray(log.recordings) && log.recordings.length > 0 ? (
               log.recordings.map((r, ri) => (
@@ -657,7 +640,7 @@ function RecordingsTab({ lead }) {
 // ── RecordingsDrawer — standalone side panel for admin ────────────────────────
 function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast }) {
   const { config: sc } = getLeadDisplayStatus(lead);
-  const [drawerTab, setDrawerTab] = useState("recordings"); // recordings | meeting
+  const [drawerTab, setDrawerTab] = useState("recordings");
 
   return (
     <div className="fixed inset-0 z-[60] flex justify-end" onClick={onClose}>
@@ -667,7 +650,7 @@ function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast 
       >
         {/* Header */}
         <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-start justify-between shrink-0">
-          <div>
+          <div className="min-w-0 flex-1 pr-3">
             <div className="flex items-center gap-2 mb-1">
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-black shrink-0"
@@ -675,15 +658,16 @@ function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast 
               >
                 {lead.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
               </div>
-              <div>
-                <p className="text-[17px] font-bold text-[#0F1117] dark:text-white leading-none">{lead.name}</p>
-                <p className="text-[14px] text-[#8B92A9] mt-0.5">{lead.agent || "Unassigned"}</p>
+              <div className="min-w-0">
+                {/* MOBILE CHANGE: truncate long names with ellipsis */}
+                <p className="text-[17px] font-bold text-[#0F1117] dark:text-white leading-none truncate max-w-[200px] sm:max-w-none" title={lead.name}>{lead.name}</p>
+                <p className="text-[14px] text-[#8B92A9] mt-0.5 truncate">{lead.agent || "Unassigned"}</p>
               </div>
             </div>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <StatusBadge lead={lead} />
               {lead.Quality && <TempBadge temp={lead.Quality} />}
-              <span className="text-[12px] text-[#8B92A9]">{lead.source}</span>
+              <span className="text-[12px] text-[#8B92A9] truncate">{lead.source}</span>
             </div>
           </div>
           <button
@@ -851,14 +835,15 @@ function Toast({ message, type = "success", onDismiss }) {
     </div>
   );
 }
+
 // ── PhoneActionsPanel ─────────────────────────────────────────────────────────
 function PhoneActionsPanel({ lead, isSuperAdmin, onLeadUpdated, onToast }) {
- const [mode, setMode]         = useState(null); // "add" | "remove" | "swap" | "merge" | null
+ const [mode, setMode]         = useState(null);
 const [secInput, setSecInput] = useState("");
 const [loading, setLoading]   = useState(false);
 const [error, setError]       = useState("");
 const [swapConfirm, setSwapConfirm] = useState(false);
-const [mergeLead,  setMergeLead]    = useState(null);  // existing lead returned in 409
+const [mergeLead,  setMergeLead]    = useState(null);
 const [merging,    setMerging]      = useState(false);
 
   const primaryPhone   = lead.primaryPhone   || lead.phone || "";
@@ -866,33 +851,30 @@ const [merging,    setMerging]      = useState(false);
 
   const reset = () => { setMode(null); setSecInput(""); setError(""); setSwapConfirm(false); setMergeLead(null); setMerging(false); };
 
-  // ── Add / Update secondary phone ───────────────────────────────────────────
-const handleAddSecondary = async () => {
-  const norm = normalizeMobile(secInput);
-if (!norm) { setError("Enter a valid 10-digit mobile number."); return; }
-  if (norm === normalizeMobile(primaryPhone)) { setError("Secondary cannot match the primary number."); return; }
-  setLoading(true); setError("");
-  try {
-    const res = await api.put(`/lead/${lead.id}/secondary-phone`, { secondaryPhone: norm });
-   const savedLead = res.data?.lead || res.data;
-   onLeadUpdated({ ...lead, secondaryPhone: savedLead.secondaryPhone ?? norm });
-    onToast("Secondary number saved successfully.");
-    reset();
-  } catch (e) {
-    const status = e.response?.status;
-    const data   = e.response?.data;
-    // 409 → number belongs to another lead → offer merge
-    if (status === 409 && data?.existingLead) {
-      setMergeLead(data.existingLead);
-      setMode("merge");
-      setError("");
-    } else {
-      setError(data?.message || "Failed to save secondary number.");
-    }
-  } finally { setLoading(false); }
-};
+  const handleAddSecondary = async () => {
+    const norm = normalizeMobile(secInput);
+    if (!norm) { setError("Enter a valid 10-digit mobile number."); return; }
+    if (norm === normalizeMobile(primaryPhone)) { setError("Secondary cannot match the primary number."); return; }
+    setLoading(true); setError("");
+    try {
+      const res = await api.put(`/lead/${lead.id}/secondary-phone`, { secondaryPhone: norm });
+      const savedLead = res.data?.lead || res.data;
+      onLeadUpdated({ ...lead, secondaryPhone: savedLead.secondaryPhone ?? norm });
+      onToast("Secondary number saved successfully.");
+      reset();
+    } catch (e) {
+      const status = e.response?.status;
+      const data   = e.response?.data;
+      if (status === 409 && data?.existingLead) {
+        setMergeLead(data.existingLead);
+        setMode("merge");
+        setError("");
+      } else {
+        setError(data?.message || "Failed to save secondary number.");
+      }
+    } finally { setLoading(false); }
+  };
 
-  // ── Remove secondary phone ─────────────────────────────────────────────────
   const handleRemoveSecondary = async () => {
     setLoading(true); setError("");
     try {
@@ -905,7 +887,6 @@ if (!norm) { setError("Enter a valid 10-digit mobile number."); return; }
     } finally { setLoading(false); }
   };
 
-  // ── Swap primary ↔ secondary ───────────────────────────────────────────────
   const handleSwap = async () => {
     setLoading(true); setError("");
     try {
@@ -925,53 +906,46 @@ if (!norm) { setError("Enter a valid 10-digit mobile number."); return; }
     } finally { setLoading(false); }
   };
 
-  // ── Merge from PhoneActionsPanel ─────────────────────────────────────────────
-const handleMergeFromPanel = async () => {
-  if (!mergeLead) return;
-  // Direction: the lead we OPENED (lead) survives and keeps its primary number.
-  // The number we typed (secInput) belongs to mergeLead — we add it as THIS
-  // lead's secondary, fold mergeLead's history in, and hide mergeLead.
-  const survivorId  = lead.id;
-  const numberToAdd = normalizeMobile(secInput) ||
-                      normalizeMobile(mergeLead.primaryPhone || mergeLead.mobile || "");
-  if (!survivorId)  { setError("Cannot determine the current lead."); return; }
-  if (!numberToAdd) { setError("Cannot determine the number to add."); return; }
-  setMerging(true); setError("");
-  try {
-    const role     = getRole();
-    const endpoint = role === "superadmin"
-      ? `/lead/superadmin/${survivorId}/merge`
-      : role === "admin"
-        ? `/lead/admin/${survivorId}/merge`
-        : `/lead/${survivorId}/merge`;
-    const res = await api.post(endpoint, {
-      secondaryPhone: numberToAdd,                    // becomes THIS lead's secondary
-      sourceName:     mergeLead.name,                 // the absorbed (duplicate) lead
-      sourceMobile:   numberToAdd,
-      sourceLeadId:   mergeLead._id || mergeLead.id,  // fold in + hide the other lead
-    });
-    const updated = res.data?.lead || res.data;
-    onToast(`Merged "${mergeLead.name}" in — both numbers and all history now live on this lead.`);
-    reset();
-    // Survivor = the lead we opened. Tell the parent to update it in place and
-    // drop the absorbed lead from the list.
-    onLeadUpdated({
-      ...lead,
-      ...updated,
-      id:              String(updated?._id || lead.id),
-      secondaryPhone:  updated?.secondaryPhone ?? numberToAdd,
-      callHistory:     updated?.callHistory    || lead.callHistory    || [],
-      scheduledCalls:  updated?.scheduledCalls || lead.scheduledCalls || [],
-      _absorbedLeadId: res.data?.absorbedLeadId || mergeLead._id || mergeLead.id,
-    });
-  } catch (e) {
-    setError(e.response?.data?.message || "Merge failed. Please try again.");
-  } finally { setMerging(false); }
-};
+  const handleMergeFromPanel = async () => {
+    if (!mergeLead) return;
+    const survivorId  = lead.id;
+    const numberToAdd = normalizeMobile(secInput) ||
+                        normalizeMobile(mergeLead.primaryPhone || mergeLead.mobile || "");
+    if (!survivorId)  { setError("Cannot determine the current lead."); return; }
+    if (!numberToAdd) { setError("Cannot determine the number to add."); return; }
+    setMerging(true); setError("");
+    try {
+      const role     = getRole();
+      const endpoint = role === "superadmin"
+        ? `/lead/superadmin/${survivorId}/merge`
+        : role === "admin"
+          ? `/lead/admin/${survivorId}/merge`
+          : `/lead/${survivorId}/merge`;
+      const res = await api.post(endpoint, {
+        secondaryPhone: numberToAdd,
+        sourceName:     mergeLead.name,
+        sourceMobile:   numberToAdd,
+        sourceLeadId:   mergeLead._id || mergeLead.id,
+      });
+      const updated = res.data?.lead || res.data;
+      onToast(`Merged "${mergeLead.name}" in — both numbers and all history now live on this lead.`);
+      reset();
+      onLeadUpdated({
+        ...lead,
+        ...updated,
+        id:              String(updated?._id || lead.id),
+        secondaryPhone:  updated?.secondaryPhone ?? numberToAdd,
+        callHistory:     updated?.callHistory    || lead.callHistory    || [],
+        scheduledCalls:  updated?.scheduledCalls || lead.scheduledCalls || [],
+        _absorbedLeadId: res.data?.absorbedLeadId || mergeLead._id || mergeLead.id,
+      });
+    } catch (e) {
+      setError(e.response?.data?.message || "Merge failed. Please try again.");
+    } finally { setMerging(false); }
+  };
 
   return (
     <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
-      {/* Phone numbers display */}
       <div className="px-4 py-3 bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
         <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">Phone Numbers</p>
         <div className="space-y-1.5">
@@ -994,7 +968,6 @@ const handleMergeFromPanel = async () => {
         </div>
       </div>
 
-      {/* Action buttons */}
       <div className="px-4 py-3 bg-white dark:bg-[#1A1D27] flex flex-wrap gap-2">
         <button
           onClick={() => setMode(mode === "add" ? null : "add")}
@@ -1023,7 +996,6 @@ const handleMergeFromPanel = async () => {
         )}
       </div>
 
-      {/* Add/Update form */}
       {mode === "add" && (
         <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
           <label className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest">
@@ -1051,39 +1023,37 @@ const handleMergeFromPanel = async () => {
         </div>
       )}
 
-      {/* Merge confirmation */}
-{mode === "merge" && mergeLead && (() => {
-  const numberToAdd = normalizeMobile(secInput) ||
-                      normalizeMobile(mergeLead.primaryPhone || mergeLead.mobile || "");
-  return (
-    <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
-      <p className="text-[14px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
-        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-        Number belongs to &quot;{mergeLead.name}&quot;
-      </p>
-      <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB]">
-        Add <span className="font-mono font-semibold">{numberToAdd}</span> as the secondary number of <span className="font-semibold">this lead</span> and fold in &quot;{mergeLead.name}&quot;? All of its call logs, WhatsApp, notes and history move here, and &quot;{mergeLead.name}&quot; is hidden.
-      </p>
-      {error && (
-        <p className="text-[13px] text-red-500 flex items-center gap-1">
-          <AlertCircle className="w-3 h-3 shrink-0" />{error}
-        </p>
-      )}
-      <div className="flex gap-2">
-        <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-        <button onClick={handleMergeFromPanel} disabled={merging}
-          className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[14px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
-          {merging
-            ? <><Loader2 className="w-3 h-3 animate-spin" /> Merging…</>
-            : "Add as Secondary & Merge"
-          }
-        </button>
-      </div>
-    </div>
-  );
-})()}
+      {mode === "merge" && mergeLead && (() => {
+        const numberToAdd = normalizeMobile(secInput) ||
+                            normalizeMobile(mergeLead.primaryPhone || mergeLead.mobile || "");
+        return (
+          <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
+            <p className="text-[14px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              Number belongs to &quot;{mergeLead.name}&quot;
+            </p>
+            <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB]">
+              Add <span className="font-mono font-semibold">{numberToAdd}</span> as the secondary number of <span className="font-semibold">this lead</span> and fold in &quot;{mergeLead.name}&quot;? All of its call logs, WhatsApp, notes and history move here, and &quot;{mergeLead.name}&quot; is hidden.
+            </p>
+            {error && (
+              <p className="text-[13px] text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3 shrink-0" />{error}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button onClick={reset} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
+              <button onClick={handleMergeFromPanel} disabled={merging}
+                className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[14px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5">
+                {merging
+                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Merging…</>
+                  : "Add as Secondary & Merge"
+                }
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
-      {/* Remove confirm */}
       {mode === "remove" && (
         <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-2">
           <p className="text-[14px] text-[#4B5168] dark:text-[#9DA3BB]">
@@ -1104,7 +1074,6 @@ const handleMergeFromPanel = async () => {
         </div>
       )}
 
-      {/* Swap confirmation dialog */}
       {mode === "swap" && swapConfirm && (
         <div className="px-4 pb-4 pt-1 bg-white dark:bg-[#1A1D27] border-t border-[#E4E7EF] dark:border-[#262A38] space-y-3">
           <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
@@ -1141,8 +1110,6 @@ const handleMergeFromPanel = async () => {
 }
 
 // ── Add Lead Modal ────────────────────────────────────────────────────────────
-// isSuperAdmin prop controls whether the duplicate lead's mobile is shown
-// in plain text (superadmin) or masked (admin).
 function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
   const [users,   setUsers]   = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1153,10 +1120,10 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
   });
   const [errors,     setErrors]     = useState({});
   const [submitting, setSubmitting] = useState(false);
- const [dupCheck,   setDupCheck]   = useState({ state: "idle", lead: null });
-const [merging,    setMerging]    = useState(false);   // true while merge API call is in-flight
-const [mergeError, setMergeError] = useState("");      // error message for merge dialog
-const dupTimerRef = useRef(null);
+  const [dupCheck,   setDupCheck]   = useState({ state: "idle", lead: null });
+  const [merging,    setMerging]    = useState(false);
+  const [mergeError, setMergeError] = useState("");
+  const dupTimerRef = useRef(null);
 
   const checkDuplicate = useCallback((mobile) => {
     const norm = normalizePhone(mobile);
@@ -1182,7 +1149,6 @@ const dupTimerRef = useRef(null);
   useEffect(() => {
     api.get("/admin/company/users")
       .then(r => {
-        // Handle new shape { users, totalCompanyUsers } or legacy plain array
         const list = Array.isArray(r.data) ? r.data : (r.data?.users || []);
         setUsers(list);
         if (list.length > 0) setForm(f => ({ ...f, userId: list[0]._id }));
@@ -1222,7 +1188,7 @@ const dupTimerRef = useRef(null);
     if (!name || name.length < 2) e.name = "Name must be at least 2 characters.";
     if (!mob) e.mobile = "Mobile number is required.";
     else if (mob.length < 7 || mob.length > 15) e.mobile = "Enter a valid mobile number (7–15 digits).";
-else if (currentDupState === "duplicate") e.mobile = "This number belongs to an existing lead. Use the merge option above.";
+    else if (currentDupState === "duplicate") e.mobile = "This number belongs to an existing lead. Use the merge option above.";
     if (form.secondaryPhone) {
       const secMob = normalizeMobile(form.secondaryPhone);
       if (secMob.length > 0 && secMob.length < 7) e.secondaryPhone = "Enter a valid secondary number.";
@@ -1244,12 +1210,12 @@ else if (currentDupState === "duplicate") e.mobile = "This number belongs to an 
       clearTimeout(dupTimerRef.current);
       const isDup = await runSyncDupCheck(mob);
       resolvedDupState = isDup ? "duplicate" : "ok";
-if (isDup) { setErrors({ mobile: "This number belongs to an existing lead. Use the merge option above." }); return; }
+      if (isDup) { setErrors({ mobile: "This number belongs to an existing lead. Use the merge option above." }); return; }
     }
     const newErrors = validate(resolvedDupState);
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
     if (resolvedDupState === "duplicate") {
-setErrors({ mobile: "This number belongs to an existing lead. Use the merge option above." });
+      setErrors({ mobile: "This number belongs to an existing lead. Use the merge option above." });
       return;
     }
     setSubmitting(true);
@@ -1321,68 +1287,63 @@ setErrors({ mobile: "This number belongs to an existing lead. Use the merge opti
       setSubmitting(false);
     }
   };
-// ── Merge: add current form's number as secondary of existing lead ───────────
-const handleMerge = async () => {
-  if (!dupCheck.lead) return;
-  const existingId   = dupCheck.lead._id || dupCheck.lead.id;
-  const currentMob   = normalizeMobile(form.mobile);   // this becomes secondary on the existing lead
-  setMerging(true);
-  setMergeError("");
-  try {
-    const role     = getRole();
-    const endpoint = role === "superadmin"
-      ? `/lead/superadmin/${existingId}/merge`
-      : role === "admin"
-        ? `/lead/admin/${existingId}/merge`
-        : `/lead/${existingId}/merge`;
-    const res = await api.post(endpoint, {
-      secondaryPhone: currentMob,
-      // The "source" lead whose data should be absorbed is the current (new) form.
-      // We pass its basic fields so the backend can build a timeline entry.
-      sourceName:   form.name.trim(),
-      sourceMobile: currentMob,
-    });
-    const merged = res.data?.lead || res.data;
-    // Notify parent so the leads list refreshes / shows the updated lead
-    // Pass isMerge=true so the parent updates the existing lead in-place
-    // rather than prepending a duplicate entry to the list
-    onAdd({
-      ...merged,
-      id:             String(merged._id),
-      name:           merged.name,
-      phone:          merged.primaryPhone || merged.mobile,
-      mobile:         merged.primaryPhone || merged.mobile,
-      primaryPhone:   merged.primaryPhone || merged.mobile,
-      secondaryPhone: merged.secondaryPhone || null,
-      source:         merged.source   || "Manual",
-      campaign:       merged.campaign || "—",
-      status:         merged.status,
-      date:           merged.date
-        ? new Date(merged.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-        : "—",
-      remark:         merged.remark,
-      agent:          merged.user?.name || "—",
-      callHistory:    merged.callHistory    || [],
-      scheduledCalls: merged.scheduledCalls || [],
-      previousAgents: merged.previousAgents || [],
-      reassignCount:  merged.reassignCount  || 0,
-      _raw_date:      merged.date,
-      Quality:        merged.temperature ?? null,
-      temperature:    merged.temperature ?? null,
-      createdAt:      merged.createdAt,
-    }, true);   // ← isMerge flag
-    onClose();
-  } catch (e) {
-    setMergeError(e.response?.data?.message || "Merge failed. Please try again.");
-  } finally {
-    setMerging(false);
-  }
-};
-  
-const canSubmit =
-  !submitting && !loading && !merging && users.length > 0 &&
-  dupCheck.state !== "duplicate" && dupCheck.state !== "checking";
-  
+
+  const handleMerge = async () => {
+    if (!dupCheck.lead) return;
+    const existingId   = dupCheck.lead._id || dupCheck.lead.id;
+    const currentMob   = normalizeMobile(form.mobile);
+    setMerging(true);
+    setMergeError("");
+    try {
+      const role     = getRole();
+      const endpoint = role === "superadmin"
+        ? `/lead/superadmin/${existingId}/merge`
+        : role === "admin"
+          ? `/lead/admin/${existingId}/merge`
+          : `/lead/${existingId}/merge`;
+      const res = await api.post(endpoint, {
+        secondaryPhone: currentMob,
+        sourceName:   form.name.trim(),
+        sourceMobile: currentMob,
+      });
+      const merged = res.data?.lead || res.data;
+      onAdd({
+        ...merged,
+        id:             String(merged._id),
+        name:           merged.name,
+        phone:          merged.primaryPhone || merged.mobile,
+        mobile:         merged.primaryPhone || merged.mobile,
+        primaryPhone:   merged.primaryPhone || merged.mobile,
+        secondaryPhone: merged.secondaryPhone || null,
+        source:         merged.source   || "Manual",
+        campaign:       merged.campaign || "—",
+        status:         merged.status,
+        date:           merged.date
+          ? new Date(merged.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+          : "—",
+        remark:         merged.remark,
+        agent:          merged.user?.name || "—",
+        callHistory:    merged.callHistory    || [],
+        scheduledCalls: merged.scheduledCalls || [],
+        previousAgents: merged.previousAgents || [],
+        reassignCount:  merged.reassignCount  || 0,
+        _raw_date:      merged.date,
+        Quality:        merged.temperature ?? null,
+        temperature:    merged.temperature ?? null,
+        createdAt:      merged.createdAt,
+      }, true);
+      onClose();
+    } catch (e) {
+      setMergeError(e.response?.data?.message || "Merge failed. Please try again.");
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  const canSubmit =
+    !submitting && !loading && !merging && users.length > 0 &&
+    dupCheck.state !== "duplicate" && dupCheck.state !== "checking";
+
   const inp = (key) =>
     `w-full px-3 py-2.5 rounded-xl border text-[15px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition
     ${errors[key] ? "border-red-400 dark:border-red-500 focus:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`;
@@ -1432,93 +1393,83 @@ const canSubmit =
                 <Check className="w-3 h-3" /> Number is available
               </p>
             )}
-
-            {/* ── Duplicate card with phone masking ── */}
-          {/* ── Duplicate / Merge card ── */}
-{dupCheck.state === "duplicate" && dupCheck.lead && (() => {
-  const existingLead    = dupCheck.lead;
-  const alreadyHasSec   = !!existingLead.secondaryPhone;
-  // canMerge is an optimistic hint from the cached duplicate-check response.
-  // If the lead gained a secondary since this page loaded, handleMerge will
-  // receive a 409 and show the error inline — no need to hard-block here.
-  const canMerge        = !alreadyHasSec;
-  return (
-    <div className="mt-2 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600 overflow-hidden">
-      {/* Header */}
-      <div className="px-3 py-2.5 border-b border-amber-200 dark:border-amber-800">
-        <p className="text-[14px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          This number belongs to existing lead &quot;{existingLead.name}&quot;
-        </p>
-      </div>
-      {/* Existing lead details */}
-      <div className="px-3 py-2 text-[13px] text-amber-700 dark:text-amber-300 space-y-0.5">
-        <p><span className="font-semibold">Primary:</span>{" "}
-          <span className="font-mono">{maskPhone(existingLead.primaryPhone || existingLead.mobile, isSuperAdmin)}</span>
-        </p>
-        {existingLead.secondaryPhone && (
-          <p><span className="font-semibold">Secondary:</span>{" "}
-            <span className="font-mono">{maskPhone(existingLead.secondaryPhone, isSuperAdmin)}</span>
-          </p>
-        )}
-        <p><span className="font-semibold">Status:</span> {existingLead.status}</p>
-        {existingLead.createdAt && (
-          <p><span className="font-semibold">Added:</span> {new Date(existingLead.createdAt).toLocaleDateString()}</p>
-        )}
-      </div>
-      {/* Action buttons */}
-      <div className="px-3 pb-3 space-y-2">
-        {canMerge ? (
-          <>
-            <p className="text-[12px] text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wide">Choose an action:</p>
-            {mergeError && (
-              <p className="text-[13px] text-red-500 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3 shrink-0" />{mergeError}
-              </p>
+            {dupCheck.state === "duplicate" && dupCheck.lead && (() => {
+              const existingLead    = dupCheck.lead;
+              const alreadyHasSec   = !!existingLead.secondaryPhone;
+              const canMerge        = !alreadyHasSec;
+              return (
+                <div className="mt-2 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600 overflow-hidden">
+                  <div className="px-3 py-2.5 border-b border-amber-200 dark:border-amber-800">
+                    <p className="text-[14px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      This number belongs to existing lead &quot;{existingLead.name}&quot;
+                    </p>
+                  </div>
+                  <div className="px-3 py-2 text-[13px] text-amber-700 dark:text-amber-300 space-y-0.5">
+                    <p><span className="font-semibold">Primary:</span>{" "}
+                      <span className="font-mono">{maskPhone(existingLead.primaryPhone || existingLead.mobile, isSuperAdmin)}</span>
+                    </p>
+                    {existingLead.secondaryPhone && (
+                      <p><span className="font-semibold">Secondary:</span>{" "}
+                        <span className="font-mono">{maskPhone(existingLead.secondaryPhone, isSuperAdmin)}</span>
+                      </p>
+                    )}
+                    <p><span className="font-semibold">Status:</span> {existingLead.status}</p>
+                    {existingLead.createdAt && (
+                      <p><span className="font-semibold">Added:</span> {new Date(existingLead.createdAt).toLocaleDateString()}</p>
+                    )}
+                  </div>
+                  <div className="px-3 pb-3 space-y-2">
+                    {canMerge ? (
+                      <>
+                        <p className="text-[12px] text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wide">Choose an action:</p>
+                        {mergeError && (
+                          <p className="text-[13px] text-red-500 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" />{mergeError}
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setDupCheck({ state: "idle", lead: null }); setMergeError(""); }}
+                            className="flex-1 py-2 rounded-xl border border-amber-300 dark:border-amber-700 text-[14px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleMerge}
+                            disabled={merging}
+                            className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[14px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5"
+                          >
+                            {merging
+                              ? <><Loader2 className="w-3 h-3 animate-spin" /> Merging…</>
+                              : "Add as Secondary & Merge Leads"}
+                          </button>
+                        </div>
+                        <p className="text-[12px] text-amber-600/80 dark:text-amber-500/70 leading-snug">
+                          This will add <span className="font-mono font-semibold">{normalizeMobile(form.mobile)}</span> as the secondary number of &quot;{existingLead.name}&quot; and transfer all call logs, WhatsApp, notes, tasks, and timeline entries.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-[13px] text-red-500 flex items-center gap-1.5 pb-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        Cannot merge — &quot;{existingLead.name}&quot; already has two numbers (max limit). Open that lead to manage its numbers.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+            {dupCheck.state === "duplicate" && !dupCheck.lead && (
+              <div className="mt-2 p-3 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600">
+                <p className="text-[14px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> This number is already registered as a lead.
+                </p>
+                <p className="text-[13px] text-amber-600 dark:text-amber-400 mt-1">
+                  Search for the existing lead to update or merge it.
+                </p>
+              </div>
             )}
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setDupCheck({ state: "idle", lead: null }); setMergeError(""); }}
-                className="flex-1 py-2 rounded-xl border border-amber-300 dark:border-amber-700 text-[14px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleMerge}
-                disabled={merging}
-                className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-[14px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-1.5"
-              >
-                {merging
-                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Merging…</>
-                  : "Add as Secondary & Merge Leads"}
-              </button>
-            </div>
-            <p className="text-[12px] text-amber-600/80 dark:text-amber-500/70 leading-snug">
-              This will add <span className="font-mono font-semibold">{normalizeMobile(form.mobile)}</span> as the secondary number of &quot;{existingLead.name}&quot; and transfer all call logs, WhatsApp, notes, tasks, and timeline entries.
-            </p>
-          </>
-        ) : (
-          <p className="text-[13px] text-red-500 flex items-center gap-1.5 pb-1">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            Cannot merge — &quot;{existingLead.name}&quot; already has two numbers (max limit). Open that lead to manage its numbers.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-})()}
-{dupCheck.state === "duplicate" && !dupCheck.lead && (
-  <div className="mt-2 p-3 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600">
-    <p className="text-[14px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-      <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> This number is already registered as a lead.
-    </p>
-    <p className="text-[13px] text-amber-600 dark:text-amber-400 mt-1">
-      Search for the existing lead to update or merge it.
-    </p>
-  </div>
-)}
           </div>
-          {/* ── Secondary Phone (optional) ───────────────────────────────── */}
           <div>
             <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">
               Secondary Phone <span className="normal-case font-normal text-[12px]">(optional)</span>
@@ -1774,13 +1725,11 @@ function mapLead(l) {
   const sortedCalls = [...callHistory].sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt));
   const lastCall    = sortedCalls[0] || null;
 
-  // Strip country-code prefix so phone is always displayed as 10 digits.
-  // WA/SMS APIs receive the raw stored value and add 91 at send time.
   function strip91(raw) {
     if (!raw) return raw || "";
     const d = String(raw).replace(/\D/g, "");
-    if (d.startsWith("9191") && d.length === 14) return d.slice(4);  // double-91
-    if (d.startsWith("91")   && d.length === 12) return d.slice(2);  // single country code
+    if (d.startsWith("9191") && d.length === 14) return d.slice(4);
+    if (d.startsWith("91")   && d.length === 12) return d.slice(2);
     return d.slice(-10) || raw;
   }
 
@@ -1789,16 +1738,16 @@ function mapLead(l) {
 
   return {
     id:             String(l._id),
-    _id:            l._id,                // raw ObjectId — needed by getLeadDisplayStatus
+    _id:            l._id,
     name:           l.name           || "Unknown",
     phone:          primaryPhone,
-    mobile:         primaryPhone,         // keep alias
+    mobile:         primaryPhone,
     primaryPhone,
     secondaryPhone,
     email:          l.email          || "",
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
-    adSetName:      l.adSetName      || "",    
+    adSetName:      l.adSetName      || "",
     agent:          l.user?.name || l.assignedTo?.name || l.agent || "Unassigned",
     status:         l.status         || "New",
     Quality:        l.temperature || l.Quality || null,
@@ -1815,13 +1764,10 @@ function mapLead(l) {
     lastOutcome:    lastCall?.outcome  || null,
     lastCalledAt:   lastCall?.calledAt || null,
     lastRemark:     lastCall?.remark   || null,
-    // ── Status-resolution fields (required by getLeadDisplayStatus) ───────────
     isClosed:         l.isClosed        || false,
     mergedInto:       l.mergedInto      || null,
     closeReason:      l.closeReason     || "",
-    // ── Merged lead name — searchable alias (e.g. "Shashi" searches find Divzz) ─
     mergedSourceName: l.mergedSourceName || "",
-    // ── Project membership ─────────────────────────────────────────────────────
     projects:         Array.isArray(l.projects) ? l.projects : [],
   };
 }
@@ -1840,27 +1786,29 @@ export default function AdminLeadsPage() {
 
   const [recordingsLead, setRecordingsLead] = useState(null);
 
-  const [toast, setToast] = useState(null); // { message, type }
-const showToast = useCallback((message, type = "success") => {
-  setToast({ message, type });
-}, []);
+  const [toast, setToast] = useState(null);
+  const showToast = useCallback((message, type = "success") => {
+    setToast({ message, type });
+  }, []);
 
   const [search,      setSearch]      = useState("");
   const [filterSt,    setFilterSt]    = useState("All");
   const [filterAgent, setFilterAgent] = useState("All");
   const [filterSrc,   setFilterSrc]   = useState("All");
   const [filterTemp,  setFilterTemp]  = useState("All");
-  const [filterProject, setFilterProject] = useState("All"); // Project filter
-  const [projects,      setProjects]      = useState([]);    // Project list for dropdown
+  const [filterProject, setFilterProject] = useState("All");
+  const [projects,      setProjects]      = useState([]);
   const [dateFrom,    setDateFrom]    = useState("");
   const [dateTo,      setDateTo]      = useState("");
   const [sortBy,      setSortBy]      = useState("date_desc");
   const [page,        setPage]        = useState(1);
 
+  // MOBILE CHANGE: collapsible secondary filter panel (date + source)
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+
   const role         = getRole();
   const isSuperAdmin = role === "superadmin";
 
-  // ── Phone masking — only relevant for non-superadmin ─────────────────────
   const [revealedPhone, setRevealedPhone] = useState(null);
   const [revealedEmail, setRevealedEmail] = useState(null);
   const [emailViewCounts, setEmailViewCounts] = useState(() => {
@@ -1882,26 +1830,24 @@ const showToast = useCallback((message, type = "success") => {
   useEffect(() => {
     try {
       sessionStorage.setItem("leadViewCounts", JSON.stringify(viewCounts));
-    } catch { /* quota exceeded or private mode — silently ignore */ }
+    } catch { }
   }, [viewCounts]);
 
   useEffect(() => {
-  try {
-    sessionStorage.setItem("leadEmailViewCounts", JSON.stringify(emailViewCounts));
-  } catch { /* ignore */ }
-}, [emailViewCounts]);
+    try {
+      sessionStorage.setItem("leadEmailViewCounts", JSON.stringify(emailViewCounts));
+    } catch { }
+  }, [emailViewCounts]);
 
   const revealTimerRef = useRef(null);
 
-
-  
   const handleRevealPhone = async (e, leadId) => {
     e.stopPropagation();
     clearTimeout(revealTimerRef.current);
     setViewCounts(prev => ({ ...prev, [leadId]: (prev[leadId] || 0) + 1 }));
     setRevealedPhone(leadId);
     revealTimerRef.current = setTimeout(() => setRevealedPhone(null), 4000);
-    try { await api.post(`/lead/admin/${leadId}/reveal-phone`); } catch { /* non-critical */ }
+    try { await api.post(`/lead/admin/${leadId}/reveal-phone`); } catch { }
   };
 
   const emailRevealTimerRef = useRef(null);
@@ -1912,15 +1858,13 @@ const showToast = useCallback((message, type = "success") => {
     setEmailViewCounts(prev => ({ ...prev, [leadId]: (prev[leadId] || 0) + 1 }));
     setRevealedEmail(leadId);
     emailRevealTimerRef.current = setTimeout(() => setRevealedEmail(null), 4000);
-    try { await api.post(`/lead/admin/${leadId}/reveal-email`); } catch { /* non-critical */ }
+    try { await api.post(`/lead/admin/${leadId}/reveal-email`); } catch { }
   };
-  
+
   useEffect(() => () => clearTimeout(revealTimerRef.current), []);
   useEffect(() => () => clearTimeout(emailRevealTimerRef.current), []);
 
   const handleLeadUpdated = useCallback((updatedLead) => {
-    // Merge (new direction): a duplicate lead was absorbed INTO this surviving
-    // lead. Drop the absorbed lead from the list and update the survivor in place.
     if (updatedLead._absorbedLeadId) {
       const absorbedId = updatedLead._absorbedLeadId;
       const survivorId = updatedLead.id;
@@ -1944,13 +1888,10 @@ const showToast = useCallback((message, type = "success") => {
       return;
     }
 
-    // When a lead is merged into another, remove it from the list entirely
-    // and close any open panels that reference it
     if (updatedLead._merged) {
       setAllLeads(prev => prev.filter(l => l.id !== updatedLead.id));
       setSelected(prev => prev && prev.id === updatedLead.id ? null : prev);
       setRecordingsLead(prev => prev && prev.id === updatedLead.id ? null : prev);
-      // If the merge target is also in the list, refresh it with updated data
       if (updatedLead._mergedTarget) {
         const target = updatedLead._mergedTarget;
         const targetId = target._id || target.id;
@@ -1967,8 +1908,6 @@ const showToast = useCallback((message, type = "success") => {
     setAllLeads(prev =>
       prev.map(l => l.id === updatedLead.id ? { ...l, ...updatedLead } : l)
     );
-
-    // Also refresh selected / recordingsLead if open
     setSelected(prev => prev && prev.id === updatedLead.id ? { ...prev, ...updatedLead } : prev);
     setRecordingsLead(prev => prev && prev.id === updatedLead.id ? { ...prev, ...updatedLead } : prev);
   }, []);
@@ -1983,9 +1922,6 @@ const showToast = useCallback((message, type = "success") => {
       ]);
       const raw = leadsRes.data?.leads || (Array.isArray(leadsRes.data) ? leadsRes.data : []);
       setAllLeads(raw.map(mapLead));
-
-      // Populate agents from the admin's own employees (respects createdBy scoping),
-      // not from lead data which may contain employees of other admins.
       const userList = Array.isArray(usersRes.data)
         ? usersRes.data
         : (usersRes.data?.users || []);
@@ -1998,7 +1934,6 @@ const showToast = useCallback((message, type = "success") => {
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
-  // ── Fetch project list for the project filter dropdown ──────────────────────
   useEffect(() => {
     api.get("/project/admin")
       .then(res => setProjects(Array.isArray(res.data) ? res.data : []))
@@ -2008,14 +1943,9 @@ const showToast = useCallback((message, type = "success") => {
   const handleAdd = useCallback((newLead, isMerge = false) => {
     const mapped = mapLead({ ...newLead, _id: newLead.id || newLead._id });
     if (isMerge) {
-      // Merge: update the survivor in-place AND remove the absorbed (duplicate) lead.
-      // The backend returns absorbedLeadId on the merge response.
-      // Without removing the absorbed lead here, it stays visible in the list
-      // until the next page refresh, making it look like two leads exist.
       const absorbedId = String(newLead._absorbedLeadId || newLead.absorbedLeadId || "");
       setAllLeads(prev => {
         let updated = prev;
-        // Remove the absorbed duplicate from the list
         if (absorbedId) {
           updated = updated.filter(l => l.id !== absorbedId && String(l._id || "") !== absorbedId);
         }
@@ -2023,7 +1953,6 @@ const showToast = useCallback((message, type = "success") => {
         if (exists) {
           return updated.map(l => (l.id === mapped.id || l._id === mapped._id) ? { ...l, ...mapped } : l);
         }
-        // Fallback: survivor wasn't in the list yet (e.g. filtered out) — prepend it
         return [mapped, ...updated];
       });
     } else {
@@ -2054,17 +1983,11 @@ const showToast = useCallback((message, type = "success") => {
         (l.secondaryPhone && l.secondaryPhone.includes(q)) ||
         (l.mergedSourceName && l.mergedSourceName.toLowerCase().includes(q));
 
-      // Use getLeadDisplayStatus so "Merged" and "Closed" virtual statuses
-      // are correctly matched — l.status alone won't catch them.
       const { label: displayLabel } = getLeadDisplayStatus(l);
       const matchSt     = filterSt    === "All" || displayLabel === filterSt;
-
       const matchAgent  = filterAgent === "All" || l.agent   === filterAgent;
       const matchSrc    = filterSrc   === "All" || l.source  === filterSrc;
       const matchTemp   = filterTemp  === "All" || l.Quality === filterTemp;
-
-      // Project filter — a lead belongs to a project if its projects array
-      // contains the selected projectId (populated object or raw ObjectId string).
       const matchProject = filterProject === "All" ||
         (l.projects || []).some(p =>
           (p?._id ? String(p._id) : String(p)) === filterProject
@@ -2091,9 +2014,12 @@ const showToast = useCallback((message, type = "success") => {
   const clearFilters = () => {
     setSearch(""); setFilterSt("All"); setFilterAgent("All"); setFilterSrc("All");
     setFilterTemp("All"); setFilterProject("All"); setDateFrom(""); setDateTo(""); setPage(1);
+    setShowMoreFilters(false);
   };
 
-  // Columns hidden by default, revealed only when the user filters by them.
+  // MOBILE CHANGE: track whether secondary filters are active to show badge on toggle button
+  const hasSecondaryFilters = filterSrc !== "All" || !!dateFrom || !!dateTo;
+
   const showSourceCol = filterSrc  !== "All";
   const showStatusCol = filterSt   !== "All";
   const showTempCol   = filterTemp !== "All";
@@ -2120,7 +2046,6 @@ const showToast = useCallback((message, type = "success") => {
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-3 py-4 md:px-6 md:py-8">
 
-      {/* Pass isSuperAdmin so AddLeadModal can mask the duplicate lead's phone */}
       {showAdd    && <AddLeadModal   onClose={() => setShowAdd(false)}    onAdd={handleAdd}    isSuperAdmin={isSuperAdmin} />}
       {showImport && <ImportCSVModal onClose={() => setShowImport(false)} onImported={fetchLeads} existingLeads={allLeads} />}
 
@@ -2139,7 +2064,7 @@ const showToast = useCallback((message, type = "success") => {
               <Plus className="w-3.5 h-3.5" /> Add Lead
             </button>
           )}
-         {!isSuperAdmin && (
+          {!isSuperAdmin && (
             <button onClick={() => setShowImport(true)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#7C3AED] text-white text-[14px] font-semibold hover:bg-violet-700 transition">
               <Upload className="w-3.5 h-3.5" /> Import CSV
@@ -2183,38 +2108,70 @@ const showToast = useCallback((message, type = "success") => {
         ))}
       </div>
 
-      {/* Filters */}
+      {/* ── Filters ── */}
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-4 mb-4">
+
+        {/* Row 1 — always visible: search + employee + quality + sort */}
         <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-[180px]">
+          <div className="relative flex-1 min-w-[160px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search name, phone, email…" className={INP + " pl-9 w-full"} />
           </div>
+
+          {/* Employee — always visible */}
           <AgentSelect value={filterAgent} onChange={(val) => { setFilterAgent(val); setPage(1); }} agents={agents} className={INP} />
-          <select value={filterSrc} onChange={e => { setFilterSrc(e.target.value); setPage(1); }} className={INP}>
-            <option value="All">All sources</option>
-            {uniqueSources.map(s => <option key={s}>{s}</option>)}
-          </select>
+
+          {/* Quality — always visible */}
           <select value={filterTemp} onChange={e => { setFilterTemp(e.target.value); setPage(1); }} className={INP}>
             <option value="All">All qualities</option>
             <option>Hot</option><option>Warm</option><option>Cold</option>
           </select>
-          {/* Project filter — always shown */}
-          <select value={filterProject} onChange={e => { setFilterProject(e.target.value); setPage(1); }} className={INP}>
-            <option value="All">All Projects</option>
-            {projects.map(p => (
-              <option key={String(p._id)} value={String(p._id)}>{p.name}</option>
-            ))}
-          </select>
-          <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className={INP} title="From date" />
-          <input type="date" value={dateTo}   onChange={e => { setDateTo(e.target.value);   setPage(1); }} className={INP} title="To date" />
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={INP}>
+
+          {/* Sort — always visible on desktop, hidden on mobile (in secondary panel) */}
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={`${INP} hidden sm:block`}>
             <option value="date_desc">Newest first</option>
             <option value="date_asc">Oldest first</option>
             <option value="name_asc">Name A–Z</option>
             <option value="status">By status</option>
           </select>
+
+          {/* Desktop-only: Project filter */}
+          <select value={filterProject} onChange={e => { setFilterProject(e.target.value); setPage(1); }} className={`${INP} hidden sm:block`}>
+            <option value="All">All Projects</option>
+            {projects.map(p => (
+              <option key={String(p._id)} value={String(p._id)}>{p.name}</option>
+            ))}
+          </select>
+
+          {/* Desktop-only: Source filter */}
+          <select value={filterSrc} onChange={e => { setFilterSrc(e.target.value); setPage(1); }} className={`${INP} hidden sm:block`}>
+            <option value="All">All sources</option>
+            {uniqueSources.map(s => <option key={s}>{s}</option>)}
+          </select>
+
+          {/* Desktop-only: Date range */}
+          <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className={`${INP} hidden sm:block`} title="From date" />
+          <input type="date" value={dateTo}   onChange={e => { setDateTo(e.target.value);   setPage(1); }} className={`${INP} hidden sm:block`} title="To date" />
+
+          {/* MOBILE CHANGE: "More filters" toggle button — only visible on mobile */}
+          <button
+            onClick={() => setShowMoreFilters(v => !v)}
+            className={`sm:hidden relative flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[14px] font-semibold transition
+              ${showMoreFilters || hasSecondaryFilters
+                ? "border-[#2563EB] text-[#2563EB] bg-[#EEF3FF] dark:bg-[#1A2540] dark:border-[#2563EB]"
+                : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] bg-white dark:bg-[#13161E]"}`}
+          >
+            <Filter className="w-3.5 h-3.5" />
+            Filters
+            {hasSecondaryFilters && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-[#2563EB] text-white text-[10px] font-black flex items-center justify-center leading-none">
+                {(filterSrc !== "All" ? 1 : 0) + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)}
+              </span>
+            )}
+          </button>
+
+          {/* Clear button */}
           {(search || filterSt !== "All" || filterAgent !== "All" || filterSrc !== "All" || filterTemp !== "All" || filterProject !== "All" || dateFrom || dateTo) && (
             <button onClick={clearFilters}
               className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[14px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition">
@@ -2222,6 +2179,76 @@ const showToast = useCallback((message, type = "success") => {
             </button>
           )}
         </div>
+
+        {/* MOBILE CHANGE: expanded secondary filters — mobile only */}
+        {showMoreFilters && (
+          <div className="sm:hidden mt-3 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex flex-col gap-3">
+            {/* Source */}
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Source</p>
+              <select value={filterSrc} onChange={e => { setFilterSrc(e.target.value); setPage(1); }} className={INP + " w-full"}>
+                <option value="All">All sources</option>
+                {uniqueSources.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+
+            {/* Project */}
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Project</p>
+              <select value={filterProject} onChange={e => { setFilterProject(e.target.value); setPage(1); }} className={INP + " w-full"}>
+                <option value="All">All Projects</option>
+                {projects.map(p => (
+                  <option key={String(p._id)} value={String(p._id)}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Date range — two inputs side by side on mobile */}
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Date Range</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[11px] text-[#8B92A9] mb-1">From</p>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+                    className={INP + " w-full"}
+                  />
+                </div>
+                <div>
+                  <p className="text-[11px] text-[#8B92A9] mb-1">To</p>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={e => { setDateTo(e.target.value); setPage(1); }}
+                    className={INP + " w-full"}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Sort — mobile */}
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1.5">Sort</p>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={INP + " w-full"}>
+                <option value="date_desc">Newest first</option>
+                <option value="date_asc">Oldest first</option>
+                <option value="name_asc">Name A–Z</option>
+                <option value="status">By status</option>
+              </select>
+            </div>
+
+            {/* Apply / close button */}
+            <button
+              onClick={() => setShowMoreFilters(false)}
+              className="w-full py-2.5 rounded-xl bg-[#2563EB] text-white text-[14px] font-semibold hover:bg-blue-700 transition"
+            >
+              Apply Filters
+            </button>
+          </div>
+        )}
+
         <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-2">
           {displayed.length} leads found{displayed.length !== allLeads.length ? ` (filtered from ${allLeads.length})` : ""}
         </p>
@@ -2267,16 +2294,16 @@ const showToast = useCallback((message, type = "success") => {
             <div className="overflow-x-auto">
               <table className="w-full text-[14px] table-fixed">
                 <colgroup>
-                  <col className="w-[160px]" /> {/* Lead */}
-                  <col className="w-[140px]" /> {/* Contact */}
-                  <col className="w-[110px]" /> {/* Employee */}
-                  {showSourceCol && <col className="w-[120px]" />} {/* Source */}
-                  <col className="w-[100px]" /> {/* Project */}
-                  {showDateCol   && <col className="w-[80px]" />}  {/* Date */}
-                  {showStatusCol && <col className="w-[90px]" />}  {/* Status */}
-                  {showTempCol   && <col className="w-[70px]" />}  {/* Quality */}
-                  <col className="w-[120px]" /> {/* Last Outcome */}
-                  <col className="w-[100px]" /> {/* Actions */}
+                  <col className="w-[160px]" />
+                  <col className="w-[140px]" />
+                  <col className="w-[110px]" />
+                  {showSourceCol && <col className="w-[120px]" />}
+                  <col className="w-[100px]" />
+                  {showDateCol   && <col className="w-[80px]" />}
+                  {showStatusCol && <col className="w-[90px]" />}
+                  {showTempCol   && <col className="w-[70px]" />}
+                  <col className="w-[120px]" />
+                  <col className="w-[100px]" />
                 </colgroup>
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
@@ -2301,7 +2328,6 @@ const showToast = useCallback((message, type = "success") => {
                     const { config: sc } = getLeadDisplayStatus(l);
                     const isRevealed = revealedPhone === l.id;
                     const viewCount  = viewCounts[l.id] || 0;
-                    // Use shared maskPhone for consistency
                     const maskedPhone = maskPhone(l.phone, isSuperAdmin);
 
                     return (
@@ -2309,7 +2335,6 @@ const showToast = useCallback((message, type = "success") => {
                         className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition cursor-pointer group"
                         onClick={() => setSelected(l)}
                       >
-                        {/* Lead name */}
                         <td className="px-2.5 py-2.5">
                           <div className="flex items-center gap-2">
                             <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0"
@@ -2323,7 +2348,6 @@ const showToast = useCallback((message, type = "success") => {
                           </div>
                         </td>
 
-                        {/* Contact */}
                         <td className="px-2.5 py-2.5">
                           <div className="flex items-center gap-1 flex-wrap">
                             {isSuperAdmin ? (
@@ -2370,7 +2394,6 @@ const showToast = useCallback((message, type = "success") => {
                           )}
                         </td>
 
-                        {/* Employee */}
                         <td className="px-2.5 py-2.5">
                           <div className="flex items-center gap-1.5">
                             <div className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-950/40 flex items-center justify-center text-[10px] font-black text-purple-600 dark:text-purple-400 shrink-0">
@@ -2395,7 +2418,6 @@ const showToast = useCallback((message, type = "success") => {
                           </td>
                         )}
 
-                        {/* Project */}
                         <td className="px-2.5 py-2.5">
                           {l.projects && l.projects.length > 0 ? (
                             <div className="flex flex-col gap-0.5">
@@ -2433,7 +2455,6 @@ const showToast = useCallback((message, type = "success") => {
                           <td className="px-2.5 py-2.5"><TempBadge temp={l.Quality} /></td>
                         )}
 
-                        {/* Last Outcome */}
                         <td className="px-2.5 py-2.5">
                           {l.lastOutcome ? (
                             <div>
@@ -2452,7 +2473,6 @@ const showToast = useCallback((message, type = "success") => {
                           )}
                         </td>
 
-                        {/* Actions */}
                         <td className="px-2.5 py-2.5">
                           <div className="flex items-center gap-1">
                             <button
@@ -2478,7 +2498,7 @@ const showToast = useCallback((message, type = "success") => {
               </table>
             </div>
 
-        <style>{`
+            <style>{`
               @keyframes shrink {
                 from { width: 100%; }
                 to   { width: 0%; }
@@ -2522,19 +2542,20 @@ const showToast = useCallback((message, type = "success") => {
       </div>
 
       {/* Journey drawer */}
-{selected && (
-<LeadJourneyDrawer
-        lead={selected}
-        onClose={() => setSelected(null)}
-        isSuperAdmin={isSuperAdmin}
-        maskPhone={maskPhone}
-        maskEmail={maskEmail}
-        onLeadUpdated={handleLeadUpdated}
-        onToast={showToast}
-      />
-)}
-    {/* Recordings & AI drawer */}
-    {recordingsLead && (
+      {selected && (
+        <LeadJourneyDrawer
+          lead={selected}
+          onClose={() => setSelected(null)}
+          isSuperAdmin={isSuperAdmin}
+          maskPhone={maskPhone}
+          maskEmail={maskEmail}
+          onLeadUpdated={handleLeadUpdated}
+          onToast={showToast}
+        />
+      )}
+
+      {/* Recordings & AI drawer */}
+      {recordingsLead && (
         <RecordingsDrawer
           lead={recordingsLead}
           onClose={() => setRecordingsLead(null)}
