@@ -3,7 +3,7 @@ import {
   MapPin, Navigation, Save, X, Check, AlertCircle,
   ExternalLink, RefreshCw, Download, MapPinned,
   LocateFixed, Clock, Activity, Loader2,
-  Info, PhoneCall, UserCheck, Bell,
+  Info, PhoneCall, UserCheck, Bell, CalendarDays, PartyPopper,
 } from "lucide-react";
 import AttendanceFilters from "../components/AttendanceFilters";
 import AttendanceTable   from "../components/AttendanceTable";
@@ -420,7 +420,7 @@ function AttendanceSettings() {
 
               {/* Shift timings */}
               <div>
-                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5">🕘 Shift Timings</p>
+                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Shift Timings</p>
                 <div className="grid grid-cols-2 gap-3">
                   <TimeField label="Shift Start" h={cfg.shiftStartHour} m={cfg.shiftStartMinute}
                     onH={v => set("shiftStartHour", v)} onM={v => set("shiftStartMinute", v)} accent="emerald" />
@@ -434,7 +434,7 @@ function AttendanceSettings() {
 
               {/* Late threshold */}
               <div>
-                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5">🕙 Late Threshold</p>
+                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Late Threshold</p>
                 <TimeField label="Mark Late After" h={cfg.lateLoginHour} m={cfg.lateLoginMinute}
                   onH={v => set("lateLoginHour", v)} onM={v => set("lateLoginMinute", v)} accent="amber" />
                 <p className="text-[10px] text-[#8B92A9] mt-1.5">
@@ -466,7 +466,7 @@ function AttendanceSettings() {
 
               {/* Weekly off days */}
               <div>
-                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5">📅 Weekly Off Days</p>
+                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5 flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> Weekly Off Days</p>
                 <div className="flex flex-wrap gap-1.5">
                   {DAYS.map(d => {
                     const isOff = cfg.weeklyOffDays.includes(d.n);
@@ -489,7 +489,7 @@ function AttendanceSettings() {
 
               {/* Holidays */}
               <div>
-                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5">🎉 Holidays</p>
+                <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2.5 flex items-center gap-1.5"><PartyPopper className="w-3.5 h-3.5" /> Holidays</p>
 
                 {/* Add holiday row */}
                 <div className="flex gap-2 mb-2">
@@ -993,7 +993,7 @@ function PendingRemoteClockInPanel() {
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold text-gray-800 dark:text-gray-100 truncate">{u.name}</p>
                   <div className="flex flex-wrap gap-2 mt-0.5 text-[10px] text-gray-400">
-                    {u.meetingPermissionLocation && <span>📍 {u.meetingPermissionLocation}</span>}
+                    {u.meetingPermissionLocation && <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" /> {u.meetingPermissionLocation}</span>}
                     {u.meetingPermissionReason && <span>· {u.meetingPermissionReason}</span>}
                     <span>· requested {fmtAgo(u.meetingPermissionRequestedAt)}</span>
                   </div>
