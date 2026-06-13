@@ -633,7 +633,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
 
                   <div className="px-3 pt-2.5 pb-1">
                     {r.url ? (
-                      <audio controls src={audioUrl(r.url)}
+                      <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={audioUrl(r.url)}
                         className="w-full h-8 rounded-xl accent-[#2563EB]"
                         preload="none"
                         onError={e => { e.target.style.display = "none"; }}
@@ -654,7 +654,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
               ))
             ) : log.recordingUrl ? (
               <div className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] p-3 bg-[#F8F9FC] dark:bg-[#13161E]">
-                <audio controls src={audioUrl(log.recordingUrl)}
+                <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={audioUrl(log.recordingUrl)}
                   className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none"/>
               </div>
             ) : (
@@ -1113,6 +1113,12 @@ export default function UserLeadsPage() {
   };
   const hasFilter = search || filterSt !== "All" || filterTemp !== "All" || filterSrc !== "All" || filterProject !== "All";
 
+  // Columns hidden by default, revealed only when the user filters by them.
+  const showSourceCol = filterSrc  !== "All";
+  const showStatusCol = filterSt   !== "All";
+  const showTempCol   = filterTemp !== "All";
+
+
   const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition";
 
   return (
@@ -1236,7 +1242,16 @@ export default function UserLeadsPage() {
               <table className="w-full text-[14px]">
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
-                    {["Lead", "Phone", "Source / Campaign", "Project", "Date", "Status", "Quality", "Calls", ""].map((h, i) => (
+                    {[
+                      "Lead",
+                      "Phone",
+                      ...(showSourceCol ? ["Source / Campaign"] : []),
+                      "Project",
+                      ...(showStatusCol ? ["Status"] : []),
+                      ...(showTempCol ? ["Quality"] : []),
+                      "Calls",
+                      "",
+                    ].map((h, i) => (
                       <th key={i} className="px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -1282,15 +1297,17 @@ export default function UserLeadsPage() {
                           )}
                         </td>
 
-                        <td className="px-4 py-3">
-                          <p className="text-[#0F1117] dark:text-white truncate max-w-[130px]">{l.source}</p>
-                          {l.campaign !== "—" && (
-                            <p className="text-[14px] text-[#8B92A9] truncate max-w-[130px]">{l.campaign}</p>
-                          )}
-                          {l.adSetName && (
-                            <p className="text-[11px] text-[#E1306C] truncate max-w-[130px]"> {l.adSetName}</p>
-                          )}
-                        </td>
+                        {showSourceCol && (
+                          <td className="px-4 py-3">
+                            <p className="text-[#0F1117] dark:text-white truncate max-w-[130px]">{l.source}</p>
+                            {l.campaign !== "—" && (
+                              <p className="text-[14px] text-[#8B92A9] truncate max-w-[130px]">{l.campaign}</p>
+                            )}
+                            {l.adSetName && (
+                              <p className="text-[11px] text-[#E1306C] truncate max-w-[130px]"> {l.adSetName}</p>
+                            )}
+                          </td>
+                        )}
 
                         {/* Project */}
                         <td className="px-4 py-3">
@@ -1322,12 +1339,12 @@ export default function UserLeadsPage() {
                           )}
                         </td>
 
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <p className="text-[#0F1117] dark:text-white">{l.date}</p>
-                        </td>
-
-                        <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
-                        <td className="px-4 py-3"><TempBadge temp={l.temperature} /></td>
+                        {showStatusCol && (
+                          <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
+                        )}
+                        {showTempCol && (
+                          <td className="px-4 py-3"><TempBadge temp={l.temperature} /></td>
+                        )}
 
                         <td className="px-4 py-3">
                           {l.callHistory.length > 0 ? (
