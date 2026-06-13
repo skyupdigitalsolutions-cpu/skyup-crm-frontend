@@ -544,7 +544,7 @@ function CallLogCard({ log, isSuperAdmin }) {
                   <p className="text-[10px] font-semibold text-[#8B92A9] mb-1.5 uppercase tracking-wider">
                     Recording {localLog.recordings.length > 1 ? i + 1 : ""}
                   </p>
-                  <audio controls src={rec.url} className="w-full" style={{ height: "36px", accentColor: "#6366f1" }} />
+                  <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={rec.url} className="w-full" style={{ height: "36px", accentColor: "#6366f1" }} />
                 </div>
               )}
               {/* Transcription status */}
@@ -991,13 +991,6 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                           </svg>
                         </button>
-                        <button onClick={() => setDelId(rec._id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 text-[#8B92A9] hover:text-red-500 dark:hover:text-red-400 transition" title="Delete">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                            <polyline points="3 6 5 6 21 6"/>
-                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                            <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
-                          </svg>
-                        </button>
                       </div>
                     )}
                   </td>
@@ -1009,7 +1002,6 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
       </div>
 
       {editRec && <EditModal rec={editRec} onClose={() => setEditRec(null)} onRefresh={onRefresh} />}
-      {delId   && <DeleteModal id={delId}  onClose={() => setDelId(null)}   onRefresh={onRefresh} />}
     </>
   );
 }
