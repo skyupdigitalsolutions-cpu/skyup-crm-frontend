@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "../data/axiosConfig";
+import { AlertTriangle } from "lucide-react";
 
 function fmt(mins) {
   if (!mins) return "0h 00m";
@@ -145,7 +146,7 @@ export default function AdminAttendanceView() {
                       {st.label}
                     </span>
                     {rec.status === "idle" && (
-                      <span className="text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded-full">⚠ IDLE</span>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded-full"><AlertTriangle className="w-2.5 h-2.5" /> IDLE</span>
                     )}
                   </div>
                   <div className="flex gap-3 mt-0.5 text-[10px] text-gray-400 flex-wrap">
