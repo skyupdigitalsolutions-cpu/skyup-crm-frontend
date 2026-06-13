@@ -571,6 +571,8 @@ export default function CallRecording() {
                       <div key={r._id || ri} className="mb-3 last:mb-0">
                         <audio
                           controls
+                          controlsList="nodownload noplaybackrate"
+                          onContextMenu={(e) => e.preventDefault()}
                           src={audioUrl(r.url)}
                           className="w-full h-8 rounded-xl accent-[#2563EB] mb-1"
                           preload="none"
@@ -586,7 +588,7 @@ export default function CallRecording() {
                       </div>
                     ))
                   : rec.recordingUrl
-                    ? <audio controls src={audioUrl(rec.recordingUrl)} className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none"/>
+                    ? <audio controls controlsList="nodownload noplaybackrate" onContextMenu={(e) => e.preventDefault()} src={audioUrl(rec.recordingUrl)} className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none"/>
                     : <p className="text-[11px] text-[#8B92A9] italic">Recording not available</p>
                 }
 
