@@ -29,6 +29,7 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import api from '../data/axiosConfig';
+import { AlertOctagon, AlertTriangle, ClipboardList, RefreshCw, MessageCircle, CheckCircle2, MapPin, Bell } from 'lucide-react';
 
 // ── Socket URL ────────────────────────────────────────────────────────────────
 const SOCKET_URL =
@@ -217,13 +218,13 @@ export function NotificationProvider({ children }) {
                            : warning.length  > 0 ? 'warning'
                            : 'notice';
 
-          const emoji   = mostUrgent === 'critical' ? '🚨' : mostUrgent === 'warning' ? '⚠️' : '📋';
+          const emoji   = '';
           const urgency = mostUrgent === 'critical' || mostUrgent === 'warning';
 
           addNotification({
             id:        'sub-expiry-digest',
             type:      'subscription_expiry',
-            title:     `${emoji} ${total} Subscription${total > 1 ? 's' : ''} Expiring Soon`,
+            title:     `${total} Subscription${total > 1 ? 's' : ''} Expiring Soon`,
             body:      critical.length
               ? `${critical.length} plan${critical.length > 1 ? 's' : ''} expire today/tomorrow. Immediate action needed.`
               : `${total} subscription${total > 1 ? 's' : ''} expiring within 30 days.`,
@@ -239,7 +240,7 @@ export function NotificationProvider({ children }) {
             addNotification({
               id:        `sub-critical-${c._id}`,
               type:      'subscription_expiry',
-              title:     `🔴 Subscription Expires Today — ${c.name}`,
+              title:     `Subscription Expires Today — ${c.name}`,
               body:      `${c.name}'s ${(c.plan || 'plan').charAt(0).toUpperCase() + (c.plan || 'plan').slice(1)} plan expires today or tomorrow. Renew immediately.`,
               companies: [c],
               timestamp: new Date().toISOString(),
@@ -306,11 +307,10 @@ export function NotificationProvider({ children }) {
         threshold === '1h' ? '1 hour' :
         threshold === '2h' ? '2 hours' :
         threshold === '3h' ? '3 hours' : '24 hours';
-      const urgency = (threshold === '2h' || threshold === '3h') ? '🚨' : '⚠️';
       const notif = {
         id:        `noa-${threshold}`,
         type:      'no_action',
-        title:     `${urgency} ${count} Lead${count > 1 ? 's' : ''} — No Action`,
+        title:     `${count} Lead${count > 1 ? 's' : ''} — No Action`,
         body:      count === 1
           ? `"${leads?.[0]?.leadName}" has had no activity for ${thresholdLabel}.`
           : `${count} leads have had no activity for ${thresholdLabel}.`,
@@ -328,8 +328,8 @@ export function NotificationProvider({ children }) {
         id:        `fu-${type}`,
         type:      'follow_up',
         title:     isOverdue
-          ? `🔴 ${count} Overdue Follow-Up${count > 1 ? 's' : ''}`
-          : `🟡 ${count} Follow-Up${count > 1 ? 's' : ''} Due Today`,
+          ? `${count} Overdue Follow-Up${count > 1 ? 's' : ''}`
+          : `${count} Follow-Up${count > 1 ? 's' : ''} Due Today`,
         body:      count === 1
           ? `"${leads?.[0]?.leadName}" — ${isOverdue ? 'overdue' : 'due today'}.`
           : `${count} leads need follow-up ${isOverdue ? '(overdue)' : 'today'}.`,
@@ -345,7 +345,7 @@ export function NotificationProvider({ children }) {
       const notif = {
         id:           `reassign-${leadId}`,
         type:         'reassignment',
-        title:        '🔄 Lead Reassigned',
+        title:        'Lead Reassigned',
         body:         `"${leadName}" moved from ${fromAdminName} → ${toUserName}${reason ? ` — ${reason}` : ''}`,
         leadId,
         leadName,
@@ -365,13 +365,13 @@ export function NotificationProvider({ children }) {
       socket.on('subscription_expiry_alert', ({ totalExpiring, critical, warning, notice, companies, timestamp }) => {
         if (!totalExpiring) return;
 
-        const emoji   = critical > 0 ? '🚨' : warning > 0 ? '⚠️' : '📋';
+        const emoji   = '';
         const urgency = critical > 0 || warning > 0;
 
         const notif = {
           id:        'sub-expiry-digest',
           type:      'subscription_expiry',
-          title:     `${emoji} ${totalExpiring} Subscription${totalExpiring > 1 ? 's' : ''} Expiring Soon`,
+          title:     `${totalExpiring} Subscription${totalExpiring > 1 ? 's' : ''} Expiring Soon`,
           body:      critical > 0
             ? `${critical} plan${critical > 1 ? 's' : ''} expire today/tomorrow. Immediate action needed.`
             : `${totalExpiring} subscription${totalExpiring > 1 ? 's' : ''} expiring within 30 days.`,
@@ -396,7 +396,7 @@ export function NotificationProvider({ children }) {
       addNotification({
         id:        `wa-lead-${lead?._id || Date.now()}`,
         type:      'new_lead',
-        title:     '💬 New WhatsApp Lead',
+        title:     'New WhatsApp Lead',
         body:      `${leadName} — ${source}`,
         timestamp: new Date().toISOString(),
         urgent:    false,
@@ -411,7 +411,7 @@ export function NotificationProvider({ children }) {
       handleUpsert({
         id:        `lead-closed-${leadId}`,
         type:      'lead_closed',
-        title:     '✅ Lead Closed',
+        title:     'Lead Closed',
         body:      `${closedBy || 'An employee'} closed "${leadName || 'a lead'}"${remark ? ` — ${remark}` : ''}`,
         leadId,
         leadName,
@@ -432,7 +432,7 @@ export function NotificationProvider({ children }) {
       handleUpsert({
         id:        `meeting-perm-${empId}`,
         type:      'meeting_permission',
-        title:     '📍 Remote Clock-in Request',
+        title:     'Remote Clock-in Request',
         body:      `${userName || 'An employee'} requested remote clock-in${location ? ` from ${location}` : ''}${reason ? ` — ${reason}` : ''}. Approve in Employee Management.`,
         userId:    empId,
         userName:  userName || 'Employee',
@@ -591,7 +591,21 @@ function NotificationItem({ notif }) {
   return (
     <div className={`px-4 py-3 transition cursor-default ${bgClass}`}>
       <div className="flex items-start gap-2.5">
-        <span className={`w-2 h-2 rounded-full mt-[5px] shrink-0 ${dotColor}`} />
+        <span className={`mt-0.5 shrink-0 ${dotColor.replace('bg-', 'text-')}`}>
+          {(() => {
+            const C = notif.type === 'subscription_expiry' && notif.critical > 0 ? AlertOctagon :
+                      notif.type === 'subscription_expiry' && notif.warning  > 0 ? AlertTriangle :
+                      notif.type === 'subscription_expiry' ? ClipboardList :
+                      notif.type === 'reassignment' ? RefreshCw :
+                      notif.urgent ? AlertOctagon :
+                      notif.subType === 'overdue' ? AlertTriangle :
+                      notif.type === 'follow_up' ? AlertTriangle :
+                      notif.type === 'new_lead' ? MessageCircle :
+                      notif.type === 'lead_closed' ? CheckCircle2 :
+                      notif.type === 'meeting_permission' ? MapPin : Bell;
+            return <C className="w-3.5 h-3.5" />;
+          })()}
+        </span>
         <div className="flex-1 min-w-0">
           <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] leading-snug">
             {notif.title}
