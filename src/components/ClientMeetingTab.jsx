@@ -6,6 +6,8 @@
 // lead detail panels.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays, Paperclip, Mic, Map as MapIcon, NotebookPen } from "lucide-react";
+
 function fmtDateTime(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -15,11 +17,11 @@ function fmtDateTime(iso) {
 }
 
 const MEETING_TYPE_ICON = {
-  "In-Person":  "🤝",
-  "Site Visit": "📍",
-  "Demo":       "🖥️",
-  "Video Call": "🎥",
-  "Phone Call": "📞",
+  "In-Person":  Handshake,
+  "Site Visit": MapPin,
+  "Demo":       Monitor,
+  "Video Call": Video,
+  "Phone Call": Phone,
 };
 
 const OUTCOME_STYLE = {
@@ -32,13 +34,13 @@ const OUTCOME_STYLE = {
 };
 
 function MeetingCard({ visit }) {
-  const icon   = MEETING_TYPE_ICON[visit.meetingType] || "🗓️";
+  const Icon   = MEETING_TYPE_ICON[visit.meetingType] || CalendarClock;
   const oStyle = OUTCOME_STYLE[visit.outcome] || "bg-gray-100 dark:bg-gray-900/40 text-gray-500 dark:text-gray-400";
   return (
     <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] p-3 mb-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[15px]">{icon}</span>
+          <span className="text-[#2563EB]"><Icon className="w-4 h-4" /></span>
           <div className="min-w-0">
             <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
               {visit.meetingType || "Visit"}
@@ -60,13 +62,13 @@ function MeetingCard({ visit }) {
 
       {visit.location ? (
         <p className="mt-1.5 text-[10px] text-[#8B92A9] flex items-center gap-1">
-          <span>📍</span><span className="truncate">{visit.location}</span>
+          <MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{visit.location}</span>
         </p>
       ) : null}
 
       {visit.followUpDate ? (
         <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-          <span>📅</span><span>Follow-up: {fmtDateTime(visit.followUpDate)}</span>
+          <CalendarDays className="w-3 h-3 shrink-0" /><span>Follow-up: {fmtDateTime(visit.followUpDate)}</span>
         </p>
       ) : null}
 
@@ -75,13 +77,13 @@ function MeetingCard({ visit }) {
           {visit.documentUrl ? (
             <a href={visit.documentUrl} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition">
-              <span>📎</span>{visit.documentName || "View attachment"}
+              <Paperclip className="w-3 h-3" />{visit.documentName || "View attachment"}
             </a>
           ) : null}
           {visit.recordingUrl ? (
             <a href={visit.recordingUrl} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/20 transition">
-              <span>🎙️</span>{visit.recordingName || "Play recording"}
+              <Mic className="w-3 h-3" />{visit.recordingName || "Play recording"}
             </a>
           ) : null}
         </div>
@@ -98,7 +100,7 @@ export default function ClientMeetingTab({ lead }) {
   return (
     <div className="px-6 py-4">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-[14px]">🗺️</span>
+        <span className="text-[#8B92A9]"><MapIcon className="w-3.5 h-3.5" /></span>
         <p className="text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest">
           Client Visits ({visits.length})
         </p>
@@ -109,7 +111,7 @@ export default function ClientMeetingTab({ lead }) {
         visits.map((v, i) => <MeetingCard key={v._id || i} visit={v} />)
       ) : (
         <div className="flex flex-col items-center justify-center py-10 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
-          <span className="text-[30px]">🗒️</span>
+          <span className="text-[#8B92A9]"><NotebookPen className="w-7 h-7" strokeWidth={1.5} /></span>
           <p className="text-[12px] text-[#8B92A9]">No client visits logged yet</p>
           <p className="text-[10px] text-[#8B92A9]">Visits logged from the mobile app appear here.</p>
         </div>
