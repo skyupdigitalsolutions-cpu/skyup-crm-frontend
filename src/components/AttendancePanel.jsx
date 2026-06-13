@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import api from "../data/axiosConfig";
+import { Moon } from "lucide-react";
 
 const IDLE_MS = 5 * 60 * 1000;
 
@@ -142,7 +143,7 @@ export default function AttendancePanel() {
   const STATUS = {
     active:     { bg: "bg-emerald-50 dark:bg-emerald-950/40", text: "text-emerald-600 dark:text-emerald-400", label: "● Active"     },
     on_break:   { bg: "bg-amber-50 dark:bg-amber-950/40",     text: "text-amber-600 dark:text-amber-400",     label: "⏸ On Break"  },
-    idle:       { bg: "bg-red-50 dark:bg-red-950/40",         text: "text-red-600 dark:text-red-400",         label: "💤 Idle"     },
+    idle:       { bg: "bg-red-50 dark:bg-red-950/40",         text: "text-red-600 dark:text-red-400",         Icon: Moon, label: "Idle"     },
     logged_out: { bg: "bg-gray-50 dark:bg-gray-900/40",       text: "text-gray-500 dark:text-gray-400",       label: "⏹ Logged Out" },
   };
   const st = STATUS[record?.status] ?? STATUS.logged_out;
@@ -166,8 +167,8 @@ export default function AttendancePanel() {
           </p>
         </div>
         {record && (
-          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${st.bg} ${st.text}`}>
-            {st.label}
+          <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${st.bg} ${st.text}`}>
+            {st.Icon && <st.Icon className="w-3 h-3" />}{st.label}
           </span>
         )}
       </div>
