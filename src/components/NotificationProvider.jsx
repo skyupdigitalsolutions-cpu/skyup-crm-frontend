@@ -24,9 +24,13 @@
  *                            `reassign-${leadId}` to prevent duplicates per lead.
  *   4. panelRef placement  — moved ref from outer wrapper to the dropdown panel only,
  *                            so click-outside doesn't fight with the toggle button.
+ *   5. MOBILE FIX          — Notification panel now uses a portal + fixed positioning
+ *                            that clamps to viewport edges. Prevents left-overflow on
+ *                            narrow mobile screens when the bell is near screen edges.
  */
 
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { io } from 'socket.io-client';
 import api from '../data/axiosConfig';
 import { AlertOctagon, AlertTriangle, ClipboardList, RefreshCw, MessageCircle, CheckCircle2, MapPin, Bell } from 'lucide-react';
@@ -120,10 +124,6 @@ function handleUpsert(notif, setNotifications, setUnreadCount) {
 // ── Provider ──────────────────────────────────────────────────────────────────
 // ── Module-level Set tracks which adminIds have already received their
 // initial pushPendingFollowUps this browser session.
-// Using a module-level ref (not component state) means it survives
-// React re-renders and effect re-runs — so even if the user object
-// changes reference (triggering a new socket), we don't re-emit admin_join
-// and trigger duplicate follow-up notifications.
 const _joinedAdminIds = new Set();
 
 export function NotificationProvider({ children }) {
@@ -166,7 +166,6 @@ export function NotificationProvider({ children }) {
 
   useEffect(() => {
     if (!user) {
-      // User logged out — clear the joined-admins Set so next login gets fresh notifications
       _joinedAdminIds.clear();
       return;
     }
@@ -218,7 +217,6 @@ export function NotificationProvider({ children }) {
                            : warning.length  > 0 ? 'warning'
                            : 'notice';
 
-          const emoji   = '';
           const urgency = mostUrgent === 'critical' || mostUrgent === 'warning';
 
           addNotification({
@@ -255,9 +253,6 @@ export function NotificationProvider({ children }) {
 
     const token  = localStorage.getItem('token');
 
-    // Disconnect any lingering socket from a previous effect run before creating a new one.
-    // Without this, a fast user→null→user cycle leaves a half-connected socket that
-    // causes "WebSocket closed before the connection is established" errors.
     if (socketRef.current) {
       socketRef.current.off();
       socketRef.current.disconnect();
@@ -274,12 +269,8 @@ export function NotificationProvider({ children }) {
     });
     socketRef.current = socket;
 
-    // hasJoined guard — uses module-level Set so it survives React effect re-runs.
-    // Even if the user object changes reference (causing effect cleanup+rerun),
-    // admin_join is only emitted once per adminId per browser session.
-    // It IS cleared on logout (user_changed with null user) via _joinedAdminIds.delete().
     const doJoin = () => {
-      if (_joinedAdminIds.has(adminId)) return;  // already joined this session
+      if (_joinedAdminIds.has(adminId)) return;
       _joinedAdminIds.add(adminId);
       if (isSuperAdmin) {
         console.debug('[NotificationProvider] emitting super_admin_join');
@@ -358,14 +349,10 @@ export function NotificationProvider({ children }) {
       handleUpsert(notif, setNotifications, setUnreadCount);
     });
 
-    // ── subscription_expiry_alert ─────────────────────────────────────────────
-    // Emitted to room superadmin:${adminId} by subscriptionExpiryJob after the
-    // daily cron runs.  Keeps the bell in sync without a page reload.
     if (isSuperAdmin) {
       socket.on('subscription_expiry_alert', ({ totalExpiring, critical, warning, notice, companies, timestamp }) => {
         if (!totalExpiring) return;
 
-        const emoji   = '';
         const urgency = critical > 0 || warning > 0;
 
         const notif = {
@@ -387,9 +374,6 @@ export function NotificationProvider({ children }) {
       });
     }
 
-    // wa_new_lead — new lead created from WhatsApp webhook.
-    // Only wired in WhatsAppChat before; now handled here so the bell
-    // updates on any page the admin is viewing.
     socket.on('wa_new_lead', ({ lead }) => {
       const leadName = lead?.name || 'New Lead';
       const source   = lead?.source || 'WhatsApp';
@@ -403,10 +387,6 @@ export function NotificationProvider({ children }) {
       });
     });
 
-    // lead_closed_by_user — an employee closed a lead with a remark.
-    // The backend (closeLeadByUser) emits this to admin_room:${adminId}, but
-    // nothing was listening, so admins never saw a notification. Wire it here
-    // so the bell updates on whatever page the admin is on.
     socket.on('lead_closed_by_user', ({ leadId, leadName, phone, remark, closedBy, closedAt }) => {
       handleUpsert({
         id:        `lead-closed-${leadId}`,
@@ -423,11 +403,6 @@ export function NotificationProvider({ children }) {
       }, setNotifications, setUnreadCount);
     });
 
-    // meeting_permission_requested — an employee is requesting remote (client-
-    // meeting) clock-in. Backend emits to admin_room:${adminId}, but nothing was
-    // listening, so admins never knew a request came in and the employee stayed
-    // blocked. Wire it here so the admin bell surfaces it and they can approve
-    // from Employee Management.
     socket.on('meeting_permission_requested', ({ userId: empId, userName, reason, location, requestedAt }) => {
       handleUpsert({
         id:        `meeting-perm-${empId}`,
@@ -444,12 +419,12 @@ export function NotificationProvider({ children }) {
     });
 
     return () => {
-      socket.off();           // remove all listeners before disconnect
+      socket.off();
       socket.disconnect();
       socketRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?._id || user?.id]); // stable string dep — prevents effect re-run on object re-parse
+  }, [user?._id || user?.id]);
 
   return (
     <NotificationContext.Provider value={{ notifications, unreadCount, markAllRead, clearAll }}>
@@ -468,12 +443,55 @@ function BellIcon({ className = 'w-5 h-5' }) {
   );
 }
 
+// ── MOBILE FIX: compute panel position clamped to viewport ───────────────────
+// Anchors the panel below the button and aligned to its right edge,
+// but clamps so it never overflows left or right viewport edges.
+// PANEL_WIDTH must match the w-[320px] set on the panel div below.
+const PANEL_WIDTH = 320;
+const PANEL_MARGIN = 8; // min gap from screen edge
+
+function getPanelStyle(buttonRef) {
+  if (!buttonRef.current) return {};
+  const rect = buttonRef.current.getBoundingClientRect();
+  const vw   = window.innerWidth;
+
+  // Ideal: right-align panel to button's right edge
+  let left = rect.right - PANEL_WIDTH;
+
+  // Clamp: don't overflow left or right edge
+  left = Math.max(PANEL_MARGIN, left);
+  left = Math.min(left, vw - PANEL_WIDTH - PANEL_MARGIN);
+
+  return {
+    position: 'fixed',
+    top:      rect.bottom + 8,
+    left,
+    width:    PANEL_WIDTH,
+    zIndex:   500,
+  };
+}
+
 export function NotificationBell() {
   const ctx = useNotifications();
   const [open, setOpen] = useState(false);
+  const [panelStyle, setPanelStyle] = useState({});
   const panelRef  = useRef(null);
   const buttonRef = useRef(null);
 
+  // Recompute position whenever panel opens or window resizes/scrolls
+  useEffect(() => {
+    if (!open) return;
+    const update = () => setPanelStyle(getPanelStyle(buttonRef));
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
+
+  // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -496,6 +514,56 @@ export function NotificationBell() {
     if (!open && unreadCount > 0) markAllRead();
   };
 
+  const panel = open ? (
+    <div
+      ref={panelRef}
+      style={{ ...panelStyle, maxHeight: '480px' }}
+      className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl overflow-hidden"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#F0F2FA] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
+        <div className="flex items-center gap-2">
+          <BellIcon className="w-3.5 h-3.5 text-[#2563EB]" />
+          <span className="text-[13px] font-bold text-[#0F1117] dark:text-white">Notifications</span>
+          {unreadCount > 0 && (
+            <span className="text-[10px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">
+              {unreadCount}
+            </span>
+          )}
+        </div>
+        {notifications.length > 0 && (
+          <button
+            onClick={clearAll}
+            className="text-[11px] text-[#8B92A9] hover:text-red-500 dark:hover:text-red-400 transition font-semibold"
+          >
+            Clear all
+          </button>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="overflow-y-auto" style={{ maxHeight: '400px' }}>
+        {notifications.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 gap-3">
+            <div className="w-12 h-12 rounded-full bg-[#F1F4FF] dark:bg-[#262A38] flex items-center justify-center">
+              <BellIcon className="w-5 h-5 text-[#C4C9D9] dark:text-[#3E4257]" />
+            </div>
+            <div className="text-center">
+              <p className="text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">All caught up!</p>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">No new notifications</p>
+            </div>
+          </div>
+        ) : (
+          <div className="divide-y divide-[#F0F2FA] dark:divide-[#262A38]">
+            {notifications.map((n) => (
+              <NotificationItem key={n.id} notif={n} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="relative">
       <button
@@ -512,55 +580,8 @@ export function NotificationBell() {
         )}
       </button>
 
-      {open && (
-        <div
-          ref={panelRef}
-          className="absolute right-0 mt-2 z-[500] w-[calc(100vw-1.5rem)] max-w-[320px] sm:w-[320px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl overflow-hidden"
-          style={{ maxHeight: '480px', top: '100%' }}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#F0F2FA] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
-            <div className="flex items-center gap-2">
-              <BellIcon className="w-3.5 h-3.5 text-[#2563EB]" />
-              <span className="text-[13px] font-bold text-[#0F1117] dark:text-white">Notifications</span>
-              {unreadCount > 0 && (
-                <span className="text-[10px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">
-                  {unreadCount}
-                </span>
-              )}
-            </div>
-            {notifications.length > 0 && (
-              <button
-                onClick={clearAll}
-                className="text-[11px] text-[#8B92A9] hover:text-red-500 dark:hover:text-red-400 transition font-semibold"
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-
-          {/* Body */}
-          <div className="overflow-y-auto" style={{ maxHeight: '400px' }}>
-            {notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-3">
-                <div className="w-12 h-12 rounded-full bg-[#F1F4FF] dark:bg-[#262A38] flex items-center justify-center">
-                  <BellIcon className="w-5 h-5 text-[#C4C9D9] dark:text-[#3E4257]" />
-                </div>
-                <div className="text-center">
-                  <p className="text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">All caught up!</p>
-                  <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">No new notifications</p>
-                </div>
-              </div>
-            ) : (
-              <div className="divide-y divide-[#F0F2FA] dark:divide-[#262A38]">
-                {notifications.map((n) => (
-                  <NotificationItem key={n.id} notif={n} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Portal — renders outside the header stacking context so it's never clipped */}
+      {panel && createPortal(panel, document.body)}
     </div>
   );
 }
