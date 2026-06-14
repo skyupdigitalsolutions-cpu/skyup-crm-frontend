@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import api from "../data/axiosConfig";
 import ColdReassignModal from "../components/ColdReassignModal";
 import ClientMeetingTab from "../components/ClientMeetingTab";
+import QualificationScore from "../components/QualificationScore";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
 import { maskPhone as _maskPhone } from "../utils/maskPhone";
 import { Check, AlertTriangle, X } from "lucide-react";
@@ -65,6 +66,12 @@ phone:          l.primaryPhone   || l.mobile || l.phone || "",
     adSetName:      l.adSetName      || "",   
     status:         l.status         || "New",
     temperature:    l.temperature    || l.Quality || null,
+    // ── Qualification scoring (Meta ad-set leads) ──────────────────────────
+    leadScore:               l.leadScore               ?? null,
+    maxScore:                l.maxScore                ?? null,
+    qualificationPercentage: l.qualificationPercentage ?? null,
+    leadCategory:            l.leadCategory            ?? null,
+    qualificationBreakdown:  Array.isArray(l.qualificationBreakdown) ? l.qualificationBreakdown : [],
     remark:         l.remark         || "",
     date:           fmtDate(l.date   || l.createdAt),
     _raw_date:      l.date           || l.createdAt || null,
@@ -722,7 +729,9 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
         ...lead,
         ...(updatedLead ? mapLead(updatedLead) : {}),
         id:             lead.id,  // preserve frontend id
-        status:         isNI ? "Not Interested" : status,
+        // Use the status the backend resolved (NI flow may set "Verification",
+        // return the lead, etc.). Fall back to the chosen status for non-NI saves.
+        status:         isNI ? (updatedLead?.status || "Not Interested") : status,
         remark:         remark.trim(),
         temperature:    temperature || lead.temperature,
         callHistory:    mergedCallHistory,
@@ -774,6 +783,11 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
               {lead.temperature && <TempBadge temp={lead.temperature} />}
               <span className="text-[12px] text-[#8B92A9]">{lead.source}</span>
             </div>
+            {lead.leadScore != null && (
+              <div className="mt-2">
+                <QualificationScore lead={lead} size="md" />
+              </div>
+            )}
           </div>
           <button onClick={onClose}
             className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white transition shrink-0">
