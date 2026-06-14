@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import api from "../data/axiosConfig";
 import LeadJourneyDrawer from "./LeadJourneyDrawer";
 import ClientMeetingTab from "./ClientMeetingTab";
+import QualificationScore from "./QualificationScore";
 import CRMEncryption from "../utils/CRMEncryption";
 import { getRole } from "../data/dataService";
 import { normalizePhone } from "../utils/normalizePhone";
@@ -670,6 +671,11 @@ function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast 
               {lead.Quality && <TempBadge temp={lead.Quality} />}
               <span className="text-[12px] text-[#8B92A9] truncate">{lead.source}</span>
             </div>
+            {lead.leadScore != null && (
+              <div className="mt-2">
+                <QualificationScore lead={lead} size="md" />
+              </div>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -1752,6 +1758,12 @@ function mapLead(l) {
     agent:          l.user?.name || l.assignedTo?.name || l.agent || "Unassigned",
     status:         l.status         || "New",
     Quality:        l.temperature || l.Quality || null,
+    // ── Qualification scoring (Meta ad-set leads) ──────────────────────────
+    leadScore:               l.leadScore               ?? null,
+    maxScore:                l.maxScore                ?? null,
+    qualificationPercentage: l.qualificationPercentage ?? null,
+    leadCategory:            l.leadCategory            ?? null,
+    qualificationBreakdown:  Array.isArray(l.qualificationBreakdown) ? l.qualificationBreakdown : [],
     remark:         l.remark         || "",
     date:           l.date
       ? new Date(l.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
@@ -1988,7 +2000,7 @@ export default function AdminLeadsPage() {
       const matchSt     = filterSt    === "All" || displayLabel === filterSt;
       const matchAgent  = filterAgent === "All" || l.agent   === filterAgent;
       const matchSrc    = filterSrc   === "All" || l.source  === filterSrc;
-      const matchTemp   = filterTemp  === "All" || l.Quality === filterTemp;
+      const matchTemp   = filterTemp  === "All" || l.Quality === filterTemp || l.leadCategory === filterTemp;
       const matchProject = filterProject === "All" ||
         (l.projects || []).some(p =>
           (p?._id ? String(p._id) : String(p)) === filterProject
@@ -2028,13 +2040,26 @@ export default function AdminLeadsPage() {
 
   const exportToCSV = useCallback(() => {
     if (!displayed.length) return;
-    const headers = ["Name","Phone","Email","Employee","Source","Campaign","Date","Status","Quality","Calls","Last Outcome","Last Called","Remark"];
+    const headers = ["Name","Phone","Email","Employee","Source","Campaign","Date","Status","Quality","Lead Score","Max Score","Qualification %","Lead Category","Calls","Last Outcome","Last Called","Remark"];
     const escape  = v => { const s = String(v ?? "").replace(/"/g, '""'); return /[",\n\r]/.test(s) ? `"${s}"` : s; };
-    const rows    = displayed.map(l => [
-      l.name, l.phone, l.email, l.agent, l.source, l.campaign, l.date, l.status,
-      l.Quality || "", l.callHistory.length, l.lastOutcome || "",
-      l.lastCalledAt ? new Date(l.lastCalledAt).toLocaleDateString("en-GB") : "", l.remark,
-    ].map(escape).join(","));
+    const rows    = displayed.map(l => {
+      const pct =
+        l.qualificationPercentage != null
+          ? l.qualificationPercentage
+          : (l.maxScore && l.leadScore != null)
+          ? Math.round((l.leadScore / l.maxScore) * 10000) / 100
+          : "";
+      return [
+        l.name, l.phone, l.email, l.agent, l.source, l.campaign, l.date, l.status,
+        l.Quality || "",
+        l.leadScore != null ? l.leadScore : "",
+        l.maxScore != null ? l.maxScore : "",
+        pct === "" ? "" : `${pct}%`,
+        l.leadCategory || l.Quality || "",
+        l.callHistory.length, l.lastOutcome || "",
+        l.lastCalledAt ? new Date(l.lastCalledAt).toLocaleDateString("en-GB") : "", l.remark,
+      ].map(escape).join(",");
+    });
     const blob = new Blob([[headers.join(","), ...rows].join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -2345,6 +2370,11 @@ export default function AdminLeadsPage() {
                             <div className="min-w-0">
                               <p className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate text-[14px]">{l.name}</p>
                               <p className="text-[11px] text-[#8B92A9]">{daysSince(l._raw_date) || "—"}</p>
+                              {l.leadScore != null && (
+                                <div className="mt-0.5">
+                                  <QualificationScore lead={l} showCategory={false} />
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
