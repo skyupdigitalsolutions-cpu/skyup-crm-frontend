@@ -1008,9 +1008,18 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
         lead={lead}
         onClose={() => setShowColdModal(false)}
         onSuccess={(updatedLead) => {
-          // Mark temperature as Cold locally and close the drawer
+          // updatedLead is the populated lead returned by the backend. Map it to
+          // the list's shape and preserve the frontend id. The backend resolves
+          // the correct status (e.g. "Verification" on first Cold mark).
+          const mapped = updatedLead ? mapLead(updatedLead) : {};
           setTemperature("Cold");
-          onSaved({ ...lead, ...updatedLead, temperature: "Cold" });
+          onSaved({
+            ...lead,
+            ...mapped,
+            id:          lead.id,
+            temperature: "Cold",
+            status:      updatedLead?.status || lead.status,
+          });
           setShowColdModal(false);
           onClose();
         }}
