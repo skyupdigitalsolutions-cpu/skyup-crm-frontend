@@ -544,7 +544,7 @@ export default function TelegramSettings() {
       {/* ── Popover ── */}
       {open && (
         <div
-          className="absolute top-full right-0 mt-2 w-[340px] bg-white dark:bg-[#1A1D27]
+          className="absolute top-full right-0 mt-2 w-[calc(100vw-1.5rem)] max-w-[340px] sm:w-[340px] bg-white dark:bg-[#1A1D27]
             border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-xl z-50 overflow-hidden"
           style={{ animation: "tgSlide 0.15s ease both" }}
         >
