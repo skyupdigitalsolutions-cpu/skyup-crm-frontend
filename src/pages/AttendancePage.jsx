@@ -194,7 +194,7 @@ function ClockInLocationSettings() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[360px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-[360px] sm:w-[360px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
           <PanelHeader
             icon={MapPin}
             title="Clock-In Location"
@@ -399,7 +399,7 @@ function AttendanceSettings() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[400px] max-h-[80vh] overflow-y-auto bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50">
+        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-[400px] sm:w-[400px] max-h-[80vh] overflow-y-auto bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50">
           <div className="sticky top-0 bg-white dark:bg-[#1A1D27] z-10">
             <PanelHeader
               icon={Clock}
@@ -585,7 +585,7 @@ function CallLogSyncSettings({ companyId }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[340px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-[340px] sm:w-[340px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
           <PanelHeader
             icon={PhoneCall}
             title="Device Call Log Sync"
@@ -690,7 +690,7 @@ function MeetingTrackingSettings() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[340px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-[340px] sm:w-[340px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
           <PanelHeader
             icon={Navigation}
             title="Client Visit Tracking"
@@ -1079,16 +1079,16 @@ export default function AttendancePage() {
   }, {});
 
   return (
-    <div className="p-6 min-h-screen bg-gray-50 dark:bg-[#0D0F14]">
+    <div className="p-4 sm:p-6 min-h-screen bg-gray-50 dark:bg-[#0D0F14] overflow-x-hidden">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div>
-          <h1 className="text-[20px] font-bold text-gray-800 dark:text-gray-100">Attendance Management</h1>
+      <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
+        <div className="min-w-0">
+          <h1 className="text-[18px] sm:text-[20px] font-bold text-gray-800 dark:text-gray-100">Attendance Management</h1>
           <p className="text-[12px] text-gray-400 mt-0.5">Track, filter and manage employee attendance</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Office location restriction */}
           <ClockInLocationSettings />
 
