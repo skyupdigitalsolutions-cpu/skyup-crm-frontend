@@ -115,13 +115,33 @@ export default function SuperAdminLogin() {
     try {
       const res = await api.post("/superadmin/verify-otp", { email: pendingEmail, otp: cleanOtp });
       localStorage.setItem("token", res.data.token);
+
+      // FIX: backend may return either flat companyId/companyName fields
+      // (preferred) or only a populated `company` object ({ _id, name, ... }).
+      // Previously this read res.data.companyId directly, which was always
+      // undefined when only `company` was returned — resulting in an empty
+      // companyId being stored. AdminChat's extractCompanyId() then resolved
+      // to '', so super_admin_join's `if (!adminId || !company) return;`
+      // guard silently aborted, leaving the chat panel with "0 online" and
+      // "No contacts yet" forever.
+      const companyObj = res.data.company;
+      const companyId =
+        res.data.companyId ||
+        (companyObj && typeof companyObj === "object" ? companyObj._id : companyObj) ||
+        "";
+      const companyName =
+        res.data.companyName ||
+        (companyObj && typeof companyObj === "object" ? companyObj.name : "") ||
+        "";
+
       localStorage.setItem("user", JSON.stringify({
         _id:         res.data._id,
         name:        res.data.name,
         email:       res.data.email,
         role:        "super_admin",
-        companyId:   res.data.companyId,
-        companyName: res.data.companyName,
+        companyId,
+        companyName,
+        company:     companyId, // keep for legacy reads (matches AdminLogin.jsx convention)
       }));
       // Notify same-tab listeners (window 'storage' event doesn't fire in the same tab)
       window.dispatchEvent(new Event("user_changed"));
