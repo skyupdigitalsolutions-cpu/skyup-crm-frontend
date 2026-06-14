@@ -46,6 +46,53 @@ function Spinner() {
   );
 }
 
+// ── Feature → limit text ──────────────────────────────────────────────────────
+// Maps a feature key to the relevant numeric limit on the plan, returning a
+// short inline string (e.g. "10,000" or "Unlimited") to show next to the label.
+// Returns "" when the feature has no associated limit or the limit is 0/unset.
+function featureLimitText(key, plan) {
+  // Treat null/undefined/-1/0 as "no explicit cap to show". A very large value
+  // or an explicit unlimited sentinel renders as "Unlimited".
+  const fmt = (v, suffix = "") => {
+    if (v == null) return "";
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "";
+    if (n < 0 || n >= 1_000_000) return "Unlimited";
+    if (n === 0) return "";
+    return `${n.toLocaleString()}${suffix}`;
+  };
+
+  // Feature keys arrive in two formats depending on the source:
+  //   • planDefs (PLAN_DEFAULTS / developer config) → kebab-case: "leads", "meta-ads"
+  //   • myFeatures (resolved entitlements for the current plan) → camelCase: "leadManagement", "metaAds"
+  // Normalize so the same limit shows regardless of which list rendered the row.
+  switch (key) {
+    case "leads":
+    case "leadManagement":
+      return fmt(plan.maxLeads, " leads");
+    case "google-ads":
+    case "googleAds":
+      return fmt(plan.maxGoogleAccounts, plan.maxGoogleAccounts === 1 ? " account" : " accounts");
+    case "meta-ads":
+    case "metaAds":
+      return fmt(plan.maxMetaCampaigns, plan.maxMetaCampaigns === 1 ? " campaign" : " campaigns");
+    case "website-tracking":
+    case "websiteTracking":
+      return fmt(plan.maxWebsites, plan.maxWebsites === 1 ? " website" : " websites");
+    case "call-transcription":
+    case "callTranscription":
+      return fmt(plan.transcriptionsPerMonth, "/mo");
+    case "ai-summary":
+    case "aiSummary":
+      return fmt(plan.summariesPerMonth, "/mo");
+    case "voice-bot":
+    case "voiceBot":
+      return fmt(plan.voiceBotPerMonth, "/mo");
+    default:
+      return "";
+  }
+}
+
 // ── Plan Card ─────────────────────────────────────────────────────────────────
 function PlanCard({ plan, billing, selected, onUpgrade }) {
   const [hovered, setHovered] = useState(false);
@@ -107,12 +154,23 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
 
         {/* Enabled features */}
         <div className="space-y-2 mb-5">
-          {enabled.map(f => (
-            <div key={f.key} className="flex items-center gap-2">
-              <Check color={plan.color} />
-              <span className="text-[12px] text-[#4B5168] dark:text-[#7B829E]">{f.label}</span>
-            </div>
-          ))}
+          {enabled.map(f => {
+            const limit = featureLimitText(f.key, plan);
+            return (
+              <div key={f.key} className="flex items-center gap-2">
+                <Check color={plan.color} />
+                <span className="text-[12px] text-[#4B5168] dark:text-[#7B829E]">{f.label}</span>
+                {limit && (
+                  <span
+                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md ml-auto whitespace-nowrap"
+                    style={{ background: plan.color + "15", color: plan.color }}
+                  >
+                    {limit}
+                  </span>
+                )}
+              </div>
+            );
+          })}
           {locked.map(f => (
             <div key={f.key} className="flex items-center gap-2 opacity-40">
               <Lock />
@@ -267,6 +325,17 @@ function mergeConfigIntoDefaults(defaults, config) {
       monthlyPrice: cfg.monthlyPrice != null ? Number(cfg.monthlyPrice) : base.monthlyPrice,
       yearlyPrice:  cfg.yearlyPrice  != null ? Number(cfg.yearlyPrice)  : base.yearlyPrice,
       maxUsers:     cfg.maxUsers     != null ? Number(cfg.maxUsers)     : base.maxUsers,
+      // Resource & quota limits (only override when the config provides them).
+      maxAdmins:              cfg.maxAdmins              != null ? Number(cfg.maxAdmins)              : base.maxAdmins,
+      maxLeads:               cfg.maxLeads               != null ? Number(cfg.maxLeads)               : base.maxLeads,
+      maxWebsites:            cfg.maxWebsites            != null ? Number(cfg.maxWebsites)            : base.maxWebsites,
+      maxMetaCampaigns:       cfg.maxMetaCampaigns       != null ? Number(cfg.maxMetaCampaigns)       : base.maxMetaCampaigns,
+      maxGoogleAccounts:      cfg.maxGoogleAccounts      != null ? Number(cfg.maxGoogleAccounts)      : base.maxGoogleAccounts,
+      maxStorageMB:           cfg.maxStorageMB           != null ? Number(cfg.maxStorageMB)           : base.maxStorageMB,
+      transcriptionsPerMonth: cfg.transcriptionsPerMonth != null ? Number(cfg.transcriptionsPerMonth) : base.transcriptionsPerMonth,
+      summariesPerMonth:      cfg.summariesPerMonth      != null ? Number(cfg.summariesPerMonth)      : base.summariesPerMonth,
+      voiceBotPerMonth:       cfg.voiceBotPerMonth       != null ? Number(cfg.voiceBotPerMonth)       : base.voiceBotPerMonth,
+      dataRetentionDays:      cfg.dataRetentionDays      != null ? Number(cfg.dataRetentionDays)      : base.dataRetentionDays,
       features,
     };
   }
@@ -368,6 +437,18 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
             monthlyPrice: p.price?.monthly,
             yearlyPrice:  p.price?.yearly,
             maxUsers:     p.maxUsers,
+            // Resource & quota limits — carried through so cards can show them
+            // inline next to the relevant feature.
+            maxAdmins:              p.maxAdmins,
+            maxLeads:               p.maxLeads,
+            maxWebsites:            p.maxWebsites,
+            maxMetaCampaigns:       p.maxMetaCampaigns,
+            maxGoogleAccounts:      p.maxGoogleAccounts,
+            maxStorageMB:           p.maxStorageMB,
+            transcriptionsPerMonth: p.transcriptionsPerMonth,
+            summariesPerMonth:      p.summariesPerMonth,
+            voiceBotPerMonth:       p.voiceBotPerMonth,
+            dataRetentionDays:      p.dataRetentionDays,
             features: Array.isArray(p.features)
               ? p.features.filter(f => f && f.enabled).map(f => f.key)
               : undefined,
