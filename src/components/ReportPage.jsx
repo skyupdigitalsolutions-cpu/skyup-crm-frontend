@@ -1697,7 +1697,7 @@ export default function ReportPage() {
   );
 
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-3 py-4 md:px-6 md:py-8">
+    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-3 py-4 md:px-6 md:py-8 overflow-x-hidden">
 
       {/* ── Modals ── */}
       {manageProjects && (
@@ -1821,7 +1821,7 @@ export default function ReportPage() {
       </div>
 
       {/* ── Leads table ── */}
-      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl min-w-0">
         <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
@@ -1847,7 +1847,7 @@ export default function ReportPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
                 </svg>
                 <input type="text" placeholder="Search..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-                  className="pl-8 pr-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] w-44" />
+                  className="pl-8 pr-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] w-36 sm:w-44" />
               </div>
             </div>
           </div>
@@ -1882,7 +1882,7 @@ export default function ReportPage() {
 
         <div className="overflow-hidden rounded-b-2xl">
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
+            <table className="w-full min-w-[760px] text-[13px]">
               <thead>
                 <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
                   {["#", "Lead Name", "Phone", "Source", "Campaign", "Employee", "Status", "Date", "Calls", "Remark", "Actions"].map(h => (
