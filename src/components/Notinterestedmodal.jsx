@@ -61,31 +61,49 @@ export default function NotInterestedModal({ lead, onClose, onSuccess }) {
             </svg>
           </div>
           <h2 className="text-[17px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-            {result.isSecondNI ? "Follow-up Calls Scheduled" : "Lead Reassigned Successfully"}
+            {result.isVerification
+              ? "Lead Sent for Verification"
+              : result.isReturned
+                ? "Returned to Original Employee"
+                : result.isSecondNI
+                  ? "Marked Not Interested"
+                  : "Lead Reassigned Successfully"}
           </h2>
           {result.reassignedTo && (
             <p className="text-[13px] text-[#8B92A9]">
-              Reassigned to{" "}
+              {result.isVerification
+                ? "Sent to "
+                : result.isReturned
+                  ? "Returned to "
+                  : "Reassigned to "}
               <strong className="text-[#0F1117] dark:text-[#F0F2FA]">{result.reassignedTo.name}</strong>
             </p>
           )}
-          {result.isSecondNI && (
-            <p className="text-[12px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 rounded-xl px-4 py-2">
-              Lead status reset to <strong>New</strong> — will be actionable after follow-up calls.
+          {result.isVerification && (
+            <p className="text-[12px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 rounded-xl px-4 py-2">
+              Status set to <strong>Verification</strong>. If the verifier also marks it Not Interested,
+              it will come back to you with the remaining follow-ups.
             </p>
           )}
-          <div className="text-left space-y-2 bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-2xl p-4">
-            <p className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-2">Scheduled Calls</p>
-            {(result.scheduledCalls || []).map(function(sc, i) {
-              return (
-                <div key={i} className="flex items-center gap-2">
-                  <span className={"w-2 h-2 rounded-full shrink-0 " + (sc.type === "follow-up" ? "bg-blue-500" : "bg-purple-500")} />
-                  <span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] capitalize">{sc.type}</span>
-                  <span className="ml-auto text-[11px] text-[#8B92A9]">{fmt(sc.scheduledAt)}</span>
-                </div>
-              );
-            })}
-          </div>
+          {result.isReturned && (
+            <p className="text-[12px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 rounded-xl px-4 py-2">
+              Verification confirmed. The lead is back with the original employee and keeps its remaining follow-ups.
+            </p>
+          )}
+          {(result.scheduledCalls || []).length > 0 && (
+            <div className="text-left space-y-2 bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-2xl p-4">
+              <p className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-2">Scheduled Calls</p>
+              {(result.scheduledCalls || []).map(function(sc, i) {
+                return (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className={"w-2 h-2 rounded-full shrink-0 " + (sc.type === "follow-up" ? "bg-blue-500" : "bg-purple-500")} />
+                    <span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] capitalize">{sc.type}</span>
+                    <span className="ml-auto text-[11px] text-[#8B92A9]">{fmt(sc.scheduledAt)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <button
             onClick={function() { onSuccess(result.lead || lead); onClose(); }}
             className="w-full py-3 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-[#1D4ED8] transition"
@@ -138,11 +156,12 @@ export default function NotInterestedModal({ lead, onClose, onSuccess }) {
           <div className="px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-[12px] text-amber-700 dark:text-amber-300 space-y-1">
             <p className="font-semibold">What happens next:</p>
             <ul className="list-disc list-inside space-y-1 text-[11px]">
-              <li>Lead will be <strong>auto-reassigned</strong> to another available agent</li>
+              <li>Lead is sent to <strong>another agent for verification</strong></li>
+              <li>If the verifier also marks it Not Interested, it comes <strong>back to you</strong> with the remaining follow-ups</li>
               <li> Follow-up call in <strong>3 days</strong> ({fmt(now + 3 * 86400000)})</li>
               <li> Verification call in <strong>7 days</strong> ({fmt(now + 7 * 86400000)})</li>
               <li> Verification call in <strong>30 days</strong> ({fmt(now + 30 * 86400000)})</li>
-              <li>Full call history passed to new agent</li>
+              <li>Full call history passed to the verifier</li>
             </ul>
           </div>
 
