@@ -2299,13 +2299,13 @@ export default function Campaigns() {
     : [{ label: "Campaigns", onClick: null }];
 
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-6 py-8">
+    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-4 py-5 sm:px-6 sm:py-8 overflow-x-hidden">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div>
+        <div className="min-w-0">
           {/* Breadcrumb */}
-          <nav className="flex items-center gap-1.5 mb-1">
+          <nav className="flex items-center gap-1.5 mb-1 flex-wrap">
             {breadcrumbs.map((crumb, i) => (
               <span key={i} className="flex items-center gap-1.5">
                 {i > 0 && (
@@ -2327,7 +2327,7 @@ export default function Campaigns() {
             ))}
           </nav>
 
-          <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+          <h1 className="text-[20px] sm:text-[24px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
             {selectedAdSet ? (selectedAdSet.adSetName || selectedAdSet.name) : selectedParent ? selectedParent : "Campaigns"}
           </h1>
           <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
@@ -2448,22 +2448,22 @@ export default function Campaigns() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 sm:flex-none min-w-0">
             <button
               onClick={fetchCampaigns}
-              className="w-8 h-8 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] transition"
+              className="w-8 h-8 shrink-0 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#2563EB] hover:border-[#2563EB] transition"
               title="Refresh"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${pageLoading ? "animate-spin" : ""}`} />
             </button>
-            <div className="relative">
+            <div className="relative flex-1 sm:flex-none min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9]" />
               <input
                 type="text"
                 placeholder="Search campaigns…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 pr-4 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] w-48"
+                className="w-full sm:w-48 pl-8 pr-4 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB]"
               />
             </div>
           </div>
