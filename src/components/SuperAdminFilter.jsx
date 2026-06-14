@@ -32,11 +32,11 @@ function StatCard({ icon: Icon, label, value, color = "blue" }) {
     amber:  "text-amber-500",
   };
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-4 py-3 flex items-center gap-3">
+    <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-3 sm:px-4 py-3 flex items-center gap-2.5 sm:gap-3 min-w-0">
       <Icon className={`w-5 h-5 shrink-0 ${iconColors[color] || iconColors.blue}`} />
-      <div>
+      <div className="min-w-0">
         <div className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA] tabular-nums leading-none">{value}</div>
-        <div className="text-[10px] text-[#6B7280] dark:text-[#565C75] mt-0.5">{label}</div>
+        <div className="text-[10px] text-[#6B7280] dark:text-[#565C75] mt-0.5 truncate">{label}</div>
       </div>
     </div>
   );
@@ -370,20 +370,24 @@ export default function SuperAdminFilter() {
             </div>
           )}
 
-          {/* Tabs */}
-          <div className="flex gap-1 mb-4 border-b border-[#E5E7EB] dark:border-[#262A38]">
+          {/* Tabs — horizontally scrollable on mobile so labels never wrap into
+              their count badge; padding/sizing scales up from sm: breakpoint. */}
+          <div
+            className="flex gap-1 mb-4 border-b border-[#E5E7EB] dark:border-[#262A38] overflow-x-auto -mx-1 px-1"
+            style={{ scrollbarWidth: "none" }}
+          >
             {TABS.map(({ key, label, Icon }) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium border-b-2 transition-colors -mb-px
+                className={`flex items-center gap-1.5 shrink-0 whitespace-nowrap px-2.5 sm:px-3 py-2 text-[12px] font-medium border-b-2 transition-colors -mb-px
                   ${activeTab === key
                     ? "border-blue-500 text-blue-600 dark:text-blue-400"
                     : "border-transparent text-[#6B7280] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]"}`}
               >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span>{label}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold shrink-0
                   ${activeTab === key ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-[#F3F4F6] dark:bg-[#262A38] text-[#6B7280]"}`}>
                   {key === "leads"   ? details.leads.length
                    : key === "users"   ? details.users.length
