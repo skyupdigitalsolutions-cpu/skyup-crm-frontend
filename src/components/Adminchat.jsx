@@ -262,7 +262,7 @@ export default function AdminChat() {
     >
       {/* ── Sidebar ── */}
       {sidebarOpen && (
-        <div className={`w-56 shrink-0 bg-white dark:bg-[#1A1D27] border-r border-[#E4E7EF] dark:border-[#262A38] flex flex-col ${selectedUsername ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`w-full md:w-56 shrink-0 bg-white dark:bg-[#1A1D27] border-r border-[#E4E7EF] dark:border-[#262A38] flex flex-col ${selectedUsername ? 'hidden md:flex' : 'flex'}`}>
           {/* Header */}
           <div className="px-3 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -324,7 +324,9 @@ export default function AdminChat() {
       )}
 
       {/* ── Chat pane ── */}
-      <div className="flex-1 flex flex-col bg-[#F8F9FC] dark:bg-[#0D0F14] min-w-0">
+      {/* On mobile, show the chat pane only once a conversation is picked; otherwise
+          the contact list (sidebar) takes the full width. On desktop both show. */}
+      <div className={`flex-1 flex-col bg-[#F8F9FC] dark:bg-[#0D0F14] min-w-0 ${selectedUsername ? "flex" : "hidden md:flex"}`}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-[#1A1D27] border-b border-[#E4E7EF] dark:border-[#262A38] shrink-0">
