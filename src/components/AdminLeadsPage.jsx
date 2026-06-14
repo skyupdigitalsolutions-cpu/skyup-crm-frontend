@@ -771,7 +771,7 @@ function AgentSelect({ value, onChange, agents, className }) {
         <ChevronDown className={`w-3 h-3 shrink-0 text-[#8B92A9] transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="absolute z-50 top-full mt-1.5 left-0 w-56 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl shadow-lg overflow-hidden">
+        <div className="absolute z-50 top-full mt-1.5 right-0 w-56 max-w-[calc(100vw-2rem)] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl shadow-lg overflow-hidden">
           <div className="p-2 border-b border-[#E4E7EF] dark:border-[#262A38]">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B92A9] pointer-events-none" />
