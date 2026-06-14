@@ -17,8 +17,8 @@ async function exportToExcel(params) {
   const rows = await fetchAttendanceExport(params);
   if (!rows.length) { alert("No data to export for the selected filters."); return; }
   const wsData = [
-    ["Employee Name", "Email", "Date", "Check-In", "Check-Out", "Working Hours", "Break (mins)", "Status", "Remarks"],
-    ...rows.map(r => [r.employeeName, r.email, r.date, r.checkIn, r.checkOut, r.workingHours, r.breakMinutes, r.status, r.remarks]),
+    ["Employee Name", "Email", "Date", "Check-In", "Check-Out", "Working Hours", "Break (mins)", "Status", "Remarks", "Ideal Time", "Ideal Time Reason"],
+    ...rows.map(r => [r.employeeName, r.email, r.date, r.checkIn, r.checkOut, r.workingHours, r.breakMinutes, r.status, r.remarks, r.idealTime || "", r.idealRemark || ""]),
   ];
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws["!cols"] = [22, 28, 12, 10, 10, 14, 14, 12, 24].map(w => ({ wch: w }));
