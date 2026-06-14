@@ -1156,12 +1156,12 @@ export default function UserLeadsPage() {
   const INP = "px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[16px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition";
 
   return (
-    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-3 py-4 md:px-6 md:py-8">
+    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-3 py-4 md:px-6 md:py-8 overflow-x-hidden">
 
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-[26px] font-bold text-[#0F1117] dark:text-white">My Leads</h1>
-          <p className="text-[16px] text-[#8B92A9] dark:text-gray-400 mt-0.5">
+        <div className="min-w-0">
+          <h1 className="text-[22px] sm:text-[26px] font-bold text-[#0F1117] dark:text-white">My Leads</h1>
+          <p className="text-[14px] sm:text-[16px] text-[#8B92A9] dark:text-gray-400 mt-0.5">
             Your assigned leads — click any row to update status &amp; add call notes
           </p>
         </div>
@@ -1354,7 +1354,7 @@ export default function UserLeadsPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-[16px]">
+              <table className="w-full min-w-[640px] text-[16px]">
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
                     {[
