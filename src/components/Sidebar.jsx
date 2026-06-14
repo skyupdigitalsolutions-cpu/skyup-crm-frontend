@@ -219,6 +219,23 @@ export function Sidebar() {
   const [followUpAlerts, setFollowUpAlerts] = useState({ todayCount: 0, overdueCount: 0 });
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Track viewport so the minimized (72px icon-rail) layout never applies on
+  // mobile — there the sidebar is a full-width slide-in drawer, and a cramped
+  // icon rail would be confusing. md breakpoint = 768px.
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const onChange = (e) => setIsMobile(e.matches);
+    mq.addEventListener ? mq.addEventListener("change", onChange) : mq.addListener(onChange);
+    return () => {
+      mq.removeEventListener ? mq.removeEventListener("change", onChange) : mq.removeListener(onChange);
+    };
+  }, []);
+  // On mobile, always render the full (non-minimized) layout.
+  const effMinimized = minimized && !isMobile;
+
   const location = useLocation();
   const navigate  = useNavigate();
 
@@ -422,24 +439,24 @@ export function Sidebar() {
           transition-transform duration-300 ease-in-out
           ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
-        style={{ width: minimized ? "72px" : "260px" }}
+        style={{ width: effMinimized ? "72px" : "260px" }}
       >
         {/* Header — shows dynamic brand logo/name */}
         <div className="flex items-center justify-between px-4 py-5 border-b border-gray-100 dark:border-white/5 min-w-0">
           <img
             src={companyLogo}
-            className={`h-10 w-auto max-w-[120px] object-contain me-2 ${minimized ? "cursor-pointer" : ""}`}
+            className={`h-10 w-auto max-w-[120px] object-contain me-2 ${effMinimized ? "cursor-pointer" : ""}`}
             alt={companyName}
-            onClick={() => { if (minimized) { localStorage.setItem("sidebar_minimized", "false"); setMinimized(false); } }}
-            title={minimized ? "Expand sidebar" : undefined}
+            onClick={() => { if (effMinimized) { localStorage.setItem("sidebar_minimized", "false"); setMinimized(false); } }}
+            title={effMinimized ? "Expand sidebar" : undefined}
             onError={e => { e.currentTarget.src = "/skyup_logo1.svg"; }}
           />
-          {!minimized && (
+          {!effMinimized && (
             <span className="nav-label font-semibold text-lg tracking-widest uppercase text-gray-600 dark:text-gray-500 truncate max-w-[110px]">
               {companyName}
             </span>
           )}
-          {!minimized && (
+          {!effMinimized && !isMobile && (
             <button
               onClick={() => { localStorage.setItem("sidebar_minimized", "true"); setMinimized(true); }}
               className="toggle-btn ml-auto p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10"
@@ -454,11 +471,11 @@ export function Sidebar() {
 
         {/* Employee Profile */}
         {user && (
-          <div className={`mx-3 mt-3 rounded-xl border bg-gray-50 dark:bg-white/[0.03] ${minimized ? "p-2 flex justify-center" : "p-3 flex items-center gap-3"} ${roleStyle.border}`}>
+          <div className={`mx-3 mt-3 rounded-xl border bg-gray-50 dark:bg-white/[0.03] ${effMinimized ? "p-2 flex justify-center" : "p-3 flex items-center gap-3"} ${roleStyle.border}`}>
             <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-[11px] font-bold shrink-0 ${roleStyle.bg} ${roleStyle.border} ${roleStyle.text}`}>
               {initials}
             </div>
-            {!minimized && (
+            {!effMinimized && (
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 truncate">{user.name}</p>
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${roleStyle.bg} ${roleStyle.text}`}>
@@ -501,7 +518,7 @@ export function Sidebar() {
                     />
                   )}
                 </span>
-                {!minimized && (
+                {!effMinimized && (
                   <span className="nav-label flex items-center gap-1.5 flex-1">
                     {item.label}
                     {hasOverdue && (
@@ -516,10 +533,10 @@ export function Sidebar() {
                     )}
                   </span>
                 )}
-                {minimized && isActive && (
+                {effMinimized && isActive && (
                   <span className="absolute right-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-indigo-500" />
                 )}
-                {minimized && (
+                {effMinimized && (
                   <span className="tooltip absolute left-16 z-50 bg-gray-900 dark:bg-gray-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl">
                     {item.label}
                     {hasOverdue && ` (${followUpAlerts.overdueCount} overdue)`}
@@ -534,7 +551,7 @@ export function Sidebar() {
         {/* Footer */}
         <div className="px-3 py-4 border-t border-gray-100 dark:border-white/5 flex flex-col gap-1">
           {/* Read-only indicator — shown when subscription is not active/trial */}
-          {readOnlyMode && !isDeveloper && !minimized && readOnlyStyle && (
+          {readOnlyMode && !isDeveloper && !effMinimized && readOnlyStyle && (
             <div className={`flex items-center gap-2 px-3 py-2 rounded-xl mb-1 ${readOnlyStyle.bg}`}>
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${readOnlyStyle.dot}`} />
               <span className={`text-[11px] font-semibold ${readOnlyStyle.text}`}>
@@ -542,7 +559,7 @@ export function Sidebar() {
               </span>
             </div>
           )}
-          {readOnlyMode && !isDeveloper && minimized && readOnlyStyle && (
+          {readOnlyMode && !isDeveloper && effMinimized && readOnlyStyle && (
             <div className="relative flex justify-center mb-1">
               <span className={`w-2.5 h-2.5 rounded-full ${readOnlyStyle.dot}`} />
               <span className="tooltip absolute left-16 z-50 bg-gray-900 dark:bg-gray-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl">
@@ -555,7 +572,7 @@ export function Sidebar() {
             onClick={() => setShowLogoutModal(true)}
             className={`logout-btn flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium w-full
               text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300
-              ${minimized ? "justify-center" : ""}`}
+              ${effMinimized ? "justify-center" : ""}`}
           >
             <span className="icon-wrap">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -564,8 +581,8 @@ export function Sidebar() {
                 <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
             </span>
-            {!minimized && <span className="nav-label">Sign out</span>}
-            {minimized && (
+            {!effMinimized && <span className="nav-label">Sign out</span>}
+            {effMinimized && (
               <span className="tooltip absolute left-16 z-50 bg-gray-900 dark:bg-gray-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl">
                 Sign out
               </span>
