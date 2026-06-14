@@ -67,44 +67,69 @@ export default function ColdReassignModal({ lead, onClose, onSuccess }) {
           </div>
 
           <h2 className="text-[17px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-            {result.isSecondCold ? "Follow-up Calls Scheduled" : "Cold Lead Reassigned Successfully"}
+            {result.isVerification
+              ? "Cold Lead Sent for Verification"
+              : result.isReturned
+                ? "Returned to Original Employee"
+                : result.isSecondCold
+                  ? "Marked Cold"
+                  : "Cold Lead Reassigned Successfully"}
           </h2>
 
           {result.reassignedTo && (
             <p className="text-[13px] text-[#8B92A9]">
-              Reassigned to{" "}
+              {result.isVerification
+                ? "Sent to "
+                : result.isReturned
+                  ? "Returned to "
+                  : "Reassigned to "}
               <strong className="text-[#0F1117] dark:text-[#F0F2FA]">
                 {result.reassignedTo.name}
               </strong>
             </p>
           )}
 
-          {result.isSecondCold && (
+          {result.isVerification && (
+            <p className="text-[12px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 rounded-xl px-4 py-2">
+              Status set to <strong>Verification</strong>. If the verifier also marks it Cold,
+              it will come back to you with the remaining follow-ups.
+            </p>
+          )}
+
+          {result.isReturned && (
+            <p className="text-[12px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded-xl px-4 py-2">
+              Verification confirmed Cold. The lead is back with the original employee and keeps its remaining follow-ups.
+            </p>
+          )}
+
+          {result.isSecondCold && !result.isReturned && (
             <p className="text-[12px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded-xl px-4 py-2">
               Lead status reset to <strong>New</strong> — will re-enter the pipeline after follow-up calls.
             </p>
           )}
 
-          <div className="text-left space-y-2 bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-2xl p-4">
-            <p className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-2">
-              Scheduled Calls
-            </p>
-            {(result.scheduledCalls || []).map((sc, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${
-                    sc.type === "follow-up" ? "bg-blue-500" : "bg-purple-500"
-                  }`}
-                />
-                <span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] capitalize">
-                  {sc.type}
-                </span>
-                <span className="ml-auto text-[11px] text-[#8B92A9]">
-                  {fmt(sc.scheduledAt)}
-                </span>
-              </div>
-            ))}
-          </div>
+          {(result.scheduledCalls || []).length > 0 && (
+            <div className="text-left space-y-2 bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-2xl p-4">
+              <p className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-2">
+                Scheduled Calls
+              </p>
+              {(result.scheduledCalls || []).map((sc, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      sc.type === "follow-up" ? "bg-blue-500" : "bg-purple-500"
+                    }`}
+                  />
+                  <span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] capitalize">
+                    {sc.type}
+                  </span>
+                  <span className="ml-auto text-[11px] text-[#8B92A9]">
+                    {fmt(sc.scheduledAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           <button
             onClick={() => { onSuccess(result.lead || lead); onClose(); }}
