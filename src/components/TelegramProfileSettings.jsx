@@ -10,6 +10,33 @@ const TelegramIcon = ({ className }) => (
   </svg>
 );
 
+// ── MOBILE FIX: compute popover position clamped to viewport ─────────────────
+// Anchors the popover below the button and right-aligned to it,
+// but clamps so it never overflows the left or right screen edge.
+const POPOVER_WIDTH = 288;
+const POPOVER_MARGIN = 8; // min gap from screen edge
+
+function getPopoverStyle(btnRef) {
+  if (!btnRef.current) return {};
+  const rect = btnRef.current.getBoundingClientRect();
+  const vw   = window.innerWidth;
+
+  // Ideal: right-align popover to button's right edge
+  let left = rect.right - POPOVER_WIDTH;
+
+  // Clamp: never overflow left or right edge
+  left = Math.max(POPOVER_MARGIN, left);
+  left = Math.min(left, vw - POPOVER_WIDTH - POPOVER_MARGIN);
+
+  return {
+    position: "fixed",
+    top:  rect.bottom + 8,
+    left,
+    width: POPOVER_WIDTH,
+    zIndex: 9999,
+  };
+}
+
 export default function TelegramProfileSettings() {
   const role      = getRole();
   const isAdmin   = role === "admin" || role === "superadmin";
@@ -39,31 +66,23 @@ export default function TelegramProfileSettings() {
       .catch(() => {});
   }, [baseRoute]);
 
-  // ✅ FIXED: Opens BELOW the button using top instead of bottom
+  // Recompute clamped position on open, resize, and scroll
   const updatePosition = useCallback(() => {
-    if (!btnRef.current) return;
-    const rect = btnRef.current.getBoundingClientRect();
-    setPopoverStyle({
-      position: "fixed",
-      top: rect.bottom + 8,              // ← below the button
-      right: window.innerWidth - rect.right,
-      zIndex: 9999,
-      width: 288,
-    });
+    setPopoverStyle(getPopoverStyle(btnRef));
   }, []);
 
   useEffect(() => {
     if (!open) return;
     updatePosition();
-    window.addEventListener("scroll", updatePosition, true);
     window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
     return () => {
-      window.removeEventListener("scroll", updatePosition, true);
       window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
     };
   }, [open, updatePosition]);
 
-  // Close on outside click
+  // Close on outside click or Escape
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -127,7 +146,6 @@ export default function TelegramProfileSettings() {
       style={{ ...popoverStyle, animation: "tgSlideDown 0.15s ease both" }}
       className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-xl overflow-hidden"
     >
-      {/* ✅ FIXED: slide down animation instead of slide up */}
       <style>{`
         @keyframes tgSlideDown {
           from { opacity: 0; transform: translateY(-6px); }
@@ -257,7 +275,7 @@ export default function TelegramProfileSettings() {
         )}
       </button>
 
-      {/* Popover rendered into document.body via portal */}
+      {/* Portal — renders into document.body, outside any overflow:hidden ancestor */}
       {open && createPortal(popoverContent, document.body)}
     </div>
   );
