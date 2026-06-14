@@ -38,6 +38,11 @@ export const STATUS_CONFIG = {
     text: "text-red-600 dark:text-red-400",
     dot:  "#DC2626",
   },
+  "Verification": {
+    bg:   "bg-purple-100 dark:bg-purple-950/40",
+    text: "text-purple-600 dark:text-purple-400",
+    dot:  "#7C3AED",
+  },
 
   // ── Virtual statuses (derived, not stored in DB) ───────────────────────────
 
@@ -72,6 +77,7 @@ export const ALL_STATUSES = [
   "New",
   "In Progress",
   "Converted",
+  "Verification",
   "Not Interested",
   "Merged",
   "Closed",
