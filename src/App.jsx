@@ -329,19 +329,19 @@ function CompanyHeader() {
       : "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30";
 
   return (
-    <div className="sticky top-0 z-30 flex items-center justify-between pl-14 pr-5 md:px-5 py-2.5 bg-white/90 dark:bg-[#13161E]/90 backdrop-blur-md border-b border-gray-100 dark:border-white/5 shadow-sm">
-      <div className="flex items-center gap-3">
+    <div className="sticky top-0 z-30 flex items-center justify-between gap-2 pl-14 pr-3 sm:pr-5 md:px-5 py-2.5 bg-white/90 dark:bg-[#13161E]/90 backdrop-blur-md border-b border-gray-100 dark:border-white/5 shadow-sm">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <img
           src={headerLogo}
           alt={headerName}
-          className="h-7 w-auto max-w-[100px] object-contain"
+          className="h-7 w-auto max-w-[100px] object-contain shrink-0"
           onError={e => { e.currentTarget.src = "/skyup_logo1.svg"; }}
         />
-        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 tracking-tight truncate max-w-[180px]">
+        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 tracking-tight truncate max-w-[90px] sm:max-w-[180px]">
           {headerName}
         </span>
       </div>
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         <ThemeToggle />
         {/* Notification bell — visible for admin and superadmin only */}
         {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
@@ -351,7 +351,7 @@ function CompanyHeader() {
         {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
           <TelegramSettings />
         )}
-        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${roleColor}`}>
+        <span className={`whitespace-nowrap shrink-0 text-[10px] sm:text-[11px] font-semibold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border ${roleColor}`}>
           {roleLabel}
         </span>
       </div>
