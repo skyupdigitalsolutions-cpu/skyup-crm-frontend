@@ -347,16 +347,36 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
 
   // ── Load developer-configured plan definitions ───────────────────────────
   // Prices, names, user limits and feature flags are set in the developer
-  // Plan Customization page (POST /developer/plans/config). Fetch them so the
-  // upgrade cards reflect those edits; fall back to PLAN_DEFAULTS if missing.
+  // Plan Customization page (POST /developer/plans/config). Customers read them
+  // from the PUBLIC endpoint GET /subscription/plans — the /developer/* route is
+  // locked to the developer role, so company super-admins get a 403 there and
+  // would silently fall back to hardcoded defaults. /subscription/plans reads the
+  // same PlanConfig collection but is reachable by any caller.
   const loadPlanConfig = useCallback(async () => {
     try {
-      const { data } = await api.get("/developer/plans/config");
-      if (data && typeof data === "object" && !Array.isArray(data)) {
-        setPlanDefs(mergeConfigIntoDefaults(PLAN_DEFAULTS, data));
+      const { data } = await api.get("/subscription/plans");
+      const plansMap = data?.plans;
+      if (plansMap && typeof plansMap === "object" && !Array.isArray(plansMap)) {
+        // Normalize the public shape into the flat config mergeConfigIntoDefaults
+        // expects: price.{monthly,yearly} -> monthly/yearlyPrice, and
+        // features:[{key,label,enabled}] -> string[] of enabled keys.
+        const flat = {};
+        for (const [id, p] of Object.entries(plansMap)) {
+          if (!p || typeof p !== "object") continue;
+          flat[id] = {
+            name:         p.name,
+            monthlyPrice: p.price?.monthly,
+            yearlyPrice:  p.price?.yearly,
+            maxUsers:     p.maxUsers,
+            features: Array.isArray(p.features)
+              ? p.features.filter(f => f && f.enabled).map(f => f.key)
+              : undefined,
+          };
+        }
+        setPlanDefs(mergeConfigIntoDefaults(PLAN_DEFAULTS, flat));
       }
     } catch {
-      // Endpoint unavailable (e.g. plain user, or API down) — keep defaults.
+      // Endpoint unavailable (API down) — keep defaults.
     }
   }, []);
 
