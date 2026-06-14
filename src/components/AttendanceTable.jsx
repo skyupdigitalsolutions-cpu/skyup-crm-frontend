@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { CalendarDays, Users, Eye, EyeOff, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Voicemail, Ban, Phone, Mic, Lock, AlertTriangle, ClipboardList, Smartphone } from "lucide-react";
+import { CalendarDays, Users, Eye, EyeOff, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Voicemail, Ban, Phone, PhoneCall, Mic, Lock, AlertTriangle, ClipboardList, Smartphone } from "lucide-react";
 import { updateAttendance, removeAttendance } from "../services/attendanceService";
 import { getRole, getStoredUser } from "../data/dataService";
 import axios from "axios";
@@ -585,7 +585,38 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
   const [logsError,        setLogsError]        = useState("");
   const [logsPage,         setLogsPage]         = useState(1);
   const [showLoginHistory, setShowLoginHistory] = useState(false);
+  // Per-employee device call-log sync permission. Default true (matches the
+  // backend default) when the field isn't present on the populated user.
+  const [syncEnabled,      setSyncEnabled]      = useState(user.callLogSyncEnabled !== false);
+  const [syncSaving,       setSyncSaving]       = useState(false);
+  const [syncMsg,          setSyncMsg]          = useState("");
   const LOGS_PER_PAGE = 20;
+
+  useEffect(() => {
+    setSyncEnabled(user.callLogSyncEnabled !== false);
+    setSyncMsg("");
+  }, [user._id, user.callLogSyncEnabled]);
+
+  const toggleSync = async () => {
+    if (!isSuperAdmin || !user?._id) return;
+    const next = !syncEnabled;
+    setSyncSaving(true);
+    setSyncMsg("");
+    try {
+      await axios.put(
+        `${BASE}/admin/company/users/${user._id}/call-log-sync`,
+        { enabled: next },
+        { headers: authHeaders() }
+      );
+      setSyncEnabled(next);
+      setSyncMsg(next ? "Sync enabled" : "Sync disabled");
+      setTimeout(() => setSyncMsg(""), 2500);
+    } catch (e) {
+      setSyncMsg(e.response?.data?.message || "Failed to update.");
+    } finally {
+      setSyncSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!user?._id) return;
@@ -807,6 +838,49 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
                 <div className="flex-1 h-px bg-[#E4E7EF] dark:bg-[#262A38]" />
                 <span className="text-[10px] font-bold text-[#8B92A9]">{logsLoading ? "…" : `${totalCalls} calls`}</span>
               </div>
+
+              {/* ── Per-employee call-log sync permission (super-admin only) ── */}
+              {isSuperAdmin && (
+                <div className={`mb-3 flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl border transition ${
+                  syncEnabled
+                    ? "bg-cyan-50 dark:bg-cyan-950/20 border-cyan-200 dark:border-cyan-800/60"
+                    : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800/60"
+                }`}>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={syncEnabled ? "text-cyan-500" : "text-red-400"}>
+                      <PhoneCall className="w-4 h-4 shrink-0" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+                        Device Call Log Sync
+                      </p>
+                      <p className="text-[10px] text-[#8B92A9] leading-snug">
+                        {syncMsg
+                          ? syncMsg
+                          : syncEnabled
+                            ? "This employee's phone may sync call logs"
+                            : "Sync requests from this employee are rejected (403)"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={syncEnabled}
+                    disabled={syncSaving}
+                    onClick={toggleSync}
+                    title={syncEnabled ? "Disable call log sync" : "Enable call log sync"}
+                    className={`relative w-11 h-6 rounded-full shrink-0 transition-colors disabled:opacity-60 ${
+                      syncEnabled ? "bg-cyan-500" : "bg-gray-300 dark:bg-gray-600"
+                    }`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                      syncEnabled ? "translate-x-5" : "translate-x-0"
+                    }`} />
+                  </button>
+                </div>
+              )}
+
               {!logsLoading && !logsError && totalCalls > 0 && (
                 <div className="grid grid-cols-5 gap-2 mb-3">
                   {[
