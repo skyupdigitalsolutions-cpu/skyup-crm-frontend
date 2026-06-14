@@ -1,13 +1,25 @@
 /**
- * Adminchat.jsx — Role-aware internal chat widget
+ * AdminChat.jsx — Role-aware internal chat widget
  *
  * Renders differently based on the logged-in admin's role:
  *  super_admin → sees all company admins + all employees; can message anyone
  *  admin       → sees super_admin + their own assigned employees only
  *
  * The company super_admin is identified by role === 'superadmin' in localStorage.
+ *
+ * MOBILE FIXES APPLIED:
+ *  1. createPortal — renders both the FAB and full panel into document.body so
+ *     they're never trapped by a parent overflow:hidden / transform / will-change
+ *     that breaks position:fixed in the app shell.
+ *  2. useWindowWidth hook — replaces inline window.innerWidth reads in JSX
+ *     (which are unsafe and return stale/wrong values). The hook fires after
+ *     mount and updates on resize, so the correct mobile/desktop dimensions
+ *     are always used.
+ *  3. Mobile panel height — changed from 85vh to `calc(100dvh - env(safe-area-inset-bottom))`
+ *     so the panel doesn't get cropped by the iOS browser chrome.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { io } from 'socket.io-client';
 import { getStoredUser, getRole } from '../data/dataService';
 
@@ -17,24 +29,42 @@ const SOCKET_URL =
     ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
     : 'https://skyup-crm-backend.onrender.com');
 
+// ── Safe window-width hook ────────────────────────────────────────────────────
+// Reading window.innerWidth inline in JSX gives the value at render time, which
+// may be wrong during hydration or before resize events settle. This hook
+// re-reads on mount and on every resize so the value is always current.
+function useWindowWidth() {
+  const [width, setWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 768
+  );
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', handler);
+    handler(); // sync immediately after mount
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return width;
+}
+
 export default function AdminChat() {
   const socketRef = useRef(null);
 
   // ── Identity ──────────────────────────────────────────────────────────────
-  const storedUser   = getStoredUser();                 // full user object from localStorage
-  const role         = getRole();                       // 'superadmin' | 'admin'
+  const storedUser   = getStoredUser();
+  const role         = getRole();
   const isSuperAdmin = role === 'superadmin';
   const adminId      = storedUser?._id || storedUser?.id || '';
-  // Admin/SuperAdmin login response stores the field as "companyId" (not "company")
   const companyId    = storedUser?.companyId || storedUser?.company?._id || storedUser?.company || '';
   const displayName  = storedUser?.name || 'Admin';
+  const myUsername   = isSuperAdmin ? `superadmin:${adminId}` : `admin:${adminId}`;
 
-  // My username key used in Message.from / Message.to
-  const myUsername = isSuperAdmin ? `superadmin:${adminId}` : `admin:${adminId}`;
+  // ── Window width (safe) ───────────────────────────────────────────────────
+  const windowWidth = useWindowWidth();
+  const isMobile    = windowWidth < 768;
 
   // ── State ─────────────────────────────────────────────────────────────────
-  const [onlineUsers, setOnlineUsers]           = useState({});   // { socketId: username }
-  const [allUsers, setAllUsers]                 = useState([]);   // ChatUser documents
+  const [onlineUsers, setOnlineUsers]           = useState({});
+  const [allUsers, setAllUsers]                 = useState([]);
   const [selectedUsername, setSelectedUsername] = useState(null);
   const [chats, setChats]                       = useState({});
   const [message, setMessage]                   = useState('');
@@ -47,17 +77,15 @@ export default function AdminChat() {
 
   const bottomRef = useRef(null);
 
-  // Socket id of the selected contact
   const selectedSocketId = selectedUsername
     ? Object.entries(onlineUsers).find(([, name]) => name === selectedUsername)?.[0] ?? null
     : null;
 
-  // ── Socket setup ─────────────────────────────────────────────────────────
+  // ── Socket setup ──────────────────────────────────────────────────────────
   useEffect(() => {
     const socket = io(SOCKET_URL);
     socketRef.current = socket;
 
-    // Send join AFTER socket connects to avoid losing the event
     const doJoin = () => {
       if (isSuperAdmin) {
         socket.emit('super_admin_join', { adminId, company: companyId, displayName });
@@ -68,13 +96,9 @@ export default function AdminChat() {
     socket.on('connect', doJoin);
     if (socket.connected) doJoin();
 
-    // Online map (admins/super_admin receive this; scoped to what they can see)
     socket.on('users_list', setOnlineUsers);
-
-    // Contact list from DB (scoped by role on the server)
     socket.on('all_users_db', (users) => setAllUsers(users));
 
-    // History for a selected conversation
     socket.on('admin_chat_history', ({ username, history }) => {
       const formatted = history.map((m) => ({
         _id:       m._id,
@@ -87,7 +111,6 @@ export default function AdminChat() {
       setChats((prev) => ({ ...prev, [username]: formatted }));
     });
 
-    // Incoming message from an employee or another admin
     socket.on('receive_user_message', ({ from, displayName: fromDisplay, message: msg, _id }) => {
       setChats((prev) => ({
         ...prev,
@@ -102,7 +125,6 @@ export default function AdminChat() {
       });
     });
 
-    // Incoming message from admin/superadmin (when super_admin gets a message from a regular admin)
     socket.on('receive_admin_message', ({ from, displayName: fromDisplay, message: msg, _id }) => {
       setChats((prev) => ({
         ...prev,
@@ -117,7 +139,6 @@ export default function AdminChat() {
       });
     });
 
-    // Echo of our own sent message (carries _id from DB)
     socket.on('admin_message_sent', ({ toUsername, message: msg, _id }) => {
       setChats((prev) => ({
         ...prev,
@@ -128,7 +149,6 @@ export default function AdminChat() {
       }));
     });
 
-    // Real-time edit
     socket.on('message_edited', ({ _id, newText, editedAt }) => {
       setChats((prev) => {
         const updated = {};
@@ -141,7 +161,6 @@ export default function AdminChat() {
       });
     });
 
-    // Real-time delete
     socket.on('message_deleted', ({ _id }) => {
       setChats((prev) => {
         const updated = {};
@@ -189,7 +208,7 @@ export default function AdminChat() {
   }, [message, selectedUsername, onlineUsers]);
 
   // ── Edit helpers ──────────────────────────────────────────────────────────
-  const startEdit = (msg) => { if (msg.isDeleted) return; setEditingId(msg._id); setEditingText(msg.message); };
+  const startEdit  = (msg) => { if (msg.isDeleted) return; setEditingId(msg._id); setEditingText(msg.message); };
   const submitEdit = () => {
     if (!editingText.trim() || !editingId) return;
     socketRef.current?.emit('edit_message', { _id: editingId, newText: editingText.trim(), requester: myUsername });
@@ -204,8 +223,8 @@ export default function AdminChat() {
   };
 
   // ── Derived contact list ──────────────────────────────────────────────────
-  const onlineUsernames = new Set(Object.values(onlineUsers));
-  const userList = allUsers.map((u) => ({
+  const onlineUsernames   = new Set(Object.values(onlineUsers));
+  const userList          = allUsers.map((u) => ({
     username:    u.username,
     displayName: u.displayName || u.username,
     role:        u.role,
@@ -213,57 +232,58 @@ export default function AdminChat() {
     unread:      unread[u.username] || 0,
   }));
 
-  // Group for super_admin sidebar
   const adminContacts    = userList.filter((u) => u.role === 'admin');
   const employeeContacts = userList.filter((u) => u.role === 'employee');
   const superAdminContact = userList.find((u) => u.role === 'super_admin');
 
   const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
 
-  // ── Label helper ─────────────────────────────────────────────────────────
   const roleLabel = (r) => {
     if (r === 'super_admin') return 'Super Admin';
     if (r === 'admin') return 'Admin';
     return 'Employee';
   };
 
-  // ── FAB (minimised) ───────────────────────────────────────────────────────
-  if (!open) {
-    return (
-      <div className="fixed bottom-6 right-6 z-50">
-        <button
-          onClick={() => setOpen(true)}
-          className="relative w-14 h-14 rounded-2xl bg-[#2563EB] hover:bg-blue-700 text-white shadow-2xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
-          title="Open team chat"
-        >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-          </svg>
-          {totalUnread > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-white dark:ring-[#0D0F14]">
-              {totalUnread > 9 ? '9+' : totalUnread}
-            </span>
-          )}
-        </button>
-      </div>
-    );
-  }
+  // ── Panel dimensions ──────────────────────────────────────────────────────
+  // Computed from the safe hook value — never reads window inline in JSX.
+  const panelWidth  = isMobile ? '100%' : (sidebarOpen ? 640 : 380);
+  const panelHeight = isMobile ? 'calc(100dvh - env(safe-area-inset-bottom) - 0px)' : '520px';
+
+  // ── FAB ───────────────────────────────────────────────────────────────────
+  const fab = (
+    <div className="fixed bottom-6 right-6 z-[9999]">
+      <button
+        onClick={() => setOpen(true)}
+        className="relative w-14 h-14 rounded-2xl bg-[#2563EB] hover:bg-blue-700 text-white shadow-2xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
+        title="Open team chat"
+      >
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round"
+            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+        </svg>
+        {totalUnread > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-white dark:ring-[#0D0F14]">
+            {totalUnread > 9 ? '9+' : totalUnread}
+          </span>
+        )}
+      </button>
+    </div>
+  );
 
   // ── Full panel ────────────────────────────────────────────────────────────
-  return (
+  const panel = (
     <div
-      className="fixed z-50 flex shadow-2xl overflow-hidden border border-[#E4E7EF] dark:border-[#262A38] bottom-0 right-0 left-0 rounded-t-2xl md:rounded-2xl md:bottom-6 md:right-6 md:left-auto"
+      className="fixed z-[9999] flex shadow-2xl overflow-hidden border border-[#E4E7EF] dark:border-[#262A38] bottom-0 right-0 left-0 rounded-t-2xl md:rounded-2xl md:bottom-6 md:right-6 md:left-auto"
       style={{
-        width:  typeof window !== 'undefined' && window.innerWidth < 768 ? '100%' : (sidebarOpen ? 640 : 380),
-        height: typeof window !== 'undefined' && window.innerWidth < 768 ? '85vh' : 520,
+        width:      panelWidth,
+        height:     panelHeight,
+        maxHeight:  isMobile ? 'calc(100dvh - 56px)' : '520px',
         transition: 'width 0.2s ease',
       }}
     >
       {/* ── Sidebar ── */}
       {sidebarOpen && (
         <div className={`w-full md:w-56 shrink-0 bg-white dark:bg-[#1A1D27] border-r border-[#E4E7EF] dark:border-[#262A38] flex flex-col ${selectedUsername ? 'hidden md:flex' : 'flex'}`}>
-          {/* Header */}
           <div className="px-3 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center">
@@ -285,10 +305,8 @@ export default function AdminChat() {
               <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] text-center py-6">No contacts yet</p>
             )}
 
-            {/* Super Admin section: group by role */}
             {isSuperAdmin ? (
               <>
-                {/* Super Admin's view: admins first, then employees */}
                 {adminContacts.length > 0 && (
                   <>
                     <p className="px-3 pt-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-[#8B92A9] dark:text-[#565C75]">Admins</p>
@@ -304,7 +322,6 @@ export default function AdminChat() {
               </>
             ) : (
               <>
-                {/* Admin's view: super admin first, then their employees */}
                 {superAdminContact && (
                   <>
                     <p className="px-3 pt-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-[#8B92A9] dark:text-[#565C75]">Super Admin</p>
@@ -324,8 +341,6 @@ export default function AdminChat() {
       )}
 
       {/* ── Chat pane ── */}
-      {/* On mobile, show the chat pane only once a conversation is picked; otherwise
-          the contact list (sidebar) takes the full width. On desktop both show. */}
       <div className={`flex-1 flex-col bg-[#F8F9FC] dark:bg-[#0D0F14] min-w-0 ${selectedUsername ? "flex" : "hidden md:flex"}`}>
 
         {/* Header */}
@@ -501,6 +516,17 @@ export default function AdminChat() {
         )}
       </div>
     </div>
+  );
+
+  // ── Render via portal ─────────────────────────────────────────────────────
+  // Both the FAB and the full panel are portalled into document.body so they
+  // are never trapped by a parent with overflow:hidden, transform, or
+  // will-change — all of which break position:fixed in CSS.
+  if (typeof document === 'undefined') return null; // SSR guard
+
+  return createPortal(
+    open ? panel : fab,
+    document.body
   );
 }
 
