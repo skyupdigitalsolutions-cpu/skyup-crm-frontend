@@ -189,12 +189,15 @@ function ClockInLocationSettings() {
         }`}
       >
         <MapPin size={15} className="shrink-0" />
-        <span>Office Location</span>
+        <span className="hidden sm:inline">Office Location</span>
         {enabled && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-[360px] sm:w-[360px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <>
+        {/* Mobile backdrop */}
+        <div className="fixed inset-0 bg-black/40 z-[199] sm:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed sm:absolute left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 sm:right-0 top-auto sm:top-full bottom-0 sm:bottom-auto sm:mt-2 w-[calc(100vw-1rem)] max-w-[360px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-t-2xl sm:rounded-2xl shadow-2xl z-[200] overflow-hidden">
           <PanelHeader
             icon={MapPin}
             title="Clock-In Location"
@@ -285,6 +288,7 @@ function ClockInLocationSettings() {
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );
@@ -395,11 +399,13 @@ function AttendanceSettings() {
         }`}
       >
         <Clock size={15} className="shrink-0" />
-        <span>Attendance Setup</span>
+        <span className="hidden sm:inline">Attendance Setup</span>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-[400px] sm:w-[400px] max-h-[80vh] overflow-y-auto bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50">
+        <>
+        <div className="fixed inset-0 bg-black/40 z-[199] sm:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed sm:absolute left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 sm:right-0 top-auto sm:top-full bottom-0 sm:bottom-auto sm:mt-2 w-[calc(100vw-1rem)] max-w-[400px] max-h-[82vh] overflow-y-auto bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-t-2xl sm:rounded-2xl shadow-2xl z-[200]">
           <div className="sticky top-0 bg-white dark:bg-[#1A1D27] z-10">
             <PanelHeader
               icon={Clock}
@@ -527,6 +533,7 @@ function AttendanceSettings() {
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );
@@ -579,13 +586,15 @@ function CallLogSyncSettings({ companyId }) {
         }`}
       >
         <PhoneCall size={15} className="shrink-0" />
-        <span>Call Log Sync</span>
+        <span className="hidden sm:inline">Call Log Sync</span>
         {/* Live status dot */}
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${enabled ? "bg-emerald-500" : "bg-red-400"}`} />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-[340px] sm:w-[340px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <>
+        <div className="fixed inset-0 bg-black/40 z-[199] sm:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed sm:absolute left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 sm:right-0 top-auto sm:top-full bottom-0 sm:bottom-auto sm:mt-2 w-[calc(100vw-1rem)] max-w-[340px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-t-2xl sm:rounded-2xl shadow-2xl z-[200] overflow-hidden">
           <PanelHeader
             icon={PhoneCall}
             title="Device Call Log Sync"
@@ -635,6 +644,7 @@ function CallLogSyncSettings({ companyId }) {
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );
@@ -685,12 +695,14 @@ function MeetingTrackingSettings() {
         }`}
       >
         <Navigation size={15} className="shrink-0" />
-        <span>Client Tracking</span>
+        <span className="hidden sm:inline">Client Tracking</span>
         {enabled && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-[340px] sm:w-[340px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <>
+        <div className="fixed inset-0 bg-black/40 z-[199] sm:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed sm:absolute left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 sm:right-0 top-auto sm:top-full bottom-0 sm:bottom-auto sm:mt-2 w-[calc(100vw-1rem)] max-w-[340px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-t-2xl sm:rounded-2xl shadow-2xl z-[200] overflow-hidden">
           <PanelHeader
             icon={Navigation}
             title="Client Visit Tracking"
@@ -745,6 +757,7 @@ function MeetingTrackingSettings() {
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );
@@ -1088,7 +1101,7 @@ export default function AttendancePage() {
           <p className="text-[12px] text-gray-400 mt-0.5">Track, filter and manage employee attendance</p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
           {/* Office location restriction */}
           <ClockInLocationSettings />
 
@@ -1112,7 +1125,7 @@ export default function AttendancePage() {
             title="View live employee locations"
           >
             <Activity size={15} className="shrink-0" />
-            <span>Live Locations</span>
+            <span className="hidden sm:inline">Live Locations</span>
           </button>
 
           {/* Export */}
@@ -1122,7 +1135,7 @@ export default function AttendancePage() {
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-[12px] font-semibold shadow-sm transition-all"
           >
             {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-            {exporting ? "Exporting…" : "Export"}
+            <span className="hidden sm:inline">{exporting ? "Exporting…" : "Export"}</span>
           </button>
         </div>
       </div>
