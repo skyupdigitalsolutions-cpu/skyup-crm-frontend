@@ -18,9 +18,17 @@
 //   GET  /admin/company/telegram/admins              → list admins + their config
 //   PUT  /admin/company/telegram/admins/:id          → save one admin's config
 //   POST /admin/company/telegram/admins/:id/test     → test one admin's chat
+//
+// MOBILE FIX:
+//   Replaced `absolute right-0` popover with a createPortal into document.body
+//   using `position: fixed` + viewport-clamped `left` value. This prevents the
+//   panel from overflowing the left edge on narrow screens regardless of where
+//   the trigger button sits in the header. Also moved `ref={popoverRef}` off
+//   the outer wrapper (which broke the toggle) onto the portal panel only.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
 import { getRole } from "../data/dataService";
 import {
@@ -41,6 +49,34 @@ import {
 
 // Campaign sources that trigger notifications — mirrors telegramService.js
 const CAMPAIGN_SOURCES = ["Meta (Facebook/Instagram)", "Google Ads", "Website/Landing Page"];
+
+// ── MOBILE FIX: viewport-clamped popover position ────────────────────────────
+// Panel is 340px wide (matches max-w-[340px] below). On narrow screens it is
+// right-aligned to the trigger button but clamped so it never overflows left
+// or right viewport edges.
+const PANEL_WIDTH  = 340;
+const PANEL_MARGIN = 8; // min distance from screen edge
+
+function getPanelStyle(btnRef) {
+  if (!btnRef.current) return {};
+  const rect = btnRef.current.getBoundingClientRect();
+  const vw   = window.innerWidth;
+
+  // Ideal: right-align panel to button's right edge
+  let left = rect.right - PANEL_WIDTH;
+
+  // Clamp: never bleed off either edge
+  left = Math.max(PANEL_MARGIN, left);
+  left = Math.min(left, vw - PANEL_WIDTH - PANEL_MARGIN);
+
+  return {
+    position: "fixed",
+    top:      rect.bottom + 8,
+    left,
+    width:    Math.min(PANEL_WIDTH, vw - PANEL_MARGIN * 2), // shrink on very small screens
+    zIndex:   9999,
+  };
+}
 
 // ── Inline feedback banner ────────────────────────────────────────────────────
 function Feedback({ msg }) {
@@ -283,10 +319,10 @@ function CompanyGroupTab({ isSuperAdmin }) {
 function AdminAlertsTab() {
   const [admins,  setAdmins]  = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving,  setSaving]  = useState({});  // { [adminId]: bool }
-  const [testing, setTesting] = useState({});  // { [adminId]: bool }
-  const [msgs,    setMsgs]    = useState({});  // { [adminId]: { type, text } }
-  const [drafts,  setDrafts]  = useState({});  // { [adminId]: { chatId, enabled } }
+  const [saving,  setSaving]  = useState({});
+  const [testing, setTesting] = useState({});
+  const [msgs,    setMsgs]    = useState({});
+  const [drafts,  setDrafts]  = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -482,10 +518,13 @@ export default function TelegramSettings() {
   const role         = getRole();
   const isSuperAdmin = role === "superadmin" || role === "super_admin";
 
-  const [open,      setOpen]      = useState(false);
-  const [activeTab, setActiveTab] = useState("company");
+  const [open,       setOpen]       = useState(false);
+  const [activeTab,  setActiveTab]  = useState("company");
+  const [panelStyle, setPanelStyle] = useState({});
 
-  const popoverRef = useRef(null);
+  // Separate refs: button for position calculation, panel for outside-click
+  const btnRef   = useRef(null);
+  const panelRef = useRef(null);
 
   // Status dot — re-fetched each time the popover closes so it reflects saved changes
   const [dotData, setDotData] = useState({ enabled: false, configured: false });
@@ -502,11 +541,33 @@ export default function TelegramSettings() {
       .catch(() => {});
   }, [open]);
 
-  // Close on outside click / Escape
+  // Recompute clamped position whenever the panel opens or viewport changes
   useEffect(() => {
     if (!open) return;
-    const onClick = (e) => { if (popoverRef.current && !popoverRef.current.contains(e.target)) setOpen(false); };
-    const onKey   = (e) => { if (e.key === "Escape") setOpen(false); };
+    const update = () => setPanelStyle(getPanelStyle(btnRef));
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open]);
+
+  // Close on outside click / Escape
+  // NOTE: panelRef is on the portal panel only — NOT the trigger button —
+  // so this handler doesn't interfere with the button's own onClick toggle.
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => {
+      if (
+        panelRef.current && !panelRef.current.contains(e.target) &&
+        btnRef.current   && !btnRef.current.contains(e.target)
+      ) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", onClick);
     document.addEventListener("keydown",   onKey);
     return () => {
@@ -520,11 +581,75 @@ export default function TelegramSettings() {
     ...(isSuperAdmin ? [{ id: "admins", label: "Admin Alerts", icon: Users }] : []),
   ];
 
+  const panel = open ? (
+    <div
+      ref={panelRef}
+      style={{ ...panelStyle, animation: "tgSlide 0.15s ease both" }}
+      className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-xl overflow-hidden"
+    >
+      <style>{`
+        @keyframes tgSlide {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* Header */}
+      <div className="flex items-center gap-2.5 px-4 pt-4 pb-3 border-b border-[#F3F4F6] dark:border-[#262A38]">
+        <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-500/10 flex items-center justify-center shrink-0">
+          <Send className="w-4 h-4 text-sky-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Telegram Notifications</p>
+          <p className="text-[10px] text-[#8B92A9]">Campaign leads only · company-isolated</p>
+        </div>
+        <button
+          onClick={() => setOpen(false)}
+          className="w-6 h-6 flex items-center justify-center rounded-lg text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#262A38] transition"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Tab bar — only rendered for super_admin (has 2 tabs) */}
+      {isSuperAdmin && (
+        <div className="flex gap-1 px-4 pt-3 pb-0">
+          {TABS.map(tab => {
+            const Icon   = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold border transition flex-1 justify-center
+                  ${active
+                    ? "border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                    : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-[#CBD5E1] dark:hover:border-[#3E4257] hover:text-[#4B5168] dark:hover:text-[#9DA3BB]"
+                  }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Tab content */}
+      <div className="px-4 py-3">
+        {activeTab === "company" && <CompanyGroupTab isSuperAdmin={isSuperAdmin} />}
+        {activeTab === "admins"  && <AdminAlertsTab />}
+      </div>
+    </div>
+  ) : null;
+
   return (
-    <div className="relative" ref={popoverRef}>
+    // No ref here — outer div is just a layout anchor for the trigger button
+    <div className="relative">
 
       {/* ── Trigger button ── */}
       <button
+        ref={btnRef}
         onClick={() => setOpen(v => !v)}
         title="Telegram Notifications"
         className={`relative w-9 h-9 flex items-center justify-center rounded-xl border transition-all duration-150 focus:outline-none
@@ -541,68 +666,8 @@ export default function TelegramSettings() {
         )}
       </button>
 
-      {/* ── Popover ── */}
-      {open && (
-        <div
-          className="absolute top-full right-0 mt-2 w-[calc(100vw-1.5rem)] max-w-[340px] sm:w-[340px] bg-white dark:bg-[#1A1D27]
-            border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl shadow-xl z-50 overflow-hidden"
-          style={{ animation: "tgSlide 0.15s ease both" }}
-        >
-          <style>{`
-            @keyframes tgSlide {
-              from { opacity: 0; transform: translateY(-6px); }
-              to   { opacity: 1; transform: translateY(0); }
-            }
-          `}</style>
-
-          {/* Header */}
-          <div className="flex items-center gap-2.5 px-4 pt-4 pb-3 border-b border-[#F3F4F6] dark:border-[#262A38]">
-            <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-500/10 flex items-center justify-center shrink-0">
-              <Send className="w-4 h-4 text-sky-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Telegram Notifications</p>
-              <p className="text-[10px] text-[#8B92A9]">Campaign leads only · company-isolated</p>
-            </div>
-            <button
-              onClick={() => setOpen(false)}
-              className="w-6 h-6 flex items-center justify-center rounded-lg text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#262A38] transition"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Tab bar — only rendered for super_admin (has 2 tabs) */}
-          {isSuperAdmin && (
-            <div className="flex gap-1 px-4 pt-3 pb-0">
-              {TABS.map(tab => {
-                const Icon   = tab.icon;
-                const active = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold border transition flex-1 justify-center
-                      ${active
-                        ? "border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300"
-                        : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9] hover:border-[#CBD5E1] dark:hover:border-[#3E4257] hover:text-[#4B5168] dark:hover:text-[#9DA3BB]"
-                      }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Tab content */}
-          <div className="px-4 py-3">
-            {activeTab === "company" && <CompanyGroupTab isSuperAdmin={isSuperAdmin} />}
-            {activeTab === "admins"  && <AdminAlertsTab />}
-          </div>
-        </div>
-      )}
+      {/* Portal — escapes header stacking context, never clipped by overflow:hidden */}
+      {panel && createPortal(panel, document.body)}
     </div>
   );
 }
