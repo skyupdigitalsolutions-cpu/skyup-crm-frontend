@@ -81,8 +81,8 @@ const DEFAULT_PLANS = {
     features: [
       "leads", "contacts", "basic-reports", "attendance", "daily-report",
       "sms-blast", "whatsapp-blast", "email-blast", "campaigns",
-      "google-ads", "meta-ads", "call-recording", "api-access",
-      "call-transcription", "ai-summary", "whatsapp-automation", "webhook-access",
+      "google-ads", "meta-ads", "call-recording",
+      "call-transcription", "ai-summary", "whatsapp-automation",
       "projects", "tasks", "website-tracking",
     ],
   },
