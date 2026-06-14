@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { X, Flame, Sun, Snowflake, CheckCircle2, AlertTriangle, Clock, Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays, Paperclip, Mic, User, RefreshCw, ClipboardList, Inbox, Map as MapIcon, Users, BarChart3, PartyPopper, XCircle, Zap, Sparkles } from "lucide-react";
+import QualificationScore from "./QualificationScore";
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -471,6 +472,11 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
               </span>
             )}
           </div>
+          {lead.leadScore != null && (
+            <div className="mt-2">
+              <QualificationScore lead={lead} size="md" />
+            </div>
+          )}
         </div>
 
         {/* ── Quick stats ── */}
