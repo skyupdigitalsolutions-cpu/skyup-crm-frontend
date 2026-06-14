@@ -1014,8 +1014,8 @@ export default function Dashboard() {
         setAgents(agents || []);
         setAllLeads(safeLeads);
         if (stats) setSuperStats(stats);
-        setHotLeads(safeLeads.filter((l) => l.temperature === "Hot"  || l.Quality === "Hot"));
-        setWarmLeads(safeLeads.filter((l) => l.temperature === "Warm" || l.Quality === "Warm"));
+        setHotLeads(safeLeads.filter((l) => l.temperature === "Hot"  || l.Quality === "Hot"  || l.leadCategory === "Hot"));
+        setWarmLeads(safeLeads.filter((l) => l.temperature === "Warm" || l.Quality === "Warm" || l.leadCategory === "Warm"));
       })
       .catch((err) => {
         setError(err.response?.data?.message || "Failed to load dashboard data.");
