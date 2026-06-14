@@ -221,6 +221,8 @@ function EditModal({ rec, onClose, onRefresh }) {
     logoutTime: toInputTime(rec.logoutTime),
     crmStatus : rec.derivedCrmStatus || rec.crmStatus || "",
     remarks   : rec.remarks || "",
+    idealTime : rec.idealTime || "",
+    idealRemark: rec.idealRemark || "",
   });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
@@ -259,6 +261,8 @@ function EditModal({ rec, onClose, onRefresh }) {
         logoutTime: isNonWorking ? null : (combineDateTime(rec.date, form.logoutTime) || null),
         crmStatus : form.crmStatus || null,
         remarks   : form.remarks,
+        idealTime : form.idealTime,
+        idealRemark: form.idealRemark,
       });
       onClose();
       onRefresh();
@@ -380,6 +384,28 @@ function EditModal({ rec, onClose, onRefresh }) {
               onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))}
               className={INP}
             />
+          </div>
+
+          {/* Ideal Working Time (set by employee in mobile app; editable here) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1.5">Ideal Time</label>
+              <input
+                type="text" value={form.idealTime}
+                placeholder="e.g. 11:00 AM - 7:00 PM"
+                onChange={e => setForm(f => ({ ...f, idealTime: e.target.value }))}
+                className={INP}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1.5">Ideal Time Reason</label>
+              <input
+                type="text" value={form.idealRemark}
+                placeholder="Reason for ideal time…"
+                onChange={e => setForm(f => ({ ...f, idealRemark: e.target.value }))}
+                className={INP}
+              />
+            </div>
           </div>
         </div>
 
@@ -1003,6 +1029,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
               <th className={thCls}>Last IP</th>
               <th className={thCls}>Last Login</th>
               <th className={thCls}>Remarks</th>
+              <th className={thCls}>Ideal Time</th>
               <th className={thCls}>Actions</th>
             </tr>
           </thead>
@@ -1010,7 +1037,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 10 }).map((_, j) => (
+                  {Array.from({ length: 11 }).map((_, j) => (
                     <td key={j} className="px-4 py-3">
                       <div className="h-4 rounded bg-[#F1F4FF] dark:bg-[#262A38] animate-pulse w-20" />
                     </td>
@@ -1019,7 +1046,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
               ))
             ) : records.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-12 text-center">
+                <td colSpan={11} className="px-4 py-12 text-center">
                   <span className="block mb-2 flex justify-center text-[#8B92A9]"><ClipboardList className="w-9 h-9" strokeWidth={1.5} /></span>
                   <p className="text-[14px] text-[#8B92A9]">No attendance records found.</p>
                 </td>
@@ -1056,6 +1083,20 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
                     )}
                   </td>
                   <td className={tdCls}><span className="italic text-[#8B92A9]">{rec.remarks || "—"}</span></td>
+                  <td className={tdCls}>
+                    {rec.idealTime || rec.idealRemark ? (
+                      <div className="max-w-[180px]">
+                        {rec.idealTime ? (
+                          <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{rec.idealTime}</p>
+                        ) : null}
+                        {rec.idealRemark ? (
+                          <p className="text-[10px] text-[#8B92A9] truncate" title={rec.idealRemark}>{rec.idealRemark}</p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="text-[#8B92A9]">—</span>
+                    )}
+                  </td>
                   <td className={tdCls}>
                     {rec._id && (
                       <div className="flex items-center gap-1.5">
