@@ -1206,9 +1206,9 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
           <KpiCard
             label="Hot Leads"
-            value={dashStats.quality.hot.toLocaleString()}
+            value={(dashStats.quality?.hot ?? 0).toLocaleString()}
             sub="All fields filled · Tap to view"
-            up={dashStats.quality.hot > 0}
+            up={(dashStats.quality?.hot ?? 0) > 0}
             IconComponent={Flame}
             variant="red"
             clickable
@@ -1216,9 +1216,9 @@ export default function Dashboard() {
           />
           <KpiCard
             label="Warm Leads"
-            value={dashStats.quality.warm.toLocaleString()}
+            value={(dashStats.quality?.warm ?? 0).toLocaleString()}
             sub="Partially filled · Tap to view"
-            up={dashStats.quality.warm > 0}
+            up={(dashStats.quality?.warm ?? 0) > 0}
             IconComponent={Thermometer}
             variant="amber"
             clickable
@@ -1226,8 +1226,8 @@ export default function Dashboard() {
           />
           <KpiCard
             label="Phone Reveals"
-            value={dashStats.phoneReveal.totalReveals.toLocaleString()}
-            sub={`${dashStats.phoneReveal.leadsRevealed} leads · Tap to view`}
+            value={(dashStats.phoneReveal?.totalReveals ?? 0).toLocaleString()}
+            sub={`${dashStats.phoneReveal?.leadsRevealed ?? 0} leads · Tap to view`}
             up={false}
             IconComponent={Eye}
             variant="purple"
