@@ -17,6 +17,15 @@
  *     are always used.
  *  3. Mobile panel height — changed from 85vh to `calc(100dvh - env(safe-area-inset-bottom))`
  *     so the panel doesn't get cropped by the iOS browser chrome.
+ *
+ * BUG FIXES:
+ *  FIX 1 — companyId: safely extract _id string when storedUser.company is a
+ *           populated object instead of a plain ID string. Previously fell through
+ *           to the raw object, emitting "[object Object]" over the socket which
+ *           broke every DB query on the backend.
+ *  FIX 2 — role normalisation: DB stores role as 'superadmin' (no underscore)
+ *           but the frontend filtered for 'super_admin'. Normalise on receipt of
+ *           all_users_db so superAdminContact lookup and role-based rendering work.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -30,9 +39,6 @@ const SOCKET_URL =
     : 'https://skyup-crm-backend.onrender.com');
 
 // ── Safe window-width hook ────────────────────────────────────────────────────
-// Reading window.innerWidth inline in JSX gives the value at render time, which
-// may be wrong during hydration or before resize events settle. This hook
-// re-reads on mount and on every resize so the value is always current.
 function useWindowWidth() {
   const [width, setWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 768
@@ -40,10 +46,34 @@ function useWindowWidth() {
   useEffect(() => {
     const handler = () => setWidth(window.innerWidth);
     window.addEventListener('resize', handler);
-    handler(); // sync immediately after mount
+    handler();
     return () => window.removeEventListener('resize', handler);
   }, []);
   return width;
+}
+
+// ── FIX 1: Safe companyId extractor ──────────────────────────────────────────
+// storedUser.company may be a populated object { _id, name, … } or a plain
+// string ID. The previous || chain fell through to the raw object, serialising
+// as "[object Object]" when emitted via socket — breaking every DB query.
+function extractCompanyId(storedUser) {
+  if (!storedUser) return '';
+  if (storedUser.companyId) return storedUser.companyId;
+  if (storedUser.company) {
+    if (typeof storedUser.company === 'object') {
+      return storedUser.company?._id || '';
+    }
+    return storedUser.company;
+  }
+  return '';
+}
+
+// ── FIX 2: Role normaliser ────────────────────────────────────────────────────
+// The DB stores role as 'superadmin' (no underscore). The frontend was filtering
+// for 'super_admin', so superAdminContact was always undefined. Normalise here.
+function normaliseRole(role) {
+  if (role === 'superadmin') return 'super_admin';
+  return role;
 }
 
 export default function AdminChat() {
@@ -54,7 +84,8 @@ export default function AdminChat() {
   const role         = getRole();
   const isSuperAdmin = role === 'superadmin';
   const adminId      = storedUser?._id || storedUser?.id || '';
-  const companyId    = storedUser?.companyId || storedUser?.company?._id || storedUser?.company || '';
+  // FIX 1: use safe extractor instead of raw || chain
+  const companyId    = extractCompanyId(storedUser);
   const displayName  = storedUser?.name || 'Admin';
   const myUsername   = isSuperAdmin ? `superadmin:${adminId}` : `admin:${adminId}`;
 
@@ -97,7 +128,16 @@ export default function AdminChat() {
     if (socket.connected) doJoin();
 
     socket.on('users_list', setOnlineUsers);
-    socket.on('all_users_db', (users) => setAllUsers(users));
+
+    // FIX 2: normalise role field on every user received from the DB
+    // DB stores 'superadmin' but frontend filters use 'super_admin'
+    socket.on('all_users_db', (users) => {
+      const normalised = users.map((u) => ({
+        ...u,
+        role: normaliseRole(u.role),
+      }));
+      setAllUsers(normalised);
+    });
 
     socket.on('admin_chat_history', ({ username, history }) => {
       const formatted = history.map((m) => ({
@@ -227,13 +267,14 @@ export default function AdminChat() {
   const userList          = allUsers.map((u) => ({
     username:    u.username,
     displayName: u.displayName || u.username,
-    role:        u.role,
+    role:        u.role, // already normalised via normaliseRole() above
     online:      onlineUsernames.has(u.username),
     unread:      unread[u.username] || 0,
   }));
 
-  const adminContacts    = userList.filter((u) => u.role === 'admin');
-  const employeeContacts = userList.filter((u) => u.role === 'employee');
+  const adminContacts     = userList.filter((u) => u.role === 'admin');
+  const employeeContacts  = userList.filter((u) => u.role === 'employee');
+  // FIX 2: now correctly matches 'super_admin' after normalisation
   const superAdminContact = userList.find((u) => u.role === 'super_admin');
 
   const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
@@ -245,7 +286,6 @@ export default function AdminChat() {
   };
 
   // ── Panel dimensions ──────────────────────────────────────────────────────
-  // Computed from the safe hook value — never reads window inline in JSX.
   const panelWidth  = isMobile ? '100%' : (sidebarOpen ? 640 : 380);
   const panelHeight = isMobile ? 'calc(100dvh - env(safe-area-inset-bottom) - 0px)' : '520px';
 
@@ -519,10 +559,7 @@ export default function AdminChat() {
   );
 
   // ── Render via portal ─────────────────────────────────────────────────────
-  // Both the FAB and the full panel are portalled into document.body so they
-  // are never trapped by a parent with overflow:hidden, transform, or
-  // will-change — all of which break position:fixed in CSS.
-  if (typeof document === 'undefined') return null; // SSR guard
+  if (typeof document === 'undefined') return null;
 
   return createPortal(
     open ? panel : fab,
