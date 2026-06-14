@@ -381,13 +381,37 @@ function LeadDrawer({ campaign, onClose }) {
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${ls.bg} ${ls.text}`}>{status}</span>
                       </div>
                     </div>
-                    {/* Lead score badge — shown for Meta ad-set leads that have been scored */}
+                    {/* Qualification scoring — Meta ad-set leads that have been scored */}
                     {l.leadScore != null && (
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <span className="text-[10px] text-[#8B92A9]">Score:</span>
-                        <span className="text-[11px] font-bold" style={{ color: temp === "Hot" ? "#DC2626" : temp === "Warm" ? "#D97706" : "#2563EB" }}>
-                          {l.leadScore} pts
+                      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mb-1.5">
+                        <span className="text-[10px] text-[#8B92A9]">
+                          Score:{" "}
+                          <span className="text-[11px] font-bold" style={{ color: temp === "Hot" ? "#DC2626" : temp === "Warm" ? "#D97706" : "#2563EB" }}>
+                            {l.leadScore}
+                          </span>
+                          {l.maxScore != null && (
+                            <span className="text-[10px] text-[#8B92A9] font-medium"> / {l.maxScore}</span>
+                          )}
                         </span>
+                        {(l.qualificationPercentage != null || l.maxScore) && (
+                          <span className="text-[10px] text-[#8B92A9]">
+                            (
+                            <span className="text-[11px] font-bold" style={{ color: temp === "Hot" ? "#DC2626" : temp === "Warm" ? "#D97706" : "#2563EB" }}>
+                              {l.qualificationPercentage != null
+                                ? l.qualificationPercentage
+                                : l.maxScore
+                                ? Math.round((l.leadScore / l.maxScore) * 100)
+                                : 0}
+                              %
+                            </span>
+                            )
+                          </span>
+                        )}
+                        {(l.leadCategory || temp) && (
+                          <span className="text-[10px] font-semibold" style={{ color: (l.leadCategory || temp) === "Hot" ? "#DC2626" : (l.leadCategory || temp) === "Warm" ? "#D97706" : "#2563EB" }}>
+                            {l.leadCategory || temp} Lead
+                          </span>
+                        )}
                       </div>
                     )}
                     {maskEmail(l.email) && (
@@ -1380,12 +1404,15 @@ function EmailCampaignModal({ campaigns, onClose }) {
 function QualificationModal({ adSet, onClose, onSaved }) {
   const [questions, setQuestions] = useState([]);
   const [rules, setRules] = useState([]);
-  const [thresholds, setThresholds] = useState({ hot: 70, warm: 40 });
+  const [thresholds, setThresholds] = useState({ hot: 80, warm: 50 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [existingRules, setExistingRules] = useState(null);
+  // Set when a previously-saved rule-set fails the 100-point rule on load,
+  // so we can show an admin "needs correction before activation" warning.
+  const [migrationWarning, setMigrationWarning] = useState(false);
 
   // Fetch form questions + existing rules on open
   useEffect(() => {
@@ -1422,7 +1449,15 @@ function QualificationModal({ adSet, onClose, onSaved }) {
         if (existing) {
           // Restore saved state
           setRules(existing.rules || []);
-          setThresholds(existing.thresholds || { hot: 70, warm: 40 });
+          setThresholds(existing.thresholds || { hot: 80, warm: 50 });
+          // Auto-migration: if any saved question doesn't total 100, warn the
+          // admin that the campaign must be corrected before it stays active.
+          const invalid = (existing.rules || []).some(
+            (r) =>
+              (r.answers || []).reduce((s, a) => s + (Number(a.score) || 0), 0) !==
+              100
+          );
+          if (invalid) setMigrationWarning(true);
         } else if (formQuestions.length > 0) {
           // Build a blank rule entry per question.
           // _keyFromMeta = true signals handleLabelChange to NOT overwrite questionKey
@@ -1517,7 +1552,25 @@ function QualificationModal({ adSet, onClose, onSaved }) {
     );
   };
 
+  // Per-question option totals (must each equal exactly 100).
+  const questionTotals = rules.map((r) =>
+    (r.answers || []).reduce((s, a) => s + (Number(a.score) || 0), 0)
+  );
+  const allQuestionsValid =
+    rules.length > 0 && questionTotals.every((t) => t === 100);
+  const invalidCount = questionTotals.filter((t) => t !== 100).length;
+
   const handleSave = async () => {
+    // Guard: do not allow saving / activation unless every question totals 100.
+    if (!allQuestionsValid) {
+      setError(
+        `Each question's answer options must total exactly 100 points. ` +
+          `${invalidCount} question${invalidCount === 1 ? "" : "s"} still need${
+            invalidCount === 1 ? "s" : ""
+          } correction.`
+      );
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -1530,19 +1583,33 @@ function QualificationModal({ adSet, onClose, onSaved }) {
         adSetName: adSet.adSetName || adSet.name,
         formId: adSet.formId || "",
       });
+      setMigrationWarning(false);
       setSuccess(true);
       onSaved && onSaved();
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Failed to save qualification rules");
+      // Backend rejects rule-sets that don't total 100 (422) with a validation payload.
+      const v = err.response?.data?.validation;
+      if (v && Array.isArray(v.errors) && v.errors.length > 0) {
+        const labels = v.errors
+          .map((e) => `“${e.questionLabel}” (= ${e.total})`)
+          .join(", ");
+        setError(
+          `Each question must total exactly 100 points. Fix: ${labels}.`
+        );
+      } else {
+        setError(
+          err.response?.data?.message ||
+            err.message ||
+            "Failed to save qualification rules"
+        );
+      }
     } finally {
       setSaving(false);
     }
   };
 
-  const maxPossibleScore = rules.reduce((sum, r) => {
-    const best = Math.max(...r.answers.map((a) => a.score || 0), 0);
-    return sum + best;
-  }, 0);
+  // Maximum possible score is fixed: number of questions × 100.
+  const maxPossibleScore = rules.length * 100;
 
   const hotMin = Math.round((thresholds.hot / 100) * maxPossibleScore);
   const warmMin = Math.round((thresholds.warm / 100) * maxPossibleScore);
@@ -1608,11 +1675,28 @@ function QualificationModal({ adSet, onClose, onSaved }) {
                 <div>
                   <p className="text-[12px] font-semibold text-[#2563EB] dark:text-[#4F8EF7]">How qualification works</p>
                   <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-0.5">
-                    Assign scores to each answer option. When a lead arrives, their answers are matched and scores summed.
-                    Set Hot/Warm thresholds below to auto-categorise each lead.
+                    Each question's answer options must add up to exactly <span className="font-bold">100 points</span>.
+                    A lead earns the points of the answer they pick. Maximum Score = number of questions × 100, and the
+                    lead's percentage = (score ÷ max) × 100. Hot/Warm thresholds below categorise each lead.
                   </p>
                 </div>
               </div>
+
+              {/* Auto-migration warning — existing campaign with invalid totals */}
+              {migrationWarning && (
+                <div className="bg-[#FFFBEB] dark:bg-[#2D1F05] border border-[#FDE68A] dark:border-[#854D0E] rounded-xl px-4 py-3 flex gap-3">
+                  <AlertCircle className="w-4 h-4 text-[#D97706] dark:text-[#FBBF24] shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[12px] font-semibold text-[#B45309] dark:text-[#FBBF24]">
+                      This campaign needs correction before activation
+                    </p>
+                    <p className="text-[11px] text-[#92660C] dark:text-[#FCD34D] mt-0.5">
+                      It was created under the old scoring system. One or more questions don't total 100 points.
+                      Adjust the highlighted questions below so each totals exactly 100, then save to re-activate scoring.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Thresholds */}
               <div>
@@ -1690,8 +1774,11 @@ function QualificationModal({ adSet, onClose, onSaved }) {
                 )}
 
                 <div className="space-y-4">
-                  {rules.map((rule, rIdx) => (
-                    <div key={rIdx} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+                  {rules.map((rule, rIdx) => {
+                    const qTotal = questionTotals[rIdx] ?? 0;
+                    const qValid = qTotal === 100;
+                    return (
+                    <div key={rIdx} className={`bg-[#F8F9FC] dark:bg-[#13161E] rounded-2xl border overflow-hidden ${qValid ? "border-[#E4E7EF] dark:border-[#262A38]" : "border-[#FCA5A5] dark:border-[#7F1D1D]"}`}>
                       {/* Question header */}
                       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
                         <span className="w-5 h-5 rounded-full bg-[#E1306C]/10 text-[#E1306C] text-[10px] font-bold flex items-center justify-center shrink-0">
@@ -1703,6 +1790,18 @@ function QualificationModal({ adSet, onClose, onSaved }) {
                           placeholder="Question label (e.g. What is your budget?)"
                           className="flex-1 bg-transparent text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none"
                         />
+                        {/* Live option total — must equal exactly 100 */}
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 shrink-0 ${
+                            qValid
+                              ? "bg-[#ECFDF5] dark:bg-[#052E1C] text-[#059669] dark:text-[#34D399]"
+                              : "bg-[#FEF2F2] dark:bg-[#2D0A0A] text-[#DC2626] dark:text-[#F87171]"
+                          }`}
+                          title="Each question's options must total exactly 100"
+                        >
+                          {qValid ? <Check className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                          {qTotal} / 100
+                        </span>
                         <button
                           onClick={() => handleRemoveQuestion(rIdx)}
                           className="p-1 rounded-lg text-[#8B92A9] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition"
@@ -1750,7 +1849,8 @@ function QualificationModal({ adSet, onClose, onSaved }) {
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1764,13 +1864,39 @@ function QualificationModal({ adSet, onClose, onSaved }) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
+        <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] shrink-0">
+          {rules.length > 0 && (
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] text-[#8B92A9] dark:text-[#565C75]">
+                Maximum Score:{" "}
+                <span className="font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+                  {maxPossibleScore} pts
+                </span>{" "}
+                <span className="text-[#8B92A9]">({rules.length} × 100)</span>
+              </span>
+              <span
+                className={`text-[11px] font-semibold inline-flex items-center gap-1 ${
+                  allQuestionsValid
+                    ? "text-[#059669] dark:text-[#34D399]"
+                    : "text-[#DC2626] dark:text-[#F87171]"
+                }`}
+              >
+                {allQuestionsValid ? (
+                  <><Check className="w-3.5 h-3.5" />All questions total 100</>
+                ) : (
+                  <><AlertCircle className="w-3.5 h-3.5" />{invalidCount} question{invalidCount === 1 ? "" : "s"} ≠ 100</>
+                )}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center gap-3">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
             Cancel
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || loading || rules.length === 0}
+            disabled={saving || loading || rules.length === 0 || !allQuestionsValid}
+            title={!allQuestionsValid ? "Each question's options must total exactly 100 points" : undefined}
             className="flex-1 py-2.5 rounded-xl bg-[#E1306C] text-white text-[13px] font-semibold hover:bg-[#c4185a] disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
           >
             {saving ? (
@@ -1779,6 +1905,7 @@ function QualificationModal({ adSet, onClose, onSaved }) {
               <><Check className="w-4 h-4" />Save Qualification Rules</>
             )}
           </button>
+          </div>
         </div>
       </div>
     </div>
