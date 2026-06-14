@@ -680,7 +680,6 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
               )}
             </div>
           </div>
-
         </div>
       </div>
     </div>
