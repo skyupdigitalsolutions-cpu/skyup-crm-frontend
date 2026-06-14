@@ -118,6 +118,16 @@ export default function AdminChat() {
     socketRef.current = socket;
 
     const doJoin = () => {
+      // DIAGNOSTIC: if companyId is empty here, the socket join below will
+      // be silently rejected by the backend (no contacts, 0 online forever).
+      // This is almost always a stale localStorage "user" object — log out
+      // and back in as Super Admin to refresh it.
+      if (!companyId) {
+        console.warn(
+          '[AdminChat] companyId is empty — chat will show "0 online" / "No contacts yet". ' +
+          'storedUser=', storedUser
+        );
+      }
       if (isSuperAdmin) {
         socket.emit('super_admin_join', { adminId, company: companyId, displayName });
       } else {
