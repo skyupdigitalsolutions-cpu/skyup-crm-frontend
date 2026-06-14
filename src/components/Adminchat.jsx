@@ -338,6 +338,20 @@ export default function AdminChat() {
                 {Object.keys(onlineUsers).length} online
               </span>
             </div>
+
+            {/* MOBILE FIX: the "Minimise" button below normally lives in the
+                chat-pane header, but that pane is hidden on mobile whenever
+                no conversation is selected — leaving this sidebar with no way
+                to close the panel. Mirror a close button here, mobile-only. */}
+            <button
+              onClick={() => setOpen(false)}
+              className="md:hidden w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9] transition shrink-0"
+              title="Close"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto py-1">
