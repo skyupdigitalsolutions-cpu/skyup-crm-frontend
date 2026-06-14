@@ -157,6 +157,14 @@ export default function AdminAttendanceView() {
                     <span>Breaks: {fmt(breakMins)}</span>
                     {rec.breaks?.length > 0 && <span>{rec.breaks.length} break{rec.breaks.length > 1 ? "s" : ""}</span>}
                   </div>
+                  {(rec.idealTime || rec.idealRemark) && (
+                    <div className="flex items-start gap-1 mt-1 text-[10px]">
+                      <span className="font-semibold text-indigo-500 dark:text-indigo-400 shrink-0">Ideal:</span>
+                      <span className="text-gray-500 dark:text-gray-400 truncate" title={rec.idealRemark}>
+                        {rec.idealTime}{rec.idealTime && rec.idealRemark ? " — " : ""}{rec.idealRemark}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             );
