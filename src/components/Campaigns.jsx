@@ -236,11 +236,17 @@ function LeadDrawer({ campaign, onClose }) {
     if (campaign._isMeta || campaign._isGoogle || campaign._isWebsite) {
       // When this is a Meta ad set (has adSetName), scope the query to that
       // specific ad set so only its leads are shown, not all campaign leads.
+      // Prefer the exact metaConfigId so sibling ad sets sharing a campaign
+      // name can't bleed into each other.
       const adSetParam =
         campaign._isMeta && campaign.adSetName
           ? `&adSetName=${encodeURIComponent(campaign.adSetName)}`
           : "";
-      api.get(`/lead/by-campaign?campaign=${encodeURIComponent(campaign.name)}${adSetParam}`)
+      const cfgParam =
+        campaign._isMeta && campaign._id
+          ? `&metaConfigId=${encodeURIComponent(campaign._id)}`
+          : "";
+      api.get(`/lead/by-campaign?campaign=${encodeURIComponent(campaign.name)}${adSetParam}${cfgParam}`)
         .then((res) => setLeads(Array.isArray(res.data) ? res.data : res.data?.data || []))
         .catch(() => setLeads([]))
         .finally(() => setLoading(false));
