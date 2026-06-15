@@ -53,6 +53,10 @@ export default function EntitlementStatusBanner({ onGoToPlans }) {
   if (loading)         return null;
   if (!isReadOnly())   return null;
   if (dismissed)       return null;
+  // trial_pending is handled by <TrialGate /> (full-screen "add payment method"
+  // prompt). Showing the generic "expired / Renew Plan" banner here would be
+  // misleading, so suppress it for trial states.
+  if (subscriptionStatus === "trial_pending") return null;
 
   const config = STATUS_CONFIG[subscriptionStatus] || STATUS_CONFIG.expired;
   const handleGoToPlans = onGoToPlans || (() => { window.location.href = "/upgrade-plan"; });

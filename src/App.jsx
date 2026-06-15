@@ -6,6 +6,7 @@ import ThemeToggle from "./components/ThemeToggle";
 import api from "./data/axiosConfig";
 import ExpiryBanner, { SuspensionScreen } from "./components/ExpiryBanner";
 import EntitlementStatusBanner from "./components/EntitlementStatusBanner";
+import TrialGate from "./components/TrialGate";
 import FeatureGate from "./components/FeatureGate";
 import ClockInGate from "./components/ClockInGate";
 import { NotificationProvider, NotificationBell } from "./components/NotificationProvider";
@@ -390,6 +391,9 @@ function AppLayout({ children }) {
             {/* EntitlementStatusBanner: persistent read-only indicator
                 (separate from ExpiryBanner's "expiring soon" warning) */}
             <EntitlementStatusBanner onGoToPlans={goToPlans} />
+            {/* TrialGate: full-screen prompt to add a payment method (trial_pending)
+                or pick a plan after the trial (auto-charged). Owns all trial states. */}
+            <TrialGate />
             <CompanyHeader />
             <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
           </main>

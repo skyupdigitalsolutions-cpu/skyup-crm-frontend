@@ -52,6 +52,11 @@ export default function TrialGate() {
   const [billing, setBilling] = useState("monthly");
 
   const fetchStatus = useCallback(async () => {
+    // Only admins / super_admins manage billing. Skip for developers + employees.
+    let role = null;
+    try { role = JSON.parse(localStorage.getItem("user") || "null")?.role || null; } catch {}
+    if (role === "developer" || role === "user") { setLoading(false); return; }
+
     try {
       const { data } = await api.get("/trial/status");
       setStatus(data);
