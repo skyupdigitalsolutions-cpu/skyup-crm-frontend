@@ -12,6 +12,11 @@ export const fetchAttendanceUsers = () =>
 export const updateAttendance = (id, payload) =>
   api.put(`/attendance/${id}`, payload).then(r => r.data);
 
+// Admin: create/update a record for an employee+date that has no record yet
+// (e.g. an "Absent" / not-logged-in row that has no _id). Upserts by user+date.
+export const upsertAttendance = (payload) =>
+  api.post(`/attendance/admin-upsert`, payload).then(r => r.data);
+
 // ── Admin: delete a record ────────────────────────────────────────────────────
 export const removeAttendance = (id) =>
   api.delete(`/attendance/${id}`).then(r => r.data);
