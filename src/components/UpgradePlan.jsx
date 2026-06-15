@@ -9,7 +9,7 @@ import UpdatePaymentModal from "./UpdatePaymentModal";
 import DowngradeWarningModal from "./DowngradeWarningModal";
 import AddonStore from "./AddonStore";
 
-const PLAN_ORDER = ["basic", "pro", "enterprise"];
+const PLAN_ORDER = ["basic", "pro", "advance", "enterprise"];
 // These limits must match UserManagement.jsx's PLAN_CONFIG exactly.
 // Super admin is NEVER counted against the admin limit.
 const PLAN_LIMITS = {
@@ -291,7 +291,15 @@ function mergeConfigIntoDefaults(defaults, config) {
   if (!config || typeof config !== "object") return defaults;
   const merged = {};
 
-  for (const id of PLAN_ORDER) {
+  // Known order first, then any extra plan keys the API returned that aren't in
+  // PLAN_ORDER (so a tier like "advance" is never silently dropped). "trial" is
+  // intentionally excluded from the customer cards.
+  const orderedKeys = [
+    ...PLAN_ORDER,
+    ...Object.keys(config).filter(k => !PLAN_ORDER.includes(k) && k !== "trial"),
+  ];
+
+  for (const id of orderedKeys) {
     const base = defaults[id] || { id, name: id, features: [] };
     const cfg = config[id];
 
@@ -400,9 +408,25 @@ const PLAN_DEFAULTS = {
       { key: "call-recording", label: "Call Recordings",  enabled: true  },
     ],
   },
+  advance: {
+    id: "advance", name: "Advance", desc: "For established teams scaling up",
+    monthlyPrice: 9999, yearlyPrice: 7999, color: "#7C3AED", popular: false, maxUsers: 999,
+    features: [
+      { key: "leads",          label: "Lead Management",  enabled: true },
+      { key: "contacts",       label: "Contacts",         enabled: true },
+      { key: "basic-reports",  label: "Basic Reports",    enabled: true },
+      { key: "attendance",     label: "Attendance",       enabled: true },
+      { key: "sms-blast",      label: "SMS Blast",        enabled: true },
+      { key: "email-blast",    label: "Email Blast",      enabled: true },
+      { key: "campaigns",      label: "Campaigns",        enabled: true },
+      { key: "google-ads",     label: "Google Ads",       enabled: true },
+      { key: "meta-ads",       label: "Meta Ads",         enabled: true },
+      { key: "call-recording", label: "Call Recordings",  enabled: true },
+    ],
+  },
   enterprise: {
     id: "enterprise", name: "Enterprise", desc: "Unlimited scale for large organisations",
-    monthlyPrice: 9999, yearlyPrice: 7999, color: "#7C3AED", popular: false, maxUsers: 999,
+    monthlyPrice: 9999, yearlyPrice: 7999, color: "#0E7490", popular: false, maxUsers: 999,
     features: [
       { key: "leads",          label: "Lead Management",  enabled: true },
       { key: "contacts",       label: "Contacts",         enabled: true },
