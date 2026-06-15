@@ -17,7 +17,7 @@ import { maskPhone } from "../utils/maskPhone";
 import FeatureGate from "../components/FeatureGate";
 import { Image as ImageIcon, FileText, Music, Video, ClipboardList, AlertTriangle, Target, Users, Smartphone } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://skyup-crm-backend.onrender.com/api";
+const API_URL = import.meta.env.VITE_API_URL 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   (import.meta.env.VITE_API_URL

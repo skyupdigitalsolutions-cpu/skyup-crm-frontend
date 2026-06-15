@@ -1547,7 +1547,7 @@ function UserChatWidget() {
   const adminId     = user?.createdBy || null;
 
   useEffect(() => {
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, "") : "https://skyup-crm-backend.onrender.com");
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL.replace(/\/api$/, "") 
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
     const joinPayload = { username, userId: user?._id, company: companyId, adminId, displayName: user?.name };

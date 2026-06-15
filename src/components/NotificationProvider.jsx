@@ -37,17 +37,11 @@ import { AlertOctagon, AlertTriangle, ClipboardList, RefreshCw, MessageCircle, C
 
 // ── Socket URL ────────────────────────────────────────────────────────────────
 const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL ||
-  (import.meta.env.VITE_API_URL
-    ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
-    : 'https://skyup-crm-backend.onrender.com');
+  import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL.replace(/\/api$/, '')
+    
 
 // ── API base URL — full URL needed for fetch() which has no axios baseURL ─────
-const API_BASE =
-  import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined' && window.location.origin !== 'null'
-    ? `${window.location.origin}/api`
-    : 'https://skyup-crm-backend.onrender.com/api');
+const API_BASE = import.meta.env.VITE_API_URL 
 
 // ── Context ───────────────────────────────────────────────────────────────────
 const NotificationContext = createContext(null);

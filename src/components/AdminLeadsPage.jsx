@@ -33,9 +33,8 @@ import {
 
 const crm = new CRMEncryption();
 
-const BACKEND_ROOT = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace(/\/api$/, "")
-  : "https://skyup-crm-backend.onrender.com";
+const BACKEND_ROOT = import.meta.env.VITE_API_URL.replace(/\/api$/, "")
+   
 
 // ── Phone masking utility ─────────────────────────────────────────────────────
 function maskPhone(phone, isSuperAdmin) {

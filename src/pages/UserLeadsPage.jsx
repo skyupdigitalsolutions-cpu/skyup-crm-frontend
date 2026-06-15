@@ -7,9 +7,8 @@ import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/stat
 import { maskPhone as _maskPhone } from "../utils/maskPhone";
 import { Check, AlertTriangle, X } from "lucide-react";
 
-const BACKEND_ROOT = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace(/\/api$/, "")
-  : "https://skyup-crm-backend.onrender.com";
+const BACKEND_ROOT = import.meta.env.VITE_API_URL.replace(/\/api$/, "")
+ 
 
 function maskPhone(phone) { return _maskPhone(phone) || "—"; }
 

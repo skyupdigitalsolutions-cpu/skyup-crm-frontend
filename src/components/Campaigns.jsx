@@ -966,7 +966,7 @@ function CreateWebsiteModal({ onClose, onCreated }) {
   };
 
   if (success) {
-    const webhookUrl = "https://skyup-crm-backend.onrender.com/website-webhook";
+    const webhookUrl = `${import.meta.env.VITE_API_URL.replace(/\/api$/, '')}/website-webhook`;
     const secret = form.webhookSecret;
     const sourceName = form.sourceName;
 
@@ -2218,7 +2218,7 @@ export default function Campaigns() {
   useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
 
   useEffect(() => {
-    const SOCKET_URL = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace("/api", "") : "http://localhost:5000";
+    const SOCKET_URL = import.meta.env.VITE_API_URL.replace("/api", "") 
     const socket = socketIO(SOCKET_URL, { transports: ["websocket", "polling"] });
     socket.on("new_website_lead", () => { fetchCampaigns(); });
     return () => { socket.disconnect(); };

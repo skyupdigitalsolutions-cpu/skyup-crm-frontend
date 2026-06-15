@@ -1070,7 +1070,7 @@ function RecordingModal({ lead, role, onClose }) {
                   )}
                   {h.recordingUrl && (
                     <div className="mt-2">
-                      <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={`https://skyup-crm-backend.onrender.com${h.recordingUrl}`} className="w-full h-7 rounded-lg accent-[#2563EB]" />
+                      <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={`${import.meta.env.VITE_API_URL.replace(/\/api$/, '')}${h.recordingUrl}`} className="w-full h-7 rounded-lg accent-[#2563EB]" />
                     </div>
                   )}
                 </div>
@@ -1124,7 +1124,7 @@ function RecordingModal({ lead, role, onClose }) {
                   )}
                   {(log.recordings || []).map((rec, ri) => (
                     <audio key={ri} controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()}
-                      src={rec.url?.startsWith("http") ? rec.url : `https://skyup-crm-backend.onrender.com${rec.url}`}
+                      src={rec.url?.startsWith("http") ? rec.url : `${import.meta.env.VITE_API_URL.replace(/\/api$/, '')}${rec.url}`}
                       preload="none"
                       onError={(e) => { e.target.style.display = "none"; }}
                       className="w-full h-7 rounded-lg accent-[#2563EB] mb-1" />

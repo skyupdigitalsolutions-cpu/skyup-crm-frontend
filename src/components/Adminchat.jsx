@@ -33,10 +33,8 @@ import { io } from 'socket.io-client';
 import { getStoredUser, getRole } from '../data/dataService';
 
 const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL ||
-  (import.meta.env.VITE_API_URL
-    ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
-    : 'https://skyup-crm-backend.onrender.com');
+  import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL.replace(/\/api$/, '')
+   
 
 // ── Safe window-width hook ────────────────────────────────────────────────────
 function useWindowWidth() {

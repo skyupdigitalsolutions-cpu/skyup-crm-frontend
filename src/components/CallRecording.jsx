@@ -6,9 +6,8 @@ import React, { useEffect, useState } from 'react';
 import api from '../data/axiosConfig';
 import { User, UserRound } from 'lucide-react';
 
-const BACKEND_ROOT = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
-  : 'https://skyup-crm-backend.onrender.com';
+const BACKEND_ROOT = import.meta.env.VITE_API_URL.replace(/\/api$/, '')
+  
 
 const SENTIMENT_STYLE = {
   Positive: { bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-600 dark:text-emerald-400' },
