@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { CalendarDays, Users, Eye, EyeOff, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Voicemail, Ban, Phone, PhoneCall, Mic, Lock, AlertTriangle, ClipboardList, Smartphone } from "lucide-react";
-import { updateAttendance, removeAttendance } from "../services/attendanceService";
+import { updateAttendance, removeAttendance, upsertAttendance } from "../services/attendanceService";
 import { getRole, getStoredUser } from "../data/dataService";
 import axios from "axios";
 import { maskPhone, maskEmail } from "../utils/maskPhone";
@@ -256,14 +256,24 @@ function EditModal({ rec, onClose, onRefresh }) {
     try {
       // For holiday/leave/absent — clear times (not applicable)
       const isNonWorking = ["holiday", "leave", "absent"].includes(form.crmStatus);
-      await updateAttendance(rec._id, {
+      const payload = {
         loginTime : isNonWorking ? null : (combineDateTime(rec.date, form.loginTime) || null),
         logoutTime: isNonWorking ? null : (combineDateTime(rec.date, form.logoutTime) || null),
         crmStatus : form.crmStatus || null,
         remarks   : form.remarks,
         idealTime : form.idealTime,
         idealRemark: form.idealRemark,
-      });
+      };
+      if (rec._id) {
+        await updateAttendance(rec._id, payload);
+      } else {
+        // Synthetic / not-logged-in row → create the record for this user+date.
+        await upsertAttendance({
+          ...payload,
+          user: rec.user?._id || rec.user?.id || rec.user,
+          date: rec.date,
+        });
+      }
       onClose();
       onRefresh();
     } catch (e) {
@@ -1098,16 +1108,14 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
                     )}
                   </td>
                   <td className={tdCls}>
-                    {rec._id && (
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => setEditRec(rec)} className="p-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-[#8B92A9] hover:text-indigo-600 dark:hover:text-indigo-400 transition" title="Edit">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                          </svg>
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => setEditRec(rec)} className="p-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-[#8B92A9] hover:text-indigo-600 dark:hover:text-indigo-400 transition" title={rec._id ? "Edit" : "Add attendance"}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
