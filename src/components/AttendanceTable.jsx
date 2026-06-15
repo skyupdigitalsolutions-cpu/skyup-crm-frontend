@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { CalendarDays, Users, Eye, EyeOff, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Voicemail, Ban, Phone, PhoneCall, Mic, Lock, AlertTriangle, ClipboardList, Smartphone } from "lucide-react";
 import { updateAttendance, removeAttendance, upsertAttendance } from "../services/attendanceService";
-import { getRole, getStoredUser } from "../data/dataService";
+import { getRole } from "../data/dataService";
 import axios from "axios";
 import { maskPhone, maskEmail } from "../utils/maskPhone";
 
@@ -614,8 +614,6 @@ function CallLogCard({ log, isSuperAdmin }) {
 
 // ─── Employee Detail Drawer ───────────────────────────────────────────────────────
 function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
-  if (!user) return null;
-
   const [callLogs,         setCallLogs]         = useState([]);
   const [logsLoading,      setLogsLoading]      = useState(false);
   const [logsError,        setLogsError]        = useState("");
@@ -623,15 +621,15 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
   const [showLoginHistory, setShowLoginHistory] = useState(false);
   // Per-employee device call-log sync permission. Default true (matches the
   // backend default) when the field isn't present on the populated user.
-  const [syncEnabled,      setSyncEnabled]      = useState(user.callLogSyncEnabled !== false);
+  const [syncEnabled,      setSyncEnabled]      = useState(user?.callLogSyncEnabled !== false);
   const [syncSaving,       setSyncSaving]       = useState(false);
   const [syncMsg,          setSyncMsg]          = useState("");
   const LOGS_PER_PAGE = 20;
 
   useEffect(() => {
-    setSyncEnabled(user.callLogSyncEnabled !== false);
+    setSyncEnabled(user?.callLogSyncEnabled !== false);
     setSyncMsg("");
-  }, [user._id, user.callLogSyncEnabled]);
+  }, [user?._id, user?.callLogSyncEnabled]);
 
   const toggleSync = async () => {
     if (!isSuperAdmin || !user?._id) return;
@@ -684,7 +682,9 @@ function UserDetailDrawer({ user, records, onClose, isSuperAdmin }) {
         setLogsError("Failed to load call logs.");
       })
       .finally(() => setLogsLoading(false));
-  }, [user._id]);
+  }, [user?._id]);
+
+  if (!user) return null;
 
   const userRecs      = records.filter(r => (r.user?._id || r.user?.id) === (user._id || user.id));
   const total         = userRecs.length;
