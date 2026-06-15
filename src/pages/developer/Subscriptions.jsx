@@ -13,14 +13,15 @@ import api from '../../data/axiosConfig';
 // /developer/plans/config endpoint (so changes in Plan Customization show up
 // here too). FALLBACK_PLANS is used only if that fetch fails.
 const PLAN_COLORS = {
-  trial: '#D97706', basic: '#6B7280', pro: '#2563EB', enterprise: '#7C3AED',
+  trial: '#D97706', basic: '#6B7280', pro: '#2563EB', advance: '#7C3AED', enterprise: '#0F766E',
 };
 
 const FALLBACK_PLANS = {
   trial:      { name: 'Trial',      color: '#D97706', price: '₹0/mo',    maxUsers: 3,   maxLeads: 100    },
   basic:      { name: 'Basic',      color: '#6B7280', price: '₹999/mo',  maxUsers: 5,   maxLeads: 1000   },
   pro:        { name: 'Pro',        color: '#2563EB', price: '₹2999/mo', maxUsers: 20,  maxLeads: 10000  },
-  enterprise: { name: 'Enterprise', color: '#7C3AED', price: '₹9999/mo', maxUsers: 999, maxLeads: 999999 },
+  advance:    { name: 'Advance',    color: '#7C3AED', price: '₹9999/mo', maxUsers: 999, maxLeads: 999999 },
+  enterprise: { name: 'Enterprise', color: '#0F766E', price: 'Custom',   maxUsers: 999, maxLeads: 999999 },
 };
 
 // Convert the /developer/plans/config response into the shape this page uses.
@@ -75,7 +76,7 @@ function Skeleton() {
 function ActivateModal({ company, plans, onClose, onSuccess }) {
   // Activation is for PAID plans only. Never default to "trial" — it isn't a
   // selectable button below and the old code crashed on PLANS['trial'].
-  const PAID = ['basic', 'pro', 'enterprise'];
+  const PAID = ['basic', 'pro', 'advance', 'enterprise'];
   const [plan,     setPlan]     = useState(PAID.includes(company.plan) ? company.plan : 'basic');
   const [billing,  setBilling]  = useState('monthly');
   const [months,   setMonths]   = useState(1);
