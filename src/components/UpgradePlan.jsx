@@ -9,19 +9,21 @@ import InvoiceReceipt from "./InvoiceReceipt";
 import UpdatePaymentModal from "./UpdatePaymentModal";
 import DowngradeWarningModal from "./DowngradeWarningModal";
 
-const PLAN_ORDER = ["basic", "pro", "enterprise"];
+const PLAN_ORDER = ["basic", "pro", "advance", "enterprise"];
 // These limits must match UserManagement.jsx's PLAN_CONFIG exactly.
 // Super admin is NEVER counted against the admin limit.
 const PLAN_LIMITS = {
   basic:      { admins: 1, users: 10  },   // "starter" in backend
   pro:        { admins: 3, users: 30  },   // "growth"  in backend
-  enterprise: { admins: 5, users: 50  },
+  advance:    { admins: 5, users: 50  },   // "advance" — the old paid Enterprise
+  enterprise: { admins: 10, users: 999 },  // custom "Contact us" tier
 };
-// Map frontend plan IDs → backend plan IDs (backend uses starter/growth/enterprise)
+// Map frontend plan IDs → backend Razorpay plan IDs.
+// "enterprise" is intentionally absent — it's a custom plan and not purchasable.
 const BACKEND_PLAN_ID = {
   basic:      "starter",
   pro:        "growth",
-  enterprise: "enterprise",
+  advance:    "advance",
 };
 
 function planRank(id) { return PLAN_ORDER.indexOf(id ?? "basic"); }
@@ -138,13 +140,22 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
         <p className="text-[12px] text-[#8B92A9] mt-1 mb-4">{plan.desc}</p>
 
         <div className="flex items-end gap-1 mb-1">
-          <span className="text-[32px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">
-            ₹{price.toLocaleString()}
-          </span>
-          <span className="text-[13px] text-[#8B92A9] mb-1">/mo</span>
+          {plan.custom ? (
+            <span className="text-[28px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">Custom</span>
+          ) : (
+            <>
+              <span className="text-[32px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">
+                ₹{(price || 0).toLocaleString()}
+              </span>
+              <span className="text-[13px] text-[#8B92A9] mb-1">/mo</span>
+            </>
+          )}
         </div>
-        {billing === "yearly" && (
-          <p className="text-[11px] text-[#8B92A9] mb-4">Billed ₹{(price * 12).toLocaleString()}/yr</p>
+        {!plan.custom && billing === "yearly" && (
+          <p className="text-[11px] text-[#8B92A9] mb-4">Billed ₹{((price || 0) * 12).toLocaleString()}/yr</p>
+        )}
+        {plan.custom && (
+          <p className="text-[11px] text-[#8B92A9] mb-4">Tailored pricing for your needs</p>
         )}
 
         <div className="flex items-center gap-2 mb-5 flex-wrap">
@@ -190,7 +201,21 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
               color: isSel ? "#fff" : plan.color,
             }}
           >
-            {isSel ? `Proceed to Pay ₹${price.toLocaleString()}` : `Renew ${plan.name}`}
+            {plan.custom
+              ? "Current plan"
+              : isSel ? `Proceed to Pay ₹${(price || 0).toLocaleString()}` : `Renew ${plan.name}`}
+          </button>
+        ) : plan.custom ? (
+          // Custom "Contact us" plan — no online payment.
+          <button
+            onClick={() => onUpgrade(plan)}
+            className="w-full py-2.5 rounded-xl text-[13px] font-semibold transition-all"
+            style={{
+              background: hovered ? plan.color + "25" : plan.color + "15",
+              color: plan.color,
+            }}
+          >
+            Contact us
           </button>
         ) : (
           <button
@@ -201,7 +226,7 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
               color: isSel ? "#fff" : plan.color,
             }}
           >
-            {plan.isDowngrade ? `Downgrade to ${plan.name}` : isSel ? `Proceed to Pay ₹${price.toLocaleString()}` : `Upgrade to ${plan.name}`}
+            {plan.isDowngrade ? `Downgrade to ${plan.name}` : isSel ? `Proceed to Pay ₹${(price || 0).toLocaleString()}` : `Upgrade to ${plan.name}`}
           </button>
         )}
       </div>
@@ -378,9 +403,25 @@ const PLAN_DEFAULTS = {
       { key: "call-recording", label: "Call Recordings",  enabled: true  },
     ],
   },
-  enterprise: {
-    id: "enterprise", name: "Enterprise", desc: "Unlimited scale for large organisations",
+  advance: {
+    id: "advance", name: "Advance", desc: "Unlimited scale for large organisations",
     monthlyPrice: 9999, yearlyPrice: 7999, color: "#7C3AED", popular: false, maxUsers: 999,
+    features: [
+      { key: "leads",          label: "Lead Management",  enabled: true },
+      { key: "contacts",       label: "Contacts",         enabled: true },
+      { key: "basic-reports",  label: "Basic Reports",    enabled: true },
+      { key: "attendance",     label: "Attendance",       enabled: true },
+      { key: "sms-blast",      label: "SMS Blast",        enabled: true },
+      { key: "email-blast",    label: "Email Blast",      enabled: true },
+      { key: "campaigns",      label: "Campaigns",        enabled: true },
+      { key: "google-ads",     label: "Google Ads",       enabled: true },
+      { key: "meta-ads",       label: "Meta Ads",         enabled: true },
+      { key: "call-recording", label: "Call Recordings",  enabled: true },
+    ],
+  },
+  enterprise: {
+    id: "enterprise", name: "Enterprise", desc: "Tailored for your organisation",
+    custom: true, monthlyPrice: 0, yearlyPrice: 0, color: "#0F766E", popular: false, maxUsers: 999,
     features: [
       { key: "leads",          label: "Lead Management",  enabled: true },
       { key: "contacts",       label: "Contacts",         enabled: true },
@@ -412,6 +453,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
   const [viewingInvoice, setViewingInvoice] = useState(null);
   const [showUpdatePayment, setShowUpdatePayment] = useState(false);
   const [downgradePlan, setDowngradePlan] = useState(null);
+  const [contactInfo,  setContactInfo]  = useState(null);
   const [showDowngrade, setShowDowngrade] = useState(false);
   const { openCheckout } = useRazorpay();
 
@@ -503,7 +545,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
         setSubscription(data);
         // Only use planName from razorpay if status didn't give us a plan
         if (!statusData?.plan) {
-          const nameToId = { Basic: "basic", Pro: "pro", Enterprise: "enterprise" };
+          const nameToId = { Basic: "basic", Pro: "pro", Advance: "advance", Enterprise: "enterprise" };
           setCurrentPlanId(nameToId[data.planName] || "basic");
         }
       } catch {
@@ -514,7 +556,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
       try {
         const { data } = await api.get("/razorpay/subscription");
         setSubscription(data);
-        const nameToId = { Basic: "basic", Pro: "pro", Enterprise: "enterprise" };
+        const nameToId = { Basic: "basic", Pro: "pro", Advance: "advance", Enterprise: "enterprise" };
         setCurrentPlanId(nameToId[data.planName] || "basic");
       } catch {
         setCurrentPlanId("basic");
@@ -552,6 +594,11 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
   })();
 
   function handleUpgrade(plan) {
+    // Custom "Contact us" plan — no online payment; surface a contact prompt.
+    if (plan.custom) {
+      setContactInfo({ name: plan.name });
+      return;
+    }
     // Allow renewing the current plan (plan.current) — same flow as upgrade
     if (plan.isDowngrade) { setDowngradePlan(plan); setShowDowngrade(true); return; }
     if (selected !== plan.id) { setSelected(plan.id); return; }
@@ -660,6 +707,38 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
         <UpdatePaymentModal currentMethod={subscription?.paymentMethod} onSave={m => { setSubscription(p => ({...p, paymentMethod: m})); setShowUpdatePayment(false); }} onClose={() => setShowUpdatePayment(false)} />
       )}
 
+      {contactInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4" onClick={() => setContactInfo(null)}>
+          <div className="bg-white dark:bg-[#11131C] rounded-2xl max-w-md w-full p-6 border border-[#E4E7EF] dark:border-[#1E2133]" onClick={e => e.stopPropagation()}>
+            <h3 className="text-[16px] font-bold text-[#0F1117] dark:text-[#DDE1F5] mb-2">Let's build your {contactInfo.name} plan</h3>
+            <p className="text-[13px] text-[#4B5168] dark:text-[#7B829E] mb-5">
+              {contactInfo.name} is a custom plan tailored to your team's size and needs. Reach out and our team will set you up with pricing and limits that fit.
+            </p>
+            <div className="space-y-2 mb-5 text-[13px]">
+              <div className="flex items-center gap-2 text-[#4B5168] dark:text-[#7B829E]">
+                <span className="font-semibold text-[#0F1117] dark:text-[#DDE1F5]">Email:</span>
+                <a href="mailto:sales@skyupcrm.com" className="text-[#2563EB] hover:underline">sales@skyupcrm.com</a>
+              </div>
+              <div className="flex items-center gap-2 text-[#4B5168] dark:text-[#7B829E]">
+                <span className="font-semibold text-[#0F1117] dark:text-[#DDE1F5]">Phone:</span>
+                <a href="tel:+910000000000" className="text-[#2563EB] hover:underline">+91 00000 00000</a>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <a
+                href={`mailto:sales@skyupcrm.com?subject=${encodeURIComponent(`${contactInfo.name} plan enquiry`)}`}
+                className="flex-1 text-center py-2.5 rounded-xl bg-[#0F766E] hover:bg-[#0d655e] text-white text-[13px] font-semibold transition"
+              >
+                Email sales
+              </a>
+              <button onClick={() => setContactInfo(null)} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] text-[13px] font-semibold text-[#4B5168] dark:text-[#7B829E]">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="mb-4 flex items-center justify-between px-4 py-3 rounded-xl bg-[#FEF2F2] border border-[#FCA5A5] text-[#DC2626] text-[12px] font-semibold">
           {error}<button onClick={() => setError(null)} className="ml-4 text-[16px]">×</button>
@@ -701,7 +780,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
               Yearly <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#ECFDF5] text-[#059669] text-[10px] font-bold">Save {savingsPct}%</span>
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
             {plans.map(plan => (
               <PlanCard key={plan.id} plan={plan} billing={billing} selected={selected} onUpgrade={handleUpgrade} />
             ))}
