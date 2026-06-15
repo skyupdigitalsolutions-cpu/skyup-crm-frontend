@@ -4,26 +4,23 @@
 import { useState, useEffect, useCallback } from "react";
 import { Check as CheckIcon, X as XIcon, Lock as LockIcon, Loader2, FileText, Eye } from "lucide-react";
 import api from "../data/axiosConfig";
-import AddonStore from "./AddonStore";
 import InvoiceReceipt from "./InvoiceReceipt";
 import UpdatePaymentModal from "./UpdatePaymentModal";
 import DowngradeWarningModal from "./DowngradeWarningModal";
 
-const PLAN_ORDER = ["basic", "pro", "advance", "enterprise"];
+const PLAN_ORDER = ["basic", "pro", "enterprise"];
 // These limits must match UserManagement.jsx's PLAN_CONFIG exactly.
 // Super admin is NEVER counted against the admin limit.
 const PLAN_LIMITS = {
   basic:      { admins: 1, users: 10  },   // "starter" in backend
   pro:        { admins: 3, users: 30  },   // "growth"  in backend
-  advance:    { admins: 5, users: 50  },   // "advance" — the old paid Enterprise
-  enterprise: { admins: 10, users: 999 },  // custom "Contact us" tier
+  enterprise: { admins: 5, users: 50  },
 };
-// Map frontend plan IDs → backend Razorpay plan IDs.
-// "enterprise" is intentionally absent — it's a custom plan and not purchasable.
+// Map frontend plan IDs → backend plan IDs (backend uses starter/growth/enterprise)
 const BACKEND_PLAN_ID = {
   basic:      "starter",
   pro:        "growth",
-  advance:    "advance",
+  enterprise: "enterprise",
 };
 
 function planRank(id) { return PLAN_ORDER.indexOf(id ?? "basic"); }
@@ -140,22 +137,13 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
         <p className="text-[12px] text-[#8B92A9] mt-1 mb-4">{plan.desc}</p>
 
         <div className="flex items-end gap-1 mb-1">
-          {plan.custom ? (
-            <span className="text-[28px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">Custom</span>
-          ) : (
-            <>
-              <span className="text-[32px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">
-                ₹{(price || 0).toLocaleString()}
-              </span>
-              <span className="text-[13px] text-[#8B92A9] mb-1">/mo</span>
-            </>
-          )}
+          <span className="text-[32px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">
+            ₹{price.toLocaleString()}
+          </span>
+          <span className="text-[13px] text-[#8B92A9] mb-1">/mo</span>
         </div>
-        {!plan.custom && billing === "yearly" && (
-          <p className="text-[11px] text-[#8B92A9] mb-4">Billed ₹{((price || 0) * 12).toLocaleString()}/yr</p>
-        )}
-        {plan.custom && (
-          <p className="text-[11px] text-[#8B92A9] mb-4">Tailored pricing for your needs</p>
+        {billing === "yearly" && (
+          <p className="text-[11px] text-[#8B92A9] mb-4">Billed ₹{(price * 12).toLocaleString()}/yr</p>
         )}
 
         <div className="flex items-center gap-2 mb-5 flex-wrap">
@@ -201,21 +189,7 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
               color: isSel ? "#fff" : plan.color,
             }}
           >
-            {plan.custom
-              ? "Current plan"
-              : isSel ? `Proceed to Pay ₹${(price || 0).toLocaleString()}` : `Renew ${plan.name}`}
-          </button>
-        ) : plan.custom ? (
-          // Custom "Contact us" plan — no online payment.
-          <button
-            onClick={() => onUpgrade(plan)}
-            className="w-full py-2.5 rounded-xl text-[13px] font-semibold transition-all"
-            style={{
-              background: hovered ? plan.color + "25" : plan.color + "15",
-              color: plan.color,
-            }}
-          >
-            Contact us
+            {isSel ? `Proceed to Pay ₹${price.toLocaleString()}` : `Renew ${plan.name}`}
           </button>
         ) : (
           <button
@@ -226,7 +200,7 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
               color: isSel ? "#fff" : plan.color,
             }}
           >
-            {plan.isDowngrade ? `Downgrade to ${plan.name}` : isSel ? `Proceed to Pay ₹${(price || 0).toLocaleString()}` : `Upgrade to ${plan.name}`}
+            {plan.isDowngrade ? `Downgrade to ${plan.name}` : isSel ? `Proceed to Pay ₹${price.toLocaleString()}` : `Upgrade to ${plan.name}`}
           </button>
         )}
       </div>
@@ -369,6 +343,28 @@ function mergeConfigIntoDefaults(defaults, config) {
   return merged;
 }
 
+// ── My Features helpers ───────────────────────────────────────────────────────
+const ADDON_LABELS = {
+  extra_admin: "Extra Admin", extra_users_5: "5 Extra Users", extra_leads_5000: "5,000 Extra Leads",
+  extra_website: "Extra Website", extra_meta_campaign: "Extra Meta Campaign", extra_google_account: "Extra Google Account",
+  storage_1gb: "1 GB Storage", storage_5gb: "5 GB Storage", storage_10gb: "10 GB Storage",
+  call_recording: "Call Recording", call_transcription: "Call Transcription", ai_summary: "AI Summary",
+  voice_bot: "Voice Bot", whatsapp_automation: "WhatsApp Automation", api_access: "API Access",
+  webhook_access: "Webhook Access", white_label: "White Label", custom_domain: "Custom Domain",
+  custom_branding: "Custom Branding", transcriptions_100: "100 Transcriptions", transcriptions_500: "500 Transcriptions",
+  summaries_100: "100 AI Summaries", summaries_500: "500 AI Summaries",
+};
+const addonLabel = (t) => ADDON_LABELS[t] || (t || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+const fmtDateLong = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const STATUS_STYLE = {
+  active:    { bg: "#ECFDF5", fg: "#059669", label: "Active" },
+  trial:     { bg: "#EFF6FF", fg: "#2563EB", label: "Trial" },
+  expired:   { bg: "#FEF2F2", fg: "#DC2626", label: "Expired" },
+  cancelled: { bg: "#FEF2F2", fg: "#DC2626", label: "Cancelled" },
+  suspended: { bg: "#FFF7ED", fg: "#D97706", label: "Suspended" },
+  paused:    { bg: "#FFF7ED", fg: "#D97706", label: "Paused" },
+};
+
 // ── Default plan shapes (shown while API loads) ───────────────────────────────
 const PLAN_DEFAULTS = {
   basic: {
@@ -403,25 +399,9 @@ const PLAN_DEFAULTS = {
       { key: "call-recording", label: "Call Recordings",  enabled: true  },
     ],
   },
-  advance: {
-    id: "advance", name: "Advance", desc: "Unlimited scale for large organisations",
-    monthlyPrice: 9999, yearlyPrice: 7999, color: "#7C3AED", popular: false, maxUsers: 999,
-    features: [
-      { key: "leads",          label: "Lead Management",  enabled: true },
-      { key: "contacts",       label: "Contacts",         enabled: true },
-      { key: "basic-reports",  label: "Basic Reports",    enabled: true },
-      { key: "attendance",     label: "Attendance",       enabled: true },
-      { key: "sms-blast",      label: "SMS Blast",        enabled: true },
-      { key: "email-blast",    label: "Email Blast",      enabled: true },
-      { key: "campaigns",      label: "Campaigns",        enabled: true },
-      { key: "google-ads",     label: "Google Ads",       enabled: true },
-      { key: "meta-ads",       label: "Meta Ads",         enabled: true },
-      { key: "call-recording", label: "Call Recordings",  enabled: true },
-    ],
-  },
   enterprise: {
-    id: "enterprise", name: "Enterprise", desc: "Tailored for your organisation",
-    custom: true, monthlyPrice: 0, yearlyPrice: 0, color: "#0F766E", popular: false, maxUsers: 999,
+    id: "enterprise", name: "Enterprise", desc: "Unlimited scale for large organisations",
+    monthlyPrice: 9999, yearlyPrice: 7999, color: "#7C3AED", popular: false, maxUsers: 999,
     features: [
       { key: "leads",          label: "Lead Management",  enabled: true },
       { key: "contacts",       label: "Contacts",         enabled: true },
@@ -446,6 +426,9 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
   const [currentPlanId,setCurrentPlanId]= useState(null);
   const [planDefs,     setPlanDefs]     = useState(PLAN_DEFAULTS);
   const [myFeatures,   setMyFeatures]   = useState(null); // resolved features for MY company
+  const [planSummary,  setPlanSummary]  = useState(null); // { key,status,expiresAt,daysRemaining,expiringSoon }
+  const [myAddons,     setMyAddons]     = useState([]);    // active add-ons with expiry
+  const [usage,        setUsage]        = useState(null);  // remaining usage + limits
   const [invoices,     setInvoices]     = useState([]);
   const [subscription, setSubscription] = useState(null);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
@@ -453,7 +436,6 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
   const [viewingInvoice, setViewingInvoice] = useState(null);
   const [showUpdatePayment, setShowUpdatePayment] = useState(false);
   const [downgradePlan, setDowngradePlan] = useState(null);
-  const [contactInfo,  setContactInfo]  = useState(null);
   const [showDowngrade, setShowDowngrade] = useState(false);
   const { openCheckout } = useRazorpay();
 
@@ -529,6 +511,20 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
       .catch(() => {});
   }, []);
 
+  // Fetch full entitlements for the My Features tab: plan summary, active
+  // add-ons (with expiry), and usage/limits.
+  useEffect(() => {
+    const role = localStorage.getItem("role");
+    if (role === "user") return;
+    api.get("/subscription/my/entitlements")
+      .then(({ data }) => {
+        if (data?.plan)   setPlanSummary(data.plan);
+        if (Array.isArray(data?.addons)) setMyAddons(data.addons);
+        if (data?.remaining) setUsage(data.remaining);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => { fetchSubscription(); }, []);
   useEffect(() => { if (tab === "invoices" && invoices.length === 0) fetchInvoices(); }, [tab]);
 
@@ -545,7 +541,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
         setSubscription(data);
         // Only use planName from razorpay if status didn't give us a plan
         if (!statusData?.plan) {
-          const nameToId = { Basic: "basic", Pro: "pro", Advance: "advance", Enterprise: "enterprise" };
+          const nameToId = { Basic: "basic", Pro: "pro", Enterprise: "enterprise" };
           setCurrentPlanId(nameToId[data.planName] || "basic");
         }
       } catch {
@@ -556,7 +552,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
       try {
         const { data } = await api.get("/razorpay/subscription");
         setSubscription(data);
-        const nameToId = { Basic: "basic", Pro: "pro", Advance: "advance", Enterprise: "enterprise" };
+        const nameToId = { Basic: "basic", Pro: "pro", Enterprise: "enterprise" };
         setCurrentPlanId(nameToId[data.planName] || "basic");
       } catch {
         setCurrentPlanId("basic");
@@ -594,11 +590,6 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
   })();
 
   function handleUpgrade(plan) {
-    // Custom "Contact us" plan — no online payment; surface a contact prompt.
-    if (plan.custom) {
-      setContactInfo({ name: plan.name });
-      return;
-    }
     // Allow renewing the current plan (plan.current) — same flow as upgrade
     if (plan.isDowngrade) { setDowngradePlan(plan); setShowDowngrade(true); return; }
     if (selected !== plan.id) { setSelected(plan.id); return; }
@@ -707,38 +698,6 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
         <UpdatePaymentModal currentMethod={subscription?.paymentMethod} onSave={m => { setSubscription(p => ({...p, paymentMethod: m})); setShowUpdatePayment(false); }} onClose={() => setShowUpdatePayment(false)} />
       )}
 
-      {contactInfo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4" onClick={() => setContactInfo(null)}>
-          <div className="bg-white dark:bg-[#11131C] rounded-2xl max-w-md w-full p-6 border border-[#E4E7EF] dark:border-[#1E2133]" onClick={e => e.stopPropagation()}>
-            <h3 className="text-[16px] font-bold text-[#0F1117] dark:text-[#DDE1F5] mb-2">Let's build your {contactInfo.name} plan</h3>
-            <p className="text-[13px] text-[#4B5168] dark:text-[#7B829E] mb-5">
-              {contactInfo.name} is a custom plan tailored to your team's size and needs. Reach out and our team will set you up with pricing and limits that fit.
-            </p>
-            <div className="space-y-2 mb-5 text-[13px]">
-              <div className="flex items-center gap-2 text-[#4B5168] dark:text-[#7B829E]">
-                <span className="font-semibold text-[#0F1117] dark:text-[#DDE1F5]">Email:</span>
-                <a href="mailto:sales@skyupcrm.com" className="text-[#2563EB] hover:underline">sales@skyupcrm.com</a>
-              </div>
-              <div className="flex items-center gap-2 text-[#4B5168] dark:text-[#7B829E]">
-                <span className="font-semibold text-[#0F1117] dark:text-[#DDE1F5]">Phone:</span>
-                <a href="tel:+910000000000" className="text-[#2563EB] hover:underline">+91 00000 00000</a>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <a
-                href={`mailto:sales@skyupcrm.com?subject=${encodeURIComponent(`${contactInfo.name} plan enquiry`)}`}
-                className="flex-1 text-center py-2.5 rounded-xl bg-[#0F766E] hover:bg-[#0d655e] text-white text-[13px] font-semibold transition"
-              >
-                Email sales
-              </a>
-              <button onClick={() => setContactInfo(null)} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] text-[13px] font-semibold text-[#4B5168] dark:text-[#7B829E]">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {error && (
         <div className="mb-4 flex items-center justify-between px-4 py-3 rounded-xl bg-[#FEF2F2] border border-[#FCA5A5] text-[#DC2626] text-[12px] font-semibold">
           {error}<button onClick={() => setError(null)} className="ml-4 text-[16px]">×</button>
@@ -759,7 +718,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl p-1 mb-8 w-fit">
-        {[{ k:"plans", l:"Upgrade Plan" }, { k:"addons", l:"Add-ons" }, { k:"features", l:"My Features" }, { k:"invoices", l:"Invoices" }].map(t => (
+        {[{ k:"plans", l:"Upgrade Plan" }, { k:"features", l:"My Features" }, { k:"invoices", l:"Invoices" }].map(t => (
           <button key={t.k} onClick={() => setTab(t.k)}
             className={`px-4 py-2 rounded-lg text-[12px] font-semibold transition ${tab===t.k ? "bg-[#2563EB] text-white" : "text-[#4B5168] dark:text-[#7B829E] hover:bg-[#F1F4FF] dark:hover:bg-[#181B27]"}`}>
             {t.l}
@@ -780,7 +739,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
               Yearly <span className="ml-2 px-1.5 py-0.5 rounded-full bg-[#ECFDF5] text-[#059669] text-[10px] font-bold">Save {savingsPct}%</span>
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
             {plans.map(plan => (
               <PlanCard key={plan.id} plan={plan} billing={billing} selected={selected} onUpgrade={handleUpgrade} />
             ))}
@@ -826,41 +785,138 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
         </div>
       )}
 
-      {/* ── Add-ons tab ── */}
-      {tab === "addons" && (
-        <div>
-          <div className="mb-5">
-            <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Add-ons</h2>
-            <p className="text-[12px] text-[#8B92A9] mt-1">
-              Boost your plan with extra capacity or features. Pay once and they switch on instantly.
-            </p>
-          </div>
-          <AddonStore />
-        </div>
-      )}
-
       {/* ── My Features tab ── */}
       {tab === "features" && (
-        <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#1E2133]">
-            <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Features on your plan</h2>
-            <p className="text-[12px] text-[#8B92A9] mt-1">These are the features enabled for your company by your service provider.</p>
-          </div>
-          {!myFeatures ? (
-            <Spinner />
-          ) : (
-            <div className="divide-y divide-[#E4E7EF] dark:divide-[#1F2333]">
-              {myFeatures.filter(feat => !HIDDEN_FEATURE_KEYS.has(feat.key)).map(feat => (
-                <div key={feat.key} className="flex items-center justify-between px-6 py-3.5">
-                  <span className="text-[13px] font-medium text-[#4B5168] dark:text-[#7B829E]">{feat.label}</span>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${feat.enabled ? "bg-[#ECFDF5] text-[#059669]" : "bg-[#FEF2F2] text-[#DC2626]"}`}>
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: feat.enabled ? "#059669" : "#DC2626" }} />
-                    {feat.enabled ? "Enabled" : "Disabled"}
-                  </span>
+        <div className="space-y-5">
+
+          {/* Active plan header */}
+          <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p className="text-[12px] text-[#8B92A9] mb-1">Your current plan</p>
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-[22px] font-bold text-[#0F1117] dark:text-white capitalize">
+                    {planSummary?.key || currentPlanId || "—"}
+                  </h2>
+                  {planSummary?.status && (() => {
+                    const st = STATUS_STYLE[planSummary.status] || { bg: "#F1F5F9", fg: "#475569", label: planSummary.status };
+                    return (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                        style={{ background: st.bg, color: st.fg }}>
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: st.fg }} />
+                        {st.label}
+                      </span>
+                    );
+                  })()}
                 </div>
-              ))}
+              </div>
+              <div className="sm:text-right">
+                <p className="text-[12px] text-[#8B92A9] mb-1">
+                  {planSummary?.status === "trial" ? "Trial ends" : "Renews / expires"}
+                </p>
+                <p className="text-[15px] font-semibold text-[#0F1117] dark:text-[#DDE1F5]">
+                  {fmtDateLong(planSummary?.expiresAt)}
+                </p>
+                {planSummary?.daysRemaining != null && planSummary.daysRemaining >= 0 && (
+                  <p className={`text-[11px] mt-0.5 ${planSummary.expiringSoon ? "text-[#D97706] font-semibold" : "text-[#8B92A9]"}`}>
+                    {planSummary.daysRemaining} day{planSummary.daysRemaining === 1 ? "" : "s"} remaining
+                    {planSummary.expiringSoon ? " · renew soon" : ""}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Active add-ons */}
+          <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#1E2133]">
+              <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Active add-ons</h2>
+              <p className="text-[12px] text-[#8B92A9] mt-1">Extras currently enabled on top of your plan.</p>
+            </div>
+            {myAddons.length === 0 ? (
+              <div className="px-6 py-8 text-center">
+                <p className="text-[13px] text-[#8B92A9]">No active add-ons. Visit the <button onClick={() => setTab("addons")} className="text-blue-600 font-semibold hover:underline">Add-ons</button> tab to add more capacity or features.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-[#E4E7EF] dark:divide-[#1F2333]">
+                {myAddons.map((a, i) => (
+                  <div key={a.addonType + i} className="flex items-center justify-between px-6 py-3.5">
+                    <div>
+                      <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#DDE1F5]">
+                        {addonLabel(a.addonType)}{a.quantity > 1 ? ` × ${a.quantity}` : ""}
+                      </span>
+                      <p className="text-[11px] text-[#8B92A9] mt-0.5">
+                        Since {fmtDateLong(a.startDate)}{a.expiryDate ? ` · expires ${fmtDateLong(a.expiryDate)}` : " · no expiry"}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#ECFDF5] text-[#059669]">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#059669" }} />
+                      Active
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Usage & limits */}
+          {usage?.limits && (
+            <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#1E2133]">
+                <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Usage this month</h2>
+                <p className="text-[12px] text-[#8B92A9] mt-1">AI quota consumed against your plan limits.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-[#E4E7EF] dark:bg-[#1F2333]">
+                {[
+                  { k: "transcriptions", label: "Transcriptions" },
+                  { k: "summaries",      label: "AI Summaries" },
+                  { k: "voiceBot",       label: "Voice Bot" },
+                ].map(({ k, label }) => {
+                  const lim = usage.limits[k];
+                  const used = usage.used?.[k] ?? 0;
+                  const unlimited = lim == null || lim < 0 || lim >= 9999;
+                  const pct = unlimited || !lim ? 0 : Math.min(100, Math.round((used / lim) * 100));
+                  return (
+                    <div key={k} className="bg-white dark:bg-[#11131C] px-6 py-4">
+                      <p className="text-[12px] text-[#8B92A9] mb-1">{label}</p>
+                      <p className="text-[18px] font-bold text-[#0F1117] dark:text-white">
+                        {used}<span className="text-[13px] font-medium text-[#8B92A9]"> / {unlimited ? "Unlimited" : lim}</span>
+                      </p>
+                      {!unlimited && (
+                        <div className="mt-2 h-1.5 rounded-full bg-[#EEF1F6] dark:bg-[#1F2333] overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 90 ? "#DC2626" : pct >= 70 ? "#D97706" : "#059669" }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
+
+          {/* Feature list */}
+          <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#1E2133]">
+              <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Features on your plan</h2>
+              <p className="text-[12px] text-[#8B92A9] mt-1">These are the features enabled for your company by your service provider.</p>
+            </div>
+            {!myFeatures ? (
+              <Spinner />
+            ) : (
+              <div className="divide-y divide-[#E4E7EF] dark:divide-[#1F2333]">
+                {myFeatures.filter(feat => !HIDDEN_FEATURE_KEYS.has(feat.key)).map(feat => (
+                  <div key={feat.key} className="flex items-center justify-between px-6 py-3.5">
+                    <span className="text-[13px] font-medium text-[#4B5168] dark:text-[#7B829E]">{feat.label}</span>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${feat.enabled ? "bg-[#ECFDF5] text-[#059669]" : "bg-[#FEF2F2] text-[#DC2626]"}`}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: feat.enabled ? "#059669" : "#DC2626" }} />
+                      {feat.enabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
       )}
 
