@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Check as CheckIcon, X as XIcon, Lock as LockIcon, Loader2, FileText, Eye } from "lucide-react";
 import api from "../data/axiosConfig";
+import AddonStore from "./AddonStore";
 import InvoiceReceipt from "./InvoiceReceipt";
 import UpdatePaymentModal from "./UpdatePaymentModal";
 import DowngradeWarningModal from "./DowngradeWarningModal";
@@ -679,7 +680,7 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl p-1 mb-8 w-fit">
-        {[{ k:"plans", l:"Upgrade Plan" }, { k:"features", l:"My Features" }, { k:"invoices", l:"Invoices" }].map(t => (
+        {[{ k:"plans", l:"Upgrade Plan" }, { k:"addons", l:"Add-ons" }, { k:"features", l:"My Features" }, { k:"invoices", l:"Invoices" }].map(t => (
           <button key={t.k} onClick={() => setTab(t.k)}
             className={`px-4 py-2 rounded-lg text-[12px] font-semibold transition ${tab===t.k ? "bg-[#2563EB] text-white" : "text-[#4B5168] dark:text-[#7B829E] hover:bg-[#F1F4FF] dark:hover:bg-[#181B27]"}`}>
             {t.l}
@@ -743,6 +744,19 @@ export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentU
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Add-ons tab ── */}
+      {tab === "addons" && (
+        <div>
+          <div className="mb-5">
+            <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Add-ons</h2>
+            <p className="text-[12px] text-[#8B92A9] mt-1">
+              Boost your plan with extra capacity or features. Pay once and they switch on instantly.
+            </p>
+          </div>
+          <AddonStore />
         </div>
       )}
 
