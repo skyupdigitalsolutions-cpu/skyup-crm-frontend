@@ -53,7 +53,7 @@ const FEATURE_GROUPS = [
 const ALL_FEATURE_KEYS = FEATURE_GROUPS.flatMap(g => g.items.map(i => i.key));
 
 // trial is now editable (GAP 6)
-const PLAN_IDS = ["trial", "basic", "pro", "enterprise"];
+const PLAN_IDS = ["trial", "basic", "pro", "advance", "enterprise"];
 
 // Defaults mirror DEFAULT_PLAN_LIMITS in the backend entitlementService.
 const DEFAULT_PLANS = {
@@ -87,8 +87,17 @@ const DEFAULT_PLANS = {
       "projects", "tasks", "website-tracking",
     ],
   },
+  advance: {
+    name: "Advance", monthlyPrice: 9999, yearlyPrice: 7999,
+    maxUsers: 999, maxAdmins: 10, maxLeads: 999999,
+    maxWebsites: 999, maxMetaCampaigns: 999, maxGoogleAccounts: 999, maxStorageMB: 51200,
+    transcriptionsPerMonth: 2000, summariesPerMonth: 2000, voiceBotPerMonth: 1000,
+    recordingEnabled: true, dataRetentionDays: 365,
+    features: ALL_FEATURE_KEYS.slice(),
+  },
+  // Custom "Contact us" tier — price hidden, not purchasable.
   enterprise: {
-    name: "Enterprise", monthlyPrice: 9999, yearlyPrice: 7999,
+    name: "Enterprise", custom: true, monthlyPrice: 0, yearlyPrice: 0,
     maxUsers: 999, maxAdmins: 10, maxLeads: 999999,
     maxWebsites: 999, maxMetaCampaigns: 999, maxGoogleAccounts: 999, maxStorageMB: 51200,
     transcriptionsPerMonth: 2000, summariesPerMonth: 2000, voiceBotPerMonth: 1000,
@@ -172,7 +181,8 @@ function PlanCard({ planId, plan, onChange }) {
     trial:      { border: "border-amber-300 dark:border-amber-600",   badge: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400" },
     basic:      { border: "border-slate-300 dark:border-slate-600",   badge: "bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-400" },
     pro:        { border: "border-blue-300 dark:border-blue-600",     badge: "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400" },
-    enterprise: { border: "border-violet-300 dark:border-violet-600", badge: "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400" },
+    advance:    { border: "border-violet-300 dark:border-violet-600", badge: "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400" },
+    enterprise: { border: "border-teal-300 dark:border-teal-600",     badge: "bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400" },
   };
   const acc = ACCENT[planId] || ACCENT.basic;
   const [open, setOpen] = useState(planId !== "trial");
@@ -193,7 +203,9 @@ function PlanCard({ planId, plan, onChange }) {
           <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${acc.badge}`}>{planId}</span>
           <span className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{plan.name}</span>
           <span className="text-[12px] text-[#6B7280] dark:text-[#565C75]">
-            ₹{(plan.monthlyPrice || 0).toLocaleString()}/mo · {plan.maxUsers} users · {enabledCount} features
+            {plan.custom
+              ? <>Custom · Contact us · {enabledCount} features</>
+              : <>₹{(plan.monthlyPrice || 0).toLocaleString()}/mo · {plan.maxUsers} users · {enabledCount} features</>}
           </span>
         </div>
         <ChevronDown className={`w-4 h-4 text-[#6B7280] transition-transform ${open ? "rotate-180" : ""}`} />
@@ -205,8 +217,18 @@ function PlanCard({ planId, plan, onChange }) {
           {/* Name + Prices */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <TextField label="Plan Name" value={plan.name} onChange={v => onChange(planId, "name", v)} placeholder="e.g. Basic" />
-            <NumberField label="Monthly Price (₹)" value={plan.monthlyPrice} onChange={v => onChange(planId, "monthlyPrice", v)} />
-            <NumberField label="Yearly Price (₹/mo)" value={plan.yearlyPrice} onChange={v => onChange(planId, "yearlyPrice", v)} />
+            {plan.custom ? (
+              <div className="sm:col-span-2 flex items-end">
+                <div className="px-3 py-2 rounded-xl border border-teal-200 dark:border-teal-500/30 bg-teal-50 dark:bg-teal-500/10 text-[12px] font-semibold text-teal-700 dark:text-teal-400">
+                  Custom plan — shown as “Contact us”. No price, not purchasable online.
+                </div>
+              </div>
+            ) : (
+              <>
+                <NumberField label="Monthly Price (₹)" value={plan.monthlyPrice} onChange={v => onChange(planId, "monthlyPrice", v)} />
+                <NumberField label="Yearly Price (₹/mo)" value={plan.yearlyPrice} onChange={v => onChange(planId, "yearlyPrice", v)} />
+              </>
+            )}
           </div>
 
           {/* Core limits */}
