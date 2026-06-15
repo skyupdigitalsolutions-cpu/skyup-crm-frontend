@@ -15,6 +15,7 @@ import {
   ChevronDown, AlertTriangle, Save,
 } from "lucide-react";
 import api from "../../data/axiosConfig";
+import AddonPricingPanel from "./AddonPricingPanel";
 
 // ── Feature catalogue, grouped (keys match entitlementService PLAN_FEATURE_KEY_MAP) ──
 // No feature depends on another — they are simple independent flags.
@@ -378,6 +379,9 @@ export default function PlanCustomization() {
           <PlanCard key={id} planId={id} plan={plans[id]} onChange={handleChange} />
         ))}
       </div>
+
+      {/* Add-on pricing — sets prices shown on the customer Upgrade page */}
+      <AddonPricingPanel />
     </div>
   );
 }
