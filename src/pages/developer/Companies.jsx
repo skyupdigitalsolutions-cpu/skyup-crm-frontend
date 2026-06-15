@@ -13,7 +13,8 @@ import InvoiceReceipt from "../../components/InvoiceReceipt";
 const PLAN = {
   basic:      { label: "Basic",      cls: "bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-400" },
   pro:        { label: "Pro",        cls: "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400" },
-  enterprise: { label: "Enterprise", cls: "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400" },
+  advance:    { label: "Advance",    cls: "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400" },
+  enterprise: { label: "Enterprise", cls: "bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400" },
 };
 
 export default function Companies() {
@@ -654,8 +655,8 @@ function CompanyModal({
               {/* Plan */}
               <div>
                 <Label text="Plan" />
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {Object.entries({ basic: "Basic", pro: "Pro", enterprise: "Enterprise" }).map(([key, label]) => (
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {Object.entries({ basic: "Basic", pro: "Pro", advance: "Advance", enterprise: "Enterprise" }).map(([key, label]) => (
                     <button
                       key={key}
                       onClick={() => setForm(p => ({ ...p, plan: key }))}
