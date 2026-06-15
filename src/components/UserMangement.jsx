@@ -8,9 +8,10 @@ import useEntitlements from "../hooks/useEntitlements";
 const PLANS = {
   starter:    { label: "Starter",    maxAdmins: 1,  maxUsers: 10,  price: "₹999/mo",   badgeColor: "bg-cyan-600",   borderColor: "border-cyan-500",   bgColor: "bg-cyan-50   dark:bg-cyan-900/30",   textColor: "text-cyan-800   dark:text-cyan-200",   statColor: "text-cyan-600   dark:text-cyan-400",   dividerColor: "bg-cyan-300   dark:bg-cyan-700"   },
   growth:     { label: "Growth",     maxAdmins: 3,  maxUsers: 30,  price: "₹2,999/mo", badgeColor: "bg-violet-600", borderColor: "border-violet-500", bgColor: "bg-violet-50 dark:bg-violet-950/40", textColor: "text-violet-800 dark:text-violet-200", statColor: "text-violet-600 dark:text-violet-400", dividerColor: "bg-violet-300 dark:bg-violet-700" },
-  enterprise: { label: "Enterprise", maxAdmins: 5,  maxUsers: 50,  price: "₹9,999/mo", badgeColor: "bg-amber-500",  borderColor: "border-amber-500",  bgColor: "bg-amber-50  dark:bg-amber-900/30",  textColor: "text-amber-800  dark:text-amber-200",  statColor: "text-amber-600  dark:text-amber-400",  dividerColor: "bg-amber-300  dark:bg-amber-700"  },
+  enterprise: { label: "Enterprise", maxAdmins: 10, maxUsers: 999, price: "Custom",    badgeColor: "bg-teal-600",   borderColor: "border-teal-500",   bgColor: "bg-teal-50   dark:bg-teal-900/30",   textColor: "text-teal-800   dark:text-teal-200",   statColor: "text-teal-600   dark:text-teal-400",   dividerColor: "bg-teal-300   dark:bg-teal-700"   },
   basic:      { label: "Starter",    maxAdmins: 1,  maxUsers: 10,  price: "₹999/mo",   badgeColor: "bg-slate-500",  borderColor: "border-slate-500",  bgColor: "bg-slate-50  dark:bg-slate-900/30",  textColor: "text-slate-700 dark:text-slate-300",  statColor: "text-slate-600 dark:text-slate-400",  dividerColor: "bg-slate-300 dark:bg-slate-700"  },
   pro:        { label: "Growth",     maxAdmins: 3,  maxUsers: 30,  price: "₹2,999/mo", badgeColor: "bg-blue-600",   borderColor: "border-blue-500",   bgColor: "bg-blue-50   dark:bg-blue-950/40",   textColor: "text-blue-800  dark:text-blue-200",   statColor: "text-blue-600  dark:text-blue-400",   dividerColor: "bg-blue-300  dark:bg-blue-700"   },
+  advance:    { label: "Advance",    maxAdmins: 5,  maxUsers: 50,  price: "₹9,999/mo", badgeColor: "bg-violet-600", borderColor: "border-violet-500", bgColor: "bg-violet-50 dark:bg-violet-950/40", textColor: "text-violet-800 dark:text-violet-200", statColor: "text-violet-600 dark:text-violet-400", dividerColor: "bg-violet-300 dark:bg-violet-700" },
 };
 
 export function normalizePlanId(planNameOrId) {
@@ -18,6 +19,7 @@ export function normalizePlanId(planNameOrId) {
   const map = {
     Starter: "starter", starter: "starter", basic: "starter",
     Growth:  "growth",  growth:  "growth",  pro:   "growth",
+    Advance: "advance", advance: "advance",
     Enterprise: "enterprise", enterprise: "enterprise",
   };
   return map[planNameOrId] || "starter";
