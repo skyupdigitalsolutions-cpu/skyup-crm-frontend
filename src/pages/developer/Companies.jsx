@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Building2, Plus, UploadCloud, X, ChevronRight,
   CheckCircle2, XCircle, ShieldCheck, Image, Loader2, Pencil, Layout, Settings,
-  Receipt, CreditCard, Calendar, BadgeCheck, Clock, AlertCircle, Eye, Download,
+  Receipt, CreditCard, Calendar, BadgeCheck, Clock, AlertCircle, Eye, Download, Trash2,
 } from "lucide-react";
 import api from "../../data/axiosConfig";
 import InvoiceReceipt from "../../components/InvoiceReceipt";
@@ -160,6 +160,26 @@ export default function Companies() {
     }
   };
 
+  // Cascade-delete a company (removes the company AND all its related data:
+  // admins, users, leads, configs, etc.). Use this instead of deleting in
+  // MongoDB — it prevents orphaned admin/user rows that cause duplicate-key
+  // errors when a company is later recreated with the same email.
+  const [deletingId, setDeletingId] = useState(null);
+  const deleteCompany = async (company) => {
+    const confirmText = `Delete "${company.name}" and ALL its data (admins, users, leads, campaigns, messages)?\n\nThis cannot be undone.`;
+    if (!window.confirm(confirmText)) return;
+    setDeletingId(company._id);
+    setError("");
+    try {
+      await api.delete(`/developer/companies/${company._id}`);
+      setCompanies(prev => prev.filter(c => c._id !== company._id));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete company.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const avatarLetter = (name = "") => (name.trim().charAt(0) || "?").toUpperCase();
 
   return (
@@ -309,6 +329,17 @@ export default function Companies() {
                           }`}
                         >
                           {c.isActive ? "Suspend" : "Activate"}
+                        </button>
+                        <button
+                          onClick={() => deleteCompany(c)}
+                          disabled={deletingId === c._id}
+                          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Delete company and all related data"
+                        >
+                          {deletingId === c._id
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <Trash2 className="w-3 h-3" />}
+                          Delete
                         </button>
                       </div>
                     </td>
