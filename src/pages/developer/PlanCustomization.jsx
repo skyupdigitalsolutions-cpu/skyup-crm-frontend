@@ -49,6 +49,9 @@ const FEATURE_GROUPS = [
     { key: "payroll",          label: "Payroll",          desc: "Payroll calculation & history" },
     { key: "website-tracking", label: "Website Tracking", desc: "Pixel / website lead capture" },
   ]},
+  { group: "Notifications", items: [
+    { key: "telegram-notification", label: "Telegram Notification", desc: "Lead & alert notifications via Telegram" },
+  ]},
 ];
 const ALL_FEATURE_KEYS = FEATURE_GROUPS.flatMap(g => g.items.map(i => i.key));
 
