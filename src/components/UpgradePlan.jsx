@@ -516,7 +516,7 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
 
       {/* Badges */}
       {plan.popular && !plan.current && (
-        <div className="absolute top-4  z-10">
+        <div className="absolute top-4 ps-2 z-10">
           <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#2563EB] text-white text-[10px] font-bold tracking-wide">
             <Star className="w-3 h-3 fill-current" strokeWidth={0} />
             MOST POPULAR
