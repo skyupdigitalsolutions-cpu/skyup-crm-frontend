@@ -860,7 +860,7 @@ const ENTERPRISE_FEATURES = [
 function EnterpriseCTASection() {
   return (
  <section className="mt-14">
-  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0037ca]/40 via-[#0037ca]/70 to-[#0037ca] p-8 md:p-12">
+  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0037ca]/60 via-[#0037ca]/80 to-[#0037ca]/100 p-8 md:p-12">
     {/* Dot grid texture */}
     <div
       className="absolute inset-0 opacity-10"
