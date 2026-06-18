@@ -612,7 +612,7 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
       <div className="px-6 pb-6 pt-2">
         {plan.custom ? (
           <a
-            href="mailto:sales@skyupcrm.com?subject=Enterprise%20Plan%20Enquiry"
+            href="mailto:contact@skyupdigitalsolutions.com?subject=Enterprise%20Plan%20Enquiry"
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-semibold transition-all duration-150"
             style={{ background: hovered ? plan.color : plan.color + "15", color: hovered ? "#fff" : plan.color }}
           >
@@ -894,8 +894,8 @@ function EnterpriseCTASection() {
         </div>
       </div>
       <div className="w-full lg:w-auto flex-shrink-0 flex flex-col items-start lg:items-center gap-3 lg:pt-10">
-        
-          href="mailto:sales@skyupcrm.com?subject=Enterprise%20Plan%20Enquiry"
+        <a
+          href="mailto:contact@skyupdigitalsolutions.com?subject=Enterprise%20Plan%20Enquiry"
           className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-[#0037ca] font-bold text-[14px] hover:bg-blue-50 transition-colors shadow-lg"
         >
           <Mail className="w-4 h-4" strokeWidth={2} />
