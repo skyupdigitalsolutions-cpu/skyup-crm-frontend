@@ -10,12 +10,14 @@ import DowngradeWarningModal from "./DowngradeWarningModal";
 import AddonStore from "./AddonStore";
 
 const PLAN_ORDER = ["basic", "pro", "advance", "enterprise"];
-// These limits must match UserManagement.jsx's PLAN_CONFIG exactly.
+// Quick admin/user caps used for downgrade pre-checks. Must match the backend
+// DEFAULT_PLAN_FEATURES / DEFAULT_PLAN_LIMITS.
 // Super admin is NEVER counted against the admin limit.
 const PLAN_LIMITS = {
-  basic:      { admins: 1, users: 10  },   // "starter" in backend
-  pro:        { admins: 3, users: 30  },   // "growth"  in backend
-  enterprise: { admins: 5, users: 50  },
+  basic:      { admins: 1, users: 5  },
+  pro:        { admins: 3, users: 20 },
+  advance:    { admins: 5, users: 50 },
+  enterprise: { admins: 999, users: 999 },
 };
 // Map frontend plan IDs → backend plan IDs (backend uses starter/growth/enterprise)
 const BACKEND_PLAN_ID = {
@@ -82,10 +84,10 @@ function featureLimitText(key, plan) {
       return fmt(plan.maxWebsites, plan.maxWebsites === 1 ? " website" : " websites");
     case "call-transcription":
     case "callTranscription":
-      return fmt(plan.transcriptionsPerMonth, "/mo");
+      return fmt(plan.transcriptionsPerMonth, " min/mo");
     case "ai-summary":
     case "aiSummary":
-      return fmt(plan.summariesPerMonth, "/mo");
+      return fmt(plan.summariesPerMonth, " min/mo");
     case "voice-bot":
     case "voiceBot":
       return fmt(plan.voiceBotPerMonth, "/mo");
@@ -137,20 +139,70 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
         <h3 className="text-[16px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">{plan.name}</h3>
         <p className="text-[12px] text-[#8B92A9] mt-1 mb-4">{plan.desc}</p>
 
-        <div className="flex items-end gap-1 mb-1">
-          <span className="text-[32px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">
-            ₹{price.toLocaleString()}
-          </span>
-          <span className="text-[13px] text-[#8B92A9] mb-1">/mo</span>
-        </div>
-        {billing === "yearly" && (
-          <p className="text-[11px] text-[#8B92A9] mb-4">Billed ₹{(price * 12).toLocaleString()}/yr</p>
+        {plan.custom ? (
+          <div className="flex items-end gap-1 mb-4">
+            <span className="text-[28px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">Custom</span>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-end gap-1 mb-1">
+              <span className="text-[32px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">
+                ₹{price.toLocaleString()}
+              </span>
+              <span className="text-[13px] text-[#8B92A9] mb-1">/mo</span>
+            </div>
+            {billing === "yearly" && (
+              <p className="text-[11px] text-[#8B92A9] mb-4">Billed ₹{(price * 12).toLocaleString()}/yr</p>
+            )}
+          </>
         )}
 
-        <div className="flex items-center gap-2 mb-5 flex-wrap">
-          <span className="text-[11px] px-2 py-1 rounded-lg font-semibold" style={{ background: plan.color + "15", color: plan.color }}>
-            {plan.maxUsers} users
-          </span>
+        {/* Resource limits */}
+        <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+          {(plan.custom
+            ? [["Admins", "Custom"], ["Users", "Custom"], ["Leads", "Custom"]]
+            : [
+                ["Admins", plan.maxAdmins],
+                ["Users",  plan.maxUsers],
+                ["Leads",  plan.maxLeads >= 1_000_000 ? "Unlimited" : Number(plan.maxLeads).toLocaleString()],
+              ]
+          ).map(([label, val]) => (
+            <span key={label} className="text-[11px] px-2 py-1 rounded-lg font-semibold" style={{ background: plan.color + "15", color: plan.color }}>
+              {val} {label}
+            </span>
+          ))}
+        </div>
+
+        {/* Channels: meta / website / google */}
+        <div className="flex items-center gap-1.5 mb-5 flex-wrap">
+          {(plan.custom
+            ? [["Meta", "Custom"], ["Websites", "Custom"], ["Google Ads", "Custom"]]
+            : [
+                ["Meta",       plan.maxMetaCampaigns  >= 1_000_000 ? "Unlimited" : plan.maxMetaCampaigns],
+                ["Websites",   plan.maxWebsites       >= 1_000_000 ? "Unlimited" : plan.maxWebsites],
+                ["Google Ads", plan.maxGoogleAccounts >= 1_000_000 ? "Unlimited" : plan.maxGoogleAccounts],
+              ]
+          ).map(([label, val]) => (
+            <span key={label} className="text-[11px] px-2 py-1 rounded-lg font-medium text-[#4B5168] dark:text-[#7B829E] bg-[#F3F5FB] dark:bg-[#1A1D27]">
+              {val} {label}
+            </span>
+          ))}
+        </div>
+
+        {/* Mobile app — included on every plan */}
+        <div className="mb-5 rounded-xl border p-3" style={{ borderColor: plan.color + "30", background: plan.color + "0C" }}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: plan.color }}>
+              📱 Mobile App Included
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {MOBILE_APP_FEATURES.map(m => (
+              <span key={m} className="text-[10px] px-1.5 py-0.5 rounded-md text-[#4B5168] dark:text-[#7B829E] bg-white/60 dark:bg-[#11131C]/60">
+                {m}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Enabled features */}
@@ -180,7 +232,15 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
           ))}
         </div>
 
-        {plan.current ? (
+        {plan.custom ? (
+          <a
+            href="mailto:sales@skyupcrm.com?subject=Enterprise%20Plan%20Enquiry"
+            className="w-full block text-center py-2.5 rounded-xl text-[13px] font-semibold transition-all"
+            style={{ background: hovered ? plan.color : plan.color + "15", color: hovered ? "#fff" : plan.color }}
+          >
+            Contact us
+          </a>
+        ) : plan.current ? (
           // Current plan — show Renew button so admin can extend before expiry
           <button
             onClick={() => onUpgrade(plan)}
@@ -270,6 +330,7 @@ const FEATURE_LABELS = {
   "tasks":               "Tasks",
   "payroll":             "Payroll",
   "website-tracking":    "Website Tracking",
+  "telegram-notification": "Telegram Notification",
 };
 
 function prettyFeatureLabel(key) {
@@ -375,72 +436,131 @@ const STATUS_STYLE = {
 };
 
 // ── Default plan shapes (shown while API loads) ───────────────────────────────
+// Kept in sync with the backend DEFAULT_PLAN_FEATURES (subscriptionController).
+// The MOBILE APP is included on every plan and is shown via a separate
+// always-on highlight block (MOBILE_APP_FEATURES) — not as a toggle here.
 const PLAN_DEFAULTS = {
   basic: {
-    id: "basic", name: "Basic", desc: "For small teams just getting started",
-    monthlyPrice: 999, yearlyPrice: 799, color: "#6B7280", popular: false, maxUsers: 5,
+    id: "basic", name: "Basic", desc: "Mobile app + core CRM for small teams",
+    monthlyPrice: 999, yearlyPrice: 9990, color: "#6B7280", popular: false,
+    maxAdmins: 1, maxUsers: 5, maxLeads: 1000, maxWebsites: 1,
+    maxMetaCampaigns: 1, maxGoogleAccounts: 1, maxStorageMB: 100,
+    transcriptionsPerMonth: 0, summariesPerMonth: 0, voiceBotPerMonth: 0,
+    dataRetentionDays: 15,
     features: [
-      { key: "leads",         label: "Lead Management",   enabled: true  },
-      { key: "contacts",      label: "Contacts",          enabled: true  },
-      { key: "basic-reports", label: "Basic Reports",     enabled: true  },
-      { key: "attendance",    label: "Attendance",        enabled: true  },
-      { key: "sms-blast",     label: "SMS Blast",         enabled: false },
-      { key: "email-blast",   label: "Email Blast",       enabled: false },
-      { key: "campaigns",     label: "Campaigns",         enabled: false },
-      { key: "google-ads",    label: "Google Ads",        enabled: false },
-      { key: "meta-ads",      label: "Meta Ads",          enabled: false },
-      { key: "call-recording",label: "Call Recordings",   enabled: false },
+      { key: "leads",          label: "Lead Management",   enabled: true  },
+      { key: "contacts",       label: "Contacts",          enabled: true  },
+      { key: "basic-reports",  label: "Reports",           enabled: true  },
+      { key: "attendance",     label: "Attendance",        enabled: true  },
+      { key: "daily-report",   label: "Daily Report",      enabled: true  },
+      { key: "campaigns",      label: "Campaigns",         enabled: true  },
+      { key: "google-ads",     label: "Google Ads",        enabled: true  },
+      { key: "meta-ads",       label: "Meta Ads",          enabled: true  },
+      { key: "website-tracking", label: "Website Tracking", enabled: true },
+      { key: "telegram-notification", label: "Telegram Notification", enabled: false },
+      { key: "sms-blast",      label: "SMS Blast",         enabled: false },
+      { key: "whatsapp-blast", label: "WhatsApp Blast",    enabled: false },
+      { key: "email-blast",    label: "Email Blast",       enabled: false },
+      { key: "call-recording", label: "Call Recordings",   enabled: false },
+      { key: "call-transcription", label: "Call Transcription", enabled: false },
+      { key: "ai-summary",     label: "AI Summary",        enabled: false },
     ],
   },
   pro: {
-    id: "pro", name: "Pro", desc: "For growing teams that need more power",
-    monthlyPrice: 2999, yearlyPrice: 2399, color: "#2563EB", popular: true, maxUsers: 20,
+    id: "pro", name: "Pro", desc: "Communication suite + AI transcription",
+    monthlyPrice: 2999, yearlyPrice: 29990, color: "#2563EB", popular: true,
+    maxAdmins: 3, maxUsers: 20, maxLeads: 2000, maxWebsites: 3,
+    maxMetaCampaigns: 3, maxGoogleAccounts: 3, maxStorageMB: 5120,
+    transcriptionsPerMonth: 6000, summariesPerMonth: 6000, voiceBotPerMonth: 100,
+    dataRetentionDays: 60,
     features: [
-      { key: "leads",          label: "Lead Management",  enabled: true  },
-      { key: "contacts",       label: "Contacts",         enabled: true  },
-      { key: "basic-reports",  label: "Basic Reports",    enabled: true  },
-      { key: "attendance",     label: "Attendance",       enabled: true  },
-      { key: "sms-blast",      label: "SMS Blast",        enabled: true  },
-      { key: "email-blast",    label: "Email Blast",      enabled: true  },
-      { key: "campaigns",      label: "Campaigns",        enabled: true  },
-      { key: "google-ads",     label: "Google Ads",       enabled: true  },
-      { key: "meta-ads",       label: "Meta Ads",         enabled: true  },
-      { key: "call-recording", label: "Call Recordings",  enabled: true  },
+      { key: "leads",          label: "Lead Management",   enabled: true  },
+      { key: "contacts",       label: "Contacts",          enabled: true  },
+      { key: "basic-reports",  label: "Reports",           enabled: true  },
+      { key: "attendance",     label: "Attendance",        enabled: true  },
+      { key: "daily-report",   label: "Daily Report",      enabled: true  },
+      { key: "campaigns",      label: "Campaigns",         enabled: true  },
+      { key: "google-ads",     label: "Google Ads",        enabled: true  },
+      { key: "meta-ads",       label: "Meta Ads",          enabled: true  },
+      { key: "website-tracking", label: "Website Tracking", enabled: true },
+      { key: "telegram-notification", label: "Telegram Notification", enabled: true },
+      { key: "sms-blast",      label: "SMS Blast",         enabled: true  },
+      { key: "whatsapp-blast", label: "WhatsApp Blast",    enabled: true  },
+      { key: "email-blast",    label: "Email Blast",       enabled: true  },
+      { key: "call-recording", label: "Call Recordings",   enabled: true  },
+      { key: "call-transcription", label: "Call Transcription", enabled: true },
+      { key: "ai-summary",     label: "AI Summary",        enabled: true  },
     ],
   },
   advance: {
-    id: "advance", name: "Advance", desc: "For established teams scaling up",
-    monthlyPrice: 9999, yearlyPrice: 7999, color: "#7C3AED", popular: false, maxUsers: 999,
+    id: "advance", name: "Advance", desc: "Full feature set with the highest limits",
+    monthlyPrice: 9999, yearlyPrice: 99990, color: "#7C3AED", popular: false,
+    maxAdmins: 5, maxUsers: 50, maxLeads: 5000, maxWebsites: 5,
+    maxMetaCampaigns: 5, maxGoogleAccounts: 5, maxStorageMB: 51200,
+    transcriptionsPerMonth: 15000, summariesPerMonth: 15000, voiceBotPerMonth: 1000,
+    dataRetentionDays: 365,
     features: [
-      { key: "leads",          label: "Lead Management",  enabled: true },
-      { key: "contacts",       label: "Contacts",         enabled: true },
-      { key: "basic-reports",  label: "Basic Reports",    enabled: true },
-      { key: "attendance",     label: "Attendance",       enabled: true },
-      { key: "sms-blast",      label: "SMS Blast",        enabled: true },
-      { key: "email-blast",    label: "Email Blast",      enabled: true },
-      { key: "campaigns",      label: "Campaigns",        enabled: true },
-      { key: "google-ads",     label: "Google Ads",       enabled: true },
-      { key: "meta-ads",       label: "Meta Ads",         enabled: true },
-      { key: "call-recording", label: "Call Recordings",  enabled: true },
+      { key: "leads",          label: "Lead Management",   enabled: true },
+      { key: "contacts",       label: "Contacts",          enabled: true },
+      { key: "basic-reports",  label: "Reports",           enabled: true },
+      { key: "attendance",     label: "Attendance",        enabled: true },
+      { key: "daily-report",   label: "Daily Report",      enabled: true },
+      { key: "campaigns",      label: "Campaigns",         enabled: true },
+      { key: "google-ads",     label: "Google Ads",        enabled: true },
+      { key: "meta-ads",       label: "Meta Ads",          enabled: true },
+      { key: "website-tracking", label: "Website Tracking", enabled: true },
+      { key: "telegram-notification", label: "Telegram Notification", enabled: true },
+      { key: "sms-blast",      label: "SMS Blast",         enabled: true },
+      { key: "whatsapp-blast", label: "WhatsApp Blast",    enabled: true },
+      { key: "email-blast",    label: "Email Blast",       enabled: true },
+      { key: "call-recording", label: "Call Recordings",   enabled: true },
+      { key: "call-transcription", label: "Call Transcription", enabled: true },
+      { key: "ai-summary",     label: "AI Summary",        enabled: true },
+      { key: "custom-reports", label: "Custom Reports",    enabled: true },
+      { key: "white-label",    label: "White Label",       enabled: true },
     ],
   },
   enterprise: {
-    id: "enterprise", name: "Enterprise", desc: "Unlimited scale for large organisations",
-    monthlyPrice: 9999, yearlyPrice: 7999, color: "#0E7490", popular: false, maxUsers: 999,
+    id: "enterprise", name: "Enterprise", desc: "Fully customised — contact us", custom: true,
+    monthlyPrice: 0, yearlyPrice: 0, color: "#0E7490", popular: false,
+    maxAdmins: 999, maxUsers: 999, maxLeads: 999999, maxWebsites: 999,
+    maxMetaCampaigns: 999, maxGoogleAccounts: 999, maxStorageMB: 512000,
+    transcriptionsPerMonth: 999999, summariesPerMonth: 999999, voiceBotPerMonth: 999999,
+    dataRetentionDays: 3650,
     features: [
-      { key: "leads",          label: "Lead Management",  enabled: true },
-      { key: "contacts",       label: "Contacts",         enabled: true },
-      { key: "basic-reports",  label: "Basic Reports",    enabled: true },
-      { key: "attendance",     label: "Attendance",       enabled: true },
-      { key: "sms-blast",      label: "SMS Blast",        enabled: true },
-      { key: "email-blast",    label: "Email Blast",      enabled: true },
-      { key: "campaigns",      label: "Campaigns",        enabled: true },
-      { key: "google-ads",     label: "Google Ads",       enabled: true },
-      { key: "meta-ads",       label: "Meta Ads",         enabled: true },
-      { key: "call-recording", label: "Call Recordings",  enabled: true },
+      { key: "leads",          label: "Lead Management",   enabled: true },
+      { key: "contacts",       label: "Contacts",          enabled: true },
+      { key: "basic-reports",  label: "Reports",           enabled: true },
+      { key: "attendance",     label: "Attendance",        enabled: true },
+      { key: "daily-report",   label: "Daily Report",      enabled: true },
+      { key: "campaigns",      label: "Campaigns",         enabled: true },
+      { key: "google-ads",     label: "Google Ads",        enabled: true },
+      { key: "meta-ads",       label: "Meta Ads",          enabled: true },
+      { key: "website-tracking", label: "Website Tracking", enabled: true },
+      { key: "telegram-notification", label: "Telegram Notification", enabled: true },
+      { key: "sms-blast",      label: "SMS Blast",         enabled: true },
+      { key: "whatsapp-blast", label: "WhatsApp Blast",    enabled: true },
+      { key: "email-blast",    label: "Email Blast",       enabled: true },
+      { key: "call-recording", label: "Call Recordings",   enabled: true },
+      { key: "call-transcription", label: "Call Transcription", enabled: true },
+      { key: "ai-summary",     label: "AI Summary",        enabled: true },
+      { key: "custom-reports", label: "Custom Reports",    enabled: true },
+      { key: "white-label",    label: "White Label",       enabled: true },
     ],
   },
 };
+
+// Mobile app capabilities included on EVERY plan — rendered as a highlighted,
+// always-on block on each card (not a toggleable feature).
+const MOBILE_APP_FEATURES = [
+  "Notifications",
+  "Dashboard",
+  "Reports",
+  "Lead Management",
+  "Daily Report",
+  "Attendance",
+  "Live Employee Status",
+];
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function UpgradePlan({ onPlanChange, currentAdmins = [], currentUsers = [], onDowngrade = null }) {
