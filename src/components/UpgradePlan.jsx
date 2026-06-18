@@ -859,7 +859,7 @@ const ENTERPRISE_FEATURES = [
 
 function EnterpriseCTASection() {
   return (
- <section className="mt-14">
+<section className="mt-14">
   <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0037ca]/60 via-[#0037ca]/80 to-[#0037ca]/100 p-8 md:p-12">
     {/* Dot grid texture */}
     <div
@@ -894,15 +894,27 @@ function EnterpriseCTASection() {
         </div>
       </div>
       <div className="w-full lg:w-auto flex-shrink-0 flex flex-col items-start lg:items-center gap-3 lg:pt-10">
-        <a
+      <a  
           href="mailto:contact@skyupdigitalsolutions.com?subject=Enterprise%20Plan%20Enquiry"
           className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-[#0037ca] font-bold text-[14px] hover:bg-blue-50 transition-colors shadow-lg"
         >
           <Mail className="w-4 h-4" strokeWidth={2} />
-          Contact US
+          Contact Us
         </a>
-        <p className="text-blue-200 text-[11px]">contact@skyupdigitalsolutions.com</p>
-        <p className="text-blue-200 text-[11px]">8867867775</p>
+        <a
+          href="mailto:contact@skyupdigitalsolutions.com"
+          className="inline-flex items-center gap-1.5 text-blue-200 text-[11px] hover:text-white transition-colors"
+        >
+          <Mail className="w-3 h-3" strokeWidth={2} />
+          contact@skyupdigitalsolutions.com
+        </a>
+        <a
+          href="tel:8867867775"
+          className="inline-flex items-center gap-1.5 text-blue-200 text-[11px] hover:text-white transition-colors"
+        >
+          <Phone className="w-3 h-3" strokeWidth={2} />
+          8867867775
+        </a>
       </div>
     </div>
   </div>
