@@ -617,7 +617,8 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
             style={{ background: hovered ? plan.color : plan.color + "15", color: hovered ? "#fff" : plan.color }}
           >
             <Mail className="w-4 h-4" strokeWidth={2} />
-            Contact Sales
+            Contact US
+            
           </a>
         ) : (
           <button
