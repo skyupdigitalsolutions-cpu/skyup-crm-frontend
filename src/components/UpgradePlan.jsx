@@ -899,9 +899,10 @@ function EnterpriseCTASection() {
           className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-[#0037ca] font-bold text-[14px] hover:bg-blue-50 transition-colors shadow-lg"
         >
           <Mail className="w-4 h-4" strokeWidth={2} />
-          Contact Sales
+          Contact US
         </a>
-        <p className="text-blue-200 text-[11px]">sales@skyupcrm.com</p>
+        <p className="text-blue-200 text-[11px]">contact@skyupdigitalsolutions.com</p>
+        <p className="text-blue-200 text-[11px]">8867867775</p>
       </div>
     </div>
   </div>
