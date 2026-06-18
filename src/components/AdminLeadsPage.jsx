@@ -1779,6 +1779,7 @@ function mapLead(l) {
     isClosed:         l.isClosed        || false,
     mergedInto:       l.mergedInto      || null,
     closeReason:      l.closeReason     || "",
+    closedAt:         l.closedAt         || null,
     mergedSourceName: l.mergedSourceName || "",
     projects:         Array.isArray(l.projects) ? l.projects : [],
   };
