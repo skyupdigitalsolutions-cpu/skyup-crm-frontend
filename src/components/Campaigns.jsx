@@ -3,7 +3,7 @@ import {
   Loader2, X, Check, BarChart3, RefreshCw, Globe, Info, AlertCircle,
   Lock, ChevronRight, ChevronLeft, Mail, Eye as EyeIcon, EyeOff as EyeOffIcon, Plus, UploadCloud,
   Search, Users, User, Send, Pencil as PencilIcon,
-  Flame, Thermometer, Snowflake, ClipboardList, Inbox, Radio, CheckCircle2,
+  Flame, Thermometer, Snowflake, ClipboardList, Inbox, Radio, CheckCircle2, AlertTriangle,
 } from "lucide-react";
 import api from "../data/axiosConfig";
 import VoiceBotPanel from "./VoiceBotPanel";
@@ -608,6 +608,16 @@ function CreateModal({ onClose, onCreated }) {
                 <input type="text" value={form.formId || ""} onChange={set("formId")} placeholder="e.g. 1234567890123456" className={FIELD_CLS} />
                 <p className="text-[10px] text-[#8B92A9] mt-1">Each ad set has its own lead form. Find the Form ID in Meta Ads Manager → Lead forms.</p>
               </div>
+              {form.adSetName.trim() && !form.formId.trim() && (form.formIds || "").trim() === "" && (
+                <div className="bg-[#FEF3C7] dark:bg-[#3A2E0A] border border-[#FCD34D] dark:border-[#B45309] rounded-xl px-3 py-2.5 flex gap-2">
+                  <AlertTriangle className="w-4 h-4 text-[#B45309] dark:text-[#FBBF24] shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-[#92400E] dark:text-[#FCD34D] leading-snug">
+                    This ad set has no <span className="font-semibold">Form ID</span>. If multiple ad sets share the same Page,
+                    leads can't be told apart and may be counted under the wrong campaign. Add the exact Meta Form ID for
+                    this ad set so its leads are routed correctly.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2115,14 +2125,24 @@ export default function Campaigns() {
 
       const metaLeadCounts = await Promise.allSettled(
         metaList.map((cfg) => {
-          // Scope by adSetName when set, so each ad set gets its own lead count,
-          // not the total for the whole campaign name.
+          // Scope strictly by metaConfigId so each ad set (and each bare-campaign
+          // config) counts ONLY its own leads — never the whole campaign name.
+          // Multiple configs can share the same campaignName (a campaign with
+          // several ad sets, or "skyup_ads" + an ad set under it). Counting by
+          // campaign name alone piled every sibling's leads onto the first card.
+          // metaConfigId is unique per config and is stamped on every webhook
+          // lead (utils/metaHelper.mapToLeadSchema), so it is the correct key.
+          // adSetName is still sent so the backend can also fold in any legacy
+          // leads (metaConfigId:null) that predate the metaConfigId field.
           const adSetParam =
             cfg.adSetName
               ? `&adSetName=${encodeURIComponent(cfg.adSetName)}`
               : "";
+          const cfgParam = cfg._id
+            ? `&metaConfigId=${encodeURIComponent(cfg._id)}`
+            : "";
           return api
-            .get(`/lead/by-campaign?campaign=${encodeURIComponent(cfg.campaignName)}${adSetParam}`)
+            .get(`/lead/by-campaign?campaign=${encodeURIComponent(cfg.campaignName)}${adSetParam}${cfgParam}`)
             .then((r) => (Array.isArray(r.data) ? r.data : r.data?.data || []).length)
             .catch(() => 0);
         }),
