@@ -874,7 +874,7 @@ function EnterpriseCTASection() {
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-3">
               <Building2 className="w-5 h-5 text-cyan-200" strokeWidth={2} />
-              <span className="text-cyan-200 text-[12px] font-bold tracking-widest uppercase">
+              <span className="text-[#0037ca] text-[12px] font-bold tracking-widest uppercase">
                 Enterprise Solutions
               </span>
             </div>
