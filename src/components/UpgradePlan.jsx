@@ -201,9 +201,9 @@ const PLAN_DEFAULTS = {
       { key: "sms-blast",             label: "SMS Blast",              enabled: false },
       { key: "whatsapp-blast",        label: "WhatsApp Blast",         enabled: false },
       { key: "email-blast",           label: "Email Blast",            enabled: false },
-      { key: "campaigns",             label: "Campaign Management",    enabled: true },
-      { key: "website-tracking",      label: "Website Tracking",       enabled: true },
-      { key: "call-recording",        label: "Call Recording",         enabled: true },
+      { key: "campaigns",             label: "Campaign Management",    enabled: false },
+      { key: "website-tracking",      label: "Website Tracking",       enabled: false },
+      { key: "call-recording",        label: "Call Recording",         enabled: false },
       { key: "call-transcription",    label: "Call Transcription",     enabled: false },
       { key: "ai-summary",            label: "AI Call Summary",        enabled: false },
       { key: "telegram-notification", label: "Telegram Notifications", enabled: false },
@@ -456,7 +456,10 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
   const price   = billing === "yearly" ? plan.yearlyPrice : plan.monthlyPrice;
   const isSel   = selected === plan.id;
   const enabled = plan.features.filter((f) =>  f.enabled && !HIDDEN_FEATURE_KEYS.has(f.key));
-  const locked  = plan.features.filter((f) => !f.enabled && !HIDDEN_FEATURE_KEYS.has(f.key));
+  // Only show locked features for the basic plan — Pro/Advance/Enterprise never show lock icons
+  const locked  = plan.id === "basic"
+    ? plan.features.filter((f) => !f.enabled && !HIDDEN_FEATURE_KEYS.has(f.key))
+    : [];
 
   /* Limit chips */
   const limitChips = plan.custom
@@ -596,6 +599,7 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
               </div>
             );
           })}
+          {/* Lock icons only shown on basic plan */}
           {locked.slice(0, 3).map((f) => (
             <div key={f.key} className="flex items-center gap-2 opacity-40">
               <LockMark />
@@ -617,8 +621,7 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
             style={{ background: hovered ? plan.color : plan.color + "15", color: hovered ? "#fff" : plan.color }}
           >
             <Mail className="w-4 h-4" strokeWidth={2} />
-            Contact US
-            
+            Contact Us
           </a>
         ) : (
           <button
@@ -860,66 +863,66 @@ const ENTERPRISE_FEATURES = [
 
 function EnterpriseCTASection() {
   return (
-<section className="mt-14">
-  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0037ca]/60 via-[#0037ca]/80 to-[#0037ca]/100 p-8 md:p-12">
-    {/* Dot grid texture */}
-    <div
-      className="absolute inset-0 opacity-10"
-      style={{
-        backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)",
-        backgroundSize: "24px 24px",
-      }}
-    />
-    <div className="relative z-10 flex flex-col lg:flex-row items-start gap-8">
-      <div className="flex-1">
-        <div className="flex items-center gap-2 mb-3">
-          <Building2 className="w-5 h-5 text-blue-200" strokeWidth={2} />
-          <span className="text-blue-200 text-[12px] font-bold tracking-widest uppercase">
-            Enterprise Solutions
-          </span>
-        </div>
-        <h2 className="text-[24px] md:text-[28px] font-bold text-white mb-2 leading-tight">
-          Need higher limits or a custom CRM configuration?
-        </h2>
-        <p className="text-blue-100 text-[14px] mb-6 max-w-lg">
-          Our Enterprise plan is built around your business. Get unlimited scale,
-          dedicated support, and a CRM set up exactly the way you need it.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {ENTERPRISE_FEATURES.map((feat) => (
-            <div key={feat} className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-blue-300 shrink-0" strokeWidth={2} />
-              <span className="text-white text-[13px]">{feat}</span>
+    <section className="mt-14">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0037ca]/60 via-[#0037ca]/80 to-[#0037ca]/100 p-8 md:p-12">
+        {/* Dot grid texture */}
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)",
+            backgroundSize: "24px 24px",
+          }}
+        />
+        <div className="relative z-10 flex flex-col lg:flex-row items-start gap-8">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-3">
+              <Building2 className="w-5 h-5 text-blue-200" strokeWidth={2} />
+              <span className="text-blue-200 text-[12px] font-bold tracking-widest uppercase">
+                Enterprise Solutions
+              </span>
             </div>
-          ))}
+            <h2 className="text-[24px] md:text-[28px] font-bold text-white mb-2 leading-tight">
+              Need higher limits or a custom CRM configuration?
+            </h2>
+            <p className="text-blue-100 text-[14px] mb-6 max-w-lg">
+              Our Enterprise plan is built around your business. Get unlimited scale,
+              dedicated support, and a CRM set up exactly the way you need it.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {ENTERPRISE_FEATURES.map((feat) => (
+                <div key={feat} className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-blue-300 shrink-0" strokeWidth={2} />
+                  <span className="text-white text-[13px]">{feat}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="w-full lg:w-auto flex-shrink-0 flex flex-col items-start lg:items-center gap-3 lg:pt-10">
+            <a
+              href="mailto:contact@skyupdigitalsolutions.com?subject=Enterprise%20Plan%20Enquiry"
+              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-[#0037ca] font-bold text-[14px] hover:bg-blue-50 transition-colors shadow-lg"
+            >
+              <Mail className="w-4 h-4" strokeWidth={2} />
+              Contact Us
+            </a>
+            <a
+              href="mailto:contact@skyupdigitalsolutions.com"
+              className="inline-flex items-center gap-1.5 text-blue-200 text-[11px] hover:text-white transition-colors"
+            >
+              <Mail className="w-3 h-3" strokeWidth={2} />
+              contact@skyupdigitalsolutions.com
+            </a>
+            <a
+              href="tel:8867867775"
+              className="inline-flex items-center gap-1.5 text-blue-200 text-[11px] hover:text-white transition-colors"
+            >
+              <Phone className="w-3 h-3" strokeWidth={2} />
+              8867867775
+            </a>
+          </div>
         </div>
       </div>
-      <div className="w-full lg:w-auto flex-shrink-0 flex flex-col items-start lg:items-center gap-3 lg:pt-10">
-      <a  
-          href="mailto:contact@skyupdigitalsolutions.com?subject=Enterprise%20Plan%20Enquiry"
-          className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-[#0037ca] font-bold text-[14px] hover:bg-blue-50 transition-colors shadow-lg"
-        >
-          <Mail className="w-4 h-4" strokeWidth={2} />
-          Contact Us
-        </a>
-        <a
-          href="mailto:contact@skyupdigitalsolutions.com"
-          className="inline-flex items-center gap-1.5 text-blue-200 text-[11px] hover:text-white transition-colors"
-        >
-          <Mail className="w-3 h-3" strokeWidth={2} />
-          contact@skyupdigitalsolutions.com
-        </a>
-        <a
-          href="tel:8867867775"
-          className="inline-flex items-center gap-1.5 text-blue-200 text-[11px] hover:text-white transition-colors"
-        >
-          <Phone className="w-3 h-3" strokeWidth={2} />
-          8867867775
-        </a>
-      </div>
-    </div>
-  </div>
-</section>
+    </section>
   );
 }
 
