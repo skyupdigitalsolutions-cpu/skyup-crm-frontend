@@ -153,7 +153,7 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
           setSummary(res.data.summary);
           clearInterval(interval);
         } else if (s === "failed") {
-          setError("Transcription failed. Check your OpenAI API key on the server.");
+          setError("Transcription failed. Please try again, or contact support if it persists.");
           clearInterval(interval);
         }
       } catch { /* keep polling */ }
@@ -195,7 +195,7 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
     return (
       <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#F1F4FF] dark:bg-[#1A2540]">
         <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2563EB]" />
-        <span className="text-[13px] text-[#2563EB] font-medium">Transcribing with Whisper AI…</span>
+        <span className="text-[13px] text-[#2563EB] font-medium">Transcribing &amp; summarizing…</span>
       </div>
     );
   }
