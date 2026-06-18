@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { X, Flame, Sun, Snowflake, CheckCircle2, AlertTriangle, Clock, Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays, Paperclip, Mic, User, RefreshCw, ClipboardList, Inbox, Map as MapIcon, Users, BarChart3, PartyPopper, XCircle, Zap, Sparkles } from "lucide-react";
 import QualificationScore from "./QualificationScore";
+import api from "../data/axiosConfig";
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -347,6 +348,42 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
   const masker      = maskPhone  || defaultMaskPhone;
   const emailMasker = maskEmail  || defaultMaskEmail;
 
+  // ── AI Action Summary ─────────────────────────────────────────────────────
+  const [aiSummary,        setAiSummary]        = useState(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [aiSummaryError,   setAiSummaryError]   = useState("");
+
+  const leadId = safeLead._id || safeLead.id || null;
+
+  const fetchActionSummary = async (refresh = false) => {
+    if (!leadId) return;
+    setAiSummaryLoading(true);
+    setAiSummaryError("");
+    try {
+      const base = isSuperAdmin ? `/lead/admin/${leadId}` : `/lead/admin/${leadId}`;
+      const { data } = await api.get(`${base}/action-summary${refresh ? "?refresh=1" : ""}`);
+      setAiSummary(data);
+    } catch (e) {
+      const code = e?.response?.data?.code;
+      setAiSummaryError(
+        code === "GROK_NOT_CONFIGURED"
+          ? "AI summary is not configured on the server."
+          : code === "GROK_UNAVAILABLE"
+          ? "AI summary service is busy. Please try again."
+          : (e?.response?.data?.message || "Could not generate summary."),
+      );
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  };
+
+  // Reset summary when switching leads.
+  useEffect(() => {
+    setAiSummary(null);
+    setAiSummaryError("");
+    setAiSummaryLoading(false);
+  }, [leadId]);
+
   const displayPhone          = masker(safeLead.primaryPhone || safeLead.phone || safeLead.mobile, isSuperAdmin);
   const displaySecondaryPhone = safeLead.secondaryPhone ? masker(safeLead.secondaryPhone, isSuperAdmin) : null;
   const displayEmail          = emailMasker(safeLead.email, isSuperAdmin);
@@ -511,6 +548,79 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
 
         {/* ── Body ── */}
         <div className="px-6 py-5 flex-1 space-y-6">
+
+          {/* ── AI Action Summary ── */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <SectionLabel icon={<Sparkles className="w-3.5 h-3.5" />} label="AI Action Summary" />
+              {aiSummary && !aiSummaryLoading && (
+                <button
+                  onClick={() => fetchActionSummary(true)}
+                  className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 flex items-center gap-1 hover:underline"
+                >
+                  <RefreshCw className="w-3 h-3" /> Regenerate
+                </button>
+              )}
+            </div>
+
+            {!aiSummary && !aiSummaryLoading && !aiSummaryError && (
+              <button
+                onClick={() => fetchActionSummary(false)}
+                className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-[13px] font-semibold flex items-center justify-center gap-2 transition"
+              >
+                <Sparkles className="w-4 h-4" /> Generate Summary &amp; Next Action
+              </button>
+            )}
+
+            {aiSummaryLoading && (
+              <div className="flex items-center justify-center gap-2 py-6 text-purple-600 dark:text-purple-400">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span className="text-[13px] font-semibold">Analyzing remarks…</span>
+              </div>
+            )}
+
+            {!!aiSummaryError && !aiSummaryLoading && (
+              <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2.5">
+                <p className="text-[12px] text-red-600 dark:text-red-400 mb-1.5">{aiSummaryError}</p>
+                <button onClick={() => fetchActionSummary(false)} className="text-[12px] font-semibold text-red-700 dark:text-red-300 hover:underline">Retry</button>
+              </div>
+            )}
+
+            {aiSummary && !aiSummaryLoading && (
+              <div className="rounded-xl border border-purple-200 dark:border-purple-900/50 bg-purple-50/60 dark:bg-purple-950/20 p-4">
+                <p className="text-[13px] text-[#0F1117] dark:text-[#DDE1F5] leading-relaxed">{aiSummary.summary}</p>
+
+                {!!aiSummary.nextAction && (
+                  <div className="mt-3 rounded-lg bg-white/70 dark:bg-[#13161E]/70 border border-purple-200/60 dark:border-purple-900/40 px-3 py-2.5">
+                    <p className="text-[10px] font-extrabold tracking-widest text-purple-600 dark:text-purple-400 mb-1">NEXT ACTION</p>
+                    <p className="text-[12.5px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] leading-snug">{aiSummary.nextAction}</p>
+                  </div>
+                )}
+
+                {Array.isArray(aiSummary.keyPoints) && aiSummary.keyPoints.length > 0 && (
+                  <ul className="mt-3 space-y-1">
+                    {aiSummary.keyPoints.map((p, i) => (
+                      <li key={i} className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] flex gap-1.5">
+                        <span className="text-purple-500">•</span><span>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
+                  {!!aiSummary.sentiment && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300">{aiSummary.sentiment}</span>
+                  )}
+                  {!!aiSummary.suggestedTemp && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">Suggested: {aiSummary.suggestedTemp}</span>
+                  )}
+                  <span className="text-[10px] text-[#8B92A9] ml-auto">
+                    {aiSummary.basedOn === "remarks+calls" ? "From remarks + calls" : "From remarks"}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* ── Contact Numbers ── */}
           <div>
