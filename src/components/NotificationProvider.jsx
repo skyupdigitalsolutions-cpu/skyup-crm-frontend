@@ -397,6 +397,20 @@ export function NotificationProvider({ children }) {
       }, setNotifications, setUnreadCount);
     });
 
+    socket.on('lead_invalid_rejected', ({ leadId, leadName, remark, verifiedBy, returnedTo, at }) => {
+      handleUpsert({
+        id:        `lead-invalid-rejected-${leadId}`,
+        type:      'lead_invalid_rejected',
+        title:     'Invalid Rejected',
+        body:      `${verifiedBy || 'A verifier'} rejected the Invalid mark on "${leadName || 'a lead'}" — returned to ${returnedTo || 'the original employee'}${remark ? ` — ${remark}` : ''}`,
+        leadId,
+        leadName,
+        remark:    remark || '',
+        timestamp: at || new Date().toISOString(),
+        urgent:    false,
+      }, setNotifications, setUnreadCount);
+    });
+
     socket.on('meeting_permission_requested', ({ userId: empId, userName, reason, location, requestedAt }) => {
       handleUpsert({
         id:        `meeting-perm-${empId}`,
