@@ -70,6 +70,7 @@ const FEATURE_KEY_MAP = {
   "tasks":               "tasks",
   "payroll":             "payroll",
   "website-tracking":    "websiteTracking",
+  "telegram-notification": "telegramNotification",
 };
 
 export default function usePlanFeatures() {
