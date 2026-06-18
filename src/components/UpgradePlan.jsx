@@ -201,9 +201,9 @@ const PLAN_DEFAULTS = {
       { key: "sms-blast",             label: "SMS Blast",              enabled: false },
       { key: "whatsapp-blast",        label: "WhatsApp Blast",         enabled: false },
       { key: "email-blast",           label: "Email Blast",            enabled: false },
-      { key: "campaigns",             label: "Campaign Management",    enabled: false },
-      { key: "website-tracking",      label: "Website Tracking",       enabled: false },
-      { key: "call-recording",        label: "Call Recording",         enabled: false },
+      { key: "campaigns",             label: "Campaign Management",    enabled: true },
+      { key: "website-tracking",      label: "Website Tracking",       enabled: true },
+      { key: "call-recording",        label: "Call Recording",         enabled: true },
       { key: "call-transcription",    label: "Call Transcription",     enabled: false },
       { key: "ai-summary",            label: "AI Call Summary",        enabled: false },
       { key: "telegram-notification", label: "Telegram Notifications", enabled: false },
@@ -516,7 +516,7 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
 
       {/* Badges */}
       {plan.popular && !plan.current && (
-        <div className="absolute top-4 right-4 z-10">
+        <div className="absolute top-4  z-10">
           <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#2563EB] text-white text-[10px] font-bold tracking-wide">
             <Star className="w-3 h-3 fill-current" strokeWidth={0} />
             MOST POPULAR
