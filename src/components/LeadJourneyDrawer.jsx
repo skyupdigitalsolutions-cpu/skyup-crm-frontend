@@ -45,6 +45,8 @@ const TEMP_STYLE = {
 
 const OUTCOME_STYLE = {
   "Not Interested": { bg: "bg-red-50 dark:bg-red-950/40",        text: "text-red-600 dark:text-red-400" },
+  "Invalid":          { bg: "bg-red-50 dark:bg-red-950/40",        text: "text-red-700 dark:text-red-400" },
+  "Invalid Rejected": { bg: "bg-amber-50 dark:bg-amber-950/40",    text: "text-amber-600 dark:text-amber-400" },
   "Interested":     { bg: "bg-emerald-50 dark:bg-emerald-950/40",text: "text-emerald-600 dark:text-emerald-400" },
   "Converted":      { bg: "bg-emerald-50 dark:bg-emerald-950/40",text: "text-emerald-600 dark:text-emerald-400" },
   "Call Back":      { bg: "bg-amber-50 dark:bg-amber-950/40",    text: "text-amber-600 dark:text-amber-400" },
@@ -472,6 +474,21 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
               </span>
             )}
           </div>
+          {safeLead.isClosed && (
+            <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50">
+              <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-red-700 dark:text-red-400 uppercase tracking-wide">
+                  Closed Lead{safeLead.closedAt ? ` · ${fmtDateTime(safeLead.closedAt)}` : ""}
+                </p>
+                {safeLead.closeReason && (
+                  <p className="text-[12px] text-red-600 dark:text-red-300 break-words">
+                    Reason: {safeLead.closeReason}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
           {lead.leadScore != null && (
             <div className="mt-2">
               <QualificationScore lead={lead} size="md" />
