@@ -32,16 +32,10 @@ const ADDON_CATALOG = [
   { addonType: "ai_summary",           name: "AI Summary",           category: "feature",  billingPeriod: "monthly",  description: "AI call summaries" },
   { addonType: "whatsapp_automation",  name: "WhatsApp Automation",  category: "feature",  billingPeriod: "monthly",  description: "Auto WhatsApp on new lead" },
   { addonType: "custom_branding",      name: "Custom Branding",      category: "feature",  billingPeriod: "monthly",  description: "Logo, colours & theme" },
-  { addonType: "transcriptions_5000mins",   name: "5000mins Transcriptions",   category: "credit",   billingPeriod: "one_time", description: "+5000minstranscription credits" },
-  { addonType: "transcriptions_20000mins",   name: "20000mins Transcriptions",   category: "credit",   billingPeriod: "one_time", description: "+20000mins transcription credits" },
-  { addonType: "summaries_5000mins",        name: "5000mins AI Summaries",     category: "credit",   billingPeriod: "one_time", description: "+5000mins summary credits" },
-  { addonType: "summaries_20000mins",        name: "20000mins AI Summaries",     category: "credit",   billingPeriod: "one_time", description: "+20000mins summary credits" },
-  // ── Combined Transcription + Summary packs ─────────────────────────────────
-  // These top up BOTH transcription and summary minute pools simultaneously.
-  // Price per pack is set here; minute-wise cost is price ÷ minutes.
-  { addonType: "transcription_summary_100mins",  name: "100 Min Transcription & Summary",  category: "credit", billingPeriod: "one_time", description: "+100 mins — transcription + AI summary", minuteCount: 100 },
-  { addonType: "transcription_summary_500mins",  name: "500 Min Transcription & Summary",  category: "credit", billingPeriod: "one_time", description: "+500 mins — transcription + AI summary", minuteCount: 500 },
-  { addonType: "transcription_summary_1000mins", name: "1000 Min Transcription & Summary", category: "credit", billingPeriod: "one_time", description: "+1000 mins — transcription + AI summary", minuteCount: 1000 },
+  // ── AI credit pack — the only one sold ──────────────────────────────────────
+  // Combined pack: tops up BOTH the transcription and summary minute pools by
+  // 100 each. Larger needs come from the plan tier. Price editable here.
+  { addonType: "transcription_summary_100mins", name: "100 Min Transcription & Summary", category: "credit", billingPeriod: "one_time", description: "+100 mins — transcription + AI summary (both pools)", minuteCount: 100 },
 ];
 
 function newRowFor(addonType) {
