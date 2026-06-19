@@ -36,6 +36,12 @@ const ADDON_CATALOG = [
   { addonType: "transcriptions_20000mins",   name: "20000mins Transcriptions",   category: "credit",   billingPeriod: "one_time", description: "+20000mins transcription credits" },
   { addonType: "summaries_5000mins",        name: "5000mins AI Summaries",     category: "credit",   billingPeriod: "one_time", description: "+5000mins summary credits" },
   { addonType: "summaries_20000mins",        name: "20000mins AI Summaries",     category: "credit",   billingPeriod: "one_time", description: "+20000mins summary credits" },
+  // ── Combined Transcription + Summary packs ─────────────────────────────────
+  // These top up BOTH transcription and summary minute pools simultaneously.
+  // Price per pack is set here; minute-wise cost is price ÷ minutes.
+  { addonType: "transcription_summary_100mins",  name: "100 Min Transcription & Summary",  category: "credit", billingPeriod: "one_time", description: "+100 mins — transcription + AI summary", minuteCount: 100 },
+  { addonType: "transcription_summary_500mins",  name: "500 Min Transcription & Summary",  category: "credit", billingPeriod: "one_time", description: "+500 mins — transcription + AI summary", minuteCount: 500 },
+  { addonType: "transcription_summary_1000mins", name: "1000 Min Transcription & Summary", category: "credit", billingPeriod: "one_time", description: "+1000 mins — transcription + AI summary", minuteCount: 1000 },
 ];
 
 function newRowFor(addonType) {
@@ -81,6 +87,24 @@ function PlanChip({ label, active, onClick }) {
 function AddonRow({ item, onChange, onRemove }) {
   const cat = CATEGORY_STYLE[item.category] || CATEGORY_STYLE.feature;
   const plans = Array.isArray(item.visiblePlans) ? item.visiblePlans : [];
+
+  // For combined transcription+summary packs: look up minuteCount from catalog
+  const catalogEntry = ADDON_CATALOG.find(a => a.addonType === item.addonType);
+  const minuteCount  = catalogEntry?.minuteCount || null;
+  const pricePerMin  = minuteCount && item.price > 0
+    ? (item.price / minuteCount).toFixed(3)
+    : null;
+
+  // Credit packs (transcription/summary minutes) NEVER auto-renew —
+  // they are consumed by usage and repurchased manually by the customer.
+  const isCredit = item.category === "credit";
+  const renewalMode = isCredit ? "none" : (item.renewalMode || "none");
+
+  const RENEWAL_OPTIONS = [
+    { value: "none",     label: "One-time only",   hint: "Customer buys once; no renewal." },
+    { value: "optional", label: "Customer's choice", hint: "Customer picks monthly renew or one-time at checkout." },
+    { value: "required", label: "Always renews",    hint: "Always renews monthly; customer cannot opt out." },
+  ];
 
   const togglePlan = (key) => {
     const next = plans.includes(key) ? plans.filter(p => p !== key) : [...plans, key];
@@ -140,6 +164,12 @@ function AddonRow({ item, onChange, onRemove }) {
               onChange={e => onChange(item.addonType, "price", Number(e.target.value))}
               className="w-full px-3 py-2 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
             />
+            {/* Per-minute cost hint for combined transcription+summary packs */}
+            {pricePerMin && (
+              <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                ≈ ₹{pricePerMin}/min · {minuteCount} mins
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider mb-1">Billing</label>
@@ -187,6 +217,46 @@ function AddonRow({ item, onChange, onRemove }) {
               <PlanChip key={k} label={k} active={plans.includes(k)} onClick={() => togglePlan(k)} />
             ))}
           </div>
+        </div>
+
+        {/* Renewal mode — locked to "One-time only" for credit/transcription packs */}
+        <div>
+          <label className="block text-[10px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider mb-2">
+            Renewal mode
+            {isCredit && (
+              <span className="ml-2 text-[9px] font-normal text-amber-500 dark:text-amber-400 normal-case">
+                (credit packs are always one-time — based on usage limit)
+              </span>
+            )}
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {RENEWAL_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                disabled={isCredit}
+                title={opt.hint}
+                onClick={() => !isCredit && onChange(item.addonType, "renewalMode", opt.value)}
+                className={`px-3 py-1.5 rounded-xl border text-[11px] font-semibold transition ${
+                  renewalMode === opt.value
+                    ? opt.value === "none"
+                      ? "border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-500/20 text-slate-700 dark:text-slate-300"
+                      : opt.value === "optional"
+                        ? "border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                        : "border-violet-300 dark:border-violet-600 bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400"
+                    : "border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[#9DA3BB]"
+                } ${isCredit ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {!isCredit && renewalMode !== "none" && (
+            <p className="mt-1.5 text-[10px] text-[#8B92A9]">
+              {renewalMode === "optional"
+                ? "Customers will see a toggle at checkout: monthly auto-renew or one-time purchase."
+                : "This add-on will always renew monthly. Customers cannot opt out."}
+            </p>
+          )}
         </div>
       </div>
     </div>
