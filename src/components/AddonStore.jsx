@@ -81,10 +81,10 @@ function AddonCard({ addon, busy, onBuy }) {
       {isCombined && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#EEF3FF] text-[#2563EB] text-[10px] font-bold">
-            🎙 Transcription
+             Transcription
           </span>
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#F3EEFF] text-[#7C3AED] text-[10px] font-bold">
-            🤖 AI Summary
+             AI Summary
           </span>
           {pricePerMin && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF7E6] text-[#B45309] text-[10px] font-bold">
