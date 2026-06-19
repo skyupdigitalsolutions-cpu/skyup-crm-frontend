@@ -21,6 +21,13 @@ const CATEGORY_BADGE = {
   credit:   { label: "Credits",  cls: "bg-[#FFF7E6] text-[#B45309]" },
 };
 
+// Combined transcription+summary packs — minute counts for per-minute cost display
+const COMBINED_PACK_MINS = {
+  transcription_summary_100mins:  100,
+  transcription_summary_500mins:  500,
+  transcription_summary_1000mins: 1000,
+};
+
 function loadRazorpaySdk() {
   return new Promise(resolve => {
     if (document.getElementById("razorpay-sdk")) return resolve(true);
@@ -35,10 +42,32 @@ function loadRazorpaySdk() {
 
 function AddonCard({ addon, busy, onBuy }) {
   const [qty, setQty] = useState(1);
+  const [autoRenew, setAutoRenew] = useState(
+    // Default ON for "required", OFF for "optional" and "none"
+    addon.renewalMode === "required"
+  );
   const max = Math.max(1, addon.maxQuantity || 1);
   const badge = CATEGORY_BADGE[addon.category] || CATEGORY_BADGE.feature;
   const suffix = BILLING_SUFFIX[addon.billingPeriod] ?? "";
   const total = (addon.price || 0) * qty;
+
+  // Combined pack extras
+  const isCombined = !!COMBINED_PACK_MINS[addon.addonType];
+  const minuteCount = isCombined ? COMBINED_PACK_MINS[addon.addonType] * qty : null;
+  const pricePerMin = isCombined && addon.price > 0
+    ? (addon.price / COMBINED_PACK_MINS[addon.addonType]).toFixed(2)
+    : null;
+
+  // Renewal UI logic:
+  // "none"     → no toggle shown (one-time or credit pack — always limit-based)
+  // "optional" → show toggle, customer decides
+  // "required" → show fixed "Auto-renews monthly" badge, no toggle
+  const showRenewalToggle  = addon.renewalMode === "optional";
+  const showRenewalBadge   = addon.renewalMode === "required";
+
+  const effectiveAutoRenew = addon.renewalMode === "required" ? true
+    : addon.renewalMode === "optional" ? autoRenew
+    : false;
 
   return (
     <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-5 flex flex-col">
@@ -46,7 +75,24 @@ function AddonCard({ addon, busy, onBuy }) {
         <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">{addon.name}</h3>
         <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${badge.cls}`}>{badge.label}</span>
       </div>
-      <p className="text-[12px] text-[#8B92A9] mb-4 flex-1">{addon.description}</p>
+      <p className="text-[12px] text-[#8B92A9] mb-3 flex-1">{addon.description}</p>
+
+      {/* Combined pack highlights */}
+      {isCombined && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#EEF3FF] text-[#2563EB] text-[10px] font-bold">
+            🎙 Transcription
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#F3EEFF] text-[#7C3AED] text-[10px] font-bold">
+            🤖 AI Summary
+          </span>
+          {pricePerMin && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF7E6] text-[#B45309] text-[10px] font-bold">
+              ₹{pricePerMin}/min
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="flex items-baseline gap-1 mb-4">
         <span className="text-[22px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">
@@ -54,7 +100,46 @@ function AddonCard({ addon, busy, onBuy }) {
         </span>
         {suffix && <span className="text-[12px] text-[#8B92A9]">{suffix}</span>}
         {addon.billingPeriod === "one_time" && <span className="text-[11px] text-[#8B92A9]">one-time</span>}
+        {minuteCount && (
+          <span className="ml-1 text-[11px] font-semibold text-[#8B92A9]">· {minuteCount} mins</span>
+        )}
       </div>
+
+      {/* ── Auto-renewal section ───────────────────────────────────────── */}
+      {showRenewalBadge && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl bg-[#EEF3FF] border border-[#BFDBFE]">
+          <span className="text-[11px] font-bold text-[#2563EB]">🔄 Auto-renews monthly</span>
+          <span className="text-[10px] text-[#6B7280]">— cancel anytime from your add-ons page</span>
+        </div>
+      )}
+
+      {showRenewalToggle && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-[#F8F9FC] dark:bg-[#0D0F16]">
+            <div>
+              <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5]">Monthly auto-renew</p>
+              <p className="text-[10px] text-[#8B92A9]">
+                {autoRenew
+                  ? "Renews each month automatically — cancel anytime"
+                  : "One-time purchase — won't renew, re-buy when needed"}
+              </p>
+            </div>
+            {/* Toggle switch */}
+            <button
+              onClick={() => setAutoRenew(r => !r)}
+              className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${
+                autoRenew ? "bg-[#2563EB]" : "bg-[#D1D5DB] dark:bg-[#374151]"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                  autoRenew ? "translate-x-4" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      )}
 
       {max > 1 && (
         <div className="flex items-center gap-3 mb-4">
@@ -74,14 +159,18 @@ function AddonCard({ addon, busy, onBuy }) {
       )}
 
       <button
-        onClick={() => onBuy(addon, qty)}
+        onClick={() => onBuy(addon, qty, effectiveAutoRenew)}
         disabled={busy}
         className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-60 text-white text-[13px] font-semibold transition"
       >
         {busy
           ? <Loader2 className="w-4 h-4 animate-spin" />
           : <ShoppingCart className="w-4 h-4" />}
-        {busy ? "Processing…" : `Pay ₹${total.toLocaleString("en-IN")} & enable`}
+        {busy
+          ? "Processing…"
+          : effectiveAutoRenew
+            ? `Subscribe ₹${total.toLocaleString("en-IN")}/mo`
+            : `Pay ₹${total.toLocaleString("en-IN")} & enable`}
       </button>
     </div>
   );
@@ -107,12 +196,13 @@ export default function AddonStore() {
 
   useEffect(() => { load(); }, [load]);
 
-  const buy = async (addon, quantity) => {
+  const buy = async (addon, quantity, autoRenew = false) => {
     setError(null); setSuccess(null); setBusyType(addon.addonType);
     try {
       const { data: order } = await api.post("/razorpay/addon/create-order", {
         addonType: addon.addonType,
         quantity,
+        autoRenew,
       });
       if (!order?.orderId) throw new Error(order?.message || "Order failed");
 
@@ -124,7 +214,7 @@ export default function AddonStore() {
         amount:   order.amount,
         currency: order.currency,
         name:     "SkyUp CRM",
-        description: `Add-on: ${order.addonName}${order.quantity > 1 ? ` × ${order.quantity}` : ""}`,
+        description: `Add-on: ${order.addonName}${order.quantity > 1 ? ` × ${order.quantity}` : ""}${order.autoRenew ? " (Monthly)" : ""}`,
         order_id: order.orderId,
         theme:    { color: "#2563EB" },
         handler: async (resp) => {
@@ -135,10 +225,10 @@ export default function AddonStore() {
               razorpay_signature:  resp.razorpay_signature,
               addonType: addon.addonType,
               quantity,
+              autoRenew,
             });
-            setSuccess(`${verify.addonName} enabled.`);
-            // Tell the rest of the app to drop its cached entitlements so the
-            // newly-unlocked feature/limit shows up without a manual reload.
+            const renewMsg = verify.autoRenew ? " — auto-renews monthly" : "";
+            setSuccess(`${verify.addonName} enabled${renewMsg}.`);
             window.dispatchEvent(new Event("entitlements_updated"));
           } catch (err) {
             setError(err?.response?.data?.message || "Payment received but activation failed. Contact support.");
