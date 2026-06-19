@@ -69,6 +69,14 @@ const HIDDEN_FEATURE_KEYS = new Set([
   "custom-branding", "customBranding", "tasks", "payroll",
 ]);
 
+// Features in this set are treated as always-enabled / never-locked,
+// regardless of what the backend plan config says. Used to guarantee
+// baseline features (like AI Remark Summary) never render as locked
+// on any plan, including Basic.
+const ALWAYS_UNLOCKED_KEYS = new Set([
+  "ai-remark", "aiRemark",
+]);
+
 const FEATURE_LABELS = {
   "leads":                 "Lead Management",
   "contacts":              "Contacts",
@@ -317,6 +325,12 @@ function mergeConfigIntoDefaults(defaults, config) {
       }
     }
 
+    // Guarantee that always-unlocked features (e.g. AI Remark Summary) are
+    // never disabled by backend config, on any plan.
+    features = features.map((f) =>
+      ALWAYS_UNLOCKED_KEYS.has(f.key) ? { ...f, enabled: true } : f
+    );
+
     const num = (a, b) => (a != null ? Number(a) : b);
     merged[id] = {
       ...base,
@@ -455,10 +469,21 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
   const [hovered, setHovered] = useState(false);
   const price   = billing === "yearly" ? plan.yearlyPrice : plan.monthlyPrice;
   const isSel   = selected === plan.id;
-  const enabled = plan.features.filter((f) =>  f.enabled && !HIDDEN_FEATURE_KEYS.has(f.key));
-  // Only show locked features for the basic plan — Pro/Advance/Enterprise never show lock icons
-  const locked  = plan.id === "basic"
-    ? plan.features.filter((f) => !f.enabled && !HIDDEN_FEATURE_KEYS.has(f.key))
+
+  // Features to render as "enabled" rows. Always-unlocked keys (e.g.
+  // ai-remark) are force-enabled here so they never fall into the
+  // locked/strikethrough list below, regardless of upstream data.
+  const enabled = plan.features
+    .filter((f) => !HIDDEN_FEATURE_KEYS.has(f.key))
+    .map((f) => (ALWAYS_UNLOCKED_KEYS.has(f.key) ? { ...f, enabled: true } : f))
+    .filter((f) => f.enabled);
+
+  // Only show locked features for the basic plan — Pro/Advance/Enterprise never show lock icons.
+  // Always-unlocked keys are excluded so they can never render as locked.
+  const locked = plan.id === "basic"
+    ? plan.features.filter(
+        (f) => !f.enabled && !HIDDEN_FEATURE_KEYS.has(f.key) && !ALWAYS_UNLOCKED_KEYS.has(f.key)
+      )
     : [];
 
   /* Limit chips */
@@ -933,7 +958,6 @@ function EnterpriseCTASection() {
 const USAGE_METRICS = [
   { k: "transcriptions", label: "Transcriptions", icon: Mic },
   { k: "summaries",      label: "AI Summaries",   icon: Sparkles },
-  { k: "voiceBot",       label: "Voice Bot",       icon: Zap },
 ];
 
 function UsageMeter({ usage }) {
@@ -944,7 +968,7 @@ function UsageMeter({ usage }) {
         <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Usage this month</h2>
         <p className="text-[12px] text-[#8B92A9] mt-1">AI quota consumed against your plan limits.</p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-[#E4E7EF] dark:bg-[#1F2333]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-[#E4E7EF] dark:bg-[#1F2333]">
         {USAGE_METRICS.map(({ k, label, icon: Icon }) => {
           const lim       = usage.limits[k];
           const used      = usage.used?.[k] ?? 0;
@@ -1110,13 +1134,18 @@ export default function UpgradePlan({
 
   // ── Derived state ──────────────────────────────────────────────────────────
 
-  const plans = Object.values(planDefs).map((p) => ({
-    ...p,
-    current:     p.id === currentPlanId,
-    isDowngrade: isDowngradeTo(p.id, currentPlanId),
-    features:    ((p.id === currentPlanId && myFeatures) ? myFeatures : p.features)
-                   .filter((f) => !HIDDEN_FEATURE_KEYS.has(f.key)),
-  }));
+  const plans = Object.values(planDefs).map((p) => {
+    const baseFeatures = (p.id === currentPlanId && myFeatures) ? myFeatures : p.features;
+    const features = baseFeatures
+      .filter((f) => !HIDDEN_FEATURE_KEYS.has(f.key))
+      .map((f) => (ALWAYS_UNLOCKED_KEYS.has(f.key) ? { ...f, enabled: true } : f));
+    return {
+      ...p,
+      current:     p.id === currentPlanId,
+      isDowngrade: isDowngradeTo(p.id, currentPlanId),
+      features,
+    };
+  });
 
   const currentPlan = plans.find((p) => p.current);
   const savingsPct  = Math.round(
@@ -1506,14 +1535,14 @@ export default function UpgradePlan({
                     <span className="text-[13px] font-medium text-[#4B5168] dark:text-[#7B829E]">{feat.label}</span>
                     <span
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
-                        feat.enabled ? "bg-[#ECFDF5] text-[#059669]" : "bg-[#FEF2F2] text-[#DC2626]"
+                        (feat.enabled || ALWAYS_UNLOCKED_KEYS.has(feat.key)) ? "bg-[#ECFDF5] text-[#059669]" : "bg-[#FEF2F2] text-[#DC2626]"
                       }`}
                     >
                       <span
                         className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: feat.enabled ? "#059669" : "#DC2626" }}
+                        style={{ background: (feat.enabled || ALWAYS_UNLOCKED_KEYS.has(feat.key)) ? "#059669" : "#DC2626" }}
                       />
-                      {feat.enabled ? "Enabled" : "Disabled"}
+                      {(feat.enabled || ALWAYS_UNLOCKED_KEYS.has(feat.key)) ? "Enabled" : "Disabled"}
                     </span>
                   </div>
                 ))}
