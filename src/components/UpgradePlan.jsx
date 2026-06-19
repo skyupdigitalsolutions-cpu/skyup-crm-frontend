@@ -111,10 +111,15 @@ const ADDON_LABELS = {
   call_recording:         "Call Recording",
   call_transcription:     "Call Transcription",
   ai_summary:             "AI Summary",
-  transcriptions_100:     "100 Transcriptions",
-  transcriptions_500:     "500 Transcriptions",
-  summaries_100:          "100 AI Summaries",
-  summaries_500:          "500 AI Summaries",
+  // Current sellable credit pack
+  transcription_summary_100mins: "100 Min Transcription & Summary",
+  // Legacy (retired) — kept for displaying existing/active addons by name
+  transcriptions_100:     "100 Transcriptions (legacy)",
+  transcriptions_500:     "500 Transcriptions (legacy)",
+  summaries_100:          "100 AI Summaries (legacy)",
+  summaries_500:          "500 AI Summaries (legacy)",
+  transcription_summary_500mins:  "500 Min Transcription & Summary (legacy)",
+  transcription_summary_1000mins: "1000 Min Transcription & Summary (legacy)",
 };
 
 const STATUS_STYLE = {
