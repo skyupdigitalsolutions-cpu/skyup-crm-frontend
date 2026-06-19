@@ -62,22 +62,33 @@ const LIMIT_FIELDS = [
   { key: "websites",            label: "Websites" },
   { key: "metaCampaigns",       label: "Meta Campaigns" },
   { key: "googleAccounts",      label: "Google Accounts" },
-  { key: "transcriptionsLimit", label: "Transcriptions / month" },
-  { key: "summariesLimit",      label: "AI Summaries / month" },
+  { key: "transcriptionsLimit", label: "Transcription minutes / month" },
+  { key: "summariesLimit",      label: "AI Summary minutes / month" },
 ];
 
-// Benefit / addon enum → friendly label (same enum on both endpoints)
+// Benefit / addon enum → friendly label.
+// TYPE_LABELS = currently GRANTABLE types (used to build picker dropdowns).
+// ALL_TYPE_LABELS = TYPE_LABELS + retired legacy types, used only to DISPLAY
+//   the name of an existing/legacy record (so old grants still render nicely).
 const TYPE_LABELS = {
   extra_admin: "Additional Admin", extra_users_5: "Additional Users (+5)",
   extra_leads_5000: "Additional Leads (+5,000)", extra_website: "Additional Website",
   extra_meta_campaign: "Additional Meta Campaign", extra_google_account: "Additional Google Account",
   call_recording: "Call Recording", call_transcription: "Call Transcription",
   ai_summary: "AI Summary",  whatsapp_automation: "WhatsApp Automation",
-  transcriptions_100: "AI Transcriptions +100", transcriptions_500: "AI Transcriptions +500",
-  summaries_100: "AI Summaries +100", summaries_500: "AI Summaries +500",
+  transcription_summary_100mins: "AI Minutes +100 (Transcription & Summary)",
 };
 
-const CREDIT_TYPES = ["transcriptions_100", "transcriptions_500", "summaries_100", "summaries_500"];
+// Retired types — kept ONLY for displaying legacy records, never offered in pickers.
+const LEGACY_TYPE_LABELS = {
+  transcriptions_100: "AI Transcriptions +100 (legacy)", transcriptions_500: "AI Transcriptions +500 (legacy)",
+  summaries_100: "AI Summaries +100 (legacy)", summaries_500: "AI Summaries +500 (legacy)",
+  transcription_summary_500mins: "AI Minutes +500 (legacy)",
+  transcription_summary_1000mins: "AI Minutes +1000 (legacy)",
+};
+const ALL_TYPE_LABELS = { ...TYPE_LABELS, ...LEGACY_TYPE_LABELS };
+
+const CREDIT_TYPES = ["transcription_summary_100mins"];
 const STATUS_OPTIONS = ["active", "trial", "paused", "suspended", "cancelled"];
 
 const TABS = [
@@ -735,7 +746,7 @@ function BenefitManager({ companyId, benefits, onRefresh, showToast }) {
             <div key={b._id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{TYPE_LABELS[b.benefitType] || b.benefitType}</span>
+                  <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{ALL_TYPE_LABELS[b.benefitType] || b.benefitType}</span>
                   {b.quantity > 1 && <span className="text-[11px] text-[#8B92A9]">× {b.quantity}</span>}
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${b.active ? "bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400" : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"}`}>
                     {b.active ? "active" : "inactive"}
@@ -766,7 +777,7 @@ function BenefitManager({ companyId, benefits, onRefresh, showToast }) {
 
 // ── AI credits panel ──────────────────────────────────────────────────────────
 function AiCreditsPanel({ companyId, usage, remaining, onRefresh, showToast }) {
-  const [form, setForm] = useState({ creditType: "transcriptions_100", quantity: 1, reason: "" });
+  const [form, setForm] = useState({ creditType: "transcription_summary_100mins", quantity: 1, reason: "" });
   const [busy, setBusy] = useState(false);
 
   const add = async () => {
@@ -777,7 +788,7 @@ function AiCreditsPanel({ companyId, usage, remaining, onRefresh, showToast }) {
         quantity: Number(form.quantity),
         reason: form.reason,
       });
-      setForm({ creditType: "transcriptions_100", quantity: 1, reason: "" });
+      setForm({ creditType: "transcription_summary_100mins", quantity: 1, reason: "" });
       onRefresh?.();
       showToast?.("AI credits added.", true);
     } catch (e) {
