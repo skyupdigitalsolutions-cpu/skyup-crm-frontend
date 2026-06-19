@@ -6,6 +6,7 @@ import { useState } from "react";
 import api from "../data/axiosConfig";
 import { Package, Plus, RefreshCw, X, Loader2, ChevronDown } from "lucide-react";
 
+// ADDON_LABELS = currently GRANTABLE addons (drives the picker dropdown).
 const ADDON_LABELS = {
   extra_admin:          "Additional Admin",
   extra_users_5:        "Additional Users (+5)",
@@ -17,11 +18,19 @@ const ADDON_LABELS = {
   call_transcription:   "Call Transcription",
   ai_summary:           "AI Summary",
   whatsapp_automation:  "WhatsApp Automation",
-  transcriptions_100:   "AI Transcriptions +100",
-  transcriptions_500:   "AI Transcriptions +500",
-  summaries_100:        "AI Summaries +100",
-  summaries_500:        "AI Summaries +500",
+  transcription_summary_100mins: "AI Minutes +100 (Transcription & Summary)",
 };
+
+// Retired types — kept only to DISPLAY legacy addon records, never in the picker.
+const LEGACY_ADDON_LABELS = {
+  transcriptions_100:   "AI Transcriptions +100 (legacy)",
+  transcriptions_500:   "AI Transcriptions +500 (legacy)",
+  summaries_100:        "AI Summaries +100 (legacy)",
+  summaries_500:        "AI Summaries +500 (legacy)",
+  transcription_summary_500mins:  "AI Minutes +500 (legacy)",
+  transcription_summary_1000mins: "AI Minutes +1000 (legacy)",
+};
+const ALL_ADDON_LABELS = { ...ADDON_LABELS, ...LEGACY_ADDON_LABELS };
 
 const STATUS_STYLE = {
   active:   "bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400",
@@ -222,7 +231,7 @@ export default function AddonManager({ companyId, addons: initialAddons = [], on
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
-                    {ADDON_LABELS[a.addonType] || a.addonType}
+                    {ALL_ADDON_LABELS[a.addonType] || a.addonType}
                   </span>
                   {a.quantity > 1 && (
                     <span className="text-[11px] text-[#8B92A9]">× {a.quantity}</span>
