@@ -263,6 +263,16 @@ export default function AddonPricingPanel() {
   const [saving,  setSaving]  = useState(false);
   const [toast,   setToast]   = useState(null);
   const [picker,  setPicker]  = useState(false);
+  const [showCustom, setShowCustom] = useState(false);
+  const [custom, setCustom] = useState({
+    name: "", description: "", price: "", grantField: "users", grantDelta: "",
+    billingPeriod: "monthly", maxQuantity: 1, isPublic: false,
+  });
+  const [creating, setCreating] = useState(false);
+
+  const reload = () => api.get("/developer/addon-catalog")
+    .then(({ data }) => setItems(Array.isArray(data?.items) ? data.items : []))
+    .catch(() => {});
 
   useEffect(() => {
     api.get("/developer/addon-catalog")
@@ -287,6 +297,33 @@ export default function AddonPricingPanel() {
   const showToast = (msg, ok) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleCreateCustom = async () => {
+    if (!custom.name.trim()) return showToast("Name is required.", false);
+    if (!custom.grantDelta || Number(custom.grantDelta) <= 0) return showToast("Enter a positive grant amount.", false);
+    setCreating(true);
+    try {
+      const { data } = await api.post("/developer/addon-catalog/custom", {
+        name: custom.name.trim(),
+        description: custom.description.trim(),
+        price: Number(custom.price) || 0,
+        grantField: custom.grantField,
+        grantDelta: Number(custom.grantDelta),
+        billingPeriod: custom.billingPeriod,
+        maxQuantity: Number(custom.maxQuantity) || 1,
+        isPublic: !!custom.isPublic,
+      });
+      if (data?.success === false) throw new Error(data?.message);
+      showToast(`Custom add-on "${custom.name}" created.`, true);
+      setCustom({ name: "", description: "", price: "", grantField: "users", grantDelta: "", billingPeriod: "monthly", maxQuantity: 1, isPublic: false });
+      setShowCustom(false);
+      reload();
+    } catch (err) {
+      showToast(err.response?.data?.message || err.message || "Failed to create custom add-on.", false);
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleSave = async () => {
@@ -363,6 +400,12 @@ export default function AddonPricingPanel() {
             )}
           </div>
           <button
+            onClick={() => setShowCustom(s => !s)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-violet-500 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-500/10 text-[13px] font-semibold transition"
+          >
+            <Plus className="w-3.5 h-3.5" /> Create Custom
+          </button>
+          <button
             onClick={handleSave} disabled={saving}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-[13px] font-semibold transition"
           >
@@ -371,6 +414,70 @@ export default function AddonPricingPanel() {
           </button>
         </div>
       </div>
+
+      {/* Create Custom Add-on form */}
+      {showCustom && (
+        <div className="mb-6 p-5 rounded-2xl border border-violet-200 dark:border-violet-500/30 bg-violet-50/50 dark:bg-violet-500/5">
+          <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-white mb-1">Create a custom add-on</h3>
+          <p className="text-[12px] text-[#8B92A9] mb-4">Define your own priced add-on that grants a resource. When a company buys it, the amount is added to that limit (× quantity).</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#8B92A9] mb-1">Name</label>
+              <input value={custom.name} onChange={e => setCustom(c => ({ ...c, name: e.target.value }))} placeholder="e.g. 10 Extra Users" className="w-full px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px]" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#8B92A9] mb-1">Grants</label>
+              <select value={custom.grantField} onChange={e => setCustom(c => ({ ...c, grantField: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px]">
+                <option value="users">Users</option>
+                <option value="leads">Leads</option>
+                <option value="admins">Admins</option>
+                <option value="websites">Websites</option>
+                <option value="metaCampaigns">Meta Campaigns</option>
+                <option value="googleAccounts">Google Accounts</option>
+                <option value="storageMB">Storage (MB)</option>
+                <option value="transcriptionsLimit">Transcription minutes</option>
+                <option value="summariesLimit">Summary minutes</option>
+                <option value="voiceBotLimit">Voice bot minutes</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#8B92A9] mb-1">Amount (per unit)</label>
+              <input type="number" min="1" value={custom.grantDelta} onChange={e => setCustom(c => ({ ...c, grantDelta: e.target.value }))} placeholder="e.g. 10" className="w-full px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px]" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#8B92A9] mb-1">Price</label>
+              <input type="number" min="0" value={custom.price} onChange={e => setCustom(c => ({ ...c, price: e.target.value }))} placeholder="₹" className="w-full px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px]" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#8B92A9] mb-1">Billing</label>
+              <select value={custom.billingPeriod} onChange={e => setCustom(c => ({ ...c, billingPeriod: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px]">
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+                <option value="one_time">One-time</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#8B92A9] mb-1">Max quantity</label>
+              <input type="number" min="1" value={custom.maxQuantity} onChange={e => setCustom(c => ({ ...c, maxQuantity: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px]" />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#8B92A9] mb-1">Description</label>
+              <input value={custom.description} onChange={e => setCustom(c => ({ ...c, description: e.target.value }))} placeholder="Short description shown on the card" className="w-full px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px]" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={custom.isPublic} onChange={e => setCustom(c => ({ ...c, isPublic: e.target.checked }))} className="w-4 h-4 accent-violet-600" />
+              <span className="text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">Put on sale (visible on customer Upgrade page)</span>
+            </label>
+            <button onClick={handleCreateCustom} disabled={creating}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-[13px] font-semibold transition">
+              {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+              {creating ? "Creating…" : "Create Add-on"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="rounded-2xl border-2 border-dashed border-[#E5E7EB] dark:border-[#262A38] py-12 px-6 text-center">
