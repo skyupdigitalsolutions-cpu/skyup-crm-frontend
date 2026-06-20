@@ -961,8 +961,8 @@ function EnterpriseCTASection() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const USAGE_METRICS = [
-  { k: "transcriptions", label: "Transcriptions", icon: Mic },
-  { k: "summaries",      label: "AI Summaries",   icon: Sparkles },
+  { k: "transcriptions", label: "Transcription Minutes", icon: Mic },
+  { k: "summaries",      label: "Summary Minutes",       icon: Sparkles },
 ];
 
 function UsageMeter({ usage }) {
@@ -971,7 +971,7 @@ function UsageMeter({ usage }) {
     <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
       <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#1E2133]">
         <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Usage this month</h2>
-        <p className="text-[12px] text-[#8B92A9] mt-1">AI quota consumed against your plan limits.</p>
+        <p className="text-[12px] text-[#8B92A9] mt-1">AI minutes consumed against your plan limits.</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-[#E4E7EF] dark:bg-[#1F2333]">
         {USAGE_METRICS.map(({ k, label, icon: Icon }) => {
@@ -990,7 +990,7 @@ function UsageMeter({ usage }) {
               <p className="text-[18px] font-bold text-[#0F1117] dark:text-white">
                 {used}
                 <span className="text-[13px] font-medium text-[#8B92A9]">
-                  {" "}/ {unlimited ? "Unlimited" : lim}
+                  {" "}/ {unlimited ? "Unlimited" : lim} min
                 </span>
               </p>
               {!unlimited && (
