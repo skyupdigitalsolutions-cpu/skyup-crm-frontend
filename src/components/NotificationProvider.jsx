@@ -116,10 +116,6 @@ function handleUpsert(notif, setNotifications, setUnreadCount) {
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
-// ── Module-level Set tracks which adminIds have already received their
-// initial pushPendingFollowUps this browser session.
-const _joinedAdminIds = new Set();
-
 export function NotificationProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount,   setUnreadCount]   = useState(0);
@@ -160,7 +156,6 @@ export function NotificationProvider({ children }) {
 
   useEffect(() => {
     if (!user) {
-      _joinedAdminIds.clear();
       return;
     }
 
@@ -263,9 +258,14 @@ export function NotificationProvider({ children }) {
     });
     socketRef.current = socket;
 
+    // Join on every (re)connect. We must re-emit the join after a reconnect,
+    // otherwise the server no longer knows this socket belongs to the admin's
+    // room and silently stops delivering notifications. The previous code used
+    // a persistent module-level Set that was never cleared on reconnect, so the
+    // join fired once and never again after the first network blip — which made
+    // the bell go dead until a full logout/login. We instead let socket.io call
+    // `connect` on each (re)connection and always emit the join.
     const doJoin = () => {
-      if (_joinedAdminIds.has(adminId)) return;
-      _joinedAdminIds.add(adminId);
       if (isSuperAdmin) {
         console.debug('[NotificationProvider] emitting super_admin_join');
         socket.emit('super_admin_join', { adminId, company: companyId, displayName });
