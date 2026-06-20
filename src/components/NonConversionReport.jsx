@@ -21,6 +21,18 @@ function isoDaysAgo(n) {
   return d.toISOString().slice(0, 10);
 }
 
+// Accountability tag → color. "Agent follow-up gap" is the one to act on.
+const ACCT_STYLE = {
+  "Agent follow-up gap": "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400",
+  "Awaiting next step":  "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400",
+  "Lead not interested": "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  "Price/budget":        "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+  "Bad lead data":       "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400",
+  "Product/fit":         "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400",
+  "No data":             "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+};
+function acctCls(label) { return ACCT_STYLE[label] || ACCT_STYLE["No data"]; }
+
 export default function NonConversionReport() {
   const [from, setFrom]       = useState(isoDaysAgo(30));
   const [to, setTo]           = useState(isoDaysAgo(0));
@@ -94,6 +106,25 @@ export default function NonConversionReport() {
             <div className="text-sm text-[#64748B]">No lost leads found in this period. 🎉</div>
           ) : (
             <>
+              {/* Accountability summary — is it the employee or something else? */}
+              {Array.isArray(data.accountabilityBreakdown) && data.accountabilityBreakdown.length > 0 && (
+                <div className="mb-7">
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-[#64748B] mb-3">Where the issue lies</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {data.accountabilityBreakdown.map((a) => (
+                      <div key={a.label} className={`px-3 py-2 rounded-xl ${acctCls(a.label)}`}>
+                        <span className="text-lg font-extrabold">{a.count}</span>
+                        <span className="text-xs font-semibold ml-1.5">{a.label}</span>
+                        <span className="text-[11px] opacity-70 ml-1">({a.percent}%)</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-[#94A3B8] mt-2 italic">
+                    "Agent follow-up gap" = a lead the team should have acted on. Others are lead-side or external reasons. This is an AI inference from logged notes, not a verdict.
+                  </p>
+                </div>
+              )}
+
               {/* Reason breakdown */}
               <h2 className="text-sm font-bold uppercase tracking-wide text-[#64748B] mb-3">Reason Breakdown</h2>
               <div className="space-y-2 mb-7">
@@ -205,19 +236,21 @@ export default function NonConversionReport() {
                 <div className="rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] overflow-hidden">
                   <table className="w-full text-sm table-fixed">
                     <colgroup>
-                      <col style={{ width: "13%" }} />
                       <col style={{ width: "12%" }} />
-                      <col style={{ width: "18%" }} />
-                      <col style={{ width: "19%" }} />
                       <col style={{ width: "10%" }} />
-                      <col style={{ width: "11%" }} />
-                      <col style={{ width: "17%" }} />
+                      <col style={{ width: "13%" }} />
+                      <col style={{ width: "16%" }} />
+                      <col style={{ width: "16%" }} />
+                      <col style={{ width: "9%" }} />
+                      <col style={{ width: "9%" }} />
+                      <col style={{ width: "15%" }} />
                     </colgroup>
                     <thead>
                       <tr className="bg-[#F8FAFC] dark:bg-[#0D0F14] text-left">
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Lead</th>
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Status</th>
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Reason (why not converted)</th>
+                        <th className="px-3 py-2 font-semibold text-[#64748B]">Accountability</th>
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Improvement</th>
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Source</th>
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Agent</th>
@@ -241,6 +274,11 @@ export default function NonConversionReport() {
                           <td className="px-3 py-2 break-words">
                             <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600">
                               {l.reason}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 break-words">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${acctCls(l.accountability)}`}>
+                              {l.accountability || "—"}
                             </span>
                           </td>
                           <td className="px-3 py-2 text-[#0F6E56] dark:text-emerald-400 break-words">
