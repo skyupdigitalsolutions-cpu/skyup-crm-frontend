@@ -208,7 +208,8 @@ export default function NonConversionReport() {
                       <tr className="bg-[#F8FAFC] dark:bg-[#0D0F14] text-left">
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Lead</th>
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Status</th>
-                        <th className="px-3 py-2 font-semibold text-[#64748B]">Reason</th>
+                        <th className="px-3 py-2 font-semibold text-[#64748B]">Reason (why not converted)</th>
+                        <th className="px-3 py-2 font-semibold text-[#64748B]">Improvement</th>
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Source</th>
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Agent</th>
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Detail</th>
@@ -218,11 +219,23 @@ export default function NonConversionReport() {
                       {(data.leadDetails || []).map((l) => (
                         <tr key={l.leadId} className="border-t border-[#F1F5F9] dark:border-[#1E2130] align-top">
                           <td className="px-3 py-2 font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.name}</td>
-                          <td className="px-3 py-2 text-[#64748B] whitespace-nowrap">{l.status}</td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className="text-[#64748B]">{l.status}</span>
+                            {l.temperature && (
+                              <span className={`ml-1.5 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                l.temperature === "Hot"  ? "bg-rose-100 text-rose-600" :
+                                l.temperature === "Warm" ? "bg-amber-100 text-amber-600" :
+                                "bg-sky-100 text-sky-600"
+                              }`}>{l.temperature}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 max-w-[220px]">
                             <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600">
                               {l.reason}
                             </span>
+                          </td>
+                          <td className="px-3 py-2 text-[#0F6E56] dark:text-emerald-400 max-w-[220px]">
+                            {l.improvement || <span className="italic text-[#94A3B8]">—</span>}
                           </td>
                           <td className="px-3 py-2 text-[#64748B] whitespace-nowrap">{l.source}</td>
                           <td className="px-3 py-2 text-[#64748B] whitespace-nowrap">{l.agent}</td>
