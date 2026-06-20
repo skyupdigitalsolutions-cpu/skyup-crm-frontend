@@ -131,15 +131,15 @@ function AICreditsExhaustedGate({ creditType, onGoToPlans }) {
       <div className="w-16 h-16 rounded-2xl bg-violet-100 dark:bg-violet-500/20 flex items-center justify-center mb-4">
         <AICreditsIcon />
       </div>
-      <h3 className="text-[16px] font-bold text-[#0F1117] dark:text-[#DDE1F5] mb-1">AI Credits Exhausted</h3>
+      <h3 className="text-[16px] font-bold text-[#0F1117] dark:text-[#DDE1F5] mb-1">AI Minutes Exhausted</h3>
       <p className="text-[13px] text-[#8B92A9] max-w-sm mb-4 leading-relaxed">
-        Your monthly {label} credits have been used up. Upgrade your plan or purchase an addon to get more credits.
+        Your monthly {label} minutes have been used up. Upgrade your plan or purchase an add-on to get more minutes.
       </p>
       <button
         onClick={onGoToPlans}
         className="px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-[13px] font-semibold transition"
       >
-        Get More Credits
+        Get More Minutes
       </button>
     </div>
   );
