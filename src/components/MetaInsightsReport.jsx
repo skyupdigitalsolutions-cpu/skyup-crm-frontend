@@ -25,6 +25,14 @@ const ISSUE_STYLE = {
   ok:    { icon: CheckCircle2,  cls: "text-emerald-600" },
 };
 
+// Per-adset AI verdict → pill color
+const VERDICT_STYLE = {
+  Scale:    "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
+  Optimize: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+  Pause:    "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400",
+  Watch:    "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400",
+};
+
 export default function MetaInsightsReport() {
   const [from, setFrom]       = useState(isoDaysAgo(30));
   const [to, setTo]           = useState(isoDaysAgo(0));
@@ -213,6 +221,23 @@ export default function MetaInsightsReport() {
                   );
                 })}
               </div>
+
+              {/* Per-ad-set AI suggestion */}
+              {c.aiSuggestion && (
+                <div className="px-4 pb-3 -mt-1">
+                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-violet-50 dark:bg-violet-500/10">
+                    <Sparkles className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
+                    <div className="text-sm text-[#334155] dark:text-[#CBD5E1]">
+                      {c.aiVerdict && (
+                        <span className={`inline-block mr-2 px-2 py-0.5 rounded-full text-[10px] font-bold ${VERDICT_STYLE[c.aiVerdict] || VERDICT_STYLE.Watch}`}>
+                          {c.aiVerdict}
+                        </span>
+                      )}
+                      {c.aiSuggestion}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
