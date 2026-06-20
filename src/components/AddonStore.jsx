@@ -18,7 +18,7 @@ const BILLING_SUFFIX = { monthly: "/mo", yearly: "/yr", one_time: "" };
 const CATEGORY_BADGE = {
   resource: { label: "Resource", cls: "bg-[#EEF3FF] text-[#2563EB]" },
   feature:  { label: "Feature",  cls: "bg-[#F3EEFF] text-[#7C3AED]" },
-  credit:   { label: "Credits",  cls: "bg-[#FFF7E6] text-[#B45309]" },
+  credit:   { label: "AI Minutes", cls: "bg-[#FFF7E6] text-[#B45309]" },
 };
 
 // Combined transcription+summary packs — minute counts for per-minute cost display
