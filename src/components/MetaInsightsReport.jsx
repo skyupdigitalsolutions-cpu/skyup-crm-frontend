@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import api from "../data/axiosConfig";
 import {
   TrendingUp, RefreshCw, AlertTriangle, AlertCircle, CheckCircle2, Info, DollarSign,
+  Sparkles, Lightbulb, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,6 +96,74 @@ export default function MetaInsightsReport() {
               <div className="text-lg font-extrabold text-[#0F1117] dark:text-[#F0F2FA]">{c.value}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* AI analysis + improvement suggestions */}
+      {data && (data.aiAnalysis || data.aiAnalysisError) && (
+        <div className="rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] overflow-hidden mb-6">
+          <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-[#6366F1]/10 to-[#8B5CF6]/10 border-b border-[#E2E8F0] dark:border-[#1E2130]">
+            <Sparkles className="w-4 h-4 text-[#6366F1]" />
+            <span className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">AI Performance Analysis & Suggestions</span>
+          </div>
+          <div className="p-4">
+            {data.aiAnalysisError ? (
+              <div className="text-sm text-amber-600 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" /> {data.aiAnalysisError}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {data.aiAnalysis.summary && (
+                  <p className="text-sm text-[#334155] dark:text-[#CBD5E1] leading-relaxed">{data.aiAnalysis.summary}</p>
+                )}
+
+                {Array.isArray(data.aiAnalysis.topPerformers) && data.aiAnalysis.topPerformers.length > 0 && (
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wide text-[#64748B] mb-2 flex items-center gap-1">
+                      <ThumbsUp className="w-3.5 h-3.5 text-emerald-500" /> Top Performers
+                    </div>
+                    <ul className="space-y-1.5">
+                      {data.aiAnalysis.topPerformers.map((p, i) => (
+                        <li key={i} className="text-sm text-[#334155] dark:text-[#CBD5E1]">
+                          <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{p.campaign}:</span> {p.why}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {Array.isArray(data.aiAnalysis.underperformers) && data.aiAnalysis.underperformers.length > 0 && (
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wide text-[#64748B] mb-2 flex items-center gap-1">
+                      <ThumbsDown className="w-3.5 h-3.5 text-rose-500" /> Needs Attention
+                    </div>
+                    <ul className="space-y-1.5">
+                      {data.aiAnalysis.underperformers.map((p, i) => (
+                        <li key={i} className="text-sm text-[#334155] dark:text-[#CBD5E1]">
+                          <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{p.campaign}:</span> {p.issue}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {Array.isArray(data.aiAnalysis.suggestions) && data.aiAnalysis.suggestions.length > 0 && (
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wide text-[#64748B] mb-2 flex items-center gap-1">
+                      <Lightbulb className="w-3.5 h-3.5" /> Improvement Suggestions
+                    </div>
+                    <ul className="space-y-1.5">
+                      {data.aiAnalysis.suggestions.map((s, i) => (
+                        <li key={i} className="text-sm text-[#334155] dark:text-[#CBD5E1] flex gap-2">
+                          <span className="text-[#10B981] font-bold">→</span> {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
