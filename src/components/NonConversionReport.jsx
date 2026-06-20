@@ -202,8 +202,17 @@ export default function NonConversionReport() {
                 <h2 className="text-sm font-bold uppercase tracking-wide text-[#64748B] mb-3">
                   Lead Details ({data.leadDetails?.length || 0})
                 </h2>
-                <div className="rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] overflow-x-auto">
-                  <table className="w-full text-sm">
+                <div className="rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] overflow-hidden">
+                  <table className="w-full text-sm table-fixed">
+                    <colgroup>
+                      <col style={{ width: "13%" }} />
+                      <col style={{ width: "12%" }} />
+                      <col style={{ width: "18%" }} />
+                      <col style={{ width: "19%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "11%" }} />
+                      <col style={{ width: "17%" }} />
+                    </colgroup>
                     <thead>
                       <tr className="bg-[#F8FAFC] dark:bg-[#0D0F14] text-left">
                         <th className="px-3 py-2 font-semibold text-[#64748B]">Lead</th>
@@ -218,8 +227,8 @@ export default function NonConversionReport() {
                     <tbody>
                       {(data.leadDetails || []).map((l) => (
                         <tr key={l.leadId} className="border-t border-[#F1F5F9] dark:border-[#1E2130] align-top">
-                          <td className="px-3 py-2 font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.name}</td>
-                          <td className="px-3 py-2 whitespace-nowrap">
+                          <td className="px-3 py-2 font-semibold text-[#0F1117] dark:text-[#F0F2FA] break-words">{l.name}</td>
+                          <td className="px-3 py-2 break-words">
                             <span className="text-[#64748B]">{l.status}</span>
                             {l.temperature && (
                               <span className={`ml-1.5 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
@@ -229,17 +238,17 @@ export default function NonConversionReport() {
                               }`}>{l.temperature}</span>
                             )}
                           </td>
-                          <td className="px-3 py-2 max-w-[220px]">
+                          <td className="px-3 py-2 break-words">
                             <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600">
                               {l.reason}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-[#0F6E56] dark:text-emerald-400 max-w-[220px]">
+                          <td className="px-3 py-2 text-[#0F6E56] dark:text-emerald-400 break-words">
                             {l.improvement || <span className="italic text-[#94A3B8]">—</span>}
                           </td>
-                          <td className="px-3 py-2 text-[#64748B] whitespace-nowrap">{l.source}</td>
-                          <td className="px-3 py-2 text-[#64748B] whitespace-nowrap">{l.agent}</td>
-                          <td className="px-3 py-2 text-[#64748B] max-w-[280px]">{l.detail || <span className="italic text-[#94A3B8]">No remark / summary</span>}</td>
+                          <td className="px-3 py-2 text-[#64748B] break-words">{l.source}</td>
+                          <td className="px-3 py-2 text-[#64748B] break-words">{l.agent}</td>
+                          <td className="px-3 py-2 text-[#64748B] break-words">{l.detail || <span className="italic text-[#94A3B8]">No remark / summary</span>}</td>
                         </tr>
                       ))}
                     </tbody>
