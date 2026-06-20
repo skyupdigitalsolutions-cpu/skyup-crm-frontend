@@ -44,6 +44,17 @@ const ADMIN_NAV_ITEMS = [
     ),
   },
   {
+    to: "/pipeline",
+    label: "Pipeline Board",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <rect x="3" y="3" width="6" height="18" rx="1" />
+        <rect x="9.5" y="3" width="6" height="11" rx="1" />
+        <rect x="16" y="3" width="6" height="7" rx="1" />
+      </svg>
+    ),
+  },
+  {
     to: "/campaigns",
     label: "Campaigns",
     featureKey: "campaigns",
