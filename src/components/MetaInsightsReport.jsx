@@ -1,0 +1,155 @@
+import { useState, useCallback, useEffect } from "react";
+import api from "../data/axiosConfig";
+import {
+  TrendingUp, RefreshCw, AlertTriangle, AlertCircle, CheckCircle2, Info, DollarSign,
+} from "lucide-react";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Meta Ad Performance Report (admin)
+// GET /meta-config/insights?from=&to=  →  spend / CPM / CPC / CTR / reach +
+// cost-per-lead + per-campaign setup-issue detection.
+//
+// Requires each Meta campaign config to have adAccountId + an ads_read token
+// set (Campaigns page). Configs without them show as "not configured".
+// ─────────────────────────────────────────────────────────────────────────────
+
+const isoDaysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+const money = (v) => (v == null ? "—" : `₹${Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
+const numfmt = (v) => Number(v || 0).toLocaleString("en-IN");
+
+const ISSUE_STYLE = {
+  error: { icon: AlertCircle,   cls: "text-rose-600" },
+  warn:  { icon: AlertTriangle, cls: "text-amber-600" },
+  info:  { icon: Info,          cls: "text-sky-600" },
+  ok:    { icon: CheckCircle2,  cls: "text-emerald-600" },
+};
+
+export default function MetaInsightsReport() {
+  const [from, setFrom]       = useState(isoDaysAgo(30));
+  const [to, setTo]           = useState(isoDaysAgo(0));
+  const [loading, setLoading] = useState(false);
+  const [data, setData]       = useState(null);
+  const [error, setError]     = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const { data } = await api.get("/meta-config/insights", { params: { from, to } });
+      setData(data);
+    } catch (e) {
+      setError(e?.response?.data?.message || "Failed to load Meta insights.");
+    } finally {
+      setLoading(false);
+    }
+  }, [from, to]);
+
+  useEffect(() => { load(); }, []); // eslint-disable-line
+
+  const t = data?.totals;
+
+  return (
+    <div className="p-4 md:p-6 max-w-6xl mx-auto">
+      <div className="flex items-center gap-2 mb-1">
+        <TrendingUp className="w-5 h-5 text-[#6366F1]" />
+        <h1 className="text-xl font-bold text-[#0F1117] dark:text-[#F0F2FA]">Meta Ad Performance</h1>
+      </div>
+      <p className="text-sm text-[#64748B] mb-5">
+        Spend, CPM, CPC, CTR, reach and cost-per-lead per campaign, with setup-issue detection.
+      </p>
+
+      {/* Controls */}
+      <div className="flex flex-wrap items-end gap-3 mb-6">
+        <div>
+          <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#64748B] mb-1">From</label>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-[#E2E8F0] dark:border-[#1E2130] bg-white dark:bg-[#0D0F14] text-sm" />
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#64748B] mb-1">To</label>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-[#E2E8F0] dark:border-[#1E2130] bg-white dark:bg-[#0D0F14] text-sm" />
+        </div>
+        <button onClick={load} disabled={loading}
+          className="px-4 py-2 rounded-lg bg-[#6366F1] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-60">
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> {loading ? "Loading…" : "Run Report"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 mb-4 rounded-lg bg-rose-50 dark:bg-rose-950/30 text-rose-600 text-sm">
+          <AlertTriangle className="w-4 h-4" /> {error}
+        </div>
+      )}
+
+      {t && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+          {[
+            { label: "Total Spend",  value: money(t.spend),        icon: DollarSign },
+            { label: "Cost / Lead",  value: money(t.costPerLead) },
+            { label: "Leads",        value: numfmt(t.leads) },
+            { label: "Impressions",  value: numfmt(t.impressions) },
+            { label: "Clicks",       value: numfmt(t.clicks) },
+          ].map((c) => (
+            <div key={c.label} className="p-3 rounded-xl bg-[#F8FAFC] dark:bg-[#0D0F14] border border-[#E2E8F0] dark:border-[#1E2130]">
+              <div className="text-[11px] uppercase tracking-wide text-[#64748B]">{c.label}</div>
+              <div className="text-lg font-extrabold text-[#0F1117] dark:text-[#F0F2FA]">{c.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Per-campaign cards */}
+      {data?.campaigns?.length > 0 ? (
+        <div className="space-y-3">
+          {data.campaigns.map((c) => (
+            <div key={c.configId} className="rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 bg-[#F8FAFC] dark:bg-[#0D0F14] border-b border-[#E2E8F0] dark:border-[#1E2130]">
+                <div>
+                  <div className="font-bold text-[#0F1117] dark:text-[#F0F2FA] text-sm">{c.campaignName}</div>
+                  {c.adSetName && <div className="text-xs text-[#64748B]">Ad set: {c.adSetName}</div>}
+                </div>
+                {!c.configured && (
+                  <span className="text-[11px] px-2 py-1 rounded-full bg-slate-200 dark:bg-slate-800 text-[#64748B]">Not configured</span>
+                )}
+              </div>
+
+              {c.configured && (
+                <div className="grid grid-cols-3 md:grid-cols-7 gap-px bg-[#E2E8F0] dark:bg-[#1E2130]">
+                  {[
+                    ["Spend", money(c.metrics.spend)],
+                    ["Cost/Lead", money(c.costPerLead)],
+                    ["Leads", numfmt(c.leads)],
+                    ["CPM", money(c.metrics.cpm)],
+                    ["CPC", money(c.metrics.cpc)],
+                    ["CTR", `${c.metrics.ctr || 0}%`],
+                    ["Reach", numfmt(c.metrics.reach)],
+                  ].map(([k, v]) => (
+                    <div key={k} className="bg-white dark:bg-[#0D0F14] p-3">
+                      <div className="text-[10px] uppercase tracking-wide text-[#64748B]">{k}</div>
+                      <div className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">{v}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Issues */}
+              <div className="px-4 py-3 space-y-1.5">
+                {(c.issues || []).map((iss, idx) => {
+                  const st = ISSUE_STYLE[iss.level] || ISSUE_STYLE.info;
+                  const Icon = st.icon;
+                  return (
+                    <div key={idx} className={`flex items-start gap-2 text-sm ${st.cls}`}>
+                      <Icon className="w-4 h-4 mt-0.5 shrink-0" /> <span>{iss.msg}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : data ? (
+        <div className="text-sm text-[#64748B]">No Meta campaigns found for this company.</div>
+      ) : null}
+    </div>
+  );
+}
