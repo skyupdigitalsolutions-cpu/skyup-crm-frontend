@@ -55,7 +55,7 @@ export default function NonConversionReport() {
         <h1 className="text-xl font-bold text-[#0F1117] dark:text-[#F0F2FA]">Non-Conversion Analysis</h1>
       </div>
       <p className="text-sm text-[#64748B] mb-5">
-        Why leads didn't convert — derived from status, remarks and call summaries — with AI suggestions to improve.
+        Every lead that hasn't converted (all statuses except Converted) — with its reason, derived from status, remarks and call summaries, plus AI suggestions.
       </p>
 
       {/* Controls */}
@@ -87,7 +87,7 @@ export default function NonConversionReport() {
           {/* Summary stat */}
           <div className="mb-6 p-4 rounded-xl bg-[#F8FAFC] dark:bg-[#0D0F14] border border-[#E2E8F0] dark:border-[#1E2130]">
             <div className="text-3xl font-extrabold text-[#0F1117] dark:text-[#F0F2FA]">{data.totalLost}</div>
-            <div className="text-sm text-[#64748B]">lost / non-converted leads in this range</div>
+            <div className="text-sm text-[#64748B]">non-converted leads in this range (all except Converted)</div>
           </div>
 
           {data.totalLost === 0 ? (
@@ -194,6 +194,43 @@ export default function NonConversionReport() {
                       <span className="text-[#64748B] font-semibold">{a.count}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Per-lead detail — every non-converted lead with its reason */}
+              <div className="mt-6">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-[#64748B] mb-3">
+                  Lead Details ({data.leadDetails?.length || 0})
+                </h2>
+                <div className="rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-[#F8FAFC] dark:bg-[#0D0F14] text-left">
+                        <th className="px-3 py-2 font-semibold text-[#64748B]">Lead</th>
+                        <th className="px-3 py-2 font-semibold text-[#64748B]">Status</th>
+                        <th className="px-3 py-2 font-semibold text-[#64748B]">Reason</th>
+                        <th className="px-3 py-2 font-semibold text-[#64748B]">Source</th>
+                        <th className="px-3 py-2 font-semibold text-[#64748B]">Agent</th>
+                        <th className="px-3 py-2 font-semibold text-[#64748B]">Detail</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data.leadDetails || []).map((l) => (
+                        <tr key={l.leadId} className="border-t border-[#F1F5F9] dark:border-[#1E2130] align-top">
+                          <td className="px-3 py-2 font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.name}</td>
+                          <td className="px-3 py-2 text-[#64748B] whitespace-nowrap">{l.status}</td>
+                          <td className="px-3 py-2">
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600">
+                              {l.reason}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-[#64748B] whitespace-nowrap">{l.source}</td>
+                          <td className="px-3 py-2 text-[#64748B] whitespace-nowrap">{l.agent}</td>
+                          <td className="px-3 py-2 text-[#64748B] max-w-[280px]">{l.detail || <span className="italic text-[#94A3B8]">No remark / summary</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </>
