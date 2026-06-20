@@ -454,6 +454,8 @@ function CreateModal({ onClose, onCreated }) {
     campaignName: "", pageId: "", pageAccessToken: "", appSecret: "", verifyToken: "",
     graphApiVersion: "v25.0", formIds: "", formId: "", defaultStatus: "New",
     adSetName: "", parentCampaignName: "",
+    // Ad performance (Insights API) — optional
+    adAccountId: "", adsToken: "",
   };
   const [form, setForm] = useState(empty);
   const [loading, setLoading] = useState(false);
@@ -479,6 +481,9 @@ function CreateModal({ onClose, onCreated }) {
         graphApiVersion: form.graphApiVersion.trim() || "v25.0",
         adSetName: form.adSetName.trim() || undefined,
         parentCampaignName: form.parentCampaignName.trim() || undefined,
+        // Ad performance (Insights API) credentials — optional.
+        adAccountId: form.adAccountId.trim() || "",
+        adsToken: form.adsToken.trim() || "",
         _meta: {
           META_APP_SECRET: form.appSecret.trim(),
           META_VERIFY_TOKEN: form.verifyToken.trim(),
@@ -596,6 +601,26 @@ function CreateModal({ onClose, onCreated }) {
                   <input type="text" value={form.graphApiVersion} onChange={set("graphApiVersion")} placeholder="v25.0" className={FIELD_CLS} />
                 </div>
               </div>
+
+              {/* ── Ad Performance (Insights) — optional ───────────────────── */}
+              <div className="pt-2">
+                <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-1">Ad Performance (optional)</p>
+                <p className="text-[10px] text-[#8B92A9] mb-3">
+                  Add an Ad Account ID + a token with <code className="bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] px-1 rounded">ads_read</code> to see spend, CPM, CPC, CTR and cost-per-lead for this campaign in the Meta Performance report. Leave blank to skip.
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Ad Account ID</label>
+                    <input type="text" value={form.adAccountId} onChange={set("adAccountId")} placeholder="act_1234567890" className={FIELD_CLS} />
+                    <p className="text-[10px] text-[#8B92A9] mt-1">Format <code className="bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] px-1 rounded">act_</code> + the numeric ID (Business Settings → Ad Accounts).</p>
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Ads Token <span className="text-[10px] font-normal text-[#8B92A9]">(ads_read)</span></label>
+                    <input type="password" value={form.adsToken} onChange={set("adsToken")} placeholder="System User token with ads_read" className={FIELD_CLS} />
+                    <p className="text-[10px] text-[#8B92A9] mt-1">A System User token from Meta Business Manager with View Performance / ads_read on that ad account.</p>
+                  </div>
+                </div>
+              </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Form IDs <span className="text-[10px] font-normal text-[#8B92A9]">(optional — blank = accept all)</span></label>
                 <input type="text" value={form.formIds} onChange={set("formIds")} placeholder="form_id_1, form_id_2" className={FIELD_CLS} />
@@ -657,6 +682,8 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
     defaultStatus: campaign.defaultStatus || "New",
     adSetName: campaign.adSetName || "",
     parentCampaignName: campaign.parentCampaignName || "",
+    adAccountId: campaign.adAccountId || "",
+    adsToken: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -682,6 +709,10 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
       if (form.pageAccessToken.trim()) payload.pageAccessToken = form.pageAccessToken.trim();
       if (form.appSecret.trim()) payload.appSecret = form.appSecret.trim();
       if (form.verifyToken.trim()) payload.verifyToken = form.verifyToken.trim();
+      // Ad performance (Insights) — adAccountId always sent (so it can be set/cleared);
+      // adsToken only when a new one is entered (blank keeps the existing token).
+      payload.adAccountId = form.adAccountId.trim();
+      if (form.adsToken.trim()) payload.adsToken = form.adsToken.trim();
       await api.put(`/meta-config/${campaign._id}`, payload);
       setSuccess(true); onUpdated && onUpdated();
     } catch (err) { setError(err.response?.data?.message || err.message || "Failed to update campaign"); }
@@ -748,6 +779,21 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Form ID <span className="text-[10px] font-normal text-[#8B92A9]">(for this specific ad set)</span></label>
                 <input type="text" value={form.formId || ""} onChange={set("formId")} placeholder="e.g. 1234567890123456" className={FIELD_CLS} />
                 <p className="text-[10px] text-[#8B92A9] mt-1">Each ad set has its own lead form. Find the Form ID in Meta Ads Manager → Lead forms.</p>
+              </div>
+              {/* Ad Performance (Insights) — optional */}
+              <div className="pt-1">
+                <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-1">Ad Performance (optional)</p>
+                <p className="text-[10px] text-[#8B92A9] mb-2">Spend / CPM / CPC / CTR / cost-per-lead in the Meta Performance report. Needs an <code className="bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] px-1 rounded">ads_read</code> token.</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Ad Account ID</label>
+                    <input type="text" value={form.adAccountId || ""} onChange={set("adAccountId")} placeholder="act_1234567890" className={FIELD_CLS} />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">New Ads Token <span className="text-[10px] font-normal text-[#8B92A9]">(ads_read — blank keeps current)</span></label>
+                    <input type="password" value={form.adsToken || ""} onChange={set("adsToken")} placeholder="Only if changing the ads_read token" className={FIELD_CLS} />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
