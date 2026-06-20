@@ -199,8 +199,8 @@ async function sendInvoiceEmail(payload) {
 const PLAN_DEFAULTS = {
   basic: {
     id: "basic", name: "Basic", desc: "For Small Teams",
-    monthlyPrice: 2499, yearlyPrice: 24990, color: PLAN_COLORS.basic, popular: false,
-    maxAdmins: 1, maxUsers: 5, maxLeads: 1000, maxWebsites: 1,
+    monthlyPrice: 2999, yearlyPrice: 29990, color: PLAN_COLORS.basic, popular: false,
+    maxAdmins: 1, maxUsers: 5, maxLeads: 5000, maxWebsites: 1,
     maxMetaCampaigns: 1, maxGoogleAccounts: 1, maxStorageMB: 100,
     transcriptionsPerMonth: 0, summariesPerMonth: 0, voiceBotPerMonth: 0, dataRetentionDays: 15,
     features: [
@@ -225,7 +225,7 @@ const PLAN_DEFAULTS = {
   pro: {
     id: "pro", name: "Pro", desc: "For Growing Businesses",
     monthlyPrice: 6999, yearlyPrice: 69990, color: PLAN_COLORS.pro, popular: true,
-    maxAdmins: 3, maxUsers: 20, maxLeads: 2000, maxWebsites: 3,
+    maxAdmins: 3, maxUsers: 30, maxLeads: 20000, maxWebsites: 3,
     maxMetaCampaigns: 3, maxGoogleAccounts: 3, maxStorageMB: 5120,
     transcriptionsPerMonth: 6000, summariesPerMonth: 6000, voiceBotPerMonth: 0, dataRetentionDays: 60,
     features: [
@@ -250,7 +250,7 @@ const PLAN_DEFAULTS = {
   advance: {
     id: "advance", name: "Advance", desc: "Automation & Growth",
     monthlyPrice: 14999, yearlyPrice: 149990, color: PLAN_COLORS.advance, popular: false,
-    maxAdmins: 5, maxUsers: 50, maxLeads: 5000, maxWebsites: 5,
+    maxAdmins: 5, maxUsers: 50, maxLeads: 50000, maxWebsites: 5,
     maxMetaCampaigns: 5, maxGoogleAccounts: 5, maxStorageMB: 51200,
     transcriptionsPerMonth: 15000, summariesPerMonth: 15000, voiceBotPerMonth: 0, dataRetentionDays: 365,
     features: [
