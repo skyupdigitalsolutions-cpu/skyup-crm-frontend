@@ -6,6 +6,8 @@ import CRMEncryption from "../utils/CRMEncryption";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES as ALL_STATUSES_SHARED } from "../utils/statusConfig";
 import { normalizePhone } from "../utils/normalizePhone";
 import { AlertTriangle } from "lucide-react";
+import NonConversionReport from "./NonConversionReport";
+import MetaInsightsReport from "./MetaInsightsReport";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
 function maskPhone(phone) {
@@ -1527,7 +1529,7 @@ function CloseLeadModal({ lead, onClose, onClosed }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function ReportPage() {
+function LeadReportPage() {
   const [leads, setLeads]               = useState([]);
   const [agents, setAgents]             = useState([]);
   const [projects, setProjects]         = useState([]);
@@ -2083,6 +2085,49 @@ export default function ReportPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── ReportPage wrapper with sub-tabs ──────────────────────────────────────────
+// Keeps the original lead report as the default tab and adds the two analysis
+// reports (Non-Conversion, Meta Performance) as sub-pages within Report Page,
+// so they live under one menu item instead of separate sidebar links.
+export default function ReportPage() {
+  const [subTab, setSubTab] = useState("leads");
+
+  const TABS = [
+    { id: "leads",          label: "Lead Report" },
+    { id: "nonConversion",  label: "Non-Conversion" },
+    { id: "meta",           label: "Meta Performance" },
+  ];
+
+  return (
+    <div>
+      {/* Sub-tab bar */}
+      <div className="flex gap-1 px-4 md:px-6 pt-4 border-b border-[#E5E7EB] dark:border-[#262A38] overflow-x-auto">
+        {TABS.map((t) => {
+          const active = subTab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setSubTab(t.id)}
+              className={`px-4 py-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 -mb-px transition ${
+                active
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]"
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Active sub-page */}
+      {subTab === "leads"         && <LeadReportPage />}
+      {subTab === "nonConversion" && <NonConversionReport />}
+      {subTab === "meta"          && <MetaInsightsReport />}
     </div>
   );
 }
