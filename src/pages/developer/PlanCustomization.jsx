@@ -260,8 +260,8 @@ function PlanCard({ planId, plan, onChange }) {
           <div>
             <p className="text-[11px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider mb-3">AI Monthly Quotas (0 = off)</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <NumberField label="Transcriptions / mo" value={plan.transcriptionsPerMonth} onChange={v => onChange(planId, "transcriptionsPerMonth", v)} />
-              <NumberField label="Summaries / mo"      value={plan.summariesPerMonth}      onChange={v => onChange(planId, "summariesPerMonth", v)} />
+              <NumberField label="Transcription min / mo" value={plan.transcriptionsPerMonth} onChange={v => onChange(planId, "transcriptionsPerMonth", v)} />
+              <NumberField label="Summary min / mo"      value={plan.summariesPerMonth}      onChange={v => onChange(planId, "summariesPerMonth", v)} />
               <BoolToggle  label="Recording Enabled"   value={!!plan.recordingEnabled}     onChange={v => onChange(planId, "recordingEnabled", v)} />
             </div>
           </div>
