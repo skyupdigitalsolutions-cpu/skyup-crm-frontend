@@ -75,6 +75,7 @@ const HIDDEN_FEATURE_KEYS = new Set([
 // on any plan, including Basic.
 const ALWAYS_UNLOCKED_KEYS = new Set([
   "ai-remark", "aiRemark",
+  "call-recording", "callRecording",
 ]);
 
 const FEATURE_LABELS = {
@@ -216,7 +217,7 @@ const PLAN_DEFAULTS = {
       { key: "email-blast",           label: "Email Blast",            enabled: false },
       { key: "campaigns",             label: "Campaign Management",    enabled: false },
       { key: "website-tracking",      label: "Website Tracking",       enabled: false },
-      { key: "call-recording",        label: "Call Recording",         enabled: false },
+      { key: "call-recording",        label: "Call Recording",         enabled: true  },
       { key: "call-transcription",    label: "Call Transcription",     enabled: false },
       { key: "ai-summary",            label: "AI Call Summary",        enabled: false },
       { key: "telegram-notification", label: "Telegram Notifications", enabled: false },
