@@ -17,7 +17,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Loader2, Save, CheckCircle, XCircle, AlertTriangle,
   ToggleLeft, Sliders, Package, Gift, Sparkles, ScrollText,
-  Plus, X, Trash2, RefreshCw,
+  Plus, X, Trash2, RefreshCw, Cloud, HardDrive,
 } from "lucide-react";
 import api from "../../data/axiosConfig";
 import AddonManager from "../../components/AddonManager";
@@ -97,6 +97,7 @@ const TABS = [
   { id: "addons",   label: "Addons",     icon: Package },
   { id: "benefits", label: "Benefits",   icon: Gift },
   { id: "credits",  label: "AI Credits", icon: Sparkles },
+  { id: "storage",  label: "Storage",    icon: HardDrive },
   { id: "activity", label: "Activity",   icon: ScrollText },
 ];
 
@@ -598,6 +599,11 @@ export default function CompanyDetails() {
         <AiCreditsPanel companyId={id} usage={usage} remaining={remaining} onRefresh={load} showToast={showToast} />
       )}
 
+      {/* ── STORAGE TAB ── */}
+      {tab === "storage" && (
+        <CloudinaryPanel companyId={id} company={company} onRefresh={load} showToast={showToast} />
+      )}
+
       {/* ── ACTIVITY TAB ── */}
       {tab === "activity" && (
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl overflow-hidden">
@@ -843,6 +849,107 @@ function AiCreditsPanel({ companyId, usage, remaining, onRefresh, showToast }) {
           </button>
         </div>
         <p className="text-[11px] text-[#9DA3BB] mt-3">Credit packs are stored as free, non-expiring addons and stack on top of the monthly plan quota.</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Storage / Cloudinary panel ─────────────────────────────────────────────────
+// Lets the developer point a company's media (call recordings) at its OWN
+// Cloudinary account. When disabled or empty, the platform's global Cloudinary
+// is used. The apiSecret is never returned in full from the server (masked as
+// "********"); leaving it untouched while saving keeps the stored secret.
+function CloudinaryPanel({ companyId, company, onRefresh, showToast }) {
+  const existing = company?.cloudinaryConfig || {};
+  const [form, setForm] = useState({
+    enabled:   !!existing.enabled,
+    cloudName: existing.cloudName || "",
+    apiKey:    existing.apiKey || "",
+    apiSecret: existing.apiSecret || "", // server sends "********" if a secret is set
+  });
+  const [busy, setBusy] = useState(false);
+
+  const hasSecretStored = existing.apiSecret === "********" || (existing.apiSecret && existing.apiSecret.length > 0);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const payload = {
+        enabled:   form.enabled,
+        cloudName: form.cloudName.trim(),
+        apiKey:    form.apiKey.trim(),
+      };
+      // Only send the secret if the user typed a new one (not the masked value).
+      if (form.apiSecret && form.apiSecret !== "********") payload.apiSecret = form.apiSecret.trim();
+      const { data } = await api.put(`/developer/companies/${companyId}/cloudinary`, payload);
+      showToast?.(data.message || "Saved.", true);
+      onRefresh?.();
+    } catch (e) {
+      showToast?.(e.response?.data?.message || "Failed to save Cloudinary settings", false);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Cloud className="w-4 h-4 text-blue-500" />
+          <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Company Cloudinary (media storage)</h3>
+        </div>
+        <p className="text-[12px] text-[#8B92A9] mb-4">
+          Store this company's call recordings in its own Cloudinary account. When off (or fields empty),
+          recordings use the platform's shared Cloudinary.
+        </p>
+
+        {/* Enable toggle */}
+        <label className="flex items-center gap-3 mb-4 cursor-pointer select-none">
+          <input type="checkbox" checked={form.enabled}
+            onChange={e => setForm(p => ({ ...p, enabled: e.target.checked }))}
+            className="w-4 h-4 accent-blue-600" />
+          <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+            Use this company's own Cloudinary account
+          </span>
+        </label>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider mb-1.5">Cloud Name</label>
+            <input type="text" value={form.cloudName} disabled={!form.enabled}
+              onChange={e => setForm(p => ({ ...p, cloudName: e.target.value }))}
+              placeholder="e.g. company-cloud"
+              className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider mb-1.5">API Key</label>
+            <input type="text" value={form.apiKey} disabled={!form.enabled}
+              onChange={e => setForm(p => ({ ...p, apiKey: e.target.value }))}
+              placeholder="API key"
+              className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider mb-1.5">API Secret</label>
+            <input type="password" value={form.apiSecret} disabled={!form.enabled}
+              onChange={e => setForm(p => ({ ...p, apiSecret: e.target.value }))}
+              placeholder={hasSecretStored ? "•••••••• (leave blank to keep)" : "API secret"}
+              className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50" />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between mt-5">
+          <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${form.enabled ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600" : "bg-slate-100 dark:bg-slate-800 text-[#8B92A9]"}`}>
+            {form.enabled ? "Own Cloudinary" : "Global (shared) Cloudinary"}
+          </span>
+          <button onClick={save} disabled={busy}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-[13px] font-semibold transition">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </div>
+
+        <p className="text-[11px] text-[#9DA3BB] mt-3">
+          The API secret is stored securely and never shown again — leave it blank when editing to keep the existing one.
+          Recordings already uploaded stay where they were; this affects new uploads.
+        </p>
       </div>
     </div>
   );
