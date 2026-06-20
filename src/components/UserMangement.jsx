@@ -265,6 +265,7 @@ function AddMemberModal({ role, onClose, onAdd, adminList = [], isSuperAdmin = f
   const [showConfirm, setShowConfirm] = useState(false);
   const [suggestedPwd, setSuggestedPwd] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
+  const [contactAccountEmail, setContactAccountEmail] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const isAdmin = role === "admin";
@@ -278,9 +279,22 @@ function AddMemberModal({ role, onClose, onAdd, adminList = [], isSuperAdmin = f
     if (password.length < 8) return setError("Password must be at least 8 characters.");
     if (password !== confirmPassword) return setError("Passwords do not match.");
     if (!isAdmin && isSuperAdmin && !assignedTo) return setError("Please select an admin to assign this employee to.");
+    // Optional contacts-account email: only validate format if provided.
+    const cae = contactAccountEmail.trim();
+    if (cae && !cae.includes("@")) return setError("Contacts email must be a valid email address.");
     setError(""); setLoading(true);
     try {
-      await onAdd({ name: name.trim(), email: email.trim(), phone: phone.trim(), role, password, assignedTo: assignedTo || undefined });
+      await onAdd({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        role,
+        password,
+        assignedTo: assignedTo || undefined,
+        // Only meaningful for employees (the mobile app reads it). Send undefined
+        // when empty so the backend stores null.
+        contactAccountEmail: (!isAdmin && cae) ? cae : undefined,
+      });
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to create account. Please try again.");
       setLoading(false);
@@ -329,6 +343,25 @@ function AddMemberModal({ role, onClose, onAdd, adminList = [], isSuperAdmin = f
               />
             </div>
           ))}
+          {/* Contacts account email — employee only. The Google account on the
+              employee's phone that leads get auto-saved into (so they sync to
+              that Gmail). Optional. */}
+          {!isAdmin && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Contacts Email (Google account)</label>
+              <input
+                type="email"
+                value={contactAccountEmail}
+                onChange={e => setContactAccountEmail(e.target.value)}
+                placeholder="e.g. agent.contacts@gmail.com"
+                className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-xs text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] dark:placeholder:text-[#565C75] focus:outline-none focus:border-[#2563EB] transition"
+              />
+              <span className="text-[10px] text-[#8B92A9] dark:text-[#565C75] leading-snug">
+                Leads will auto-save to this Google account on the employee's phone.
+                The same account must be signed in on their device.
+              </span>
+            </div>
+          )}
           {/* Assign to Admin — super admin only, when adding an employee */}
           {!isAdmin && isSuperAdmin && (
             <div className="flex flex-col gap-1">
@@ -757,7 +790,7 @@ export default function UserManagement({
     setModal(role);
   };
 
-  const addMember = async ({ name, email, phone, role, password, assignedTo }) => {
+  const addMember = async ({ name, email, phone, role, password, assignedTo, contactAccountEmail }) => {
     if (role === "admin") {
       const res = await api.post("/admin/", { name, email, password });
       // plainPassword comes back from backend (stored for super_admin credential view)
@@ -766,7 +799,7 @@ export default function UserManagement({
       setModal(null);
       setCredsFor(member);
     } else {
-      const res = await api.post("/admin/user", { name, email, password, assignedTo });
+      const res = await api.post("/admin/user", { name, email, password, assignedTo, contactAccountEmail });
       const member = { ...res.data, phone, role: "user", password: res.data.plainPassword || password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
       setUsers(prev => [...prev, member]);
       setTotalCompanyUsers(prev => prev + 1);
