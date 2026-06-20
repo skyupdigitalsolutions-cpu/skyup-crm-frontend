@@ -22,7 +22,6 @@ const AdminLeadsPage = lazy(() => import("./components/AdminLeadsPage"));
 const Communications = lazy(() => import("./components/Communications"));
 const AttendancePage = lazy(() => import("./pages/AttendancePage"));
 const UpgradePlan    = lazy(() => import("./components/UpgradePlan"));
-const PipelineBoard       = lazy(() => import("./components/PipelineBoard"));
 
 // User pages
 const UserLogin              = lazy(() => import("./pages/UserLogin"));
@@ -522,11 +521,6 @@ function AppInner() {
           <Route path="/reportpage" element={
             <AdminRoute>
               <AppLayout><FeatureGate featureKey="basic-reports"><ReportPage /></FeatureGate></AppLayout>
-            </AdminRoute>
-          }/>
-          <Route path="/pipeline" element={
-            <AdminRoute>
-              <AppLayout><PipelineBoard /></AppLayout>
             </AdminRoute>
           }/>
           <Route path="/campaigns" element={
