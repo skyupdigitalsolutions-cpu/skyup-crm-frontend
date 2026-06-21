@@ -13,9 +13,30 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const emptyField = () => ({ name: "", value: "", note: "" });
 
+// Resolve the logged-in user's company id + name from localStorage. This page
+// is locked to that single company — there is no company picker.
+function getCurrentCompany() {
+  let user = null;
+  try { user = JSON.parse(localStorage.getItem("user") || "null"); } catch { user = null; }
+  if (!user) return { id: "", name: "" };
+  let id = "";
+  let name = "";
+  if (typeof user.companyId === "string") id = user.companyId;
+  if (user.company) {
+    if (typeof user.company === "string") id = id || user.company;
+    else if (typeof user.company === "object") {
+      id   = id || (user.company._id ? String(user.company._id) : "");
+      name = user.company.name || user.company.companyName || "";
+    }
+  }
+  name = name || user.companyName || user.company_name || "";
+  return { id, name };
+}
+
 export default function CustomReports() {
-  const [companies, setCompanies]   = useState([]);
-  const [companyId, setCompanyId]   = useState("");
+  const company = getCurrentCompany();
+  const companyId = company.id;
+
   const [reports, setReports]       = useState([]);
   const [selected, setSelected]     = useState(null);   // full report being viewed
   const [trends, setTrends]         = useState(null);
@@ -36,19 +57,7 @@ export default function CustomReports() {
   const [aiLoading, setAiLoading]   = useState(false);
   const [aiError, setAiError]       = useState("");
 
-  // ── Load companies once ─────────────────────────────────────────────────────
-  useEffect(() => {
-    api.get("/superadmin/companies")
-      .then((res) => {
-        const list = Array.isArray(res.data) ? res.data : [];
-        setCompanies(list);
-        if (list.length && !companyId) setCompanyId(list[0]._id);
-      })
-      .catch(() => setError("Could not load companies."));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── Load reports when company changes ───────────────────────────────────────
+  // ── Load reports for the current company ────────────────────────────────────
   const loadReports = useCallback(() => {
     if (!companyId) return;
     setLoading(true);
@@ -153,25 +162,32 @@ export default function CustomReports() {
 
   const maxSeriesTotal = trends?.series?.reduce((m, s) => Math.max(m, Math.abs(s.total || 0)), 0) || 0;
 
+  // No company on the logged-in user → can't scope reports. Show a clear note
+  // instead of a blank page (this page is locked to the user's own company).
+  if (!companyId) {
+    return (
+      <div className="p-4 md:p-6 max-w-5xl mx-auto">
+        <h1 className="text-lg font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-2">Custom Reports</h1>
+        <div className="rounded-xl border border-dashed border-[#E2E8F0] dark:border-[#1E2130] p-8 text-center text-sm text-[#64748B]">
+          No company is associated with your account, so reports can’t be shown.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
         <div>
           <h1 className="text-lg font-bold text-[#0F1117] dark:text-[#F0F2FA]">Custom Reports</h1>
-          <p className="text-xs text-[#64748B]">Per-company financial fields with analytics and AI suggestions.</p>
+          <p className="text-xs text-[#64748B]">
+            {company.name ? `${company.name} · ` : ""}Financial fields with analytics and AI suggestions.
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={companyId}
-            onChange={(e) => setCompanyId(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] bg-white dark:bg-[#0D0F14] text-xs text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]"
-          >
-            {companies.map((c) => <option key={c._id} value={c._id}>{c.name || c.companyName || c._id}</option>)}
-          </select>
           <button
             onClick={startCreate}
-            disabled={!companyId}
-            className="px-3 py-2 rounded-xl bg-[#2563EB] text-white text-xs font-bold disabled:opacity-50"
+            className="px-3 py-2 rounded-xl bg-[#2563EB] text-white text-xs font-bold"
           >
             + New report
           </button>
