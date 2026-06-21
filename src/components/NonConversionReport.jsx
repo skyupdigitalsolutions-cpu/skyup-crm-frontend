@@ -40,7 +40,7 @@ export default function NonConversionReport() {
   const [data, setData]       = useState(null);
   const [error, setError]     = useState("");
 
-  const load = useCallback(async (withAI = true) => {
+  const load = useCallback(async (withAI = false) => {
     setLoading(true);
     setError("");
     try {
@@ -55,12 +55,34 @@ export default function NonConversionReport() {
     }
   }, [from, to]);
 
-  useEffect(() => { load(true); /* initial */ }, []); // eslint-disable-line
+  // On-demand AI generation (separate from loading the data) so the AI only
+  // runs when the user asks — this avoids hitting rate limits on every view.
+  const [aiLoading, setAiLoading] = useState(false);
+  const generateAI = useCallback(async () => {
+    setAiLoading(true);
+    try {
+      const { data } = await api.get("/reports/non-conversion", {
+        params: { from, to, ai: "true" },
+      });
+      setData(data);
+    } catch (e) {
+      setError(e?.response?.data?.message || "AI report failed.");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [from, to]);
+
+  // Load DATA ONLY on mount (no AI) — AI is generated on demand via the button.
+  useEffect(() => { load(false); /* initial, no AI */ }, []); // eslint-disable-line
+
+  // Export the current report (data + any AI result) to PDF via print view.
+  const exportPDF = () => window.print();
 
   const maxCount = data?.reasonBreakdown?.[0]?.count || 1;
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto print-area">
+      <style>{`@media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }`}</style>
       {/* Header */}
       <div className="flex items-center gap-2 mb-1">
         <TrendingDown className="w-5 h-5 text-rose-500" />
@@ -71,7 +93,7 @@ export default function NonConversionReport() {
       </p>
 
       {/* Controls */}
-      <div className="flex flex-wrap items-end gap-3 mb-6">
+      <div className="flex flex-wrap items-end gap-3 mb-6 no-print">
         <div>
           <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#64748B] mb-1">From</label>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
@@ -82,9 +104,17 @@ export default function NonConversionReport() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
             className="px-3 py-2 rounded-lg border border-[#E2E8F0] dark:border-[#1E2130] bg-white dark:bg-[#0D0F14] text-sm text-[#0F1117] dark:text-[#F0F2FA]" />
         </div>
-        <button onClick={() => load(true)} disabled={loading}
+        <button onClick={() => load(false)} disabled={loading}
           className="px-4 py-2 rounded-lg bg-[#6366F1] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-60">
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> {loading ? "Analysing…" : "Run Report"}
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> {loading ? "Loading…" : "Run Report"}
+        </button>
+        <button onClick={generateAI} disabled={aiLoading || loading || !data}
+          className="px-4 py-2 rounded-lg bg-[#0F1117] dark:bg-[#F0F2FA] text-white dark:text-[#0F1117] text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
+          {aiLoading ? "Generating…" : (data?.aiAnalysis ? "Re-generate AI Report" : "Generate AI Report")}
+        </button>
+        <button onClick={exportPDF} disabled={!data}
+          className="px-4 py-2 rounded-lg border border-[#E2E8F0] dark:border-[#1E2130] text-[#475569] dark:text-[#94A3B8] text-sm font-semibold disabled:opacity-50 no-print">
+          Export PDF
         </button>
       </div>
 
