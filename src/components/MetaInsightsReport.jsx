@@ -100,7 +100,7 @@ export default function MetaInsightsReport() {
           className="px-4 py-2 rounded-lg bg-[#6366F1] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-60">
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> {loading ? "Loading…" : "Run Report"}
         </button>
-        <button onClick={generateAI} disabled={aiLoading || loading || !data}
+        <button onClick={generateAI} disabled={aiLoading || loading}
           className="px-4 py-2 rounded-lg bg-[#0F1117] dark:bg-[#F0F2FA] text-white dark:text-[#0F1117] text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
           {aiLoading ? "Generating…" : (data?.aiAnalysis ? "Re-generate AI Report" : "Generate AI Report")}
         </button>
@@ -134,14 +134,16 @@ export default function MetaInsightsReport() {
       )}
 
       {/* AI analysis + improvement suggestions */}
-      {data && (data.aiAnalysis || data.aiAnalysisError) && (
+      {data && (
         <div className="rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] overflow-hidden mb-6">
           <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-[#6366F1]/10 to-[#8B5CF6]/10 border-b border-[#E2E8F0] dark:border-[#1E2130]">
             <Sparkles className="w-4 h-4 text-[#6366F1]" />
             <span className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">AI Performance Analysis & Suggestions</span>
           </div>
           <div className="p-4">
-            {data.aiAnalysisError ? (
+            {!data.aiAnalysis && !data.aiAnalysisError ? (
+              <div className="text-sm text-[#64748B]">AI analysis not generated yet. Click "Generate AI Report" above to run it.</div>
+            ) : data.aiAnalysisError ? (
               <div className="text-sm text-amber-600 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4" /> {data.aiAnalysisError}
               </div>
