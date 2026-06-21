@@ -42,6 +42,7 @@ const DeveloperAddonManager      = lazy(() => import("./pages/developer/AddonMan
 const AdminLogin      = lazy(() => import("./pages/UserLogin")); // /admin/login now redirects to the unified login
 const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
 const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
+const CustomReports   = lazy(() => import("./pages/CustomReports"));
 
 // ── Page loader ───────────────────────────────────────────────────────────────
 function PageLoader() {
@@ -538,6 +539,13 @@ function AppInner() {
           <Route path="/upgrade-plan" element={
             <SuperAdminRoute>
               <AppLayout><UpgradePlanWithMembers /></AppLayout>
+            </SuperAdminRoute>
+          }/>
+
+          {/* ── Custom Reports — SuperAdmin only ── */}
+          <Route path="/custom-reports" element={
+            <SuperAdminRoute>
+              <AppLayout><CustomReports /></AppLayout>
             </SuperAdminRoute>
           }/>
 
