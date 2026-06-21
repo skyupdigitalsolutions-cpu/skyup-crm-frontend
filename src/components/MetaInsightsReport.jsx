@@ -178,8 +178,8 @@ export default function MetaInsightsReport() {
       {/* Per-campaign cards */}
       {data?.campaigns?.length > 0 ? (
         <div className="space-y-3">
-          {data.campaigns.map((c) => (
-            <div key={c.configId} className="rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] overflow-hidden">
+          {data.campaigns.map((c, ci) => (
+            <div key={c.adsetId ? `${c.configId}:${c.adsetId}` : `${c.configId}:${ci}`} className="rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 bg-[#F8FAFC] dark:bg-[#0D0F14] border-b border-[#E2E8F0] dark:border-[#1E2130]">
                 <div>
                   <div className="font-bold text-[#0F1117] dark:text-[#F0F2FA] text-sm">{c.campaignName}</div>
