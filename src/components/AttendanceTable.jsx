@@ -1094,9 +1094,14 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
                   </td>
                   <td className={tdCls}><span className="italic text-[#8B92A9]">{rec.remarks || "—"}</span></td>
                   <td className={tdCls}>
-                    {rec.idealTime || rec.idealRemark ? (
+                    {(rec.idleTime && rec.idleTime !== "—") || rec.idealTime || rec.idealRemark ? (
                       <div className="max-w-[180px]">
-                        {rec.idealTime ? (
+                        {/* Auto-computed idle time (Auto Idle gaps, excluding
+                            manual breaks). Prefer it; the manual idealTime text
+                            is a fallback when no idle was recorded. */}
+                        {rec.idleTime && rec.idleTime !== "—" ? (
+                          <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]" title="Auto idle time (excludes manual breaks)">{rec.idleTime}</p>
+                        ) : rec.idealTime ? (
                           <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{rec.idealTime}</p>
                         ) : null}
                         {rec.idealRemark ? (
