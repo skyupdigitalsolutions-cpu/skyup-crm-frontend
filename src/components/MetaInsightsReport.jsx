@@ -58,10 +58,17 @@ export default function MetaInsightsReport() {
   const generateAI = useCallback(async () => {
     setAiLoading(true); setError("");
     try {
-      const { data } = await api.get("/meta-config/insights", { params: { from, to, ai: "true" } });
+      const { data } = await api.get("/meta-config/insights", { params: { from, to, ai: "true" }, timeout: 60000 });
       setData(data);
     } catch (e) {
-      setError(e?.response?.data?.message || "AI report failed.");
+      const status = e?.response?.status;
+      if (e.code === "ECONNABORTED") {
+        setError("AI report is taking too long (the AI service may be busy). Please try again in a moment.");
+      } else if (status === 429) {
+        setError("AI is busy right now (rate limited). Please try again shortly.");
+      } else {
+        setError(e?.response?.data?.message || "AI report failed.");
+      }
     } finally {
       setAiLoading(false);
     }
@@ -117,12 +124,14 @@ export default function MetaInsightsReport() {
       )}
 
       {t && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
           {[
-            { label: "Total Spend",  value: money(t.spend),        icon: DollarSign },
-            { label: "Cost / Lead",  value: money(t.costPerLead) },
+            { label: "Total Spend",  value: money(t.spend) },
             { label: "Leads",        value: numfmt(t.leads) },
-            { label: "Impressions",  value: numfmt(t.impressions) },
+            { label: "Converted",    value: numfmt(t.converted || 0) },
+            { label: "Conv. Rate",   value: t.conversionRatePct == null ? "—" : `${t.conversionRatePct}%` },
+            { label: "Cost / Lead",  value: money(t.costPerLead) },
+            { label: "Cost / Conv.", value: t.costPerConversion == null ? "—" : money(t.costPerConversion) },
             { label: "Clicks",       value: numfmt(t.clicks) },
           ].map((c) => (
             <div key={c.label} className="p-3 rounded-xl bg-[#F8FAFC] dark:bg-[#0D0F14] border border-[#E2E8F0] dark:border-[#1E2130]">
@@ -219,11 +228,13 @@ export default function MetaInsightsReport() {
               </div>
 
               {c.configured && (
-                <div className="grid grid-cols-3 md:grid-cols-7 gap-px bg-[#E2E8F0] dark:bg-[#1E2130]">
+                <div className="grid grid-cols-3 md:grid-cols-9 gap-px bg-[#E2E8F0] dark:bg-[#1E2130]">
                   {[
                     ["Spend", money(c.metrics.spend)],
-                    ["Cost/Lead", money(c.costPerLead)],
                     ["Leads", numfmt(c.leads)],
+                    ["Converted", numfmt(c.converted || 0)],
+                    ["Cost/Lead", money(c.costPerLead)],
+                    ["Cost/Conv.", c.costPerConversion == null ? "—" : money(c.costPerConversion)],
                     ["CPM", money(c.metrics.cpm)],
                     ["CPC", money(c.metrics.cpc)],
                     ["CTR", `${c.metrics.ctr || 0}%`],
