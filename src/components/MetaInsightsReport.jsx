@@ -43,7 +43,9 @@ export default function MetaInsightsReport() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const { data } = await api.get("/meta-config/insights", { params: { from, to } });
+      // Load metrics WITHOUT AI so viewing the report doesn't trigger the AI
+      // call (and its rate limits). AI runs on demand via "Generate AI Report".
+      const { data } = await api.get("/meta-config/insights", { params: { from, to, ai: "false" } });
       setData(data);
     } catch (e) {
       setError(e?.response?.data?.message || "Failed to load Meta insights.");
@@ -52,12 +54,28 @@ export default function MetaInsightsReport() {
     }
   }, [from, to]);
 
-  useEffect(() => { load(); }, []); // eslint-disable-line
+  const [aiLoading, setAiLoading] = useState(false);
+  const generateAI = useCallback(async () => {
+    setAiLoading(true); setError("");
+    try {
+      const { data } = await api.get("/meta-config/insights", { params: { from, to, ai: "true" } });
+      setData(data);
+    } catch (e) {
+      setError(e?.response?.data?.message || "AI report failed.");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [from, to]);
+
+  useEffect(() => { load(); }, []); // eslint-disable-line  (no AI on mount)
+
+  const exportPDF = () => window.print();
 
   const t = data?.totals;
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto print-area">
+      <style>{`@media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }`}</style>
       <div className="flex items-center gap-2 mb-1">
         <TrendingUp className="w-5 h-5 text-[#6366F1]" />
         <h1 className="text-xl font-bold text-[#0F1117] dark:text-[#F0F2FA]">Meta Ad Performance</h1>
@@ -67,7 +85,7 @@ export default function MetaInsightsReport() {
       </p>
 
       {/* Controls */}
-      <div className="flex flex-wrap items-end gap-3 mb-6">
+      <div className="flex flex-wrap items-end gap-3 mb-6 no-print">
         <div>
           <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#64748B] mb-1">From</label>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
@@ -81,6 +99,14 @@ export default function MetaInsightsReport() {
         <button onClick={load} disabled={loading}
           className="px-4 py-2 rounded-lg bg-[#6366F1] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-60">
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> {loading ? "Loading…" : "Run Report"}
+        </button>
+        <button onClick={generateAI} disabled={aiLoading || loading || !data}
+          className="px-4 py-2 rounded-lg bg-[#0F1117] dark:bg-[#F0F2FA] text-white dark:text-[#0F1117] text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
+          {aiLoading ? "Generating…" : (data?.aiAnalysis ? "Re-generate AI Report" : "Generate AI Report")}
+        </button>
+        <button onClick={exportPDF} disabled={!data}
+          className="px-4 py-2 rounded-lg border border-[#E2E8F0] dark:border-[#1E2130] text-[#475569] dark:text-[#94A3B8] text-sm font-semibold disabled:opacity-50">
+          Export PDF
         </button>
       </div>
 
@@ -178,8 +204,8 @@ export default function MetaInsightsReport() {
       {/* Per-campaign cards */}
       {data?.campaigns?.length > 0 ? (
         <div className="space-y-3">
-          {data.campaigns.map((c, ci) => (
-            <div key={c.adsetId ? `${c.configId}:${c.adsetId}` : `${c.configId}:${ci}`} className="rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] overflow-hidden">
+          {data.campaigns.map((c) => (
+            <div key={c.configId} className="rounded-xl border border-[#E2E8F0] dark:border-[#1E2130] overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 bg-[#F8FAFC] dark:bg-[#0D0F14] border-b border-[#E2E8F0] dark:border-[#1E2130]">
                 <div>
                   <div className="font-bold text-[#0F1117] dark:text-[#F0F2FA] text-sm">{c.campaignName}</div>
