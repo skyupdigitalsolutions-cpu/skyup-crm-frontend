@@ -190,6 +190,21 @@ export function NotificationProvider({ children }) {
       Notification.requestPermission().catch(() => {});
     }
 
+    // ── Fetch-on-open: seed the bell with CURRENTLY pending notifications ──────
+    // The socket only delivers events that fire WHILE connected; if the 15-min
+    // job emitted while this admin was offline, those were lost. This pulls the
+    // current no-action + follow-up state on mount so the bell always reflects
+    // reality. Returned objects already match the socket event shape, so we feed
+    // them through the same upsert path.
+    api.get('/lead/admin/pending-notifications')
+      .then(res => {
+        const list = res.data?.notifications || [];
+        list.forEach(notif => handleUpsert(notif, setNotifications, setUnreadCount));
+      })
+      .catch(err => {
+        console.debug('[NotificationProvider] pending fetch skipped:', err?.response?.status || err.message);
+      });
+
     // ── SuperAdmin: Fetch expiring subscriptions on mount ─────────────────────
     if (isSuperAdmin) {
       api.get('/superadmin/expiring-subscriptions?days=30')
