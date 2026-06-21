@@ -108,7 +108,7 @@ export default function NonConversionReport() {
           className="px-4 py-2 rounded-lg bg-[#6366F1] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-60">
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> {loading ? "Loading…" : "Run Report"}
         </button>
-        <button onClick={generateAI} disabled={aiLoading || loading || !data}
+        <button onClick={generateAI} disabled={aiLoading || loading}
           className="px-4 py-2 rounded-lg bg-[#0F1117] dark:bg-[#F0F2FA] text-white dark:text-[#0F1117] text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
           {aiLoading ? "Generating…" : (data?.aiAnalysis ? "Re-generate AI Report" : "Generate AI Report")}
         </button>
@@ -224,7 +224,7 @@ export default function NonConversionReport() {
                       )}
                     </div>
                   ) : (
-                    <div className="text-sm text-[#64748B]">AI analysis not generated. Click "Run Report" to refresh.</div>
+                    <div className="text-sm text-[#64748B]">AI analysis not generated yet. Click "Generate AI Report" above to run it.</div>
                   )}
                 </div>
               </div>
