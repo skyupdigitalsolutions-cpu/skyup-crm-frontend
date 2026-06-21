@@ -343,7 +343,7 @@ export default function CustomReports() {
             <div className="flex items-center justify-between mb-2 no-print">
               <div className="text-xs font-bold text-[#0F1117] dark:text-[#F0F2FA]">AI Insights</div>
               <button onClick={runAI} disabled={aiLoading} className="text-xs px-3 py-1.5 rounded-lg bg-[#0F1117] dark:bg-[#F0F2FA] text-white dark:text-[#0F1117] font-bold disabled:opacity-50">
-                {aiLoading ? "Analyzing…" : (selected.ai?.summary ? "Re-analyze" : "Generate")}
+                {aiLoading ? "Generating…" : (selected.ai?.summary ? "Re-generate AI Report" : "Generate AI Report")}
               </button>
             </div>
             {aiError && <p className="text-xs text-amber-600">{aiError}</p>}
