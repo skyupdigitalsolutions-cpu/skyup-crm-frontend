@@ -22,9 +22,9 @@
 //  {
 //    invoiceId:     "Invoice1",
 //    date:          "22 Jun 2025",
-//    planName:      "Growth Plan + WhatsApp Blast, AI Credits Pack × 2",
+//    planName:      "Base Plan + WhatsApp Blast, AI Credits Pack ",
 //    billingCycle:  "monthly" | "yearly" | "one_time",
-//    baseAmount:    4098,
+//    baseAmount:    2999,
 //    transactionId: "pay_mK3dL9nQrT2",
 //    paymentMethod: "Razorpay",
 //    status:        "Paid" | "Pending",
@@ -33,7 +33,6 @@
 //        type: "plan" | "addon",
 //        name: "SkyUp CRM — Growth Plan",
 //        sub:  "Monthly subscription (1 month)",
-//        hsn:  "998315",
 //        quantity: 1,
 //        billingPeriod: "monthly",
 //        autoRenew: true,
@@ -83,7 +82,7 @@ function buildRows(invoice) {
                 : invoice.billingCycle === "monthly"
                 ? "Monthly subscription (1 month)"
                 : "One-time purchase",
-            hsn: "998315",
+
             quantity: 1,
             amount: invoice.baseAmount,
           },
@@ -360,7 +359,6 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                 <thead>
                   <tr style={{ background: "#f0f0f0", borderBottom: "0.5px solid #000000" }}>
                     <Th left>Description</Th>
-                    <Th>HSN / SAC</Th>
                     <Th>Qty</Th>
                     <Th right>Taxable (₹)</Th>
                     <Th right>Amount (₹)</Th>
@@ -383,7 +381,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                           <p style={{ fontSize: 10.5, color: "#000000", margin: 0 }}>{item.sub}</p>
                         )}
                       </Td>
-                      <Td center mono>{item.hsn || "998315"}</Td>
+                  
                       <Td center mono>{item.quantity || 1}</Td>
                       <Td right mono>{fmt(item.taxable)}</Td>
                       <Td right mono bold>{fmt(item.amount)}</Td>
