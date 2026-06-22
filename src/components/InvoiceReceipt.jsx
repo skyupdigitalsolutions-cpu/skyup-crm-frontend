@@ -137,7 +137,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
     address: "Parinidhi #23, E Block, 14th A Main Road, 2nd Floor, Sahakaranagar, Bangalore - 560092",
     gstin:   "29AABCS1429B1ZZ",
     cin:     "U72900KA2022PTC150000",
-    email:   "skyupdigitalsolutions@gmail.com",
+    email:   "contact@skyupdigitalsolutions.com",
     ...companyProp,
   };
 
