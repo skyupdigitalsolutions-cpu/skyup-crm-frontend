@@ -307,7 +307,7 @@ export default function NonConversionReport() {
                     </span>
                   </div>
                   <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto overflow-y-auto max-h-[480px]">
                       <table className="w-full text-sm table-fixed min-w-[760px]">
                         <colgroup>
                           <col style={{ width: "13%" }} />
@@ -320,7 +320,7 @@ export default function NonConversionReport() {
                           <col style={{ width: "12%" }} />
                         </colgroup>
                         <thead>
-                          <tr className="bg-[#F8F9FC] dark:bg-[#0D0F14] border-b border-[#E4E7EF] dark:border-[#1E2133]">
+                          <tr className="bg-[#F8F9FC] dark:bg-[#0D0F14] border-b border-[#E4E7EF] dark:border-[#1E2133] sticky top-0 z-10">
                             {["Lead", "Status", "Reason", "Accountability", "Improvement", "Source", "Agent", "Detail"].map((h) => (
                               <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-[#8B92A9]">{h}</th>
                             ))}
