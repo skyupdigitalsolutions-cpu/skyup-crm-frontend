@@ -58,7 +58,7 @@ import { useRef } from "react";
 // ── SET YOUR LOGO HERE ────────────────────────────────────────────────────────
 // Replace with your image URL or a base64 string like "data:image/png;base64,..."
 // Set to null to show the default "S" mark instead.
-const COMPANY_LOGO_URL = public/skyup_logo1.svg; // e.g. "/assets/logo.png" or "data:image/png;base64,..."
+const COMPANY_LOGO_URL = /public/skyup_logo1.svg; // e.g. "/assets/logo.png" or "data:image/png;base64,..."
 // ─────────────────────────────────────────────────────────────────────────────
 
 const GST_RATE = 0.18;
