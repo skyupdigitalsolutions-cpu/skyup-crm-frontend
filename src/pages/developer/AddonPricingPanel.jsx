@@ -1,4 +1,4 @@
-// src/pages/developer/AddonPricingPanel.jsx — NEW FILE
+// src/pages/developer/AddonPricingPanel.jsx
 // Developer panel section: set the PRICE, billing period, public visibility and
 // per-plan availability of each purchasable add-on.
 //
@@ -9,6 +9,15 @@
 // Anything marked "Public" + active here appears as a buyable card on the
 // customer Upgrade Plan page (GET /subscription/addons), filtered by the
 // "Show on plans" selection.
+//
+// IMPORTANT: every addonType below MUST exist in the backend's
+// CompanyAddon.ADDON_TYPES enum (models/CompanyAddon.js) — that enum is what
+// actually validates AddonCatalog rows and CompanyAddon grants. This file
+// previously listed a separate "admin_seat / user_seat / website_integration /
+// google_ads_campaign / meta_campaign" naming scheme that does not exist on
+// the backend at all, which is why rows created from this picker failed to
+// save and the customer-facing Add-ons tab (which reads directly from the DB
+// catalog) showed a completely different, out-of-sync set of cards.
 
 import { useState, useEffect } from "react";
 import {
@@ -22,30 +31,47 @@ const PLAN_KEYS = ["trial", "basic", "pro", "advance", "enterprise"];
 // Full catalogue of add-on types the developer can create & price.
 // addonType MUST match the backend CompanyAddon.ADDON_TYPES enum exactly.
 //
-// ── STOREFRONT (shown to customers on the Add-ons tab) ───────────────────────
-// These 6 are the active storefront addons. Mark isPublic: true to sell them.
-// ── LEGACY (developer-grant only, hidden from storefront) ────────────────────
-// Old types kept so existing grants display correctly in AddonManager.
+// ── ACTIVE (recommended for the storefront) ──────────────────────────────────
+// ── LEGACY / RETIRED (kept so existing grants display correctly; not meant
+//    to be put on sale, but still valid backend types) ───────────────────────
 const ADDON_CATALOG = [
-  // ── Active storefront addons ──────────────────────────────────────────────
-  { addonType: "admin_seat",            name: "Admin Seat",                        category: "resource", billingPeriod: "monthly",  description: "+1 admin seat with full access to settings, billing, and user management", renewalMode: "required" },
-  { addonType: "user_seat",             name: "User Seat",                         category: "resource", billingPeriod: "monthly",  description: "+1 standard CRM user — calls, leads, pipeline, and reports",             renewalMode: "required" },
-  { addonType: "website_integration",   name: "Website Integration",               category: "feature",  billingPeriod: "monthly",  description: "Connect one website — form capture, chat widget, and lead analytics",   renewalMode: "required" },
-  { addonType: "google_ads_campaign",   name: "Google Ads Campaign",               category: "feature",  billingPeriod: "monthly",  description: "Link one Google Ads campaign — spend tracking, lead attribution",       renewalMode: "required" },
-  { addonType: "meta_campaign",         name: "Meta Campaign",                     category: "feature",  billingPeriod: "monthly",  description: "Connect one Facebook/Instagram campaign — lead form sync",               renewalMode: "required" },
-  // AI credit pack — tops up BOTH transcription + summary minute pools
-  { addonType: "transcription_summary_100mins", name: "100 Min Transcription & Summary", category: "credit", billingPeriod: "monthly", description: "+100 mins — transcription + AI summary (both pools)", minuteCount: 100, renewalMode: "optional" },
+  // ── Resource add-ons ──────────────────────────────────────────────────────
+  { addonType: "extra_admin",            name: "Extra Admin",            category: "resource", billingPeriod: "monthly", description: "+1 admin seat with full access to settings, billing, and user management", renewalMode: "required" },
+  { addonType: "extra_users_5",          name: "5 Extra Users",          category: "resource", billingPeriod: "monthly", description: "+5 standard CRM users — calls, leads, pipeline, and reports", renewalMode: "required" },
+  { addonType: "extra_leads_5000",       name: "5,000 Extra Leads",      category: "resource", billingPeriod: "monthly", description: "+5,000 lead capacity", renewalMode: "none" },
+  { addonType: "extra_website",          name: "Extra Website",          category: "resource", billingPeriod: "monthly", description: "+1 tracked website — form capture, chat widget, and lead analytics", renewalMode: "required" },
+  { addonType: "extra_meta_campaign",    name: "Extra Meta Campaign",    category: "resource", billingPeriod: "monthly", description: "+1 Facebook/Instagram campaign — lead form sync", renewalMode: "required" },
+  { addonType: "extra_google_account",   name: "Extra Google Account",   category: "resource", billingPeriod: "monthly", description: "+1 Google Ads account — spend tracking, lead attribution", renewalMode: "required" },
+  { addonType: "storage_1gb",            name: "1 GB Storage",           category: "resource", billingPeriod: "monthly", description: "+1 GB file storage", renewalMode: "required" },
+  { addonType: "storage_5gb",            name: "5 GB Storage",           category: "resource", billingPeriod: "monthly", description: "+5 GB file storage", renewalMode: "required" },
+  { addonType: "storage_10gb",           name: "10 GB Storage",          category: "resource", billingPeriod: "monthly", description: "+10 GB file storage", renewalMode: "required" },
 
-  // ── Legacy addons (developer-grant only; isPublic: false by default) ───────
-  { addonType: "extra_admin",           name: "Extra Admin (legacy)",              category: "resource", billingPeriod: "monthly",  description: "+1 admin seat (legacy)", renewalMode: "required" },
-  { addonType: "extra_users_5",         name: "5 Extra Users (legacy)",            category: "resource", billingPeriod: "monthly",  description: "+5 user seats (legacy)", renewalMode: "required" },
-  { addonType: "extra_leads_5000",      name: "5,000 Extra Leads (legacy)",        category: "resource", billingPeriod: "monthly",  description: "+5,000 lead capacity (legacy)", renewalMode: "none" },
-  { addonType: "extra_website",         name: "Extra Website (legacy)",            category: "resource", billingPeriod: "monthly",  description: "+1 tracked website (legacy)", renewalMode: "required" },
-  { addonType: "extra_meta_campaign",   name: "Extra Meta Campaign (legacy)",      category: "resource", billingPeriod: "monthly",  description: "+1 Meta campaign (legacy)", renewalMode: "required" },
-  { addonType: "extra_google_account",  name: "Extra Google Account (legacy)",     category: "resource", billingPeriod: "monthly",  description: "+1 Google Ads account (legacy)", renewalMode: "required" },
-  { addonType: "call_transcription",    name: "Call Transcription (legacy)",       category: "feature",  billingPeriod: "monthly",  description: "Speech-to-text on calls (legacy)", renewalMode: "none" },
-  { addonType: "ai_summary",            name: "AI Summary (legacy)",               category: "feature",  billingPeriod: "monthly",  description: "AI call summaries (legacy)", renewalMode: "none" },
-  { addonType: "whatsapp_automation",   name: "WhatsApp Automation",               category: "feature",  billingPeriod: "monthly",  description: "Auto WhatsApp on new lead", renewalMode: "required" },
+  // ── Feature add-ons ───────────────────────────────────────────────────────
+  { addonType: "call_recording",         name: "Call Recording",         category: "feature", billingPeriod: "monthly", description: "Store call recordings", renewalMode: "required" },
+  { addonType: "call_transcription",     name: "Call Transcription",     category: "feature", billingPeriod: "monthly", description: "Speech-to-text on calls", renewalMode: "required" },
+  { addonType: "ai_summary",             name: "AI Summary",             category: "feature", billingPeriod: "monthly", description: "AI call summaries", renewalMode: "required" },
+  { addonType: "voice_bot",              name: "Voice Bot",              category: "feature", billingPeriod: "monthly", description: "AI voice bot minutes", renewalMode: "required" },
+  { addonType: "whatsapp_automation",    name: "WhatsApp Automation",    category: "feature", billingPeriod: "monthly", description: "Auto WhatsApp on new lead", renewalMode: "required" },
+  { addonType: "api_access",             name: "API Access",             category: "feature", billingPeriod: "monthly", description: "Programmatic API access", renewalMode: "required" },
+  { addonType: "webhook_access",         name: "Webhook Access",         category: "feature", billingPeriod: "monthly", description: "Outbound webhooks on events", renewalMode: "required" },
+  { addonType: "white_label",            name: "White Label",            category: "feature", billingPeriod: "monthly", description: "Remove SkyUp branding", renewalMode: "required" },
+  { addonType: "custom_domain",          name: "Custom Domain",          category: "feature", billingPeriod: "monthly", description: "Use your own domain", renewalMode: "required" },
+  { addonType: "custom_branding",        name: "Custom Branding",        category: "feature", billingPeriod: "monthly", description: "Custom logo and colors", renewalMode: "required" },
+
+  // ── AI credit packs ───────────────────────────────────────────────────────
+  // Combined pack — tops up BOTH the transcription + summary minute pools.
+  { addonType: "transcription_summary_100mins", name: "100 Min Transcription & Summary", category: "credit", billingPeriod: "monthly", description: "+100 mins — transcription + AI summary (both pools)", minuteCount: 100, renewalMode: "optional" },
+  // Single-pool minute packs
+  { addonType: "transcriptions_5000mins",  name: "5,000 Min Transcription",  category: "credit", billingPeriod: "one_time", description: "+5,000 transcription minutes", minuteCount: 5000,  renewalMode: "none" },
+  { addonType: "transcriptions_20000mins", name: "20,000 Min Transcription", category: "credit", billingPeriod: "one_time", description: "+20,000 transcription minutes", minuteCount: 20000, renewalMode: "none" },
+  { addonType: "summaries_5000mins",       name: "5,000 Min AI Summary",     category: "credit", billingPeriod: "one_time", description: "+5,000 summary minutes", minuteCount: 5000,  renewalMode: "none" },
+  { addonType: "summaries_20000mins",      name: "20,000 Min AI Summary",    category: "credit", billingPeriod: "one_time", description: "+20,000 summary minutes", minuteCount: 20000, renewalMode: "none" },
+
+  // ── Legacy / retired credit packs (developer-grant only) ────────────────────
+  { addonType: "transcriptions_100",             name: "100 Min Transcription (legacy)",            category: "credit", billingPeriod: "one_time", description: "+100 transcription minutes (legacy)", minuteCount: 100,  renewalMode: "none" },
+  { addonType: "transcriptions_500",             name: "500 Min Transcription (legacy)",            category: "credit", billingPeriod: "one_time", description: "+500 transcription minutes (legacy)", minuteCount: 500,  renewalMode: "none" },
+  { addonType: "summaries_100",                  name: "100 Min AI Summary (legacy)",                category: "credit", billingPeriod: "one_time", description: "+100 summary minutes (legacy)", minuteCount: 100,  renewalMode: "none" },
+  { addonType: "summaries_500",                  name: "500 Min AI Summary (legacy)",                category: "credit", billingPeriod: "one_time", description: "+500 summary minutes (legacy)", minuteCount: 500,  renewalMode: "none" },
   { addonType: "transcription_summary_500mins",  name: "500 Min Transcription & Summary (legacy)",  category: "credit", billingPeriod: "monthly", description: "+500 mins (legacy)", minuteCount: 500,  renewalMode: "none" },
   { addonType: "transcription_summary_1000mins", name: "1000 Min Transcription & Summary (legacy)", category: "credit", billingPeriod: "monthly", description: "+1000 mins (legacy)", minuteCount: 1000, renewalMode: "none" },
 ];
@@ -365,10 +391,18 @@ export default function AddonPricingPanel() {
   const publicCount = items.filter(i => i.isPublic && i.isActive).length;
   const available   = ADDON_CATALOG.filter(a => !items.some(it => it.addonType === a.addonType));
 
-  // Split items into storefront (new) vs legacy for clear visual grouping
+  // Split items into storefront (recommended for sale) vs legacy for clear
+  // visual grouping. This mirrors the "Active" section of ADDON_CATALOG above.
   const STOREFRONT_TYPES = new Set([
-    "admin_seat", "user_seat", "website_integration",
-    "google_ads_campaign", "meta_campaign", "transcription_summary_100mins",
+    "extra_admin", "extra_users_5", "extra_leads_5000", "extra_website",
+    "extra_meta_campaign", "extra_google_account",
+    "storage_1gb", "storage_5gb", "storage_10gb",
+    "call_recording", "call_transcription", "ai_summary", "voice_bot",
+    "whatsapp_automation", "api_access", "webhook_access",
+    "white_label", "custom_domain", "custom_branding",
+    "transcription_summary_100mins",
+    "transcriptions_5000mins", "transcriptions_20000mins",
+    "summaries_5000mins", "summaries_20000mins",
   ]);
   const storefrontItems = items.filter(i => STOREFRONT_TYPES.has(i.addonType));
   const legacyItems     = items.filter(i => !STOREFRONT_TYPES.has(i.addonType));
@@ -548,7 +582,7 @@ export default function AddonPricingPanel() {
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center rounded-2xl border border-dashed border-[#E5E7EB] dark:border-[#262A38]">
               <Package className="w-8 h-8 text-[#C4C9DA]" strokeWidth={1.5} />
               <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#DDE1F5]">No add-ons configured</p>
-              <p className="text-[12px] text-[#8B92A9]">Click "Add Add-on" above to add the 6 storefront addons.</p>
+              <p className="text-[12px] text-[#8B92A9]">Click "Add Add-on" above to add addons from the catalog.</p>
             </div>
           )}
         </div>
