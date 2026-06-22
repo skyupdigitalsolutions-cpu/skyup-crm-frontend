@@ -36,12 +36,15 @@ import {
   Zap,
   Shield,
   Award,
+  ShoppingCart,
 } from "lucide-react";
 import api from "../data/axiosConfig";
 import InvoiceReceipt from "./InvoiceReceipt";
 import UpdatePaymentModal from "./UpdatePaymentModal";
 import DowngradeWarningModal from "./DowngradeWarningModal";
 import AddonStore from "./AddonStore";
+import CartDrawer from "./CartDrawer";
+import { useCart } from "../context/CartContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -1038,8 +1041,10 @@ export default function UpgradePlan({
   const [showUpdatePayment,setShowUpdatePayment]= useState(false);
   const [downgradePlan,    setDowngradePlan]    = useState(null);
   const [showDowngrade,    setShowDowngrade]    = useState(false);
+  const [cartOpen,         setCartOpen]         = useState(false);
 
   const { openCheckout } = useRazorpay();
+  const { setPlan, clearPlan, planItem, addonItems, totalItems, totalPrice } = useCart();
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -1180,8 +1185,18 @@ export default function UpgradePlan({
 
   function handleUpgrade(plan) {
     if (plan.isDowngrade) { setDowngradePlan(plan); setShowDowngrade(true); return; }
-    if (selected !== plan.id) { setSelected(plan.id); return; }
-    initiatePayment(plan, false, [], []);
+    // Add plan to cart instead of direct checkout.
+    // If clicking the already-selected plan, open the cart drawer.
+    if (plan.enterprise) return; // enterprise = contact sales
+    setPlan({
+      type:     "plan",
+      planId:   BACKEND_PLAN_ID[plan.id] || plan.id,
+      planName: plan.name,
+      billing,
+      price:    billing === "yearly" ? (plan.yearlyPrice || 0) : (plan.monthlyPrice || 0),
+    });
+    setSelected(plan.id);
+    setCartOpen(true);
   }
 
   async function handleDowngradeConfirmed(adminsToRemove, usersToRemove) {
@@ -1316,8 +1331,12 @@ export default function UpgradePlan({
         </div>
       )}
 
+      {/* Cart drawer */}
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+
       {/* ── Page header ── */}
-      <div className="mb-8">
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
         <h1 className="text-[24px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Billing & Plans</h1>
         <p className="text-[13px] text-[#8B92A9] mt-0.5">
           {currentPlan ? (
@@ -1332,6 +1351,19 @@ export default function UpgradePlan({
             "Choose the plan that fits your team."
           )}
         </p>
+        </div>
+
+        {/* Cart button */}
+        <button
+          onClick={() => setCartOpen(true)}
+          className="relative flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:border-indigo-400 dark:hover:border-indigo-600 transition shrink-0"
+        >
+          <ShoppingCart className="w-4 h-4" />
+          Cart
+          {totalItems > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">{totalItems}</span>
+          )}
+        </button>
       </div>
 
       {/* ── Tabs ── */}
@@ -1450,7 +1482,7 @@ export default function UpgradePlan({
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* ADD-ONS TAB                                                           */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {tab === "addons" && <AddonStore />}
+      {tab === "addons" && <AddonStore onCartOpen={() => setCartOpen(true)} />}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* MY FEATURES TAB                                                       */}
