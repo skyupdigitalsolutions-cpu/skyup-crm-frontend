@@ -2103,9 +2103,9 @@ export default function ReportPage() {
   ];
 
   return (
-    <div>
+    <div className="min-h-screen bg-[#F8F9FC] dark:bg-[#0D0F14]">
       {/* Sub-tab bar */}
-      <div className="flex gap-1 px-4 md:px-6 pt-4 border-b border-[#E5E7EB] dark:border-[#262A38] overflow-x-auto">
+      <div className="flex gap-1 px-4 md:px-6 pt-4 bg-white dark:bg-[#11131C] border-b border-[#E5E7EB] dark:border-[#262A38] overflow-x-auto sticky top-0 z-10">
         {TABS.map((t) => {
           const active = subTab === t.id;
           return (
