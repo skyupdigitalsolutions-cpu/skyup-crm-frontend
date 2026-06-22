@@ -98,7 +98,7 @@ export default function MetaInsightsReport() {
   const t = data?.totals;
 
   return (
-    <div className="min-h-screen bg-[#F8F9FC] dark:bg-[#0D0F14] print-area">
+    <div className="print-area">
       <style>{`@media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; background: white; } .no-print { display: none !important; } }`}</style>
 
       {/* ── Page header ─────────────────────────────────────────────────── */}
