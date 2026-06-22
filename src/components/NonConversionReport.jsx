@@ -77,46 +77,49 @@ export default function NonConversionReport() {
       <style>{`@media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; background: white; } .no-print { display: none !important; } }`}</style>
 
       {/* ── Page header ─────────────────────────────────────────────────── */}
-      <div className="px-4 md:px-8 pt-6 pb-4 border-b border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] no-print">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-rose-500 flex items-center justify-center">
-              <TrendingDown className="w-5 h-5 text-white" />
+      <div className="px-4 md:px-8 py-4 border-b border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] no-print">
+        <div className="max-w-5xl mx-auto flex flex-wrap items-center gap-3">
+
+          {/* Title */}
+          <div className="flex items-center gap-3 mr-auto">
+            <div className="w-9 h-9 rounded-xl bg-rose-500 flex items-center justify-center shrink-0">
+              <TrendingDown className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h1 className="text-[18px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Non-Conversion Analysis</h1>
-              <p className="text-[12px] text-[#8B92A9]">Why leads didn't convert — with AI-powered improvement suggestions</p>
+              <h1 className="text-[15px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-tight">Non-Conversion Analysis</h1>
+              <p className="text-[11px] text-[#8B92A9] leading-tight">Why leads didn't convert — with AI-powered improvement suggestions</p>
             </div>
           </div>
 
-          {/* Controls */}
-          <div className="flex flex-wrap items-center gap-2 no-print">
-            <div className="flex items-center gap-2 bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl px-3 py-2">
-              <div>
-                <label className="block text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">From</label>
-                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-                  className="text-[12px] font-semibold bg-transparent text-[#0F1117] dark:text-[#DDE1F5] focus:outline-none cursor-pointer" />
-              </div>
-              <span className="text-[#C4C9DA] text-sm">→</span>
-              <div>
-                <label className="block text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">To</label>
-                <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
-                  className="text-[12px] font-semibold bg-transparent text-[#0F1117] dark:text-[#DDE1F5] focus:outline-none cursor-pointer" />
-              </div>
-              {loading && <Loader2 className="w-3.5 h-3.5 text-rose-500 animate-spin ml-1" />}
+          {/* Date range */}
+          <div className="flex items-center gap-1.5 bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl px-3 py-2">
+            <div className="flex flex-col">
+              <label className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">From</label>
+              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+                className="text-[12px] font-semibold bg-transparent text-[#0F1117] dark:text-[#DDE1F5] focus:outline-none cursor-pointer w-[120px]" />
             </div>
-
-            <button onClick={generateAI} disabled={aiLoading || loading}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[12px] font-semibold transition">
-              {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              {aiLoading ? "Generating…" : data?.aiAnalysis ? "Re-generate AI" : "Generate AI Report"}
-            </button>
-
-            <button onClick={exportPDF} disabled={!data}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold hover:border-indigo-400 dark:hover:border-indigo-600 disabled:opacity-40 transition">
-              <FileDown className="w-3.5 h-3.5" /> Export PDF
-            </button>
+            <span className="text-[#C4C9DA] text-xs px-1">→</span>
+            <div className="flex flex-col">
+              <label className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">To</label>
+              <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
+                className="text-[12px] font-semibold bg-transparent text-[#0F1117] dark:text-[#DDE1F5] focus:outline-none cursor-pointer w-[120px]" />
+            </div>
+            {loading && <Loader2 className="w-3.5 h-3.5 text-rose-500 animate-spin ml-1 shrink-0" />}
           </div>
+
+          {/* Generate AI */}
+          <button onClick={generateAI} disabled={aiLoading || loading}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[12px] font-semibold transition shrink-0">
+            {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {aiLoading ? "Generating…" : data?.aiAnalysis ? "Re-generate AI" : "Generate AI Report"}
+          </button>
+
+          {/* Export PDF */}
+          <button onClick={exportPDF} disabled={!data}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold hover:border-indigo-400 dark:hover:border-indigo-600 disabled:opacity-40 transition shrink-0">
+            <FileDown className="w-3.5 h-3.5" /> Export PDF
+          </button>
+
         </div>
       </div>
 
@@ -140,13 +143,13 @@ export default function NonConversionReport() {
         {data && (
           <>
             {/* ── Summary hero card ──────────────────────────────────────── */}
-            <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-5 flex items-center gap-5">
-              <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center shrink-0">
-                <Target className="w-7 h-7 text-rose-500" />
+            <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl px-6 py-4 flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center shrink-0">
+                <Target className="w-5 h-5 text-rose-500" />
               </div>
               <div>
-                <p className="text-[36px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">{data.totalLost}</p>
-                <p className="text-[13px] text-[#8B92A9] mt-1">non-converted leads in this period</p>
+                <div className="flex items-baseline gap-2"><span className="text-[30px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">{data.totalLost}</span><span className="text-[13px] text-[#8B92A9]">non-converted leads in this period</span></div>
+                
               </div>
             </div>
 
@@ -161,13 +164,13 @@ export default function NonConversionReport() {
                 {/* ── Where the issue lies ───────────────────────────────── */}
                 {Array.isArray(data.accountabilityBreakdown) && data.accountabilityBreakdown.length > 0 && (
                   <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-5">
-                    <h2 className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] mb-4">Where the issue lies</h2>
+                    <h2 className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] mb-3">Where the issue lies</h2>
                     <div className="flex flex-wrap gap-2">
                       {data.accountabilityBreakdown.map((a) => (
-                        <div key={a.label} className={`flex items-baseline gap-1.5 px-3 py-2 rounded-xl ${acctCls(a.label)}`}>
-                          <span className="text-[17px] font-bold">{a.count}</span>
+                        <div key={a.label} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${acctCls(a.label)}`}>
+                          <span className="text-[15px] font-bold">{a.count}</span>
                           <span className="text-[11px] font-semibold">{a.label}</span>
-                          <span className="text-[10px] opacity-60">({a.percent}%)</span>
+                          <span className="text-[10px] opacity-70">({a.percent}%)</span>
                         </div>
                       ))}
                     </div>
