@@ -2,13 +2,11 @@
 // Reusable component used inside CompanyDetails page.
 // Shows addon list with status badges, expiry dates, renew/disable actions.
 //
-// Addon types in sync with AddonStore.jsx:
-//   admin_seat                     → resource, monthly, renewalMode: required
-//   user_seat                      → resource, monthly, renewalMode: required
-//   transcription_summary_100mins  → credit,   monthly, renewalMode: optional
-//   website_integration            → feature,  monthly, renewalMode: required
-//   google_ads_campaign            → feature,  monthly, renewalMode: required
-//   meta_campaign                  → feature,  monthly, renewalMode: required
+// Addon types MUST match CompanyAddon.ADDON_TYPES on the backend exactly —
+// this dropdown posts addonType straight to POST /addons/:companyId/grant,
+// which is validated against that enum. (Previously this file used a
+// "admin_seat"/"user_seat"/etc. naming scheme that doesn't exist on the
+// backend, so every grant attempt for those types silently failed.)
 
 import { useState } from "react";
 import api from "../data/axiosConfig";
@@ -30,26 +28,34 @@ import {
 // ─── Addon catalog ────────────────────────────────────────────────────────────
 // ADDON_LABELS = currently GRANTABLE addons (drives the picker dropdown).
 const ADDON_LABELS = {
-  admin_seat:                     "Admin Seat",
-  user_seat:                      "User Seat",
+  extra_admin:                    "Extra Admin (+1 admin seat)",
+  extra_users_5:                  "5 Extra Users",
+  extra_leads_5000:                "5,000 Extra Leads",
+  extra_website:                  "Extra Website",
+  extra_meta_campaign:             "Extra Meta Campaign",
+  extra_google_account:            "Extra Google Account",
+  storage_1gb:                    "1 GB Storage",
+  storage_5gb:                    "5 GB Storage",
+  storage_10gb:                   "10 GB Storage",
+  call_recording:                 "Call Recording",
+  call_transcription:             "Call Transcription",
+  ai_summary:                     "AI Summary",
+  voice_bot:                      "Voice Bot",
+  whatsapp_automation:            "WhatsApp Automation",
+  api_access:                     "API Access",
+  webhook_access:                 "Webhook Access",
+  white_label:                    "White Label",
+  custom_domain:                  "Custom Domain",
+  custom_branding:                "Custom Branding",
   transcription_summary_100mins:  "AI Minutes +100 (Transcription & Summary)",
-  website_integration:            "Website Integration",
-  google_ads_campaign:            "Google Ads Campaign",
-  meta_campaign:                  "Meta Campaign",
+  transcriptions_5000mins:        "Transcription Minutes +5,000",
+  transcriptions_20000mins:       "Transcription Minutes +20,000",
+  summaries_5000mins:             "Summary Minutes +5,000",
+  summaries_20000mins:            "Summary Minutes +20,000",
 };
 
 // Retired types — kept only to DISPLAY legacy addon records, never in the picker.
 const LEGACY_ADDON_LABELS = {
-  extra_admin:                    "Additional Admin (legacy)",
-  extra_users_5:                  "Additional Users +5 (legacy)",
-  extra_leads_5000:               "Additional Leads +5,000 (legacy)",
-  extra_website:                  "Additional Website (legacy)",
-  extra_meta_campaign:            "Additional Meta Campaign (legacy)",
-  extra_google_account:           "Additional Google Account (legacy)",
-  call_recording:                 "Call Recording (legacy)",
-  call_transcription:             "Call Transcription (legacy)",
-  ai_summary:                     "AI Summary (legacy)",
-  whatsapp_automation:            "WhatsApp Automation (legacy)",
   transcriptions_100:             "AI Transcriptions +100 (legacy)",
   transcriptions_500:             "AI Transcriptions +500 (legacy)",
   summaries_100:                  "AI Summaries +100 (legacy)",
@@ -62,14 +68,18 @@ const ALL_ADDON_LABELS = { ...ADDON_LABELS, ...LEGACY_ADDON_LABELS };
 
 // Icon map by addonType
 const ADDON_ICONS = {
-  admin_seat:                    ShieldCheck,
-  user_seat:                     User,
-  transcription_summary_100mins: Mic,
-  transcription_summary_500mins: Mic,
+  extra_admin:                    ShieldCheck,
+  extra_users_5:                  User,
+  transcription_summary_100mins:  Mic,
+  transcriptions_5000mins:        Mic,
+  transcriptions_20000mins:       Mic,
+  summaries_5000mins:             Mic,
+  summaries_20000mins:            Mic,
+  transcription_summary_500mins:  Mic,
   transcription_summary_1000mins: Mic,
-  website_integration:           Globe,
-  google_ads_campaign:           BarChart2,
-  meta_campaign:                 Share2,
+  extra_website:                  Globe,
+  extra_google_account:            BarChart2,
+  extra_meta_campaign:             Share2,
 };
 
 // ─── Style maps ───────────────────────────────────────────────────────────────
@@ -106,7 +116,7 @@ export default function AddonManager({ companyId, addons: initialAddons = [], on
   const [addons,      setAddons]      = useState(initialAddons);
   const [showGrant,   setShowGrant]   = useState(false);
   const [form,        setForm]        = useState({
-    addonType:      "admin_seat",
+    addonType:      "extra_admin",
     quantity:       1,
     durationMonths: "",
     notes:          "",
@@ -141,7 +151,7 @@ export default function AddonManager({ companyId, addons: initialAddons = [], on
         currency:       form.currency || "INR",
       });
       setShowGrant(false);
-      setForm({ addonType: "admin_seat", quantity: 1, durationMonths: "", notes: "", price: "", currency: "INR" });
+      setForm({ addonType: "extra_admin", quantity: 1, durationMonths: "", notes: "", price: "", currency: "INR" });
       await reload();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to grant addon");
