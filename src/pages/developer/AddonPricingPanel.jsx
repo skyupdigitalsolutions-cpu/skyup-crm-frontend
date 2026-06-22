@@ -21,21 +21,33 @@ const PLAN_KEYS = ["trial", "basic", "pro", "advance", "enterprise"];
 
 // Full catalogue of add-on types the developer can create & price.
 // addonType MUST match the backend CompanyAddon.ADDON_TYPES enum exactly.
+//
+// ── STOREFRONT (shown to customers on the Add-ons tab) ───────────────────────
+// These 6 are the active storefront addons. Mark isPublic: true to sell them.
+// ── LEGACY (developer-grant only, hidden from storefront) ────────────────────
+// Old types kept so existing grants display correctly in AddonManager.
 const ADDON_CATALOG = [
-  { addonType: "extra_admin",          name: "Extra Admin",          category: "resource", billingPeriod: "monthly",  description: "+1 admin seat" },
-  { addonType: "extra_users_5",        name: "5 Extra Users",        category: "resource", billingPeriod: "monthly",  description: "+5 user seats" },
-  { addonType: "extra_leads_5000",     name: "5,000 Extra Leads",    category: "resource", billingPeriod: "monthly",  description: "+5,000 lead capacity" },
-  { addonType: "extra_website",        name: "Extra Website",        category: "resource", billingPeriod: "monthly",  description: "+1 tracked website" },
-  { addonType: "extra_meta_campaign",  name: "Extra Meta Campaign",  category: "resource", billingPeriod: "monthly",  description: "+1 Meta campaign" },
-  { addonType: "extra_google_account", name: "Extra Google Account", category: "resource", billingPeriod: "monthly",  description: "+1 Google Ads account" },
-  { addonType: "call_transcription",   name: "Call Transcription",   category: "feature",  billingPeriod: "monthly",  description: "Speech-to-text on calls" },
-  { addonType: "ai_summary",           name: "AI Summary",           category: "feature",  billingPeriod: "monthly",  description: "AI call summaries" },
-  { addonType: "whatsapp_automation",  name: "WhatsApp Automation",  category: "feature",  billingPeriod: "monthly",  description: "Auto WhatsApp on new lead" },
-  { addonType: "custom_branding",      name: "Custom Branding",      category: "feature",  billingPeriod: "monthly",  description: "Logo, colours & theme" },
-  // ── AI credit pack — the only one sold ──────────────────────────────────────
-  // Combined pack: tops up BOTH the transcription and summary minute pools by
-  // 100 each. Larger needs come from the plan tier. Price editable here.
-  { addonType: "transcription_summary_100mins", name: "100 Min Transcription & Summary", category: "credit", billingPeriod: "one_time", description: "+100 mins — transcription + AI summary (both pools)", minuteCount: 100 },
+  // ── Active storefront addons ──────────────────────────────────────────────
+  { addonType: "admin_seat",            name: "Admin Seat",                        category: "resource", billingPeriod: "monthly",  description: "+1 admin seat with full access to settings, billing, and user management", renewalMode: "required" },
+  { addonType: "user_seat",             name: "User Seat",                         category: "resource", billingPeriod: "monthly",  description: "+1 standard CRM user — calls, leads, pipeline, and reports",             renewalMode: "required" },
+  { addonType: "website_integration",   name: "Website Integration",               category: "feature",  billingPeriod: "monthly",  description: "Connect one website — form capture, chat widget, and lead analytics",   renewalMode: "required" },
+  { addonType: "google_ads_campaign",   name: "Google Ads Campaign",               category: "feature",  billingPeriod: "monthly",  description: "Link one Google Ads campaign — spend tracking, lead attribution",       renewalMode: "required" },
+  { addonType: "meta_campaign",         name: "Meta Campaign",                     category: "feature",  billingPeriod: "monthly",  description: "Connect one Facebook/Instagram campaign — lead form sync",               renewalMode: "required" },
+  // AI credit pack — tops up BOTH transcription + summary minute pools
+  { addonType: "transcription_summary_100mins", name: "100 Min Transcription & Summary", category: "credit", billingPeriod: "monthly", description: "+100 mins — transcription + AI summary (both pools)", minuteCount: 100, renewalMode: "optional" },
+
+  // ── Legacy addons (developer-grant only; isPublic: false by default) ───────
+  { addonType: "extra_admin",           name: "Extra Admin (legacy)",              category: "resource", billingPeriod: "monthly",  description: "+1 admin seat (legacy)", renewalMode: "required" },
+  { addonType: "extra_users_5",         name: "5 Extra Users (legacy)",            category: "resource", billingPeriod: "monthly",  description: "+5 user seats (legacy)", renewalMode: "required" },
+  { addonType: "extra_leads_5000",      name: "5,000 Extra Leads (legacy)",        category: "resource", billingPeriod: "monthly",  description: "+5,000 lead capacity (legacy)", renewalMode: "none" },
+  { addonType: "extra_website",         name: "Extra Website (legacy)",            category: "resource", billingPeriod: "monthly",  description: "+1 tracked website (legacy)", renewalMode: "required" },
+  { addonType: "extra_meta_campaign",   name: "Extra Meta Campaign (legacy)",      category: "resource", billingPeriod: "monthly",  description: "+1 Meta campaign (legacy)", renewalMode: "required" },
+  { addonType: "extra_google_account",  name: "Extra Google Account (legacy)",     category: "resource", billingPeriod: "monthly",  description: "+1 Google Ads account (legacy)", renewalMode: "required" },
+  { addonType: "call_transcription",    name: "Call Transcription (legacy)",       category: "feature",  billingPeriod: "monthly",  description: "Speech-to-text on calls (legacy)", renewalMode: "none" },
+  { addonType: "ai_summary",            name: "AI Summary (legacy)",               category: "feature",  billingPeriod: "monthly",  description: "AI call summaries (legacy)", renewalMode: "none" },
+  { addonType: "whatsapp_automation",   name: "WhatsApp Automation",               category: "feature",  billingPeriod: "monthly",  description: "Auto WhatsApp on new lead", renewalMode: "required" },
+  { addonType: "transcription_summary_500mins",  name: "500 Min Transcription & Summary (legacy)",  category: "credit", billingPeriod: "monthly", description: "+500 mins (legacy)", minuteCount: 500,  renewalMode: "none" },
+  { addonType: "transcription_summary_1000mins", name: "1000 Min Transcription & Summary (legacy)", category: "credit", billingPeriod: "monthly", description: "+1000 mins (legacy)", minuteCount: 1000, renewalMode: "none" },
 ];
 
 function newRowFor(addonType) {
@@ -46,9 +58,10 @@ function newRowFor(addonType) {
     description:   base?.description || "",
     category:      base?.category || "feature",
     billingPeriod: base?.billingPeriod || "monthly",
+    renewalMode:   base?.renewalMode || "none",
     price:         0,
     currency:      "INR",
-    maxQuantity:   base?.category === "feature" ? 1 : 10,
+    maxQuantity:   base?.category === "resource" ? 10 : 1,
     visiblePlans:  [],
     isPublic:      false,
     isActive:      true,
@@ -350,7 +363,15 @@ export default function AddonPricingPanel() {
   }
 
   const publicCount = items.filter(i => i.isPublic && i.isActive).length;
-  const available = ADDON_CATALOG.filter(a => !items.some(it => it.addonType === a.addonType));
+  const available   = ADDON_CATALOG.filter(a => !items.some(it => it.addonType === a.addonType));
+
+  // Split items into storefront (new) vs legacy for clear visual grouping
+  const STOREFRONT_TYPES = new Set([
+    "admin_seat", "user_seat", "website_integration",
+    "google_ads_campaign", "meta_campaign", "transcription_summary_100mins",
+  ]);
+  const storefrontItems = items.filter(i => STOREFRONT_TYPES.has(i.addonType));
+  const legacyItems     = items.filter(i => !STOREFRONT_TYPES.has(i.addonType));
 
   return (
     <div className="mt-10">
@@ -492,10 +513,44 @@ export default function AddonPricingPanel() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {items.map(it => (
-            <AddonRow key={it.addonType} item={it} onChange={handleChange} onRemove={handleRemove} />
-          ))}
+        <div className="space-y-8">
+          {/* ── Storefront addons ─────────────────────────────────────────── */}
+          {storefrontItems.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#0F1117] dark:text-[#DDE1F5]">Storefront Add-ons</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 font-semibold">Shown to customers</span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {storefrontItems.map(it => (
+                  <AddonRow key={it.addonType} item={it} onChange={handleChange} onRemove={handleRemove} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Legacy / hidden addons ────────────────────────────────────── */}
+          {legacyItems.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#8B92A9]">Legacy / Developer-Grant Only</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold">Not shown to customers</span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {legacyItems.map(it => (
+                  <AddonRow key={it.addonType} item={it} onChange={handleChange} onRemove={handleRemove} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {items.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center rounded-2xl border border-dashed border-[#E5E7EB] dark:border-[#262A38]">
+              <Package className="w-8 h-8 text-[#C4C9DA]" strokeWidth={1.5} />
+              <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#DDE1F5]">No add-ons configured</p>
+              <p className="text-[12px] text-[#8B92A9]">Click "Add Add-on" above to add the 6 storefront addons.</p>
+            </div>
+          )}
         </div>
       )}
     </div>
