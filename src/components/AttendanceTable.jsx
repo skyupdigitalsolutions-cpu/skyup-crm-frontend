@@ -1040,6 +1040,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
               <th className={thCls}>Last Login</th>
               <th className={thCls}>Remarks</th>
               <th className={thCls}>Ideal Time</th>
+              <th className={thCls}>Idle Time</th>
               <th className={thCls}>Actions</th>
             </tr>
           </thead>
@@ -1056,7 +1057,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
               ))
             ) : records.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-12 text-center">
+                <td colSpan={12} className="px-4 py-12 text-center">
                   <span className="block mb-2 flex justify-center text-[#8B92A9]"><ClipboardList className="w-9 h-9" strokeWidth={1.5} /></span>
                   <p className="text-[14px] text-[#8B92A9]">No attendance records found.</p>
                 </td>
@@ -1093,21 +1094,30 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
                     )}
                   </td>
                   <td className={tdCls}><span className="italic text-[#8B92A9]">{rec.remarks || "—"}</span></td>
+                  {/* Ideal Time — the planned shift window set by the employee
+                      on mobile (e.g. "10:00 AM – 7:00 PM"). Never mixed with
+                      idle/auto-idle data, which lives in its own column. */}
                   <td className={tdCls}>
-                    {(rec.idleTime && rec.idleTime !== "—") || rec.idealTime || rec.idealRemark ? (
+                    {rec.idealTime || rec.idealRemark ? (
                       <div className="max-w-[180px]">
-                        {/* Auto-computed idle time (Auto Idle gaps, excluding
-                            manual breaks). Prefer it; the manual idealTime text
-                            is a fallback when no idle was recorded. */}
-                        {rec.idleTime && rec.idleTime !== "—" ? (
-                          <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]" title="Auto idle time (excludes manual breaks)">{rec.idleTime}</p>
-                        ) : rec.idealTime ? (
+                        {rec.idealTime && (
                           <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{rec.idealTime}</p>
-                        ) : null}
-                        {rec.idealRemark ? (
+                        )}
+                        {rec.idealRemark && (
                           <p className="text-[10px] text-[#8B92A9] truncate" title={rec.idealRemark}>{rec.idealRemark}</p>
-                        ) : null}
+                        )}
                       </div>
+                    ) : (
+                      <span className="text-[#8B92A9]">—</span>
+                    )}
+                  </td>
+                  {/* Idle Time — auto-computed gaps where employee was inactive
+                      (Auto Idle breaks only, excludes manual breaks). */}
+                  <td className={tdCls}>
+                    {rec.idleTime && rec.idleTime !== "—" ? (
+                      <span className="text-[12px] font-semibold text-amber-600 dark:text-amber-400" title="Auto idle time (excludes manual breaks)">
+                        {rec.idleTime}
+                      </span>
                     ) : (
                       <span className="text-[#8B92A9]">—</span>
                     )}
