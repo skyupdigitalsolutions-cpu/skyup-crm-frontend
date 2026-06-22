@@ -27,14 +27,18 @@ const COMBINED_PACK_MINS = {
 };
 
 const ADDON_ICONS = {
-  admin_seat:                    ShieldCheck,
-  user_seat:                     User,
-  transcription_summary_100mins: Mic,
-  transcription_summary_500mins: Mic,
+  extra_admin:                    ShieldCheck,
+  extra_users_5:                  User,
+  transcription_summary_100mins:  Mic,
+  transcription_summary_500mins:  Mic,
   transcription_summary_1000mins: Mic,
-  website_integration:           Globe,
-  google_ads_campaign:           BarChart2,
-  meta_campaign:                 Share2,
+  transcriptions_5000mins:        Mic,
+  transcriptions_20000mins:       Mic,
+  summaries_5000mins:             Mic,
+  summaries_20000mins:            Mic,
+  extra_website:                  Globe,
+  extra_google_account:           BarChart2,
+  extra_meta_campaign:            Share2,
 };
 
 function AddonCard({ addon, onAddToCart, inCart }) {
