@@ -1,73 +1,93 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  InvoiceReceipt.jsx
 //
-//  Professional, multi-line-item GST tax invoice. Renders the plan + every
-//  add-on purchased in the same checkout as its own row, with its own GST
-//  split — matching what verify-payment / getInvoices now persist on Payment
-//  (see models/Payment.js lineItems[]).
+//  Professional GST tax invoice (card layout). Renders the plan + every add-on
+//  bought in the same checkout as its own row, with the columns:
+//    SL.No. · Description · Tax Rate · Qty · Rate · Amount
 //
-//  Logo is hardcoded below — replace COMPANY_LOGO_URL with your image URL
-//  or base64 string. Set COMPANY_LOGO_URL = null to show the "S" mark.
+//  Key behaviours
+//  • Every line `amount` is GST-INCLUSIVE. The taxable value and tax are derived
+//    from it; the breakdown is shown for reporting only and never added on top.
+//  • GST split is location-aware: if the customer's state code equals the
+//    seller's (Karnataka / 29) it is an INTRA-state supply → CGST + SGST.
+//    Otherwise it is an INTER-state supply → IGST. Pass customer.stateCode
+//    (the 2-digit GST state code) to drive this; it also auto-derives from the
+//    first two digits of customer.gstin when stateCode is absent.
+//  • Tax breakdown always sums EXACTLY back to the inclusive total (CGST/SGST
+//    are computed as half + residual to avoid ±0.01 rounding drift).
 //
 //  USAGE:
-//    import InvoiceReceipt from "./InvoiceReceipt";
+//    <InvoiceReceipt invoice={invoiceData} company={companyDetails} onClose={fn} />
 //
-//    <InvoiceReceipt
-//      invoice={invoiceData}
-//      company={companyDetails}   // optional overrides
-//      onClose={() => {}}
-//    />
-//
-//  invoiceData shape:
+//  invoiceData shape (unchanged from before, plus optional customer.stateCode):
 //  {
-//    invoiceId:     "Invoice1",
-//    date:          "22 Jun 2025",
-//    planName:      "Base Plan + WhatsApp Blast, AI Credits Pack ",
-//    billingCycle:  "monthly" | "yearly" | "one_time",
-//    baseAmount:    2999,
-//    transactionId: "pay_mK3dL9nQrT2",
-//    paymentMethod: "Razorpay",
-//    status:        "Paid" | "Pending",
-//    lineItems: [
-//      {
-//        type: "plan" | "addon",
-//        name: "SkyUp CRM — Growth Plan",
-//        sub:  "Monthly subscription (1 month)",
-//        quantity: 1,
-//        billingPeriod: "monthly",
-//        autoRenew: true,
-//        amount: 2117.80,
-//      },
-//      ...
-//    ],
-//    customer: {
-//      name:    "Acme Corp Pvt Ltd",
-//      email:   "billing@acmecorp.com",
-//      address: "12, MG Road, Bengaluru - 560001",
-//      gstin:   "29AABCU9603R1ZX",
-//    }
+//    invoiceId, date, planName, billingCycle, baseAmount,
+//    transactionId, paymentMethod, status,
+//    lineItems: [{ type:"plan"|"addon", name, sub, quantity, amount }],
+//    activated: ["Growth Plan · Monthly", ...],   // optional chips
+//    customer: { name, email, address, gstin, stateCode }
 //  }
-//
-//  NOTE: every line amount is GST-INCLUSIVE. GST is split out per row for
-//  the tax breakdown table, not added on top of the total.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useRef } from "react";
 
-// ── SET YOUR LOGO HERE ────────────────────────────────────────────────────────
-// FIX: was missing quotes — must be a valid string or null
-const COMPANY_LOGO_URL = "/public/skyup_logo1.svg"; // e.g. "/assets/logo.png"
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── Brand / seller constants ─────────────────────────────────────────────────
+const COMPANY_LOGO_URL = "/public/skyup_logo1.svg"; // null → "S" monogram
+const SELLER_STATE_CODE = "29";                      // Karnataka
+const HSN_SAC = "998315";                            // SAC for the service
 const GST_RATE = 0.18;
 
-const fmt = (n) =>
-  Number(n || 0).toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const BRAND = "#1d4ed8";
+const INK   = "#0b0b0b";
+const MUTED = "#5b6170";
+const LINE  = "#ececec";
 
-// ── Build the GST-split line items the table renders ─────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const fmt = (n) =>
+  Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function stateCodeOf(invoice) {
+  const c = invoice.customer || {};
+  if (c.stateCode) return String(c.stateCode).trim();
+  if (c.gstin && /^\d{2}/.test(c.gstin)) return c.gstin.slice(0, 2);
+  return null;
+}
+
+// Indian-format amount in words (rupees + paise).
+function amountInWords(num) {
+  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+    "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const two = (x) => (x < 20 ? ones[x] : (tens[Math.floor(x / 10)] + (x % 10 ? " " + ones[x % 10] : "")).trim());
+  const three = (x) => {
+    const h = Math.floor(x / 100), r = x % 100;
+    let s = "";
+    if (h) s += ones[h] + " Hundred" + (r ? " and " : "");
+    if (r) s += two(r);
+    return s.trim();
+  };
+  let rupees = Math.floor(num);
+  const paise = Math.round((num - rupees) * 100);
+  let w;
+  if (rupees === 0) w = "Zero";
+  else {
+    const cr = Math.floor(rupees / 10000000); rupees %= 10000000;
+    const la = Math.floor(rupees / 100000);   rupees %= 100000;
+    const th = Math.floor(rupees / 1000);     rupees %= 1000;
+    const hu = rupees;
+    const parts = [];
+    if (cr) parts.push(three(cr) + " Crore");
+    if (la) parts.push(three(la) + " Lakh");
+    if (th) parts.push(three(th) + " Thousand");
+    if (hu) parts.push(three(hu));
+    w = parts.join(" ").trim();
+  }
+  let out = "Indian Rupees " + w;
+  if (paise) out += ` and ${paise}/100`;
+  return out + " Only";
+}
+
+// Build GST-split rows. Each line `amount` is GST-inclusive.
 function buildRows(invoice) {
   const raw =
     Array.isArray(invoice.lineItems) && invoice.lineItems.length > 0
@@ -77,92 +97,80 @@ function buildRows(invoice) {
             type: "plan",
             name: invoice.planName || "SkyUp CRM Subscription",
             sub:
-              invoice.billingCycle === "yearly"
-                ? "Annual subscription (12 months)"
-                : invoice.billingCycle === "monthly"
-                ? "Monthly subscription (1 month)"
-                : "One-time purchase",
-
+              invoice.billingCycle === "yearly" ? "Annual subscription (12 months)"
+              : invoice.billingCycle === "monthly" ? "Monthly subscription (1 month)"
+              : "One-time purchase",
             quantity: 1,
             amount: invoice.baseAmount,
           },
         ];
 
-  return raw.map((item) => {
-    const amount  = +(Number(item.amount) || 0).toFixed(2);
+  return raw.map((item, i) => {
+    const qty = Math.max(1, parseInt(item.quantity, 10) || 1);
+    const amount = +(Number(item.amount) || 0).toFixed(2);   // GST-inclusive
     const taxable = +(amount / (1 + GST_RATE)).toFixed(2);
-    // FIX: compute sgst symmetrically to avoid float drift
-    const cgst    = +(taxable * (GST_RATE / 2)).toFixed(2);
-    const sgst    = +(taxable * (GST_RATE / 2)).toFixed(2);
-    return { ...item, amount, taxable, cgst, sgst };
+    const rate = +(taxable / qty).toFixed(2);                // per-unit, pre-GST
+    const tax = +(amount - taxable).toFixed(2);
+    return { ...item, sl: i + 1, quantity: qty, amount, taxable, rate, tax };
   });
 }
 
 // ── PDF download via the browser's native print-to-PDF ───────────────────────
 function printToPdf(node, title) {
-  const w = window.open("", "_blank", "width=900,height=1000");
+  const w = window.open("", "_blank", "width=900,height=1100");
   if (!w) return;
   w.document.write(`
-    <html>
-      <head>
-        <title>${title}</title>
-        <meta charset="utf-8" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-        <style>
-          * { box-sizing: border-box; margin: 0; padding: 0; }
-          body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-            background: #fff; color: #000000; padding: 0;
-            -webkit-print-color-adjust: exact; print-color-adjust: exact;
-          }
-          table { border-collapse: collapse; width: 100%; }
-          @page { size: A4; margin: 14mm; }
-          @media print { body { padding: 0; } }
-        </style>
-      </head>
-      <body>${node.innerHTML}</body>
-    </html>
-  `);
+    <html><head><title>${title}</title><meta charset="utf-8"/>
+      <link rel="preconnect" href="https://fonts.googleapis.com"/>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+      <style>
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#fff;color:${INK};-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+        @page{size:A4;margin:14mm;}
+      </style>
+    </head><body>${node.innerHTML}</body></html>`);
   w.document.close();
   w.focus();
   setTimeout(() => { w.print(); w.close(); }, 250);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  InvoiceReceipt
-// ─────────────────────────────────────────────────────────────────────────────
 export default function InvoiceReceipt({ invoice, company: companyProp, onClose }) {
   const printRef = useRef(null);
 
   const company = {
     name:    "SKYUP DIGITAL SOLUTIONS LLP",
-    address: "Parinidhi #23, E Block, 14th A Main Road, 2nd Floor, Sahakaranagar, Bangalore - 560092",
+    addr1:   "Parinidhi #23, E Block, 14th A Main Road",
+    addr2:   "2nd Floor, Sahakaranagar, Bangalore - 560092",
     gstin:   "29AABCS1429B1ZZ",
-    cin:     "U72900KA2022PTC150000",
-    email:   "contact@skyupdigitalsolutions.com",
+    pan:     "AABCS1429B",
+    email:   "skyupdigitalsolutions@gmail.com",
+    state:   "Karnataka",
+    stateCode: SELLER_STATE_CODE,
     ...companyProp,
   };
 
   const rows    = buildRows(invoice);
-  const total   = +rows.reduce((s, r) => s + r.amount,  0).toFixed(2);
   const taxable = +rows.reduce((s, r) => s + r.taxable, 0).toFixed(2);
-  const cgst    = +rows.reduce((s, r) => s + r.cgst,    0).toFixed(2);
-  const sgst    = +rows.reduce((s, r) => s + r.sgst,    0).toFixed(2);
-  const isPaid  = invoice.status === "Paid";
+  const taxTot  = +rows.reduce((s, r) => s + r.tax,     0).toFixed(2);
+  const total   = +rows.reduce((s, r) => s + r.amount,  0).toFixed(2);
 
-  const logoElement = COMPANY_LOGO_URL ? (
-    <img
-      src={COMPANY_LOGO_URL}
-      alt={company.name}
-      style={{ maxHeight: 40, maxWidth: 160, objectFit: "contain", display: "block" }}
-    />
-  ) : null;
+  const custCode = stateCodeOf(invoice);
+  const intra = custCode ? custCode === company.stateCode : true; // default intra
+  // Split exactly: CGST = half (rounded), SGST = residual.
+  const cgst = intra ? +(taxTot / 2).toFixed(2) : 0;
+  const sgst = intra ? +(taxTot - cgst).toFixed(2) : 0;
+  const igst = intra ? 0 : taxTot;
+
+  const isPaid   = (invoice.status || "Paid") === "Paid";
+  const customer = invoice.customer || {};
+  const activated = Array.isArray(invoice.activated) ? invoice.activated : [];
 
   function handlePrint() {
-    if (!printRef.current) return;
-    printToPdf(printRef.current, invoice.invoiceId);
+    if (printRef.current) printToPdf(printRef.current, invoice.invoiceId || "invoice");
   }
+
+  const COLS = "42px 1fr 70px 46px 96px 108px";
 
   return (
     <div
@@ -170,292 +178,172 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
       className="fixed inset-0 z-[60] flex items-start justify-center bg-[#0B0D14]/70 backdrop-blur-sm overflow-y-auto py-8 px-4"
       onClick={(e) => e.target === e.currentTarget && onClose?.()}
     >
-      <div className="w-full max-w-[680px] bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="w-full max-w-[640px]">
 
         {/* ── Toolbar (not printed) ── */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "10px 28px",
-            background: "#f0f0f0",
-            borderBottom: "0.5px solid #c0c0c0",
-          }}
-        >
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: "#000000",
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-            }}
-          >
-            Tax Invoice
-          </span>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* FIX: inline styles guarantee solid blue button regardless of Tailwind purge */}
-            <button
-              onClick={handlePrint}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "7px 16px",
-                borderRadius: 6,
-                background: "#1b3a8a",
-                color: "#ffffff",
-                border: "none",
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                letterSpacing: "0.01em",
-              }}
-            >
-              <DownloadIcon />
-              Download PDF
-            </button>
-            <button
-              onClick={onClose}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 6,
-                border: "none",
-                background: "transparent",
-                color: "#000000",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <CloseIcon />
-            </button>
-          </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
+          <button onClick={handlePrint} style={{
+            display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px",
+            borderRadius: 8, background: BRAND, color: "#fff", border: "none",
+            fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+          }}>
+            <DownloadIcon /> Download PDF
+          </button>
+          <button onClick={onClose} style={{
+            width: 34, height: 34, borderRadius: 8, border: "none", background: "#ffffff",
+            color: INK, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <CloseIcon />
+          </button>
         </div>
 
-        {/* ── Printable invoice ── */}
-        <div ref={printRef} style={{ background: "#ffffff" }}>
-          <div style={{ position: "relative", padding: "32px 32px 28px" }}>
+        {/* ── Printable invoice card ── */}
+        <div ref={printRef}>
+          <div style={{
+            background: "#fff", border: "1px solid #e6e8ee", borderRadius: 16,
+            padding: "30px 32px", boxShadow: "0 8px 30px rgba(0,0,0,.06)",
+          }}>
 
-            {/* Accent bar */}
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 4,
-                background: "#1b3a8a",
-              }}
-            />
-
-            {/* ── Header ── */}
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
-              {/* Company left */}
-              <div>
-                {logoElement ? (
-                  <div style={{ marginBottom: 10 }}>{logoElement}</div>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ display: "flex", gap: 12 }}>
+                {COMPANY_LOGO_URL ? (
+                  <img src={COMPANY_LOGO_URL} alt={company.name}
+                    style={{ width: 34, height: 34, borderRadius: 9, objectFit: "contain", flexShrink: 0 }} />
                 ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <div
-                      style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: 8,
-                        background: "#1b3a8a",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <span style={{ color: "#fff", fontSize: 15, fontWeight: 700 }}>S</span>
-                    </div>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#000000", letterSpacing: "0.02em" }}>
-                      {company.name}
-                    </span>
-                  </div>
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 9, background: BRAND, color: "#fff",
+                    fontWeight: 800, fontSize: 16, display: "flex", alignItems: "center",
+                    justifyContent: "center", flexShrink: 0,
+                  }}>S</div>
                 )}
-                <p style={{ fontSize: 11, color: "#000000", lineHeight: 1.6, maxWidth: 250, margin: 0 }}>
-                  {company.address}
-                </p>
-                <div style={{ marginTop: 8 }}>
-                  <p style={{ fontSize: 11, color: "#000000", margin: "2px 0" }}>
-                    GSTIN &nbsp;<span style={{ fontWeight: 600 }}>{company.gstin}</span>
-                  </p>
-                  <p style={{ fontSize: 11, color: "#000000", margin: "2px 0" }}>
-                    CIN &nbsp;&nbsp;&nbsp;&nbsp;<span style={{ fontWeight: 600 }}>{company.cin}</span>
-                  </p>
-                  <p style={{ fontSize: 11, color: "#000000", margin: "2px 0" }}>{company.email}</p>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: "-.2px" }}>{company.name}</div>
+                  <div style={{ fontSize: 10, color: MUTED, marginTop: 4, lineHeight: 1.6 }}>
+                    {company.addr1},<br />{company.addr2}
+                  </div>
+                  <div style={{ fontSize: 10, marginTop: 6, lineHeight: 1.7 }}>
+                    <div>GSTIN: <b>{company.gstin}</b></div>
+                    <div>HSN/SAC: <b>{HSN_SAC}</b></div>
+                    <div>PAN: <b>{company.pan}</b></div>
+                    <div style={{ color: BRAND }}>{company.email}</div>
+                  </div>
                 </div>
               </div>
 
-              {/* Invoice meta right */}
-              <div style={{ textAlign: "right" }}>
-                <StatusPill isPaid={isPaid} label={invoice.status} />
-                <p style={{ fontSize: 18, fontWeight: 700, color: "#000000", margin: "10px 0 8px", letterSpacing: "-0.3px", fontVariantNumeric: "tabular-nums" }}>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <StatusPill isPaid={isPaid} />
+                <div style={{ fontSize: 18, fontWeight: 800, marginTop: 12, letterSpacing: "-.3px" }}>
                   {invoice.invoiceId}
-                </p>
-                <MetaRow label="Date"     value={invoice.date} />
-                {invoice.dueDate       && <MetaRow label="Due date" value={invoice.dueDate} />}
-                {invoice.transactionId && <MetaRow label="Txn ID"   value={invoice.transactionId} mono />}
-                <MetaRow label="Paid via" value={invoice.paymentMethod || "Razorpay"} />
+                </div>
+                <div style={{ fontSize: 10, marginTop: 8, lineHeight: 1.8 }}>
+                  <div><span style={{ color: MUTED }}>DATE</span>&nbsp; <b>{invoice.date}</b></div>
+                  {invoice.transactionId && (
+                    <div><span style={{ color: MUTED }}>TXN ID</span>&nbsp; <b>{invoice.transactionId}</b></div>
+                  )}
+                  <div><span style={{ color: MUTED }}>PAID VIA</span>&nbsp; <b>{invoice.paymentMethod || "Razorpay"}</b></div>
+                </div>
               </div>
             </div>
 
-            {/* Divider */}
-            <div style={{ height: "0.5px", background: "#000000", margin: "0 0 20px" }} />
+            <div style={{ height: 1, background: "#e9e9e9", margin: "20px 0" }} />
 
-            {/* ── Bill To ── */}
-            <div style={{ marginBottom: 20 }}>
-              <p style={{ fontSize: 9.5, fontWeight: 700, color: "#000000", letterSpacing: "0.14em", textTransform: "uppercase", margin: "0 0 8px" }}>
-                Bill to
-              </p>
-              <p style={{ fontSize: 13, fontWeight: 700, color: "#000000", margin: "0 0 3px" }}>
-                {invoice.customer?.name || "—"}
-              </p>
-              {invoice.customer?.email && (
-                <p style={{ fontSize: 11, color: "#000000", margin: "2px 0" }}>{invoice.customer.email}</p>
-              )}
-              {invoice.customer?.address && (
-                <p style={{ fontSize: 11, color: "#000000", maxWidth: 280, lineHeight: 1.5, margin: "2px 0" }}>
-                  {invoice.customer.address}
-                </p>
-              )}
-              {invoice.customer?.gstin && (
-                <p style={{ fontSize: 11, color: "#000000", margin: "4px 0 0" }}>
-                  GSTIN &nbsp;<span style={{ fontWeight: 600 }}>{invoice.customer.gstin}</span>
-                </p>
-              )}
-            </div>
-
-            {/* ── Line items table ── */}
-            <div
-              style={{
-                border: "0.5px solid #000000",
-                borderRadius: 8,
-                overflow: "hidden",
-                marginBottom: 10,
-              }}
-            >
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: 11.5,
-                  tableLayout: "fixed",
-                }}
-              >
-                <colgroup>
-                  <col style={{ width: "38%" }} />
-                  <col style={{ width: "15%" }} />
-                  <col style={{ width: "8%" }} />
-                  <col style={{ width: "18%" }} />
-                  <col style={{ width: "21%" }} />
-                </colgroup>
-                <thead>
-                  <tr style={{ background: "#f0f0f0", borderBottom: "0.5px solid #000000" }}>
-                    <Th left>Description</Th>
-                    <Th>Qty</Th>
-                    <Th right>Taxable (₹)</Th>
-                    <Th right>Amount (₹)</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((item, i) => (
-                    <tr
-                      key={i}
-                      style={{ borderBottom: i < rows.length - 1 ? "0.5px solid #d0d0d0" : "none" }}
-                    >
-                      <Td left>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                          <TypeTag type={item.type} />
-                          <span style={{ fontSize: 12, fontWeight: 600, color: "#000000" }}>
-                            {item.name}
-                          </span>
-                        </div>
-                        {item.sub && (
-                          <p style={{ fontSize: 10.5, color: "#000000", margin: 0 }}>{item.sub}</p>
-                        )}
-                      </Td>
-                  
-                      <Td center mono>{item.quantity || 1}</Td>
-                      <Td right mono>{fmt(item.taxable)}</Td>
-                      <Td right mono bold>{fmt(item.amount)}</Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <p style={{ fontSize: 10, color: "#000000", lineHeight: 1.6, margin: "0 0 20px 2px" }}>
-              * Total of ₹&nbsp;{fmt(total)} is GST-inclusive. The breakdown below is for tax reporting purposes only — no additional amount is charged.
-            </p>
-
-            {/* ── Totals ── */}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24 }}>
-              <div style={{ width: 260 }}>
-                <TotalRow label="Taxable value" value={`₹ ${fmt(taxable)}`} />
-                <TotalRow label="CGST @ 9%"     value={`₹ ${fmt(cgst)}`} />
-                <TotalRow label="SGST @ 9%"     value={`₹ ${fmt(sgst)}`} />
-                <div style={{ height: "0.5px", background: "#000000", margin: "8px 0" }} />
-                <TotalRow label="Total (INR)"   value={`₹ ${fmt(total)}`} grand />
-                {isPaid && <TotalRow label="Amount paid" value={`₹ ${fmt(total)}`} bold />}
-                {isPaid && <TotalRow label="Balance due"  value="₹ 0.00"           muted />}
+            {/* Bill To */}
+            <div>
+              <SectionLabel>Bill To</SectionLabel>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#0b1f6b" }}>{customer.name || "—"}</div>
+              {customer.email && <div style={{ fontSize: 11, color: BRAND, marginTop: 2 }}>{customer.email}</div>}
+              {customer.address && <div style={{ fontSize: 11, marginTop: 3 }}>{customer.address}</div>}
+              <div style={{ fontSize: 11, marginTop: 4 }}>
+                {customer.gstin && <>GSTIN: <b>{customer.gstin}</b></>}
+                {custCode && <> &nbsp;·&nbsp; State: <b>{custCode}{intra ? "" : ""}</b></>}
               </div>
             </div>
 
-            {/* ── Items activated ── */}
-            {rows.length > 0 && (
-              <div
-                style={{
-                  border: "0.5px solid #000000",
-                  borderRadius: 8,
-                  background: "#f0f0f0",
-                  padding: "14px 16px",
-                  marginBottom: 24,
-                }}
-              >
-                <p style={{ fontSize: 9.5, fontWeight: 700, color: "#000000", letterSpacing: "0.14em", textTransform: "uppercase", margin: "0 0 8px" }}>
-                  Items activated
-                </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {rows.map((item, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        padding: "4px 11px",
-                        borderRadius: 20,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        ...(item.type === "plan"
-                          ? { background: "#eef2ff", color: "#3730a3" }
-                          : { background: "#ecfdf5", color: "#166534" }),
-                      }}
-                    >
-                      {item.name}
-                      {item.quantity > 1 ? ` × ${item.quantity}` : ""}
-                    </span>
+            {/* Line items: SL.No. / Description / Tax Rate / Qty / Rate / Amount */}
+            <div style={{ marginTop: 20 }}>
+              <div style={{
+                display: "grid", gridTemplateColumns: COLS, padding: "9px 0",
+                borderBottom: "2px solid #000", fontSize: 9, fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: ".4px",
+              }}>
+                <div style={{ textAlign: "center" }}>SL.No.</div>
+                <div>Description</div>
+                <div style={{ textAlign: "center" }}>Tax Rate</div>
+                <div style={{ textAlign: "center" }}>Qty</div>
+                <div style={{ textAlign: "right" }}>Rate</div>
+                <div style={{ textAlign: "right" }}>Amount</div>
+              </div>
+
+              {rows.map((r) => (
+                <div key={r.sl} style={{
+                  display: "grid", gridTemplateColumns: COLS, alignItems: "center",
+                  padding: "13px 0", borderBottom: `1px solid ${LINE}`,
+                }}>
+                  <div style={{ fontSize: 11.5, textAlign: "center" }}>{r.sl}</div>
+                  <div>
+                    <TypeTag type={r.type} />
+                    <span style={{ fontSize: 12.5, fontWeight: 600, verticalAlign: "middle", marginLeft: 7 }}>{r.name}</span>
+                    {r.sub && <div style={{ fontSize: 10, color: MUTED, marginTop: 3 }}>{r.sub}</div>}
+                  </div>
+                  <div style={{ fontSize: 11.5, textAlign: "center" }}>18%</div>
+                  <div style={{ fontSize: 11.5, textAlign: "center" }}>{r.quantity}</div>
+                  <div style={{ fontSize: 11.5, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(r.rate)}</div>
+                  <div style={{ fontSize: 12.5, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(r.amount)}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 9.5, color: MUTED, marginTop: 12, fontStyle: "italic", lineHeight: 1.5 }}>
+              * Total price of Rs. {fmt(total)} is GST-inclusive. Rate is the per-unit pre-GST value; the
+              breakdown below is for tax reporting only — no additional amount is charged.
+            </div>
+
+            {/* Summary */}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+              <div style={{ width: 280 }}>
+                <SumRow label="Taxable Value" value={`Rs. ${fmt(taxable)}`} />
+                {intra ? (
+                  <>
+                    <SumRow label="CGST @ 9%" value={`Rs. ${fmt(cgst)}`} />
+                    <SumRow label="SGST @ 9%" value={`Rs. ${fmt(sgst)}`} />
+                  </>
+                ) : (
+                  <SumRow label="IGST @ 18%" value={`Rs. ${fmt(igst)}`} />
+                )}
+                <div style={{ height: 1, background: "#000", margin: "8px 0" }} />
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
+                  <span style={{ fontSize: 15, fontWeight: 800 }}>Total (INR)</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: BRAND, fontVariantNumeric: "tabular-nums" }}>Rs. {fmt(total)}</span>
+                </div>
+                <SumRow label="Amount Paid" value={`Rs. ${fmt(isPaid ? total : 0)}`} small />
+                <SumRow label="Balance Due" value={`Rs. ${fmt(isPaid ? 0 : total)}`} small />
+              </div>
+            </div>
+
+            {/* Amount in words + GST treatment */}
+            <div style={{ marginTop: 14, fontSize: 10.5 }}>
+              <b>In words:</b> {amountInWords(total)} &nbsp;·&nbsp;
+              <span style={{ color: MUTED }}>{intra ? "Intra-state supply" : "Inter-state supply"}</span>
+            </div>
+
+            {/* Items activated */}
+            {activated.length > 0 && (
+              <div style={{ marginTop: 20, border: "1px solid #e6e8ee", borderRadius: 12, padding: "14px 16px" }}>
+                <SectionLabel>Items Activated</SectionLabel>
+                <div style={{ marginTop: 9 }}>
+                  {activated.map((c, i) => (
+                    <span key={i} style={{ fontSize: 11, fontWeight: 600, color: BRAND, marginRight: 18 }}>{c}</span>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* ── Footer ── */}
-            <div style={{ borderTop: "0.5px solid #000000", paddingTop: 18, textAlign: "center" }}>
-              <p style={{ fontSize: 10.5, color: "#000000", lineHeight: 1.8, margin: 0 }}>
-                This is a computer-generated tax invoice and does not require a physical signature.
-                <br />
-                GST is included in the price as per CGST + SGST provisions under the GST Act, 2017.
-                <br />
-                For queries, write to{" "}
-                <span style={{ color: "#1b3a8a", fontWeight: 500 }}>{company.email}</span>
-              </p>
+            {/* Footer */}
+            <div style={{ textAlign: "center", fontSize: 9.5, color: MUTED, marginTop: 22, lineHeight: 1.7 }}>
+              This is a computer-generated tax invoice and does not require a physical signature.<br />
+              GST is included in the price as per the GST Act, 2017.<br />
+              For queries: <span style={{ color: BRAND }}>{company.email}</span>
             </div>
 
           </div>
@@ -466,142 +354,56 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function StatusPill({ isPaid, label }) {
+function SectionLabel({ children }) {
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 5,
-        padding: "4px 11px",
-        borderRadius: 20,
-        fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: "0.08em",
-        ...(isPaid
-          ? { background: "#ecfdf5", color: "#166534" }
-          : { background: "#fff7ed", color: "#9a3412" }),
-      }}
-    >
-      {isPaid && <CheckIcon />}
-      {label?.toUpperCase()}
+    <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".7px", color: MUTED, marginBottom: 7 }}>
+      {children}
+    </div>
+  );
+}
+
+function SumRow({ label, value, small }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+      <span style={{ fontSize: small ? 11 : 12, fontWeight: small ? 600 : 400 }}>{label}</span>
+      <span style={{ fontSize: small ? 11 : 12, fontWeight: small ? 600 : 400, fontVariantNumeric: "tabular-nums" }}>{value}</span>
+    </div>
+  );
+}
+
+function StatusPill({ isPaid }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 11px",
+      borderRadius: 12, fontSize: 9, fontWeight: 800, letterSpacing: ".5px",
+      border: `1px solid ${isPaid ? "#047857" : "#9a3412"}`,
+      color: isPaid ? "#047857" : "#9a3412", background: "#fff",
+    }}>
+      {isPaid && <CheckIcon />}{isPaid ? "PAID" : "PENDING"}
     </span>
   );
 }
 
 function TypeTag({ type }) {
   const isPlan = type === "plan";
+  const col = isPlan ? BRAND : "#047857";
   return (
-    <span
-      style={{
-        fontSize: 8,
-        fontWeight: 700,
-        padding: "2px 6px",
-        borderRadius: 4,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        flexShrink: 0,
-        ...(isPlan
-          ? { background: "#eef2ff", color: "#3730a3" }
-          : { background: "#ecfdf5", color: "#166534" }),
-      }}
-    >
-      {isPlan ? "Plan" : "Add-on"}
+    <span style={{
+      display: "inline-block", fontSize: 8.5, fontWeight: 800, letterSpacing: ".5px",
+      color: col, border: `1px solid ${col}`, borderRadius: 4, padding: "1px 5px", verticalAlign: "middle",
+    }}>
+      {isPlan ? "PLAN" : "ADD-ON"}
     </span>
-  );
-}
-
-function MetaRow({ label, value, mono }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, marginTop: 4 }}>
-      <span style={{ fontSize: 10, fontWeight: 500, color: "#000000", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-        {label}
-      </span>
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          color: "#000000",
-          ...(mono ? { fontFamily: "'SF Mono', 'Fira Mono', monospace", fontSize: 10.5 } : {}),
-        }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function Th({ children, left, right }) {
-  return (
-    <th
-      style={{
-        padding: "10px 14px",
-        fontSize: 9,
-        fontWeight: 700,
-        color: "#000000",
-        letterSpacing: "0.12em",
-        textTransform: "uppercase",
-        whiteSpace: "nowrap",
-        textAlign: left ? "left" : right ? "right" : "center",
-      }}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({ children, left, center, right, mono, bold }) {
-  return (
-    <td
-      style={{
-        padding: "11px 14px",
-        color: "#000000",
-        verticalAlign: "top",
-        textAlign: left ? "left" : right ? "right" : "center",
-        ...(mono ? { fontVariantNumeric: "tabular-nums", fontSize: 11 } : {}),
-        ...(bold ? { fontWeight: 600, fontSize: 11.5 } : {}),
-      }}
-    >
-      {children}
-    </td>
-  );
-}
-
-function TotalRow({ label, value, grand, bold, muted }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0" }}>
-      <span
-        style={{
-          fontSize: grand ? 13 : bold ? 12 : 11.5,
-          fontWeight: grand || bold ? 700 : 400,
-          color: "#000000",
-        }}
-      >
-        {label}
-      </span>
-      <span
-        style={{
-          fontVariantNumeric: "tabular-nums",
-          fontSize: grand ? 15 : bold ? 12 : 11.5,
-          fontWeight: grand || bold ? 700 : 400,
-          color: grand ? "#1b3a8a" : "#000000",
-        }}
-      >
-        {value}
-      </span>
-    </div>
   );
 }
 
 function CheckIcon() {
   return (
-    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+    <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
     </svg>
   );
 }
-
 function DownloadIcon() {
   return (
     <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -609,7 +411,6 @@ function DownloadIcon() {
     </svg>
   );
 }
-
 function CloseIcon() {
   return (
     <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
