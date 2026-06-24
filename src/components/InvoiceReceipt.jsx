@@ -37,10 +37,10 @@ const SELLER_STATE_CODE = "29";                      // Karnataka
 const HSN_SAC = "998315";                            // SAC for the service
 const GST_RATE = 0.18;
 
-const BRAND = "#1d4ed8";
-const INK   = "#0b0b0b";
-const MUTED = "#5b6170";
-const LINE  = "#ececec";
+const BRAND = "#000000";
+const INK   = "#000000";
+const MUTED = "#000000";
+const LINE  = "#000000";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) =>
