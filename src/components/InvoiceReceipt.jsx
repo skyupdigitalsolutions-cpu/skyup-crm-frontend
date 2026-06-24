@@ -182,7 +182,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
           <button onClick={handlePrint} style={{
             display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px",
-            borderRadius: 8, background: BRAND, color: "#fff", border: "none",
+            borderRadius: 8, background:"#1d4ed8" , color: "#fff", border: "none",
             fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
           }}>
             <DownloadIcon /> Download PDF
@@ -247,7 +247,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
             {/* Bill To */}
             <div>
               <SectionLabel>Bill To</SectionLabel>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#0b1f6b" }}>{customer.name || "—"}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#000000" }}>{customer.name || "—"}</div>
               {customer.email && <div style={{ fontSize: 12, color: BRAND, marginTop: 2 }}>{customer.email}</div>}
               {customer.address && <div style={{ fontSize: 12, marginTop: 3 }}>{customer.address}</div>}
               <div style={{ fontSize: 12, marginTop: 4 }}>
