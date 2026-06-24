@@ -60,8 +60,9 @@ const PLAN_LIMITS = {
 };
 
 const BACKEND_PLAN_ID = {
-  basic: "starter",
-  pro: "growth",
+  basic: "basic",
+  pro: "pro",
+  advance: "advance",
   enterprise: "enterprise",
 };
 
@@ -590,13 +591,13 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
           <div className="mb-5">
             <div className="flex items-end gap-1">
               <span className="text-[30px] font-bold text-[#0F1117] dark:text-white leading-none">
-                ₹{price.toLocaleString()}
+                ₹{(billing === "yearly" ? Math.round(price / 12) : price).toLocaleString()}
               </span>
               <span className="text-[12px] text-[#8B92A9] mb-0.5">/mo</span>
             </div>
             {billing === "yearly" && (
               <p className="text-[11px] text-[#8B92A9] mt-0.5">
-                Billed ₹{(price * 12).toLocaleString()}/yr
+                Billed ₹{price.toLocaleString()}/yr
               </p>
             )}
           </div>
@@ -1166,14 +1167,18 @@ export default function UpgradePlan({
   const CUSTOMER = (() => {
     try {
       const u = JSON.parse(localStorage.getItem("user") || "{}");
+      const gstin = u.gstin || "";
       return {
         name:    u.companyName || u.name  || "—",
         email:   u.email  || "—",
         address: u.address || "—",
-        gstin:   u.gstin  || "",
+        gstin,
+        // 2-digit GST state code drives CGST+SGST (intra) vs IGST (inter).
+        // Prefer an explicit field; otherwise derive from the GSTIN prefix.
+        stateCode: u.stateCode || (/^\d{2}/.test(gstin) ? gstin.slice(0, 2) : ""),
       };
     } catch {
-      return { name: "—", email: "—", address: "—", gstin: "" };
+      return { name: "—", email: "—", address: "—", gstin: "", stateCode: "" };
     }
   })();
 
