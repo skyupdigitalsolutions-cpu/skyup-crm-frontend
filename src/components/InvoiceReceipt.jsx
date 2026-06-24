@@ -32,7 +32,7 @@
 import { useRef } from "react";
 
 // ── Brand / seller constants ─────────────────────────────────────────────────
-const COMPANY_LOGO_URL = "/public/skyup_logo1.svg"; // null → "S" monogram
+const COMPANY_LOGO_URL = "/skyup_logo1.svg"; // null → "S" monogram
 const SELLER_STATE_CODE = "29";                      // Karnataka
 const HSN_SAC = "998315";                            // SAC for the service
 const GST_RATE = 0.18;
@@ -142,9 +142,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
     name:    "SKYUP DIGITAL SOLUTIONS LLP",
     addr1:   "Parinidhi #23, E Block, 14th A Main Road",
     addr2:   "2nd Floor, Sahakaranagar, Bangalore - 560092",
-    gstin:   "29AABCS1429B1ZZ",
-    pan:     "AABCS1429B",
-    email:   "skyupdigitalsolutions@gmail.com",
+    gstin:   "29AFUFS6710EIZJ",
     state:   "Karnataka",
     stateCode: SELLER_STATE_CODE,
     ...companyProp,
@@ -225,14 +223,12 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                   <div style={{ fontSize: 10, marginTop: 6, lineHeight: 1.7 }}>
                     <div>GSTIN: <b>{company.gstin}</b></div>
                     <div>HSN/SAC: <b>{HSN_SAC}</b></div>
-                    <div>PAN: <b>{company.pan}</b></div>
-                    <div style={{ color: BRAND }}>{company.email}</div>
                   </div>
                 </div>
               </div>
 
               <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <StatusPill isPaid={isPaid} />
+                INVOICE
                 <div style={{ fontSize: 18, fontWeight: 800, marginTop: 12, letterSpacing: "-.3px" }}>
                   {invoice.invoiceId}
                 </div>
