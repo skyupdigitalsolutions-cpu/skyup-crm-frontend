@@ -12,6 +12,7 @@ import ClockInGate from "./components/ClockInGate";
 import { NotificationProvider, NotificationBell } from "./components/NotificationProvider";
 import { clearFeaturesCache } from "./hooks/usePlanFeatures";
 import TelegramSettings from "./components/TelegramSettings";
+import InvoiceTest from "./pages/InvoiceTest";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
 const Dashboard      = lazy(() => import("./components/Dashboard"));
@@ -539,6 +540,7 @@ function AppInner() {
           <Route path="/upgrade-plan" element={
             <SuperAdminRoute>
               <AppLayout><UpgradePlanWithMembers /></AppLayout>
+              <Route path="/invoice-test" element={<InvoiceTest />} />
             </SuperAdminRoute>
           }/>
 
