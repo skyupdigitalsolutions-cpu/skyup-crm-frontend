@@ -10,10 +10,9 @@ const dummyInvoice = {
   status: "Paid",
   lineItems: [
     { type: "plan",  name: "SkyUp CRM — Growth Plan", sub: "Monthly subscription (1 month)", quantity: 1, amount: 2117.80 },
-    { type: "addon", name: "WhatsApp Blast",          sub: "Auto-renews monthly",            quantity: 1, amount: 423.73 },
-    { type: "addon", name: "AI Credits Pack × 2",     sub: "One-time credit pack",           quantity: 2, amount: 847.46 },
+   
   ],
-  activated: ["Growth Plan · Monthly", "WhatsApp Blast", "AI Credits Pack × 2"],
+  activated: ["Growth Plan · Monthly"],
   customer: {
     name: "Acme Corp Pvt Ltd",
     email: "billing@acmecorp.com",
