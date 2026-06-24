@@ -227,21 +227,36 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                 </div>
               </div>
 
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-               <div style={{fontSize:24, fontWeight:800}}>INVOICE</div> 
-                <div style={{ fontSize: 12, marginTop: 12, letterSpacing: "-.3px" }}>
-                 <b>INVOICE Number:</b> {invoice.invoiceId}
-                </div>
-                <div style={{ fontSize: 12, marginTop: 8, lineHeight: 1.8 }}>
-                  <div><span style={{ color: MUTED }}><b>DATE:</b></span>&nbsp; {invoice.date}</div>
-                  {invoice.transactionId && (
-                    <div><span style={{ color: MUTED }}> <b>TXN ID: </b></span>&nbsp;{invoice.transactionId}</div>
-                  )}
-                  <div><span style={{ color: MUTED }}> <b>PAID VIA </b></span>&nbsp;{invoice.paymentMethod || "Razorpay"}</div>
-                </div>
-              </div>
-            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+  <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-.5px" }}>INVOICE</div>
 
+  <StatusPill isPaid={isPaid} />
+
+  <div style={{ display: "inline-block", textAlign: "left", marginTop: 12 }}>
+    <table style={{ borderCollapse: "collapse" }}>
+      <tbody>
+        <tr>
+          <td style={{ fontSize: 11, color: MUTED, fontWeight: 700, padding: "2px 0", paddingRight: 10 }}>INVOICE NO.</td>
+          <td style={{ fontSize: 11, fontWeight: 700, padding: "2px 0" }}>{invoice.invoiceId}</td>
+        </tr>
+        <tr>
+          <td style={{ fontSize: 11, color: MUTED, fontWeight: 700, padding: "2px 0", paddingRight: 10 }}>DATE</td>
+          <td style={{ fontSize: 11, padding: "2px 0" }}>{invoice.date}</td>
+        </tr>
+        {invoice.transactionId && (
+          <tr>
+            <td style={{ fontSize: 11, color: MUTED, fontWeight: 700, padding: "2px 0", paddingRight: 10 }}>TXN ID</td>
+            <td style={{ fontSize: 11, padding: "2px 0" }}>{invoice.transactionId}</td>
+          </tr>
+        )}
+        <tr>
+          <td style={{ fontSize: 11, color: MUTED, fontWeight: 700, padding: "2px 0", paddingRight: 10 }}>PAID VIA</td>
+          <td style={{ fontSize: 11, padding: "2px 0" }}>{invoice.paymentMethod || "Razorpay"}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
             <div style={{ height: 1, background: "#e9e9e9", margin: "20px 0" }} />
 
             {/* Bill To */}
