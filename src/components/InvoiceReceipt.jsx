@@ -220,7 +220,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                   <div style={{ fontSize: 10, color: MUTED, marginTop: 4, lineHeight: 1.6 }}>
                     {company.addr1},<br />{company.addr2}
                   </div>
-                  <div style={{ fontSize: 10, marginTop: 6, lineHeight: 1.7 }}>
+                  <div style={{ fontSize: 12, marginTop: 6, lineHeight: 1.7 }}>
                     <div>GSTIN: <b>{company.gstin}</b></div>
                     <div>HSN/SAC: <b>{HSN_SAC}</b></div>
                   </div>
@@ -232,7 +232,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                 <div style={{ fontSize: 18, fontWeight: 800, marginTop: 12, letterSpacing: "-.3px" }}>
                   {invoice.invoiceId}
                 </div>
-                <div style={{ fontSize: 10, marginTop: 8, lineHeight: 1.8 }}>
+                <div style={{ fontSize: 12, marginTop: 8, lineHeight: 1.8 }}>
                   <div><span style={{ color: MUTED }}>DATE</span>&nbsp; <b>{invoice.date}</b></div>
                   {invoice.transactionId && (
                     <div><span style={{ color: MUTED }}>TXN ID</span>&nbsp; <b>{invoice.transactionId}</b></div>
@@ -247,10 +247,10 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
             {/* Bill To */}
             <div>
               <SectionLabel>Bill To</SectionLabel>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#0b1f6b" }}>{customer.name || "—"}</div>
-              {customer.email && <div style={{ fontSize: 11, color: BRAND, marginTop: 2 }}>{customer.email}</div>}
-              {customer.address && <div style={{ fontSize: 11, marginTop: 3 }}>{customer.address}</div>}
-              <div style={{ fontSize: 11, marginTop: 4 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#0b1f6b" }}>{customer.name || "—"}</div>
+              {customer.email && <div style={{ fontSize: 12, color: BRAND, marginTop: 2 }}>{customer.email}</div>}
+              {customer.address && <div style={{ fontSize: 12, marginTop: 3 }}>{customer.address}</div>}
+              <div style={{ fontSize: 12, marginTop: 4 }}>
                 {customer.gstin && <>GSTIN: <b>{customer.gstin}</b></>}
                 {custCode && <> &nbsp;·&nbsp; State: <b>{custCode}{intra ? "" : ""}</b></>}
               </div>
@@ -260,7 +260,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
             <div style={{ marginTop: 20 }}>
               <div style={{
                 display: "grid", gridTemplateColumns: COLS, padding: "9px 0",
-                borderBottom: "2px solid #000", fontSize: 9, fontWeight: 700,
+                borderBottom: "2px solid #000", fontSize: 12, fontWeight: 700,
                 textTransform: "uppercase", letterSpacing: ".4px",
               }}>
                 <div style={{ textAlign: "center" }}>SL.No.</div>
@@ -276,21 +276,21 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                   display: "grid", gridTemplateColumns: COLS, alignItems: "center",
                   padding: "13px 0", borderBottom: `1px solid ${LINE}`,
                 }}>
-                  <div style={{ fontSize: 11.5, textAlign: "center" }}>{r.sl}</div>
+                  <div style={{ fontSize: 12, textAlign: "center" }}>{r.sl}</div>
                   <div>
                     <TypeTag type={r.type} />
-                    <span style={{ fontSize: 12.5, fontWeight: 600, verticalAlign: "middle", marginLeft: 7 }}>{r.name}</span>
-                    {r.sub && <div style={{ fontSize: 10, color: MUTED, marginTop: 3 }}>{r.sub}</div>}
+                    <span style={{ fontSize: 12, fontWeight: 600, verticalAlign: "middle", marginLeft: 7 }}>{r.name}</span>
+                    {r.sub && <div style={{ fontSize: 12, color: MUTED, marginTop: 3 }}>{r.sub}</div>}
                   </div>
-                  <div style={{ fontSize: 11.5, textAlign: "center" }}>18%</div>
-                  <div style={{ fontSize: 11.5, textAlign: "center" }}>{r.quantity}</div>
-                  <div style={{ fontSize: 11.5, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(r.rate)}</div>
-                  <div style={{ fontSize: 12.5, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(r.amount)}</div>
+                  <div style={{ fontSize: 12, textAlign: "center" }}>18%</div>
+                  <div style={{ fontSize: 12, textAlign: "center" }}>{r.quantity}</div>
+                  <div style={{ fontSize: 12, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(r.rate)}</div>
+                  <div style={{ fontSize: 12, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(r.amount)}</div>
                 </div>
               ))}
             </div>
 
-            <div style={{ fontSize: 9.5, color: MUTED, marginTop: 12, fontStyle: "italic", lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, marginTop: 12, fontStyle: "italic", lineHeight: 1.5 }}>
               * Total price of Rs. {fmt(total)} is GST-inclusive. Rate is the per-unit pre-GST value; the
               breakdown below is for tax reporting only — no additional amount is charged.
             </div>
@@ -309,16 +309,16 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                 )}
                 <div style={{ height: 1, background: "#000", margin: "8px 0" }} />
                 <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
-                  <span style={{ fontSize: 15, fontWeight: 800 }}>Total (INR)</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: BRAND, fontVariantNumeric: "tabular-nums" }}>Rs. {fmt(total)}</span>
+                  <span style={{ fontSize: 16, fontWeight: 800 }}>Total (INR)</span>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: BRAND, fontVariantNumeric: "tabular-nums" }}>Rs. {fmt(total)}</span>
                 </div>
                 <SumRow label="Amount Paid" value={`Rs. ${fmt(isPaid ? total : 0)}`} small />
-                <SumRow label="Balance Due" value={`Rs. ${fmt(isPaid ? 0 : total)}`} small />
+
               </div>
             </div>
 
             {/* Amount in words + GST treatment */}
-            <div style={{ marginTop: 14, fontSize: 10.5 }}>
+            <div style={{ marginTop: 14, fontSize: 12 }}>
               <b>In words:</b> {amountInWords(total)} &nbsp;·&nbsp;
               <span style={{ color: MUTED }}>{intra ? "Intra-state supply" : "Inter-state supply"}</span>
             </div>
@@ -329,7 +329,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                 <SectionLabel>Items Activated</SectionLabel>
                 <div style={{ marginTop: 9 }}>
                   {activated.map((c, i) => (
-                    <span key={i} style={{ fontSize: 11, fontWeight: 600, color: BRAND, marginRight: 18 }}>{c}</span>
+                    <span key={i} style={{ fontSize: 12, fontWeight: 600, color: BRAND, marginRight: 18 }}>{c}</span>
                   ))}
                 </div>
               </div>
