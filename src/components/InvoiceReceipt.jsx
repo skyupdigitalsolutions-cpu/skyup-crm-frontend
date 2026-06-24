@@ -230,7 +230,6 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
             <div style={{ textAlign: "right", flexShrink: 0 }}>
   <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-.5px" }}>INVOICE</div>
 
-  <StatusPill isPaid={isPaid} />
 
   <div style={{ display: "inline-block", textAlign: "left", marginTop: 12 }}>
     <table style={{ borderCollapse: "collapse" }}>
