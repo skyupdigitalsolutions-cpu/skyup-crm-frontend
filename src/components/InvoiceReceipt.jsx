@@ -238,10 +238,9 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                     </tbody>
                   </table>
                 </div>
-              </div>
-
-            </div>{/* end header row */}
-
+             </div>
+</div>
+            </div>
             <div style={{ height: 1, background: "#e9e9e9", margin: "20px 0" }} />
 
             {/* ── Bill To ── */}
