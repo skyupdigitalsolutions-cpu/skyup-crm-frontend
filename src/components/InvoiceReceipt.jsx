@@ -37,10 +37,7 @@ const SELLER_STATE_CODE = "29";                      // Karnataka
 const HSN_SAC = "998315";                            // SAC for the service
 const GST_RATE = 0.18;
 
-const BRAND = "#1d4ed8";
-const INK   = "#0b0b0b";
-const MUTED = "#5b6170";
-const LINE  = "#ececec";
+
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) =>
@@ -228,7 +225,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
               </div>
 
               <div style={{ textAlign: "right", flexShrink: 0 }}>
-               <div style={{fontSize:20, fontWeight:800}}>INVOICE</div> 
+               <div style={{fontSize:24, fontWeight:800}}>INVOICE</div> 
                 <div style={{ fontSize: 18, fontWeight: 800, marginTop: 12, letterSpacing: "-.3px" }}>
                   {invoice.invoiceId}
                 </div>
