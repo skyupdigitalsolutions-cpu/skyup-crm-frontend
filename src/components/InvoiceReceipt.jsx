@@ -221,8 +221,8 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                     {company.addr1},<br />{company.addr2}
                   </div>
                   <div style={{ fontSize: 12, marginTop: 6, lineHeight: 1.7 }}>
-                    <div>GSTIN: <b>{company.gstin}</b></div>
-                    <div>HSN/SAC: <b>{HSN_SAC}</b></div>
+                    <div><b>GSTIN:</b> {company.gstin}</div>
+                    <div><b>HSN/SAC:</b> {HSN_SAC}</div>
                   </div>
                 </div>
               </div>
@@ -233,11 +233,11 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
                   {invoice.invoiceId}
                 </div>
                 <div style={{ fontSize: 12, marginTop: 8, lineHeight: 1.8 }}>
-                  <div><span style={{ color: MUTED }}>DATE</span>&nbsp; <b>{invoice.date}</b></div>
+                  <div><span style={{ color: MUTED }}><b>DATE</b></span>&nbsp; {invoice.date}</div>
                   {invoice.transactionId && (
-                    <div><span style={{ color: MUTED }}>TXN ID</span>&nbsp; <b>{invoice.transactionId}</b></div>
+                    <div><span style={{ color: MUTED }}> <b>TXN ID </b></span>&nbsp;{invoice.transactionId}</div>
                   )}
-                  <div><span style={{ color: MUTED }}>PAID VIA</span>&nbsp; <b>{invoice.paymentMethod || "Razorpay"}</b></div>
+                  <div><span style={{ color: MUTED }}> <b>PAID VIA </b></span>&nbsp;{invoice.paymentMethod || "Razorpay"}</div>
                 </div>
               </div>
             </div>
@@ -251,8 +251,8 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
               {customer.email && <div style={{ fontSize: 12, color: BRAND, marginTop: 2 }}>{customer.email}</div>}
               {customer.address && <div style={{ fontSize: 12, marginTop: 3 }}>{customer.address}</div>}
               <div style={{ fontSize: 12, marginTop: 4 }}>
-                {customer.gstin && <>GSTIN: <b>{customer.gstin}</b></>}
-                {custCode && <> &nbsp;·&nbsp; State: <b>{custCode}{intra ? "" : ""}</b></>}
+                {customer.gstin && <><b>GSTIN:</b> {customer.gstin}</>}
+                {custCode && <> &nbsp;·&nbsp;  <b>State:</b>{custCode}{intra ? "" : ""}</>}
               </div>
             </div>
 
@@ -290,10 +290,7 @@ export default function InvoiceReceipt({ invoice, company: companyProp, onClose 
               ))}
             </div>
 
-            <div style={{ fontSize: 12, marginTop: 12, fontStyle: "italic", lineHeight: 1.5 }}>
-              * Total price of Rs. {fmt(total)} is GST-inclusive. Rate is the per-unit pre-GST value; the
-              breakdown below is for tax reporting only — no additional amount is charged.
-            </div>
+
 
             {/* Summary */}
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
