@@ -540,7 +540,6 @@ function AppInner() {
           <Route path="/upgrade-plan" element={
             <SuperAdminRoute>
               <AppLayout><UpgradePlanWithMembers /></AppLayout>
-              <Route path="/invoice-test" element={<InvoiceTest />} />
             </SuperAdminRoute>
           }/>
 
@@ -586,6 +585,9 @@ function AppInner() {
               <AppLayout><FeatureGate featureKey="daily-report"><DailyReportRoleSwitch /></FeatureGate></AppLayout>
             </ProtectedRoute>
           }/>
+
+          {/* ── Invoice receipt preview (TEMPORARY — remove when done testing) ── */}
+          <Route path="/invoice-test" element={<InvoiceTest />} />
 
           {/* ── Fallback ── */}
           <Route path="*" element={<Navigate to="/login" replace />} />
