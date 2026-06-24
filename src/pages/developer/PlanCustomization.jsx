@@ -69,7 +69,7 @@ const DEFAULT_PLANS = {
     features: ["leads", "contacts", "basic-reports"],
   },
   basic: {
-    name: "Basic", monthlyPrice: 999, yearlyPrice: 799,
+    name: "Basic", monthlyPrice: 2999, yearlyPrice: 29990,
     maxUsers: 5, maxAdmins: 1, maxLeads: 1000,
     maxWebsites: 1, maxMetaCampaigns: 1, maxGoogleAccounts: 1, maxStorageMB: 100,
     transcriptionsPerMonth: 0, summariesPerMonth: 0, voiceBotPerMonth: 0,
@@ -77,7 +77,7 @@ const DEFAULT_PLANS = {
     features: ["leads", "contacts", "basic-reports", "attendance", "daily-report"],
   },
   pro: {
-    name: "Pro", monthlyPrice: 2999, yearlyPrice: 2399,
+    name: "Pro", monthlyPrice: 6999, yearlyPrice: 69990,
     maxUsers: 20, maxAdmins: 3, maxLeads: 10000,
     maxWebsites: 3, maxMetaCampaigns: 5, maxGoogleAccounts: 3, maxStorageMB: 5120,
     transcriptionsPerMonth: 200, summariesPerMonth: 200, voiceBotPerMonth: 100,
@@ -91,7 +91,7 @@ const DEFAULT_PLANS = {
     ],
   },
   advance: {
-    name: "Advance", monthlyPrice: 9999, yearlyPrice: 7999,
+    name: "Advance", monthlyPrice: 14999, yearlyPrice: 149990,
     maxUsers: 999, maxAdmins: 10, maxLeads: 999999,
     maxWebsites: 999, maxMetaCampaigns: 999, maxGoogleAccounts: 999, maxStorageMB: 51200,
     transcriptionsPerMonth: 2000, summariesPerMonth: 2000, voiceBotPerMonth: 1000,
@@ -131,7 +131,7 @@ function FeatureToggle({ featureKey, label, desc, enabled, onChange }) {
   );
 }
 
-function NumberField({ label, value, onChange, min = 0, step = 1 }) {
+function NumberField({ label, value, onChange, min = 0, step = 1, hint }) {
   return (
     <div>
       <label className="block text-[11px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider mb-1.5">{label}</label>
@@ -141,6 +141,7 @@ function NumberField({ label, value, onChange, min = 0, step = 1 }) {
         onChange={e => onChange(Number(e.target.value))}
         className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
       />
+      {hint && <p className="mt-1 text-[10px] text-[#9CA3AF] dark:text-[#565C75]">{hint}</p>}
     </div>
   );
 }
@@ -208,7 +209,7 @@ function PlanCard({ planId, plan, onChange }) {
           <span className="text-[12px] text-[#6B7280] dark:text-[#565C75]">
             {plan.custom
               ? <>Custom · Contact us · {enabledCount} features</>
-              : <>₹{(plan.monthlyPrice || 0).toLocaleString()}/mo · {plan.maxUsers} users · {enabledCount} features</>}
+              : <>₹{(plan.monthlyPrice || 0).toLocaleString()}/mo · ₹{(plan.yearlyPrice || 0).toLocaleString()}/yr · {plan.maxUsers} users · {enabledCount} features</>}
           </span>
         </div>
         <ChevronDown className={`w-4 h-4 text-[#6B7280] transition-transform ${open ? "rotate-180" : ""}`} />
@@ -228,8 +229,8 @@ function PlanCard({ planId, plan, onChange }) {
               </div>
             ) : (
               <>
-                <NumberField label="Monthly Price (₹)" value={plan.monthlyPrice} onChange={v => onChange(planId, "monthlyPrice", v)} />
-                <NumberField label="Yearly Price (₹/mo)" value={plan.yearlyPrice} onChange={v => onChange(planId, "yearlyPrice", v)} />
+                <NumberField label="Monthly Price (₹/mo)" value={plan.monthlyPrice} onChange={v => onChange(planId, "monthlyPrice", v)} />
+                <NumberField label="Yearly Price (₹ total/yr)" value={plan.yearlyPrice} onChange={v => onChange(planId, "yearlyPrice", v)} hint="Full amount charged for one year (not per month)" />
               </>
             )}
           </div>
