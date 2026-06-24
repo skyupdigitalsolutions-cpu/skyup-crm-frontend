@@ -9,10 +9,10 @@ const dummyInvoice = {
   paymentMethod: "Razorpay",
   status: "Paid",
   lineItems: [
-    { type: "plan",  name: "SkyUp CRM — Growth Plan", sub: "Monthly subscription (1 month)", quantity: 1, amount: 2117.80 },
+    { type: "plan",  name: "SkyUp CRM — Base Plan", sub: "Monthly subscription (1 month)", quantity: 1, amount: 2999 },
    
   ],
-  activated: ["Growth Plan · Monthly"],
+  activated: ["Base Plan · Monthly"],
   customer: {
     name: "Acme Corp Pvt Ltd",
     email: "billing@acmecorp.com",
