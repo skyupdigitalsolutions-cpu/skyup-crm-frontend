@@ -591,13 +591,15 @@ function PlanCard({ plan, billing, selected, onUpgrade }) {
           <div className="mb-5">
             <div className="flex items-end gap-1">
               <span className="text-[30px] font-bold text-[#0F1117] dark:text-white leading-none">
-                ₹{(billing === "yearly" ? Math.round(price / 12) : price).toLocaleString()}
+                ₹{price.toLocaleString()}
               </span>
-              <span className="text-[12px] text-[#8B92A9] mb-0.5">/mo</span>
+              <span className="text-[12px] text-[#8B92A9] mb-0.5">
+                {billing === "yearly" ? "/yr" : "/mo"}
+              </span>
             </div>
             {billing === "yearly" && (
               <p className="text-[11px] text-[#8B92A9] mt-0.5">
-                Billed ₹{price.toLocaleString()}/yr
+                Total for 1 year · ₹{Math.round(price / 12).toLocaleString()}/mo equivalent
               </p>
             )}
           </div>
