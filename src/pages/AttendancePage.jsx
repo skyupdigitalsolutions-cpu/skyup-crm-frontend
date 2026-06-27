@@ -948,12 +948,45 @@ function PendingRemoteClockInPanel() {
     }
   }, []);
 
+  // This panel auto-hides itself when there are no pending requests, so it
+  // genuinely needs one fetch on mount to know whether to render at all —
+  // that part can't be made lazy without changing the UX. What WAS wasteful
+  // is the unconditional 30s setInterval below running forever even while
+  // the browser tab is in the background (admin switched tabs, stepped away,
+  // etc.), which kept hammering protectAdmin + requireFeature("attendance")
+  // every 30s regardless. We now pause polling while the tab is hidden and
+  // resume (with an immediate refresh) when it becomes visible again.
   useEffect(() => { loadRequests(); }, [loadRequests]);
 
-  // Auto-refresh every 30s alongside the team attendance view
   useEffect(() => {
-    const t = setInterval(loadRequests, 30000);
-    return () => clearInterval(t);
+    let intervalId = null;
+
+    const startPolling = () => {
+      if (intervalId) return;
+      intervalId = setInterval(loadRequests, 30000);
+    };
+    const stopPolling = () => {
+      if (!intervalId) return;
+      clearInterval(intervalId);
+      intervalId = null;
+    };
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        loadRequests(); // catch up immediately on return
+        startPolling();
+      }
+    };
+
+    if (!document.hidden) startPolling();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [loadRequests]);
 
   const respond = async (user, grant) => {
