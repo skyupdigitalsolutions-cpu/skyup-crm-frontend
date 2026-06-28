@@ -66,7 +66,7 @@ export default function TermsViewerModal({ open, onClose }) {
               {terms?.title || "Terms & Conditions"}
             </h2>
             {terms?.effectiveDate ? (
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-[8px] text-gray-500 dark:text-gray-400">
                 Effective Date: {terms.effectiveDate}
               </p>
             ) : null}
