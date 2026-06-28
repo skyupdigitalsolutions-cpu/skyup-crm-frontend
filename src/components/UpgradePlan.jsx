@@ -44,6 +44,7 @@ import UpdatePaymentModal from "./UpdatePaymentModal";
 import DowngradeWarningModal from "./DowngradeWarningModal";
 import AddonStore from "./AddonStore";
 import CartDrawer from "./CartDrawer";
+import TermsViewerModal from "./TermsViewerModal";
 import { useCart } from "../context/CartContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1045,6 +1046,7 @@ export default function UpgradePlan({
   const [downgradePlan,    setDowngradePlan]    = useState(null);
   const [showDowngrade,    setShowDowngrade]    = useState(false);
   const [cartOpen,         setCartOpen]         = useState(false);
+  const [showTerms,        setShowTerms]        = useState(false);
 
   const { openCheckout } = useRazorpay();
   const { setPlan, clearPlan, planItem, addonItems, totalItems, totalPrice } = useCart();
@@ -1341,6 +1343,9 @@ export default function UpgradePlan({
       {/* Cart drawer */}
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
 
+      {/* Terms & Conditions viewer */}
+      <TermsViewerModal open={showTerms} onClose={() => setShowTerms(false)} />
+
       {/* ── Page header ── */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
@@ -1482,6 +1487,22 @@ export default function UpgradePlan({
           </section>
 
           <EnterpriseCTASection />
+
+          {/* Terms & Conditions link */}
+          <div className="mt-8 text-center">
+            <p className="text-[12px] text-[#8B92A9]">
+              By subscribing, you agree to our{" "}
+              <button
+                type="button"
+                onClick={() => setShowTerms(true)}
+                className="font-semibold text-[#2563EB] hover:underline"
+              >
+                Terms &amp; Conditions
+              </button>
+              .
+            </p>
+          </div>
+
           <div className="h-10" />
         </div>
       )}
