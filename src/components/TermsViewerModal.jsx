@@ -82,7 +82,7 @@ export default function TermsViewerModal({ open, onClose }) {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-4 text-[8px] leading-relaxed text-gray-700 dark:text-gray-300 space-y-4">
           {loading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="animate-spin w-6 h-6 text-[#2563EB]" />
