@@ -16,6 +16,7 @@
 //   <TermsGate>{children}</TermsGate>
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { FileText, ChevronDown, CheckCircle2, Loader2 } from "lucide-react";
 import api from "../data/axiosConfig";
 
 function getRole() {
@@ -40,6 +41,7 @@ export default function TermsGate({ children }) {
   });
 
   const [scrolledToBottom, setScrolledToBottom] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [checked, setChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const scrollRef = useRef(null);
@@ -65,10 +67,13 @@ export default function TermsGate({ children }) {
 
   useEffect(() => { fetchTerms(); }, [fetchTerms]);
 
-  // ── Detect scroll-to-bottom ────────────────────────────────────────────────
+  // ── Detect scroll-to-bottom + track read progress ──────────────────────────
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
+    const max = el.scrollHeight - el.clientHeight;
+    const pct = max <= 0 ? 100 : Math.min(100, Math.round((el.scrollTop / max) * 100));
+    setProgress(pct);
     // 4px tolerance for sub-pixel rounding / zoom.
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 4;
     if (atBottom) setScrolledToBottom(true);
@@ -79,7 +84,10 @@ export default function TermsGate({ children }) {
   useEffect(() => {
     if (!state.mustAccept) return;
     const el = scrollRef.current;
-    if (el && el.scrollHeight <= el.clientHeight + 4) setScrolledToBottom(true);
+    if (el && el.scrollHeight <= el.clientHeight + 4) {
+      setScrolledToBottom(true);
+      setProgress(100);
+    }
   }, [state.mustAccept, state.terms]);
 
   const handleAccept = async () => {
@@ -93,6 +101,7 @@ export default function TermsGate({ children }) {
       if (err?.response?.data?.code === "TERMS_VERSION_MISMATCH") {
         setChecked(false);
         setScrolledToBottom(false);
+        setProgress(0);
         await fetchTerms();
       } else {
         alert(err?.response?.data?.message || "Could not record acceptance. Please try again.");
@@ -111,52 +120,71 @@ export default function TermsGate({ children }) {
 
   // ── Blocking overlay ────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-6">
-      <div className="flex w-full max-w-3xl max-h-[90vh] flex-col rounded-2xl bg-white dark:bg-[#13161E] shadow-2xl border border-gray-200 dark:border-white/10 overflow-hidden">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-3 sm:p-6">
+      <div className="flex w-full max-w-2xl max-h-[88vh] flex-col rounded-xl bg-white dark:bg-[#13161E] shadow-xl ring-1 ring-slate-900/10 dark:ring-white/10 overflow-hidden">
         {/* Header */}
-        <div className="px-5 sm:px-7 pt-5 pb-4 border-b border-gray-100 dark:border-white/5">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-50">
-            {t.title || "Terms & Conditions"}
-          </h2>
-          {t.effectiveDate ? (
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Effective Date: {t.effectiveDate}
+        <div className="flex items-start gap-3 px-6 pt-5 pb-4 border-b border-slate-100 dark:border-white/5">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+            <FileText className="h-4 w-4" strokeWidth={2} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[15px] font-semibold leading-tight text-slate-900 dark:text-slate-50">
+              {t.title || "Terms & Conditions"}
+            </h2>
+            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+              {t.effectiveDate ? `Effective ${t.effectiveDate} · ` : ""}
+              Please review the full terms before continuing.
             </p>
-          ) : null}
-          <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-            Please scroll to the bottom and read the full terms to continue.
-          </p>
+          </div>
+        </div>
+
+        {/* Read-progress bar */}
+        <div className="h-0.5 w-full bg-slate-100 dark:bg-white/5">
+          <div
+            className="h-full bg-blue-600 transition-[width] duration-150 ease-out"
+            style={{ width: `${progress}%` }}
+          />
         </div>
 
         {/* Scrollable terms body */}
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto px-5 sm:px-7 py-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300 space-y-4"
+          className="flex-1 overflow-y-auto px-6 py-5 text-[13px] leading-6 text-slate-600 dark:text-slate-300 space-y-3.5"
         >
           {t.intro ? <p>{t.intro}</p> : null}
           {(t.sections || []).map((sec, i) => (
-            <p key={i}>
-              {sec.heading ? sec.heading + " " : ""}{sec.body || ""}
-            </p>
+            <div key={i}>
+              {sec.heading ? (
+                <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+                  {sec.heading}
+                </h3>
+              ) : null}
+              {sec.body ? <p>{sec.body}</p> : null}
+            </div>
           ))}
-          <div className="pt-2 text-center text-[11px] text-gray-400 dark:text-gray-500">
-            — End of Terms & Conditions —
+          <div className="pt-3 text-center text-[11px] font-medium text-slate-400 dark:text-slate-500">
+            — End of Terms &amp; Conditions —
           </div>
         </div>
 
         {/* Footer: checkbox + accept */}
-        <div className="px-5 sm:px-7 py-4 border-t border-gray-100 dark:border-white/5 bg-gray-50/60 dark:bg-white/[0.02]">
+        <div className="border-t border-slate-100 dark:border-white/5 bg-slate-50/80 dark:bg-white/[0.02] px-6 py-4">
           {!scrolledToBottom ? (
-            <p className="mb-3 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-              <span className="inline-block animate-bounce">↓</span>
-              Scroll down to read all the terms before you can accept.
+            <p className="mb-3 flex items-center gap-1.5 text-[12px] text-slate-500 dark:text-slate-400">
+              <ChevronDown className="h-3.5 w-3.5 animate-bounce" strokeWidth={2.5} />
+              Scroll to the end to enable acceptance.
             </p>
-          ) : null}
+          ) : (
+            <p className="mb-3 flex items-center gap-1.5 text-[12px] font-medium text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.5} />
+              You've reached the end of the terms.
+            </p>
+          )}
 
           <label
             className={`flex items-start gap-2.5 select-none ${
-              scrolledToBottom ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+              scrolledToBottom ? "cursor-pointer" : "cursor-not-allowed opacity-50"
             }`}
           >
             <input
@@ -164,9 +192,9 @@ export default function TermsGate({ children }) {
               disabled={!scrolledToBottom}
               checked={checked}
               onChange={(e) => setChecked(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500/40 disabled:opacity-50 dark:border-white/20 dark:bg-white/5"
             />
-            <span className="text-sm text-gray-700 dark:text-gray-300">
+            <span className="text-[12.5px] leading-5 text-slate-700 dark:text-slate-300">
               I have read, understood and agree to the Terms &amp; Conditions.
             </span>
           </label>
@@ -175,9 +203,16 @@ export default function TermsGate({ children }) {
             type="button"
             onClick={handleAccept}
             disabled={!checked || !scrolledToBottom || submitting}
-            className="mt-4 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {submitting ? "Submitting…" : "Accept & Continue"}
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.5} />
+                Submitting…
+              </>
+            ) : (
+              "Accept & Continue"
+            )}
           </button>
         </div>
       </div>
