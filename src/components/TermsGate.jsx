@@ -142,8 +142,8 @@ export default function TermsGate({ children }) {
           {(t.sections || []).map((sec, i) => (
             <p key={i}>
               {sec.heading ? (
-                <span className="font-medium text-slate-700 dark:text-slate-200">
-                  {sec.heading}{" "}
+                <span className="text-slate-600 dark:text-slate-300">
+                  {sec.heading.replace(/^\s*\d+[.)]\s*/, "")}{" "}
                 </span>
               ) : null}
               {sec.body || ""}
