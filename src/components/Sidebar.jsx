@@ -46,7 +46,6 @@ const ADMIN_NAV_ITEMS = [
   {
     to: "/campaigns",
     label: "Campaigns",
-    featureKey: "campaigns",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
