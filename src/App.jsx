@@ -486,7 +486,11 @@ function AppInner() {
           {/* ── User Communications (own leads only) ── */}
           <Route path="/user/communications" element={
             <UserRoute>
-              <AppLayout><UserLeadCommunication /></AppLayout>
+              <AppLayout>
+                <FeatureGate anyOf={["sms-blast", "whatsapp-blast", "email-blast"]}>
+                  <UserLeadCommunication />
+                </FeatureGate>
+              </AppLayout>
             </UserRoute>
           }/>
 
@@ -558,12 +562,13 @@ function AppInner() {
             <AdminRoute>
               <AppLayout>
                 {/* Communications hosts WhatsApp, SMS, and Email blasts.
-                    Each tab is individually feature-gated on the backend.
-                    The page itself only requires the user to be an admin —
-                    individual send actions will return 403 if the specific
-                    blast feature (emailBlast / smsBlast / whatsappBlast)
-                    is disabled for this company. */}
-                <Communications currentUser={user} />
+                    The whole page is hidden unless at least one blast feature
+                    (sms-blast / whatsapp-blast / email-blast) is enabled for
+                    this company's plan. Individual send actions are still
+                    gated per-tab on the backend (403 if that blast is off). */}
+                <FeatureGate anyOf={["sms-blast", "whatsapp-blast", "email-blast"]}>
+                  <Communications currentUser={user} />
+                </FeatureGate>
               </AppLayout>
             </AdminRoute>
           }/>
