@@ -534,7 +534,7 @@ function AppInner() {
           }/>
           <Route path="/campaigns" element={
             <AdminRoute>
-              <AppLayout><FeatureGate featureKey="campaigns"><Campaigns /></FeatureGate></AppLayout>
+              <AppLayout><Campaigns /></AppLayout>
             </AdminRoute>
           }/>
           <Route path="/attendance" element={
