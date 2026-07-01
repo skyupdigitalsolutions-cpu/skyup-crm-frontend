@@ -56,7 +56,7 @@ const ADMIN_NAV_ITEMS = [
   {
     to: "/communications",
     label: "Communications",
-    featureKey: "sms-blast",
+    featureKeyAny: ["sms-blast", "whatsapp-blast", "email-blast"],
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -149,6 +149,7 @@ const USER_NAV_ITEMS = [
   {
     to: "/user/communications",
     label: "Communications",
+    featureKeyAny: ["sms-blast", "whatsapp-blast", "email-blast"],
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -321,9 +322,12 @@ export function Sidebar() {
     isSuperAdmin ? [...ADMIN_NAV_ITEMS, ...SUPERADMIN_EXTRA_ITEMS] :
     ADMIN_NAV_ITEMS;
 
-  const NAV_ITEMS = ALL_NAV_ITEMS.filter(item =>
-    !item.featureKey || hasFeature(item.featureKey)
-  );
+  const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => {
+    if (Array.isArray(item.featureKeyAny) && item.featureKeyAny.length) {
+      return item.featureKeyAny.some(k => hasFeature(k));
+    }
+    return !item.featureKey || hasFeature(item.featureKey);
+  });
 
   const handleLogout = () => {
     localStorage.removeItem("token");
