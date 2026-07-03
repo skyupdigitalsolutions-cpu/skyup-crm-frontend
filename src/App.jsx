@@ -347,8 +347,8 @@ function CompanyHeader() {
       </div>
       <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         <ThemeToggle />
-        {/* Notification bell — visible for admin and superadmin only */}
-        {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
+        {/* Notification bell — admin, superadmin, and employees (new-lead alerts) */}
+        {(role === 'admin' || role === 'superadmin' || role === 'super_admin' || role === 'user') && (
           <NotificationBell />
         )}
         {/* Telegram campaign notifications — admin and superadmin only */}
