@@ -4,6 +4,8 @@ import { updateAttendance, removeAttendance, upsertAttendance } from "../service
 import { getRole } from "../data/dataService";
 import axios from "axios";
 import { maskPhone, maskEmail } from "../utils/maskPhone";
+// FIX (clock/timezone bug): see fmtTime/fmtDate below.
+import { formatTime as istFormatTime, formatMedium as istFormatDate } from "../utils/dateUtils";
 
 // ─── PhoneText ─────────────────────────────────────────────────────────────────
 // Renders a phone number masked for admins with a toggle eye-button.
@@ -54,15 +56,24 @@ const CALL_TYPE_STYLE = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+// FIX (clock/timezone bug): these previously called toLocaleTimeString /
+// toLocaleDateString with "en-IN" and no `timeZone`. The "en-IN" locale only
+// controls formatting *style* (12-hour clock, day/month order) — it does NOT
+// force IST. Without an explicit timeZone, both rendered in the *browser's*
+// local timezone, so an admin viewing from a machine set to a different TZ
+// would see check-in/out times (and even attendance dates near midnight)
+// that don't match the mobile app or the employee's own dashboard, both of
+// which are meant to always be in IST. Delegating to utils/dateUtils.js
+// fixes this for good — it's the one place IST is forced.
 function fmtTime(d) {
   if (!d) return "—";
-  return new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  return istFormatTime(d);
 }
 function fmtDate(d) {
   if (!d) return "—";
   const dt = new Date(d);
   if (isNaN(dt)) return String(d);
-  return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return istFormatDate(dt);
 }
 function fmtDateTime(d) {
   if (!d) return "—";
