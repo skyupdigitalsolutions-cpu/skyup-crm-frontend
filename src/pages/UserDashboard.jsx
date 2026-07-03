@@ -1584,16 +1584,9 @@ function UserChatWidget() {
     socket.on("message_deleted", ({ _id }) => {
       setMessages(prev => prev.map(m => m._id?.toString() === _id?.toString() ? { ...m, message: "This message was deleted", isDeleted: true } : m));
     });
-    // Bug 3 fix: handle new_lead_assigned — show browser notification + badge
-    socket.on("new_lead_assigned", ({ leadName, source }) => {
-      setUnread(n => n + 1);
-      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-        new Notification("📋 New Lead Assigned", {
-          body: `${leadName || "New Lead"} — ${source || "Web Form"}`,
-          icon: "/skyup_logo1.svg",
-        });
-      }
-    });
+    // new_lead_assigned is now handled globally by NotificationProvider (feeds
+    // the header bell + browser notification on every page). Handling it here as
+    // well caused a duplicate popup and incorrectly bumped the chat unread badge.
     return () => { sharedSocket.current = null; socket.disconnect(); };
   }, []);
 
