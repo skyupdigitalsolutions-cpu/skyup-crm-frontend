@@ -164,8 +164,9 @@ export function NotificationProvider({ children }) {
     const companyId    = resolveCompanyId(user);
     const displayName  = user.name || 'Admin';
     const isSuperAdmin = role === 'super_admin';
+    const isEmployee   = role === 'user';
 
-    if (role !== 'admin' && role !== 'super_admin') {
+    if (role !== 'admin' && role !== 'super_admin' && role !== 'user') {
       console.debug('[NotificationProvider] skipping — role not eligible:', role, '(raw:', user?.role, ')');
       return;
     }
@@ -174,7 +175,7 @@ export function NotificationProvider({ children }) {
       console.warn('[NotificationProvider] missing adminId — check localStorage user object:', user);
       return;
     }
-    if (!companyId) {
+    if (!companyId && !isEmployee) {
       console.warn('[NotificationProvider] missing companyId — check localStorage user object:', user);
       return;
     }
@@ -191,19 +192,18 @@ export function NotificationProvider({ children }) {
     }
 
     // ── Fetch-on-open: seed the bell with CURRENTLY pending notifications ──────
-    // The socket only delivers events that fire WHILE connected; if the 15-min
-    // job emitted while this admin was offline, those were lost. This pulls the
-    // current no-action + follow-up state on mount so the bell always reflects
-    // reality. Returned objects already match the socket event shape, so we feed
-    // them through the same upsert path.
-    api.get('/lead/admin/pending-notifications')
-      .then(res => {
-        const list = res.data?.notifications || [];
-        list.forEach(notif => handleUpsert(notif, setNotifications, setUnreadCount));
-      })
-      .catch(err => {
-        console.debug('[NotificationProvider] pending fetch skipped:', err?.response?.status || err.message);
-      });
+    // Admin/super-admin only — this endpoint returns company-wide no-action and
+    // follow-up state. Employees only receive live per-lead assignment events.
+    if (!isEmployee) {
+      api.get('/lead/admin/pending-notifications')
+        .then(res => {
+          const list = res.data?.notifications || [];
+          list.forEach(notif => handleUpsert(notif, setNotifications, setUnreadCount));
+        })
+        .catch(err => {
+          console.debug('[NotificationProvider] pending fetch skipped:', err?.response?.status || err.message);
+        });
+    }
 
     // ── SuperAdmin: Fetch expiring subscriptions on mount ─────────────────────
     if (isSuperAdmin) {
@@ -281,6 +281,13 @@ export function NotificationProvider({ children }) {
     // the bell go dead until a full logout/login. We instead let socket.io call
     // `connect` on each (re)connection and always emit the join.
     const doJoin = () => {
+      if (isEmployee) {
+        // Employees join only their personal agent room. leadController emits
+        // 'new_lead_assigned' to agent:<userId> on every assignment/reassignment.
+        console.debug('[NotificationProvider] emitting agent_join (employee)');
+        socket.emit('agent_join', { userId: adminId });
+        return;
+      }
       if (isSuperAdmin) {
         console.debug('[NotificationProvider] emitting super_admin_join');
         socket.emit('super_admin_join', { adminId, company: companyId, displayName });
@@ -382,6 +389,22 @@ export function NotificationProvider({ children }) {
         handleUpsert(notif, setNotifications, setUnreadCount);
       });
     }
+
+    // Fires for the assigned employee on every new/reassigned lead. Emitted by
+    // leadController to the agent:<userId> room the employee joined above.
+    socket.on('new_lead_assigned', ({ leadId, leadName, source, eventType }) => {
+      const isNewLead = !eventType || eventType === 'new';
+      handleUpsert({
+        id:        `new-lead-${leadId || Date.now()}`,
+        type:      'new_lead',
+        title:     isNewLead ? 'New Lead Assigned' : 'Lead Assigned to You',
+        body:      `${leadName || 'New Lead'} — ${source || 'Web Form'}`,
+        leadId,
+        leadName:  leadName || 'New Lead',
+        timestamp: new Date().toISOString(),
+        urgent:    false,
+      }, setNotifications, setUnreadCount);
+    });
 
     socket.on('wa_new_lead', ({ lead }) => {
       const leadName = lead?.name || 'New Lead';
