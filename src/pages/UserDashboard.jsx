@@ -8,6 +8,8 @@ import NotInterestedModal from "../components/Notinterestedmodal";
 import { normalizePhone } from "../utils/normalizePhone";
 import { getRole } from "../data/dataService";
 import CRMEncryption from "../utils/CRMEncryption";
+// FIX (clock/timezone bug): see getGreeting() below.
+import { toIST } from "../utils/dateUtils";
 
 const crm = new CRMEncryption();
 const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral"];
@@ -1584,9 +1586,16 @@ function UserChatWidget() {
     socket.on("message_deleted", ({ _id }) => {
       setMessages(prev => prev.map(m => m._id?.toString() === _id?.toString() ? { ...m, message: "This message was deleted", isDeleted: true } : m));
     });
-    // new_lead_assigned is now handled globally by NotificationProvider (feeds
-    // the header bell + browser notification on every page). Handling it here as
-    // well caused a duplicate popup and incorrectly bumped the chat unread badge.
+    // Bug 3 fix: handle new_lead_assigned — show browser notification + badge
+    socket.on("new_lead_assigned", ({ leadName, source }) => {
+      setUnread(n => n + 1);
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        new Notification("📋 New Lead Assigned", {
+          body: `${leadName || "New Lead"} — ${source || "Web Form"}`,
+          icon: "/skyup_logo1.svg",
+        });
+      }
+    });
     return () => { sharedSocket.current = null; socket.disconnect(); };
   }, []);
 
@@ -1681,7 +1690,11 @@ function UserChatWidget() {
 }
 
 function getGreeting() {
-  const h = new Date().getHours();
+  // FIX (clock/timezone bug): .getHours() read the *browser's* local time,
+  // so a user whose device/browser wasn't set to IST (e.g. traveling, or a
+  // misconfigured system clock) would see "Good evening" at 10am IST. Use
+  // the IST wall-clock hour instead, consistent with the rest of the app.
+  const h = toIST(new Date()).getUTCHours();
   if (h < 12) return { text: "Good morning", emoji: "" };
   if (h < 17) return { text: "Good afternoon", emoji: "" };
   return { text: "Good evening", emoji: "" };
