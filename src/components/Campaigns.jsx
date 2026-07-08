@@ -2074,6 +2074,14 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${st.bg} ${st.text}`}>
                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: st.dot }} />{c.status}
               </span>
+              {c._isMeta && c.pausedByMeta && !c.isActive && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF1F2] dark:bg-[#3B0A12] text-[#E1306C] dark:text-[#F472B6]"
+                  title={`Paused on Meta — form: ${c.metaFormStatus || "n/a"}, ad set: ${c.metaAdsetStatus || "n/a"}`}
+                >
+                  Paused on Meta
+                </span>
+              )}
               {c.adSetName && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400">
                   Ad Set: {c.adSetName}
@@ -2217,6 +2225,11 @@ export default function Campaigns() {
         adSetName: cfg.adSetName || "",
         parentCampaignName: cfg.parentCampaignName || "",
         formId: cfg.formId || "",
+        // Meta-side live status (auto-synced) — lets the UI show WHY a config is paused.
+        pausedByMeta: cfg.pausedByMeta || false,
+        metaActive: cfg.metaActive !== false,
+        metaFormStatus: cfg.metaFormStatus || "",
+        metaAdsetStatus: cfg.metaAdsetStatus || "",
       }));
 
       const googleLeadCounts = await Promise.allSettled(
@@ -2641,6 +2654,14 @@ export default function Campaigns() {
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${st.bg} ${st.text}`}>
                               {adSet.status}
                             </span>
+                            {adSet.pausedByMeta && !adSet.isActive && (
+                              <span
+                                className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF1F2] dark:bg-[#3B0A12] text-[#E1306C] dark:text-[#F472B6]"
+                                title={`Paused on Meta — form: ${adSet.metaFormStatus || "n/a"}, ad set: ${adSet.metaAdsetStatus || "n/a"}`}
+                              >
+                                Paused on Meta
+                              </span>
+                            )}
                           </div>
                           <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">
                             {adSet.adSetName || adSet.name}
