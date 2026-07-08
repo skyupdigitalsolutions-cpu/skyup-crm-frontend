@@ -8,6 +8,8 @@ import { normalizePhone } from "../utils/normalizePhone";
 import { AlertTriangle } from "lucide-react";
 import NonConversionReport from "./NonConversionReport";
 import MetaInsightsReport from "./MetaInsightsReport";
+import GoogleAdsInsightsReport from "./GoogleAdsInsightsReport";
+import WebsiteInsightsReport from "./WebsiteInsightsReport";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
 function maskPhone(phone) {
@@ -2100,6 +2102,8 @@ export default function ReportPage() {
     { id: "leads",          label: "Lead Report" },
     { id: "nonConversion",  label: "Non-Conversion" },
     { id: "meta",           label: "Meta Performance" },
+    { id: "google",         label: "Google Ads Performance" },
+    { id: "website",        label: "Website Performance" },
   ];
 
   return (
@@ -2128,6 +2132,8 @@ export default function ReportPage() {
       {subTab === "leads"         && <LeadReportPage />}
       {subTab === "nonConversion" && <NonConversionReport />}
       {subTab === "meta"          && <MetaInsightsReport />}
+      {subTab === "google"        && <GoogleAdsInsightsReport />}
+      {subTab === "website"       && <WebsiteInsightsReport />}
     </div>
   );
 }
