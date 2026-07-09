@@ -28,7 +28,6 @@ function displayPhone(phone, role) {
 }
 
 const crm = new CRMEncryption();
-
 const CALL_LOGS_API = "/call-logs";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
