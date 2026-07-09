@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { CalendarDays, Users, Eye, EyeOff, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Voicemail, Ban, Phone, PhoneCall, Mic, Lock, AlertTriangle, ClipboardList, Smartphone } from "lucide-react";
+import { CalendarDays, Users, Eye, EyeOff, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Voicemail, Ban, Phone, PhoneCall, Mic, Lock, AlertTriangle, ClipboardList, Smartphone, MapPin } from "lucide-react";
 import { updateAttendance, removeAttendance, upsertAttendance } from "../services/attendanceService";
 import { getRole } from "../data/dataService";
 import axios from "axios";
@@ -1045,6 +1045,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
               <th className={thCls}>Date</th>
               <th className={thCls}>Check-In</th>
               <th className={thCls}>Check-Out</th>
+              <th className={thCls}>Location</th>
               <th className={thCls}>Working Hours</th>
               <th className={thCls}>Status</th>
               <th className={thCls}>Last IP</th>
@@ -1068,7 +1069,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
               ))
             ) : records.length === 0 ? (
               <tr>
-                <td colSpan={12} className="px-4 py-12 text-center">
+                <td colSpan={13} className="px-4 py-12 text-center">
                   <span className="block mb-2 flex justify-center text-[#8B92A9]"><ClipboardList className="w-9 h-9" strokeWidth={1.5} /></span>
                   <p className="text-[14px] text-[#8B92A9]">No attendance records found.</p>
                 </td>
@@ -1089,6 +1090,25 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
                   <td className={tdCls}>{rec.date}</td>
                   <td className={tdCls}>{fmtTime(rec.loginTime)}</td>
                   <td className={tdCls}>{fmtTime(rec.logoutTime)}</td>
+                  <td className={tdCls}>
+                    <div className="flex flex-col gap-0.5">
+                      {rec.clockInLatitude != null && rec.clockInLongitude != null && (
+                        <a href={`https://www.google.com/maps?q=${rec.clockInLatitude},${rec.clockInLongitude}&z=17`} target="_blank" rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline">
+                          <MapPin className="w-3 h-3 shrink-0" /> In
+                        </a>
+                      )}
+                      {rec.clockOutLatitude != null && rec.clockOutLongitude != null && (
+                        <a href={`https://www.google.com/maps?q=${rec.clockOutLatitude},${rec.clockOutLongitude}&z=17`} target="_blank" rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] text-rose-600 dark:text-rose-400 hover:underline">
+                          <MapPin className="w-3 h-3 shrink-0" /> Out
+                        </a>
+                      )}
+                      {rec.clockInLatitude == null && rec.clockOutLatitude == null && (
+                        <span className="text-[#8B92A9]">—</span>
+                      )}
+                    </div>
+                  </td>
                   <td className={tdCls}>
                     <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{rec.workingHours || "0h 00m"}</span>
                   </td>
