@@ -365,6 +365,28 @@ export function NotificationProvider({ children }) {
       handleUpsert(notif, setNotifications, setUnreadCount);
     });
 
+    // Employee clocked in / out — with their captured GPS location. Fired to
+    // both admins and super admins (company_admin room). A fresh id per event
+    // (userId + type + time) so each clock-in/out is its own notification.
+    socket.on('attendance_location', ({ userId, name, type, latitude, longitude, accuracy, at }) => {
+      if (latitude == null || longitude == null) return;
+      const isIn = type === 'clock_in';
+      const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}&z=17`;
+      const notif = {
+        id:        `attloc-${userId}-${type}-${at || Date.now()}`,
+        type:      'attendance_location',
+        title:     `${name || 'Employee'} clocked ${isIn ? 'in' : 'out'}`,
+        body:      `Location: ${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}${accuracy != null ? ` (±${Math.round(accuracy)}m)` : ''}`,
+        mapsUrl,
+        latitude,
+        longitude,
+        subType:   type,
+        timestamp: at || new Date().toISOString(),
+        urgent:    false,
+      };
+      handleUpsert(notif, setNotifications, setUnreadCount);
+    });
+
     if (isSuperAdmin) {
       socket.on('subscription_expiry_alert', ({ totalExpiring, critical, warning, notice, companies, timestamp }) => {
         if (!totalExpiring) return;
@@ -680,6 +702,13 @@ function NotificationItem({ notif }) {
           <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] mt-0.5 leading-snug line-clamp-2">
             {notif.body}
           </p>
+
+          {notif.mapsUrl && (
+            <a href={notif.mapsUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+              View on map
+            </a>
+          )}
 
           {showCompanies && (
             <div className="flex flex-wrap gap-1 mt-1.5">
