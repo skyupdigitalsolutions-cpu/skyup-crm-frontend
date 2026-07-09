@@ -9,6 +9,7 @@ import { AlertTriangle } from "lucide-react";
 import NonConversionReport from "./NonConversionReport";
 import MetaInsightsReport from "./MetaInsightsReport";
 import GoogleAdsInsightsReport from "./GoogleAdsInsightsReport";
+import GoogleAdsDashboard from "./GoogleAdsDashboard";
 import WebsiteInsightsReport from "./WebsiteInsightsReport";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
@@ -2132,7 +2133,7 @@ export default function ReportPage() {
       {subTab === "leads"         && <LeadReportPage />}
       {subTab === "nonConversion" && <NonConversionReport />}
       {subTab === "meta"          && <MetaInsightsReport />}
-      {subTab === "google"        && <GoogleAdsInsightsReport />}
+      {subTab === "google"        && <GoogleAdsDashboard />}
       {subTab === "website"       && <WebsiteInsightsReport />}
     </div>
   );
