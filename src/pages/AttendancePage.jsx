@@ -903,6 +903,135 @@ function LiveLocationsPanel({ open, onClose }) {
   );
 }
 
+// ── LocationHistoryPanel ──────────────────────────────────────────────────────
+// Reads the PERMANENT clock-in/out location log (/attendance/location-history).
+// Unlike Live Locations (30-day meeting pings), this data never expires.
+function LocationHistoryPanel({ open, onClose }) {
+  const iso = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [from, setFrom]       = useState(iso(30));
+  const [to, setTo]           = useState(iso(0));
+  const [type, setType]       = useState("");     // "" | clock_in | clock_out
+  const [nameFilter, setName] = useState("");
+
+  const mapUrl = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}&z=17`;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { from, to, limit: 500 };
+      if (type) params.type = type;
+      const r = await api.get("/attendance/location-history", { params });
+      setRecords(r.data?.records || []);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, [from, to, type]);
+
+  useEffect(() => { if (open) load(); }, [open, load]);
+
+  const filtered = records.filter((r) =>
+    !nameFilter || (r.user?.name || "").toLowerCase().includes(nameFilter.toLowerCase())
+  );
+
+  const exportCSV = () => {
+    if (!filtered.length) { alert("No records to export."); return; }
+    const head = ["Employee", "Type", "Date", "Time", "Latitude", "Longitude", "Accuracy(m)", "Maps"];
+    const rows = filtered.map((r) => [
+      (r.user?.name || "Unknown").replace(/"/g, "'"),
+      r.type === "clock_in" ? "Clock In" : "Clock Out",
+      r.date,
+      r.capturedAt ? new Date(r.capturedAt).toLocaleTimeString("en-IN") : "",
+      r.latitude, r.longitude,
+      r.accuracy ?? "",
+      mapUrl(r.latitude, r.longitude),
+    ]);
+    const csv = [head, ...rows].map((row) => row.map((c) => `"${c}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `clock-location-history_${from}_to_${to}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  if (!open) return null;
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-[199]" onClick={onClose} />
+      <div className="fixed right-0 top-0 bottom-0 w-full max-w-[440px] bg-white dark:bg-[#1A1D27] border-l border-[#E4E7EF] dark:border-[#262A38] shadow-2xl z-[200] flex flex-col">
+        <PanelHeader
+          icon={MapPinned}
+          title="Location History"
+          subtitle="Permanent clock-in / clock-out locations"
+          onClose={onClose}
+        />
+
+        {/* Filters */}
+        <div className="px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] space-y-2">
+          <div className="flex items-center gap-2">
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+              className="flex-1 px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none" />
+            <span className="text-[#C4C9DA]">→</span>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
+              className="flex-1 px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none" />
+          </div>
+          <div className="flex items-center gap-2">
+            <select value={type} onChange={(e) => setType(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none">
+              <option value="">All events</option>
+              <option value="clock_in">Clock In</option>
+              <option value="clock_out">Clock Out</option>
+            </select>
+            <input value={nameFilter} onChange={(e) => setName(e.target.value)} placeholder="Filter by name…"
+              className="flex-1 px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none placeholder:text-[#8B92A9]" />
+            <button onClick={exportCSV} title="Export CSV"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-semibold shrink-0">
+              <Download size={13} /> CSV
+            </button>
+          </div>
+        </div>
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          {loading ? (
+            <div className="flex items-center justify-center py-10"><Loader2 size={20} className="animate-spin text-[#8B92A9]" /></div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 gap-2 text-center">
+              <MapPinned className="w-8 h-8 text-[#C4C9DA]" strokeWidth={1.5} />
+              <p className="text-[13px] font-semibold text-[#565C75]">No location history for this range</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((r) => {
+                const isIn = r.type === "clock_in";
+                return (
+                  <div key={r._id} className="flex items-center gap-3 p-3 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${isIn ? "bg-emerald-500" : "bg-rose-500"}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA] truncate">{r.user?.name || "Unknown"}</p>
+                      <p className="text-[11px] text-[#8B92A9]">
+                        {isIn ? "Clock In" : "Clock Out"} · {r.date} · {r.capturedAt ? new Date(r.capturedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""}
+                      </p>
+                      <p className="text-[10px] text-[#8B92A9] font-mono">
+                        {Number(r.latitude).toFixed(5)}, {Number(r.longitude).toFixed(5)}{r.accuracy != null ? ` (±${Math.round(r.accuracy)}m)` : ""}
+                      </p>
+                    </div>
+                    <a href={mapUrl(r.latitude, r.longitude)} target="_blank" rel="noreferrer"
+                      className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline shrink-0">
+                      <ExternalLink size={12} /> Map
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── PendingRemoteClockInPanel ─────────────────────────────────────────────────
 // Shows employees with a pending remote clock-in (client meeting) request so
 // admins can approve/deny directly from the Attendance page, even if they
@@ -1076,6 +1205,7 @@ export default function AttendancePage() {
   const [loading,           setLoading]           = useState(true);
   const [exporting,         setExporting]         = useState(false);
   const [showLiveLocations, setShowLiveLocations] = useState(false);
+  const [showLocationHistory, setShowLocationHistory] = useState(false);
 
   // ── Role + company ────────────────────────────────────────────────────────
   const role         = getRole();
@@ -1154,6 +1284,16 @@ export default function AttendancePage() {
             <span className="hidden sm:inline">Live Locations</span>
           </button>
 
+          {/* Permanent clock-in/out location history */}
+          <button
+            onClick={() => setShowLocationHistory(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold hover:border-indigo-300 dark:hover:border-indigo-700 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all"
+            title="View permanent clock-in/out location history"
+          >
+            <MapPinned size={15} className="shrink-0" />
+            <span className="hidden sm:inline">Location History</span>
+          </button>
+
           {/* Export */}
           <button
             onClick={handleExport}
@@ -1203,6 +1343,7 @@ export default function AttendancePage() {
 
       {/* ── Live Locations Modal ────────────────────────────────────────────── */}
       <LiveLocationsPanel open={showLiveLocations} onClose={() => setShowLiveLocations(false)} />
+      <LocationHistoryPanel open={showLocationHistory} onClose={() => setShowLocationHistory(false)} />
 
     </div>
   );
