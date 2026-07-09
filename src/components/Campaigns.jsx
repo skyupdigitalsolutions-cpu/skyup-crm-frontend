@@ -207,6 +207,18 @@ function SyncMetaModal({ onClose, onSynced, prefillPageId, parentName = "" }) {
           </div>
         )}
 
+        {result && result.statusSync && (
+          result.statusSync.credentialed ? (
+            <div className="mb-4 bg-[#EEF3FF] dark:bg-[#0E1A33] border border-[#BFD4FF] dark:border-[#1E355F] rounded-xl px-4 py-3 text-[12px] text-[#2563EB] dark:text-[#93B4FF]">
+              Status sync: paused {result.statusSync.paused || 0}, reactivated {result.statusSync.reactivated || 0} (checked {result.statusSync.checked || 0} campaigns against Meta).
+            </div>
+          ) : (
+            <div className="mb-4 bg-[#FFFBEB] dark:bg-[#2D1F00] border border-[#FCD34D]/40 rounded-xl px-4 py-3 text-[12px] text-[#92400E] dark:text-[#FCD34D]">
+              <span className="font-semibold">Auto-pause not active.</span> To mirror paused/archived ad sets from Meta, add an <span className="font-semibold">Ad Account ID</span> + an <code className="bg-black/5 dark:bg-white/10 px-1 rounded">ads_read</code> token to a Meta campaign (Edit → Ad Performance). The page token alone can’t read ad-set status.
+            </div>
+          )
+        )}
+
         <div className="flex gap-3">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] hover:bg-[#F8F9FC] transition">
             Close
@@ -818,6 +830,9 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
     campaignId: campaign.campaignId || "",
     formId: campaign.formId || "",
     defaultStatus: campaign.defaultStatus || "New",
+    cost: campaign.cost ?? "",
+    impressions: campaign.impressions ?? "",
+    clicks: campaign.clicks ?? "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -834,6 +849,9 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
         campaignId: form.campaignId.trim(),
         formId: form.formId.trim(),
         defaultStatus: form.defaultStatus || "New",
+        cost: form.cost === "" ? 0 : Number(form.cost) || 0,
+        impressions: form.impressions === "" ? 0 : Number(form.impressions) || 0,
+        clicks: form.clicks === "" ? 0 : Number(form.clicks) || 0,
       };
       if (form.googleKey.trim()) payload.googleKey = form.googleKey.trim();
       await api.put(`/google-ads-config/${campaign._id}`, payload);
@@ -885,6 +903,15 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign ID <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label><input type="text" value={form.campaignId} onChange={set("campaignId")} placeholder="e.g. 1234567890" className={FIELD_CLS} /></div>
                 <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Form ID <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label><input type="text" value={form.formId} onChange={set("formId")} placeholder="e.g. 9876543210" className={FIELD_CLS} /></div>
               </div>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Ad Performance</p>
+            <p className="text-[10px] text-[#8B92A9] mb-3">Copy these from your Google Ads dashboard for this campaign & date range. CPC, CTR, CPM and cost-per-lead are calculated automatically in the Google Ads Performance report.</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Spend (₹)</label><input type="number" min="0" step="0.01" value={form.cost} onChange={set("cost")} placeholder="0" className={FIELD_CLS} /></div>
+              <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Impressions</label><input type="number" min="0" step="1" value={form.impressions} onChange={set("impressions")} placeholder="0" className={FIELD_CLS} /></div>
+              <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Clicks</label><input type="number" min="0" step="1" value={form.clicks} onChange={set("clicks")} placeholder="0" className={FIELD_CLS} /></div>
             </div>
           </div>
           {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]"> {error}</div>}
@@ -2077,7 +2104,7 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification
               {c._isMeta && c.pausedByMeta && !c.isActive && (
                 <span
                   className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF1F2] dark:bg-[#3B0A12] text-[#E1306C] dark:text-[#F472B6]"
-                  title={`Paused on Meta — form: ${c.metaFormStatus || "n/a"}, ad set: ${c.metaAdsetStatus || "n/a"}`}
+                  title={`Paused on Meta — ad set: ${c.metaAdsetStatus || "n/a"}, campaign: ${c.metaCampaignStatus || "n/a"}`}
                 >
                   Paused on Meta
                 </span>
@@ -2230,6 +2257,7 @@ export default function Campaigns() {
         metaActive: cfg.metaActive !== false,
         metaFormStatus: cfg.metaFormStatus || "",
         metaAdsetStatus: cfg.metaAdsetStatus || "",
+        metaCampaignStatus: cfg.metaCampaignStatus || "",
       }));
 
       const googleLeadCounts = await Promise.allSettled(
@@ -2260,6 +2288,8 @@ export default function Campaigns() {
         company: cfg.company,
         isActive: cfg.isActive,
         defaultStatus: cfg.defaultStatus || "New",
+        impressions: cfg.impressions ?? 0,
+        clicks: cfg.clicks ?? 0,
       }));
 
       const websiteLeadCounts = await Promise.allSettled(
@@ -2657,7 +2687,7 @@ export default function Campaigns() {
                             {adSet.pausedByMeta && !adSet.isActive && (
                               <span
                                 className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF1F2] dark:bg-[#3B0A12] text-[#E1306C] dark:text-[#F472B6]"
-                                title={`Paused on Meta — form: ${adSet.metaFormStatus || "n/a"}, ad set: ${adSet.metaAdsetStatus || "n/a"}`}
+                                title={`Paused on Meta — ad set: ${adSet.metaAdsetStatus || "n/a"}, campaign: ${adSet.metaCampaignStatus || "n/a"}`}
                               >
                                 Paused on Meta
                               </span>
