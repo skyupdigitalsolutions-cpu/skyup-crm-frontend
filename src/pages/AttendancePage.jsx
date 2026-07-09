@@ -197,7 +197,7 @@ function ClockInLocationSettings() {
         <>
         {/* Mobile backdrop */}
         <div className="fixed inset-0 bg-black/40 z-[199] sm:hidden" onClick={() => setOpen(false)} />
-        <div className="fixed sm:absolute left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 sm:right-0 top-auto sm:top-full bottom-0 sm:bottom-auto sm:mt-2 w-[calc(100vw-1rem)] max-w-[360px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-t-2xl sm:rounded-2xl shadow-2xl z-[200] overflow-hidden">
+        <div className="fixed sm:absolute left-1/2 sm:left-0 -translate-x-1/2 sm:translate-x-0 top-auto sm:top-full bottom-0 sm:bottom-auto sm:mt-2 w-[calc(100vw-1rem)] max-w-[360px] bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-t-2xl sm:rounded-2xl shadow-2xl z-[200] overflow-x-hidden overflow-y-auto max-h-[85vh] sm:max-h-[80vh]">
           <PanelHeader
             icon={MapPin}
             title="Clock-In Location"
