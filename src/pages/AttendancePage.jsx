@@ -166,7 +166,7 @@ function ClockInLocationSettings() {
         enabled,
         latitude:  latitude  ? parseFloat(latitude)  : null,
         longitude: longitude ? parseFloat(longitude) : null,
-        radius:    radius    ? parseInt(radius, 10)   : 100,
+        radius:    100,
       });
       flash("ok", "Location settings saved.");
     } catch (e) {
@@ -248,20 +248,13 @@ function ClockInLocationSettings() {
                   ))}
                 </div>
 
-                {/* Radius slider */}
+                {/* Radius — fixed at 100m */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Radius</label>
-                    <span className="text-[12px] font-bold text-indigo-600 dark:text-indigo-400 font-mono bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-lg">{radius}m</span>
+                    <span className="text-[12px] font-bold text-indigo-600 dark:text-indigo-400 font-mono bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-lg">100m</span>
                   </div>
-                  <input
-                    type="range" min="50" max="1000" step="50" value={radius}
-                    onChange={e => setRadius(e.target.value)}
-                    className="w-full accent-indigo-600"
-                  />
-                  <div className="flex justify-between text-[9px] text-[#8B92A9] mt-1">
-                    <span>50m</span><span>500m</span><span>1000m</span>
-                  </div>
+                  <p className="text-[10px] text-[#8B92A9]">Employees must clock in within 100 metres of the office. This radius is fixed.</p>
                 </div>
 
                 {/* Map link */}
