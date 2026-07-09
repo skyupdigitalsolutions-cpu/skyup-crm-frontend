@@ -141,6 +141,11 @@ export default function SourcePerformanceReport({
   // KPI cards differ by channel: Google Ads shows spend/cost, Website is lead-only.
   const kpis = t ? (withCost ? [
     { label: "Total Spend",  value: money(t.cost) },
+    { label: "Impressions",  value: numfmt(t.impressions) },
+    { label: "Clicks",       value: numfmt(t.clicks) },
+    { label: "CPC",          value: t.cpc == null ? "—" : money(t.cpc) },
+    { label: "CTR",          value: pct(t.ctr) },
+    { label: "CPM",          value: t.cpm == null ? "—" : money(t.cpm) },
     { label: "Leads",        value: numfmt(t.leads) },
     { label: "Converted",    value: numfmt(t.converted) },
     { label: "Conv. Rate",   value: pct(t.conversionRatePct) },
@@ -154,7 +159,7 @@ export default function SourcePerformanceReport({
     { label: "Sources",      value: numfmt(t.campaigns) },
   ]) : [];
 
-  const gridCols = withCost ? "grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" : "grid-cols-2 sm:grid-cols-4";
+  const gridCols = withCost ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" : "grid-cols-2 sm:grid-cols-4";
 
   return (
     <div className="print-area">
@@ -216,7 +221,7 @@ export default function SourcePerformanceReport({
         {/* ── KPI stat grid ────────────────────────────────────────────────── */}
         {loading && !t && (
           <div className={`grid ${gridCols} gap-3`}>
-            {Array.from({ length: withCost ? 7 : 4 }).map((_, i) => (
+            {Array.from({ length: withCost ? 12 : 4 }).map((_, i) => (
               <div key={i} className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-4 h-24 animate-pulse" />
             ))}
           </div>
@@ -226,7 +231,7 @@ export default function SourcePerformanceReport({
           <div className={`grid ${gridCols} gap-3`}>
             {kpis.map((c, i) => (
               <StatCard key={c.label} label={c.label} value={c.value}
-                icon={STAT_ICONS[i]} accent={STAT_ACCENT[i]} bg={STAT_BG[i]} />
+                icon={STAT_ICONS[i % STAT_ICONS.length]} accent={STAT_ACCENT[i % STAT_ACCENT.length]} bg={STAT_BG[i % STAT_BG.length]} />
             ))}
           </div>
         )}
@@ -325,12 +330,17 @@ export default function SourcePerformanceReport({
               {data.campaigns.map((c) => {
                 const statusEntries = Object.entries(c.statusBreakdown || {}).sort((a, b) => b[1] - a[1]);
                 const metrics = withCost ? [
-                  ["Spend",     c.hasCost ? money(c.cost) : "—"],
-                  ["Leads",     numfmt(c.leads)],
-                  ["Converted", numfmt(c.converted)],
-                  ["Conv Rate", pct(c.conversionRatePct)],
-                  ["Cost/Lead", c.costPerLead == null ? "—" : money(c.costPerLead)],
-                  ["Cost/Conv", c.costPerConversion == null ? "—" : money(c.costPerConversion)],
+                  ["Spend",       c.hasCost ? money(c.cost) : "—"],
+                  ["Impressions", numfmt(c.impressions)],
+                  ["Clicks",      numfmt(c.clicks)],
+                  ["CPC",         c.cpc == null ? "—" : money(c.cpc)],
+                  ["CTR",         pct(c.ctr)],
+                  ["CPM",         c.cpm == null ? "—" : money(c.cpm)],
+                  ["Leads",       numfmt(c.leads)],
+                  ["Converted",   numfmt(c.converted)],
+                  ["Conv Rate",   pct(c.conversionRatePct)],
+                  ["Cost/Lead",   c.costPerLead == null ? "—" : money(c.costPerLead)],
+                  ["Cost/Conv",   c.costPerConversion == null ? "—" : money(c.costPerConversion)],
                 ] : [
                   ["Leads",     numfmt(c.leads)],
                   ["Converted", numfmt(c.converted)],
