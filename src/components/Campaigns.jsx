@@ -833,6 +833,7 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
     cost: campaign.cost ?? "",
     impressions: campaign.impressions ?? "",
     clicks: campaign.clicks ?? "",
+    avgDealValue: campaign.avgDealValue ?? "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -852,6 +853,7 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
         cost: form.cost === "" ? 0 : Number(form.cost) || 0,
         impressions: form.impressions === "" ? 0 : Number(form.impressions) || 0,
         clicks: form.clicks === "" ? 0 : Number(form.clicks) || 0,
+        avgDealValue: form.avgDealValue === "" ? 0 : Number(form.avgDealValue) || 0,
       };
       if (form.googleKey.trim()) payload.googleKey = form.googleKey.trim();
       await api.put(`/google-ads-config/${campaign._id}`, payload);
@@ -912,6 +914,11 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Spend (₹)</label><input type="number" min="0" step="0.01" value={form.cost} onChange={set("cost")} placeholder="0" className={FIELD_CLS} /></div>
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Impressions</label><input type="number" min="0" step="1" value={form.impressions} onChange={set("impressions")} placeholder="0" className={FIELD_CLS} /></div>
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Clicks</label><input type="number" min="0" step="1" value={form.clicks} onChange={set("clicks")} placeholder="0" className={FIELD_CLS} /></div>
+            </div>
+            <div className="mt-3">
+              <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Average Deal Value (₹)</label>
+              <input type="number" min="0" step="0.01" value={form.avgDealValue} onChange={set("avgDealValue")} placeholder="e.g. 50000" className={FIELD_CLS} />
+              <p className="text-[10px] text-[#8B92A9] mt-1">Average revenue per won customer. Revenue, ROAS, ROI and cost-per-acquisition are calculated from this × customers won.</p>
             </div>
           </div>
           {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]"> {error}</div>}
