@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import api from "../data/axiosConfig";
 import VoiceBotPanel from "./VoiceBotPanel";
+import GoogleAnalyticsConnect from "./GoogleAnalyticsConnect";
 import { io as socketIO } from "socket.io-client";
 import usePlanFeatures from "../hooks/usePlanFeatures";
 
@@ -1194,6 +1195,11 @@ window.dataLayer.push({
               <div className="relative"><input type={showSecret ? "text" : "password"} value={form.webhookSecret} onChange={set("webhookSecret")} placeholder="e.g. skyup_website_2025" className={FIELD_CLS + " pr-10"} /><button type="button" onClick={() => setShowSecret((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168]">{showSecret ? <EyeOff /> : <EyeOn />}</button></div>
             </div>
           </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-2">Website Analytics <span className="text-[10px] font-normal text-[#8B92A9] normal-case tracking-normal">(optional)</span></p>
+            <p className="text-[11px] text-[#8B92A9] mb-2.5">Connect Google Analytics to track website performance in Reports → Website Performance. You can also do this later.</p>
+            <GoogleAnalyticsConnect />
+          </div>
           {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]"> {error}</div>}
         </div>
         <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
@@ -1243,6 +1249,7 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
       </div>
     </div>
   );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
