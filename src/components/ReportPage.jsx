@@ -11,6 +11,7 @@ import MetaInsightsReport from "./MetaInsightsReport";
 import GoogleAdsInsightsReport from "./GoogleAdsInsightsReport";
 import GoogleAdsDashboard from "./GoogleAdsDashboard";
 import WebsiteInsightsReport from "./WebsiteInsightsReport";
+import WebsiteAnalyticsDashboard from "./WebsiteAnalyticsDashboard";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
 function maskPhone(phone) {
@@ -28,6 +29,7 @@ function displayPhone(phone, role) {
 }
 
 const crm = new CRMEncryption();
+
 const CALL_LOGS_API = "/call-logs";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -2133,7 +2135,7 @@ export default function ReportPage() {
       {subTab === "nonConversion" && <NonConversionReport />}
       {subTab === "meta"          && <MetaInsightsReport />}
       {subTab === "google"        && <GoogleAdsDashboard />}
-      {subTab === "website"       && <WebsiteInsightsReport />}
+      {subTab === "website"       && <WebsiteAnalyticsDashboard />}
     </div>
   );
 }
