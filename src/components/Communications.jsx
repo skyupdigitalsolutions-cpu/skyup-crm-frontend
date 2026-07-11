@@ -175,6 +175,7 @@ function IntegrationsModal({ onClose }) {
   const [msg91Ok, setMsg91Ok]         = useState("");
   const [msg91Disc, setMsg91Disc]     = useState(false);
   const [msg91NS,   setMsg91NS]       = useState("");
+  const [msg91Brochure, setMsg91Brochure] = useState("");
 
   // ── Brevo state ────────────────────────────────────────────────────────────
   const [brevo, setBrevo]                   = useState(null);
@@ -206,6 +207,7 @@ function IntegrationsModal({ onClose }) {
       setMsg91Key(r.data?.authKey ? "••••••••••••••••" : "");
       setMsg91Num(r.data?.integratedNumber || "");
       setMsg91NS(r.data?.namespace || "");
+      setMsg91Brochure(r.data?.brochureUrl || "");
     }).catch(() => setMsg91({}));
 
     api.get("/admin/company/brevo-config").then(r => {
@@ -230,7 +232,7 @@ function IntegrationsModal({ onClose }) {
     if (!msg91Num.trim()) { setMsg91Err("Enter your MSG91 integrated WhatsApp number"); return; }
     setMsg91Saving(true); setMsg91Err(""); setMsg91Ok("");
     try {
-      const r = await api.put("/admin/company/msg91-config", { authKey: msg91Key.trim(), integratedNumber: msg91Num.trim(), namespace: msg91NS.trim() });
+      const r = await api.put("/admin/company/msg91-config", { authKey: msg91Key.trim(), integratedNumber: msg91Num.trim(), namespace: msg91NS.trim(), brochureUrl: msg91Brochure.trim() });
       setMsg91(r.data); setMsg91Key("••••••••••••••••");
       setMsg91Ok("MSG91 connected! WhatsApp and SMS are now active.");
       setTimeout(() => setMsg91Ok(""), 4000);
@@ -452,6 +454,19 @@ function IntegrationsModal({ onClose }) {
                   placeholder="e.g. 68bcef67_e185_4e55_94df_52c26cb0bc37"
                   className={FIELD + " font-mono"}/>
                 <p className="text-[10px] text-[#8B92A9] mt-1">MSG91 → Templates → click any template → Code JSON → copy "namespace" value</p>
+              </div>
+
+              {/* Brochure / document header URL */}
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Brochure PDF URL <span className="text-[10px] font-normal text-[#8B92A9]">(only for templates with a document header, e.g. crm_followup_leads)</span>
+                </label>
+                <input type="text" value={msg91Brochure} onChange={e => setMsg91Brochure(e.target.value)}
+                  placeholder="https://your-domain.com/brochure.pdf"
+                  className={FIELD + " font-mono"}/>
+                <p className="text-[10px] text-[#8B92A9] mt-1">
+                  Must be a public PDF link. Templates with an approved document header will fail with a 404 until this is set.
+                </p>
               </div>
 
               {/* Note about both services */}
