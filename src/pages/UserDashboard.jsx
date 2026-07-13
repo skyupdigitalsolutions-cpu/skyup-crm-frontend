@@ -606,14 +606,17 @@ function ActivityItem({ lead, isLast }) {
 function getTomorrowStr() { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0]; }
 function getTodayStr()    { return new Date().toISOString().split("T")[0]; }
 
-const OUTCOME_OPTIONS = ["Call Back","Interested","Not Reachable","Meeting Scheduled","Demo Done","Converted","Not Interested"];
+// Kept in sync with the mobile app's OUTCOMES list (LeadDetailScreen.js) so the
+// same call-remark outcomes are available on web and mobile, and so they match the
+// backend outcomeAutomationService keys (answered / notAnswered / busy / switchOff / …).
+const OUTCOME_OPTIONS = ["Answered","Not Answered","Busy","Switch Off","Call Back Later","Interested","Not Interested","Invalid","Client Meeting"];
 
 // ── UpdateStatusModal ─────────────────────────────────────────────────────────
 // Now accepts `projects` prop so users can assign/remove project tags while updating a lead.
 function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects = [] }) {
   const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
   const [temp,         setTemp]         = useState(lead.temperature || lead.Quality || "");
-  const [outcome,      setOutcome]      = useState("Call Back");
+  const [outcome,      setOutcome]      = useState("Answered");
   const [remark,       setRemark]       = useState(lead.remark || "");
   const [followUpDate, setFollowUpDate] = useState(getTomorrowStr());
   const [loading,      setLoading]      = useState(false);
