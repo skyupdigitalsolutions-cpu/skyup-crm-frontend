@@ -32,7 +32,10 @@ const TEMP_STYLE = {
 };
 
 const STATUS_OPTIONS  = ["New", "In Progress", "Converted", "Not Interested"];
-const OUTCOME_OPTIONS = ["Call Back", "Interested", "Not Reachable", "Meeting Scheduled", "Demo Done", "Converted", "Not Interested"];
+// Kept in sync with the mobile app's OUTCOMES list (LeadDetailScreen.js) and the
+// backend outcomeAutomationService keys, so web and mobile offer the same call
+// outcomes.
+const OUTCOME_OPTIONS = ["Answered", "Not Answered", "Busy", "Switch Off", "Call Back Later", "Interested", "Not Interested", "Invalid", "Client Meeting"];
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -934,7 +937,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                     })}
                   </div>
                 </div>
-                {!isNI && outcome === "Call Back" && (
+                {!isNI && outcome === "Call Back Later" && (
                   <div>
                     <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
                       Follow-up Date
@@ -1066,10 +1069,28 @@ export default function UserLeadsPage() {
     setLoading(true);
     setError("");
     try {
-      // ✅ FIX: backend /lead/my-leads now always returns { leads[], total, page, pages }
-      // Limit=200 covers all leads for most users in a single request.
-      const res = await api.get("/lead/my-leads?page=1&limit=200");
-      const raw = res.data?.leads ?? [];
+      // Backend /lead/my-leads returns { leads[], total, page, pages }.
+      // FIX: previously only page 1 was fetched, so users with more than the
+      // page limit (e.g. 273 leads) saw just the first 200. Now we read `pages`
+      // from the first response and fetch the remaining pages in parallel, then
+      // combine — so the full lead set is loaded regardless of count.
+      const PAGE_LIMIT = 200;
+      const first = await api.get(`/lead/my-leads?page=1&limit=${PAGE_LIMIT}`);
+      const firstLeads = first.data?.leads ?? [];
+      const pages = first.data?.pages ?? 1;
+
+      let raw = firstLeads;
+      if (pages > 1) {
+        const rest = await Promise.all(
+          Array.from({ length: pages - 1 }, (_, i) =>
+            api
+              .get(`/lead/my-leads?page=${i + 2}&limit=${PAGE_LIMIT}`)
+              .then(r => r.data?.leads ?? []),
+          ),
+        );
+        raw = [firstLeads, ...rest].flat();
+      }
+
       setLeads(raw.map(mapLead));
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load leads. Please refresh.");
