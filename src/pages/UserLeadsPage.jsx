@@ -714,7 +714,8 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
       } else {
         const body = { status, remark: remark.trim(), outcome };
         if (temperature)  body.temperature  = temperature;
-        if (followUpDate) body.followUpDate = followUpDate;
+        // Match mobile: send the follow-up as a full ISO timestamp (date + time).
+        if (followUpDate) body.followUpDate = new Date(followUpDate).toISOString();
         const res = await api.patch(`/lead/${lead.id}`, body);
         updatedLead = res.data?.lead || res.data;
       }
@@ -937,16 +938,16 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                     })}
                   </div>
                 </div>
-                {!isNI && outcome === "Call Back Later" && (
+                {!isNI && (
                   <div>
                     <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
-                      Follow-up Date
-                      <span className="ml-1 font-normal text-[13px] text-[#8B92A9]">(optional — defaults to tomorrow)</span>
+                      Follow-up Date &amp; Time
+                      <span className="ml-1 font-normal text-[13px] text-[#8B92A9]">(optional)</span>
                     </label>
                     <input
-                      type="date"
+                      type="datetime-local"
                       value={followUpDate}
-                      min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+                      min={new Date().toISOString().slice(0, 16)}
                       onChange={e => setFollowUpDate(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
                     />
