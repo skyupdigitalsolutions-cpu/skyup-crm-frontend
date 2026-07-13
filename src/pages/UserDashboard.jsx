@@ -2087,9 +2087,30 @@ export default function UserDashboard() {
 
   const fetchLeads = useCallback(() => {
     setLoading(true);
-    api.get("/lead/my-leads")
-      .then(res => {
-        const raw = Array.isArray(res.data) ? res.data : (res.data?.leads || res.data?.data || []);
+    // Backend /lead/my-leads returns { leads[], total, page, pages } and caps
+    // each page at a limit (default 200). FIX: fetch every page and combine so
+    // dashboard KPIs are accurate for users with more than one page of leads
+    // (previously only the first 200 were counted).
+    const PAGE_LIMIT = 200;
+    api.get(`/lead/my-leads?page=1&limit=${PAGE_LIMIT}`)
+      .then(async res => {
+        const firstLeads = Array.isArray(res.data)
+          ? res.data
+          : (res.data?.leads || res.data?.data || []);
+        const pages = res.data?.pages ?? 1;
+
+        let raw = firstLeads;
+        if (pages > 1) {
+          const rest = await Promise.all(
+            Array.from({ length: pages - 1 }, (_, i) =>
+              api
+                .get(`/lead/my-leads?page=${i + 2}&limit=${PAGE_LIMIT}`)
+                .then(r => (Array.isArray(r.data) ? r.data : (r.data?.leads || r.data?.data || []))),
+            ),
+          );
+          raw = [firstLeads, ...rest].flat();
+        }
+
         setLeads(raw.map(mapLead));
         setError("");
       })
