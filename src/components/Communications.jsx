@@ -1479,11 +1479,19 @@ function WhatsAppPanel({ currentUser }) {
   useEffect(() => {
     const socket = io(SOCKET_URL, { auth: { token } });
     socketRef.current = socket;
-    if (isAdmin) socket.emit("wa_admin_join");
-    else if (currentUser?._id) socket.emit("wa_agent_join", { agentId: currentUser._id });
-    // Join the company-wide WA room — backend emits wa_message here for inbound
-    // replies when conversation.assignedAgent is null or stale. Without this join,
-    // those messages are broadcast into a room nobody is in and never appear in the UI.
+    // NOTE: previously admins joined a global "wa_admin" room here. That room is
+    // NOT scoped by company on the backend — every company's WhatsApp traffic on
+    // the whole platform gets broadcast into it, so any admin who joined it could
+    // see every other company's messages. That's a cross-tenant data leak, and it
+    // was also why admin appeared to "work" while the employee panel didn't: admin
+    // was accidentally seeing traffic that had been misrouted to the wrong company
+    // by a backend bug, not because admin's own routing was more correct.
+    //
+    // Fix: admin now joins the SAME scoped rooms the employee panel uses —
+    // wa_company_<companyId> (every message for their own company) plus
+    // wa_agent_<userId> as a redundant fallback — so admin and employee share
+    // the exact same, safe connection mechanism.
+    if (currentUser?._id) socket.emit("wa_agent_join", { agentId: currentUser._id });
     if (currentUser?.company) socket.emit("wa_company_join", { companyId: currentUser.company });
 
     socket.on("wa_message", (payload) => {
