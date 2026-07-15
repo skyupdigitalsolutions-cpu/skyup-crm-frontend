@@ -1780,8 +1780,20 @@ export default function UserLeadCommunication() {
                     authHeaders={authHeaders}
                     onSent={(msg) => {
                       setMessages((prev) => [...prev, msg]);
-                      const newExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
-                      setConversation((prev) => prev ? { ...prev, sessionExpiresAt: newExpiry, status: "open" } : prev);
+                      // IMPORTANT: sending a template does NOT open WhatsApp's
+                      // 24h session — only the LEAD's reply does (this mirrors
+                      // the backend, which intentionally leaves
+                      // sessionExpiresAt untouched on a template send). The
+                      // previous version of this code optimistically set
+                      // sessionExpiresAt/status as if the session were now
+                      // open, which flipped the UI to the plain text box even
+                      // though the backend would still correctly reject a
+                      // free-form send with SESSION_EXPIRED. Keep status as
+                      // "waiting" and leave sessionExpiresAt alone so the UI
+                      // stays consistent with what the backend will actually
+                      // allow, until the lead's inbound reply arrives via
+                      // socket and opens the session for real.
+                      setConversation((prev) => prev ? { ...prev, status: "waiting", lastMessage: msg.body, lastMessageAt: msg.waTimestamp || new Date() } : prev);
                       setSendError("");
                       setShowTemplatePanel(false);
                     }}
