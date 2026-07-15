@@ -1242,6 +1242,7 @@ export default function UserLeadCommunication() {
 
       const {
         conversationId: incomingConvId,
+        leadId: incomingLeadId,
         message: msg,
         sessionExpiresAt: newExpiry,
         waPhone: inboundPhone,
@@ -1255,6 +1256,7 @@ export default function UserLeadCommunication() {
       const currentLead = selectedRef.current;
       console.log("[WA-DEBUG] state at moment of event:", {
         incomingConvId,
+        incomingLeadId,
         currentConvId:   currentConv?._id,
         currentLeadId:   currentLead?._id,
         currentLeadName: currentLead?.name,
@@ -1262,6 +1264,41 @@ export default function UserLeadCommunication() {
         inboundPhone,
         msgDirection: msg.direction,
       });
+
+      // ── Case 0: leadId matches the open lead (most reliable — no phone/conv
+      // matching needed, immune to masked numbers and duplicate conversations) ─
+      if (incomingLeadId && currentLead?._id && String(incomingLeadId) === String(currentLead._id)) {
+        console.log("[WA-DEBUG] Case 0 fired — inbound belongs to the OPEN lead");
+        // If the open conversation is a different record than where the message
+        // landed, re-fetch from the authoritative conversation so the full
+        // thread (including this message) shows.
+        if (!currentConv || String(currentConv._id) !== String(incomingConvId)) {
+          axios
+            .get(`${API_URL}/whatsapp/conversations/${incomingConvId}/messages`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            .then(({ data }) => {
+              setMessages(data.messages || []);
+              const incoming = data.conversation || {};
+              setConversation((prev) =>
+                prev ? { ...prev, ...incoming, _id: incomingConvId } : { ...incoming, _id: incomingConvId }
+              );
+              setConvLeadMap((prev) => ({ ...prev, [String(incomingConvId)]: currentLead._id }));
+              setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+            })
+            .catch(() => {});
+        } else {
+          if (msg.direction === "inbound" && newExpiry) {
+            setConversation((prev) => prev ? { ...prev, sessionExpiresAt: newExpiry, status: "waiting" } : prev);
+          }
+          setMessages((prev) => {
+            if (prev.some((m) => m._id && String(m._id) === String(msg._id))) return prev;
+            return [...prev, msg];
+          });
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+        }
+        return;
+      }
 
       // ── Case 1: Exact conversation ID match ──────────────────────────────
       if (currentConv && String(currentConv._id) === String(incomingConvId)) {
@@ -1287,10 +1324,20 @@ export default function UserLeadCommunication() {
       // Outbound messages can also arrive via the company firehose for a
       // different conv ID (e.g. if two convs exist for the same phone), and
       // we want those to also update the open chat window.
+      // Robust match: the lead's number may live under mobile / phone /
+      // primaryPhone (and may be masked), so we compare the last-10 digits of
+      // every available field against the inbound phone.
+      const currentLeadPhones = [
+        currentLead?.mobile,
+        currentLead?.phone,
+        currentLead?.primaryPhone,
+        currentLead?.secondaryPhone,
+      ].filter(Boolean);
       const phoneMatchesCurrentLead =
         inboundPhone &&
-        currentLead?.mobile &&
-        normalizePhone(currentLead.mobile) === normalizePhone(inboundPhone);
+        currentLeadPhones.some(
+          (p) => normalizePhone(p) && normalizePhone(p) === normalizePhone(inboundPhone)
+        );
 
       if (phoneMatchesCurrentLead) {
         console.log("[WA-DEBUG] Case 2 fired — phone matches selected lead");
@@ -1336,9 +1383,10 @@ export default function UserLeadCommunication() {
       // ── Case 3: Message for a different lead — increment unread badge ──────
       if (msg.direction === "inbound") {
         console.log("[WA-DEBUG] Case 3 path — inbound for non-open conv");
-        const leadId = convLeadMapRef.current[String(incomingConvId)];
+        const leadId = incomingLeadId || convLeadMapRef.current[String(incomingConvId)];
         if (leadId) {
-          console.log("[WA-DEBUG] Case 3a — convId mapped to lead, bumping badge", leadId);
+          console.log("[WA-DEBUG] Case 3a — mapped to lead, bumping badge", leadId);
+          setConvLeadMap((prev) => ({ ...prev, [String(incomingConvId)]: leadId }));
           setUnreadCounts((prev) => ({ ...prev, [leadId]: (prev[leadId] || 0) + 1 }));
         } else if (inboundPhone) {
           setLeads((prevLeads) => {
