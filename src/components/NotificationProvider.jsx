@@ -282,10 +282,16 @@ export function NotificationProvider({ children }) {
     // `connect` on each (re)connection and always emit the join.
     const doJoin = () => {
       if (isEmployee) {
-        // Employees join only their personal agent room. leadController emits
+        // Employees join their personal agent room. leadController emits
         // 'new_lead_assigned' to agent:<userId> on every assignment/reassignment.
         console.debug('[NotificationProvider] emitting agent_join (employee)');
         socket.emit('agent_join', { userId: adminId });
+        // Also join the WhatsApp-specific rooms so the bell can show inbound
+        // lead replies live — mirrors what the admin panel already gets via
+        // wa_admin below, and matches the rooms the chat page itself joins.
+        console.debug('[NotificationProvider] emitting wa_agent_join / wa_company_join (employee)');
+        socket.emit('wa_agent_join', { agentId: adminId });
+        if (companyId) socket.emit('wa_company_join', { companyId });
         return;
       }
       if (isSuperAdmin) {
@@ -425,6 +431,35 @@ export function NotificationProvider({ children }) {
         leadName:  leadName || 'New Lead',
         timestamp: new Date().toISOString(),
         urgent:    false,
+      }, setNotifications, setUnreadCount);
+    });
+
+    // Fires whenever a lead sends a WhatsApp message — pushed to wa_admin
+    // (admins/super admins) and to wa_agent_<id> / wa_company_<id> (employees,
+    // joined above). We only surface INBOUND messages here (the lead replying)
+    // — outbound sends the employee/admin just made themselves shouldn't ping
+    // their own bell.
+    socket.on('wa_message', (payload) => {
+      const msg = payload?.message;
+      if (!msg || msg.direction !== 'inbound') return;
+
+      const name = payload.contactName || payload.waPhone || 'A lead';
+      let bodyText =
+        msg.messageType === 'text' || !msg.messageType
+          ? (msg.body || '')
+          : `[${msg.messageType}]`;
+      if (bodyText.length > 120) bodyText = bodyText.slice(0, 120) + '…';
+
+      handleUpsert({
+        id:             `wa-msg-${msg._id || payload.conversationId + '-' + (msg.waTimestamp || Date.now())}`,
+        type:           'whatsapp_message',
+        title:          `New WhatsApp reply — ${name}`,
+        body:           bodyText || '(no text)',
+        leadId:         payload.leadId || null,
+        conversationId: payload.conversationId || null,
+        waPhone:        payload.waPhone || '',
+        timestamp:      msg.waTimestamp || new Date().toISOString(),
+        urgent:         false,
       }, setNotifications, setUnreadCount);
     });
 
@@ -670,6 +705,7 @@ function NotificationItem({ notif }) {
     notif.subType === 'overdue'                                 ? 'bg-red-500'    :
     notif.type === 'follow_up'                                  ? 'bg-amber-400'  :
     notif.type === 'new_lead'                                   ? 'bg-emerald-500':
+    notif.type === 'whatsapp_message'                           ? 'bg-green-500'  :
     notif.type === 'lead_closed'                                ? 'bg-green-500'  :
     notif.type === 'meeting_permission'                         ? 'bg-orange-500' :
                                                                   'bg-amber-500';
@@ -690,6 +726,7 @@ function NotificationItem({ notif }) {
                       notif.subType === 'overdue' ? AlertTriangle :
                       notif.type === 'follow_up' ? AlertTriangle :
                       notif.type === 'new_lead' ? MessageCircle :
+                      notif.type === 'whatsapp_message' ? MessageCircle :
                       notif.type === 'lead_closed' ? CheckCircle2 :
                       notif.type === 'meeting_permission' ? MapPin : Bell;
             return <C className="w-3.5 h-3.5" />;
