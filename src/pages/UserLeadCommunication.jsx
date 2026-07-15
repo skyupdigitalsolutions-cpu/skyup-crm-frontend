@@ -1106,6 +1106,13 @@ export default function UserLeadCommunication() {
   const [msgText,           setMsgText]           = useState("");
   const [sending,           setSending]           = useState(false);
   const [sendError,         setSendError]         = useState("");
+  // Lets the employee manually open the "Send Template" panel any time —
+  // not just when the session banner detects an expired session. This also
+  // covers the case where a conversation has NEVER had a session opened yet
+  // (sessionExpiresAt is null, e.g. a fresh template-only conversation) —
+  // previously that state fell through to the plain text box, which just
+  // failed silently on send with a SESSION_EXPIRED error.
+  const [showTemplatePanel, setShowTemplatePanel] = useState(false);
   const [search,            setSearch]            = useState("");
   // unread counts keyed by lead._id
   const [unreadCounts,      setUnreadCounts]      = useState({});
@@ -1148,6 +1155,7 @@ export default function UserLeadCommunication() {
     setConversation(null);
     setMessages([]);
     setSendError("");
+    setShowTemplatePanel(false);
     axios
       .get(`${API_URL}/whatsapp/conversation-by-lead/${selected._id}`, authHeaders)
       .then((res) => {
@@ -1470,6 +1478,15 @@ export default function UserLeadCommunication() {
 
   const session = conversation?.sessionExpiresAt ? sessionBanner(conversation.sessionExpiresAt) : null;
   const isClosed = conversation?.status === "closed";
+  // A session is only "open" (free-form text allowed) when sessionExpiresAt
+  // exists AND is in the future. Previously the input bar only switched to
+  // the template/Re-engage UI when `session?.expired` was true — but
+  // `sessionBanner()` returns null (not {expired:true}) when sessionExpiresAt
+  // is unset entirely, which is exactly the state a brand-new template-only
+  // conversation is in. That made the UI show a normal-looking text box that
+  // would just fail with "SESSION_EXPIRED" on send. Gate on sessionOpen
+  // instead so both cases (never opened / expired) show the template UI.
+  const sessionOpen = !!(conversation?.sessionExpiresAt && new Date(conversation.sessionExpiresAt) > new Date());
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -1678,6 +1695,19 @@ export default function UserLeadCommunication() {
                 <span className="text-[10px] bg-white/10 text-white px-2 py-0.5 rounded-full font-semibold shrink-0">
                   {selected.status || "New"}
                 </span>
+                {!isClosed && (
+                  <button
+                    onClick={() => setShowTemplatePanel((v) => !v)}
+                    title="Send a WhatsApp template to this lead"
+                    className={`text-[11px] font-semibold px-3 py-1.5 rounded-full shrink-0 flex items-center gap-1 transition ${
+                      showTemplatePanel
+                        ? "bg-white text-[#075E54]"
+                        : "bg-white/10 text-white hover:bg-white/20"
+                    }`}
+                  >
+                    <ClipboardList className="w-3.5 h-3.5" /> Send Template
+                  </button>
+                )}
               </div>
 
               {/* Session banner (24h expiry warning) */}
@@ -1735,11 +1765,15 @@ export default function UserLeadCommunication() {
                 </div>
               )}
 
-              {/* Input bar — show Re-engage when session expired, normal input otherwise */}
-              {session?.expired && !isClosed ? (
+              {/* Input bar — show template panel when there's no open session
+                  (never-opened OR expired) OR the employee manually opened it
+                  via the header button; normal input otherwise */}
+              {(!sessionOpen || showTemplatePanel) && !isClosed ? (
                 <div className="px-4 py-3 border-t border-[#E4E7EF] dark:border-[#2A3942] bg-white dark:bg-[#111B21] shrink-0">
                   <p className="text-[11px] text-[#8B92A9] mb-2 text-center">
-                    24-hour session expired. Send a pre-approved template to re-open the conversation.
+                    {sessionOpen
+                      ? "Session is open — you can also send a fresh template below."
+                      : "24-hour session expired. Send a pre-approved template to re-open the conversation."}
                   </p>
                   <ReEngageWidget
                     conversationId={conversation._id}
@@ -1749,8 +1783,17 @@ export default function UserLeadCommunication() {
                       const newExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
                       setConversation((prev) => prev ? { ...prev, sessionExpiresAt: newExpiry, status: "open" } : prev);
                       setSendError("");
+                      setShowTemplatePanel(false);
                     }}
                   />
+                  {sessionOpen && (
+                    <button
+                      onClick={() => setShowTemplatePanel(false)}
+                      className="mt-2 text-[11px] text-[#8B92A9] hover:text-[#4B5168] underline w-full text-center"
+                    >
+                      Cancel — go back to typing a message
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="bg-[#F0F2F5] dark:bg-[#202C33] px-3 py-2.5 flex items-end gap-2 shrink-0">
