@@ -1770,6 +1770,8 @@ function mapLead(l) {
     createdAt:      l.createdAt      || l.date || null,
     _raw_date:      l.date           || l.createdAt || null,
     callHistory,
+    meetingRemarks: Array.isArray(l.meetingRemarks) ? l.meetingRemarks : [],
+    initialRemark:  l.initialRemark || "",
     scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
     previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
     reassignCount:  l.reassignCount  || 0,
