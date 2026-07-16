@@ -1,14 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "../data/axiosConfig";
-import { Globe, Loader2, Link2, CheckCircle2, ChevronDown } from "lucide-react";
+import { Globe, Loader2, Link2, CheckCircle2, ChevronDown, KeyRound } from "lucide-react";
+import GoogleOAuthSetupForm from "./GoogleOAuthSetupForm";
 
 // Compact GA4 connect card for the Campaigns page (mirrors the Meta connect UX).
 // Full analytics live on Report Page → Website Performance.
+// When the server OAuth credentials aren't configured, this card now lets the
+// admin enter them inline (Client ID / Secret / Redirect URI) instead of asking
+// a developer to set env vars.
 export default function GoogleAnalyticsConnect() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [properties, setProperties] = useState(null);
+  const [editCreds, setEditCreds] = useState(false);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -37,11 +42,19 @@ export default function GoogleAnalyticsConnect() {
   };
   const disconnect = async () => { if (!window.confirm("Disconnect Google Analytics?")) return; await api.delete("/google-analytics"); loadStatus(); };
 
+  const onCredsSaved = async () => { setEditCreds(false); await loadStatus(); };
+
   const CARD = "bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl";
 
   if (loading) return <div className={`${CARD} p-4 flex items-center justify-center`}><Loader2 className="w-4 h-4 animate-spin text-[#8B92A9]" /></div>;
-  if (status?.oauthConfigured === false) {
-    return <div className={`${CARD} p-4`}><p className="text-[12px] text-[#8B92A9]">Google Analytics isn't configured on the server yet.</p></div>;
+
+  // Credentials not configured (or admin chose to edit them) → show the setup form.
+  if (status?.oauthConfigured === false || editCreds) {
+    return (
+      <div className={`${CARD} p-4`}>
+        <GoogleOAuthSetupForm compact onSaved={onCredsSaved} onCancel={editCreds ? () => setEditCreds(false) : undefined} />
+      </div>
+    );
   }
 
   return (
@@ -75,6 +88,14 @@ export default function GoogleAnalyticsConnect() {
           <p className="text-[11px] text-[#8B92A9]">Property: <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{status.propertyName || status.propertyId}</span></p>
           <button onClick={disconnect} className="text-[11px] text-[#8B92A9] hover:text-rose-600 font-semibold">Disconnect</button>
         </div>
+      )}
+
+      {/* Manage the OAuth app credentials (only meaningful when set per-company) */}
+      {status?.oauthSource === "db" && (
+        <button onClick={() => setEditCreds(true)}
+          className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold text-[#8B92A9] hover:text-emerald-600">
+          <KeyRound className="w-3 h-3" /> Edit API credentials
+        </button>
       )}
     </div>
   );
