@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../data/axiosConfig";
+import GoogleOAuthSetupForm from "./GoogleOAuthSetupForm";
 import {
   Globe, Loader2, Sparkles, AlertTriangle, TrendingUp, TrendingDown, Minus,
   Users, MousePointerClick, Timer, Target, RefreshCw, Link2, CheckCircle2,
@@ -222,13 +223,20 @@ export default function WebsiteAnalyticsDashboard() {
     return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-[#8B92A9]" /></div>;
   }
 
-  // Server OAuth not configured
+  // Server OAuth not configured — let the admin add credentials inline.
   if (status && status.oauthConfigured === false) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <Globe className="w-10 h-10 text-[#C4C9DA] mx-auto mb-3" strokeWidth={1.5} />
-        <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Google Analytics not set up</h2>
-        <p className="text-[13px] text-[#8B92A9] mt-2">The server's Google OAuth credentials aren't configured yet. Ask your developer to set <code className="bg-black/5 dark:bg-white/10 px-1 rounded">GOOGLE_OAUTH_CLIENT_ID</code>, <code className="bg-black/5 dark:bg-white/10 px-1 rounded">GOOGLE_OAUTH_CLIENT_SECRET</code> and <code className="bg-black/5 dark:bg-white/10 px-1 rounded">GOOGLE_OAUTH_REDIRECT_URI</code>.</p>
+      <div className="max-w-lg mx-auto px-4 py-10">
+        <div className="text-center mb-6">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center mx-auto mb-3">
+            <Globe className="w-7 h-7 text-emerald-600" />
+          </div>
+          <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Set up Google Analytics</h2>
+          <p className="text-[13px] text-[#8B92A9] mt-2">Add your Google OAuth credentials below to connect GA4 — no developer or server changes required.</p>
+        </div>
+        <div className={`${CARD} p-5`}>
+          <GoogleOAuthSetupForm onSaved={loadStatus} />
+        </div>
       </div>
     );
   }
