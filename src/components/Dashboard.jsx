@@ -981,6 +981,7 @@ export default function Dashboard() {
   const [range,       setRange]       = useState("week");
   const [superStats,  setSuperStats]  = useState(null);
   const [dashStats,   setDashStats]   = useState(null);
+  const [serverTotal, setServerTotal] = useState(null); // accurate company-wide lead count
 
   const [hotLeads,  setHotLeads]  = useState([]);
   const [warmLeads, setWarmLeads] = useState([]);
@@ -1009,10 +1010,14 @@ export default function Dashboard() {
     setError(null);
 
     fetchAll()
-      .then(({ agents, leads, stats }) => {
+      .then(({ agents, leads, stats, total }) => {
         const safeLeads = leads || [];
         setAgents(agents || []);
         setAllLeads(safeLeads);
+        // `total` is the company-wide count from the paginated API (not capped
+        // by the page limit), so the "Total Leads" KPI stays correct even though
+        // only the first page of leads is loaded for the charts.
+        if (typeof total === "number") setServerTotal(total);
         if (stats) setSuperStats(stats);
         setHotLeads(safeLeads.filter((l) => l.temperature === "Hot"  || l.Quality === "Hot"  || l.leadCategory === "Hot"));
         setWarmLeads(safeLeads.filter((l) => l.temperature === "Warm" || l.Quality === "Warm" || l.leadCategory === "Warm"));
@@ -1069,16 +1074,22 @@ export default function Dashboard() {
   const leads = useMemo(() => filterByRange(allLeads, range), [allLeads, range]);
 
   const kpi = useMemo(() => {
-    const allTotal   = allLeads.length;
+    // Prefer the accurate company-wide total (dashboard-stats aggregate, then the
+    // paginated API's `total`) over allLeads.length, which is capped at the page
+    // limit and would otherwise under-report (e.g. show 100 when there are 264).
+    const accurateTotal =
+      (dashStats && typeof dashStats.totalLeads === "number") ? dashStats.totalLeads
+      : (typeof serverTotal === "number") ? serverTotal
+      : allLeads.length;
     const converted  = allLeads.filter((l) => l.status === "Converted").length;
     const rangeTotal = leads.length;
     return {
-      total: allTotal,
+      total: accurateTotal,
       converted,
-      rate: `${allTotal > 0 ? Math.round((converted / allTotal) * 100) : 0}%`,
+      rate: `${accurateTotal > 0 ? Math.round((converted / accurateTotal) * 100) : 0}%`,
       rangeTotal,
     };
-  }, [leads, allLeads]);
+  }, [leads, allLeads, dashStats, serverTotal]);
 
   const chart = useMemo(() => buildChartBuckets(leads, range), [leads, range]);
 
@@ -1168,8 +1179,8 @@ export default function Dashboard() {
           <p className="text-[12px] sm:text-[13px] text-[#6B7280] dark:text-[#565C75] truncate">
             Welcome back, {user?.name || "Admin"} ·{" "}
             {isSuperAdmin
-              ? `${superStats?.totalCompanies || 0} companies · ${allLeads.length} total leads`
-              : `${allLeads.length} total leads · ${agents.length} users`}
+              ? `${superStats?.totalCompanies || 0} companies · ${kpi.total.toLocaleString()} total leads`
+              : `${kpi.total.toLocaleString()} total leads · ${agents.length} users`}
           </p>
         </div>
 
