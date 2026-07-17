@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import api from "../data/axiosConfig";
+import GoogleAdsApiConnect from "./GoogleAdsApiConnect";
 import {
   TrendingUp, TrendingDown, Minus, Sparkles, Loader2, FileDown, AlertTriangle,
   DollarSign, Users, Target, MousePointerClick, Award, Percent, ArrowUpDown,
@@ -226,6 +227,9 @@ export default function GoogleAdsDashboard() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 space-y-7">
+        {/* Live Google Ads API connection (impressions/clicks/cost auto-sync) */}
+        <GoogleAdsApiConnect onSynced={load} />
+
         {error && (
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 text-rose-600 dark:text-rose-400 text-[13px] font-semibold">
             <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
