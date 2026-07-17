@@ -2248,7 +2248,11 @@ export default function Campaigns() {
         id: cfg._id,
         name: cfg.campaignName,
         channel: "Meta",
-        status: cfg.isActive ? "Active" : "Paused",
+        // Reflect the REAL Meta state: a card is Active only when the CRM toggle
+        // is on AND Meta hasn't reported the ad set / campaign / form as paused
+        // or archived (metaActive). Once the status sync runs, paused campaigns
+        // show as Paused here instead of always showing Active.
+        status: (cfg.isActive && cfg.metaActive !== false) ? "Active" : "Paused",
         sent: cfg.sent ?? 0,
         leads: metaLeadCounts[idx]?.status === "fulfilled" ? metaLeadCounts[idx].value : 0,
         converted: cfg.converted ?? 0,
