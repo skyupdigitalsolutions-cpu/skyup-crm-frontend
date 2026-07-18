@@ -27,7 +27,17 @@ export default function GoogleAdsApiConnect({ onSynced }) {
   useEffect(() => { loadStatus(); }, [loadStatus]);
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
-    if (p.get("gads")) { loadStatus(); p.delete("gads"); const q = p.toString(); window.history.replaceState({}, "", window.location.pathname + (q ? `?${q}` : "")); }
+    const gads = p.get("gads");
+    if (gads) {
+      if (gads === "connected") setMsg("Google Ads connected.");
+      else if (gads === "denied") setError("Google access was denied. Click Connect Google Ads and approve the requested permissions.");
+      else if (gads === "expired") setError(p.get("gads_reason") || "The connect link expired — click Connect Google Ads to try again.");
+      else setError(p.get("gads_reason") || "Could not connect Google Ads. Check that the Redirect URI saved in your API credentials exactly matches the one registered in Google Cloud Console.");
+      loadStatus();
+      p.delete("gads"); p.delete("gads_reason");
+      const q = p.toString();
+      window.history.replaceState({}, "", window.location.pathname + (q ? `?${q}` : ""));
+    }
   }, [loadStatus]);
 
   useEffect(() => {
