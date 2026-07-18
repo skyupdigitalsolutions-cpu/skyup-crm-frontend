@@ -42,7 +42,7 @@ export default function GoogleAdsApiConnect({ onSynced }) {
 
   useEffect(() => {
     if (status?.connected && status?.needsAccount) {
-      api.get("/google-ads-api/accounts").then(({ data }) => setAccounts(data.accounts || [])).catch((e) => { setAccounts([]); setError(e?.response?.data?.message || "Could not list accounts."); });
+      api.get("/google-ads-api/accounts").then(({ data }) => { setAccounts(data.accounts || []); if ((!data.accounts || !data.accounts.length) && data.hint) setError(data.hint); }).catch((e) => { setAccounts([]); setError(e?.response?.data?.googleError ? `${e.response.data.message} (${e.response.data.googleError})` : (e?.response?.data?.message || "Could not list accounts.")); });
     }
   }, [status]);
 
