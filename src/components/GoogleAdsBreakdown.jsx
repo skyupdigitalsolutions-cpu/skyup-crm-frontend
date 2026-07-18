@@ -106,6 +106,14 @@ export default function GoogleAdsBreakdown({ from, to }) {
           {report.adGroups && report.adGroups.length === 0 && report.campaigns && report.campaigns.length === 0 && (
             <p className="text-[12px] text-[#8B92A9]">No data for this date range.</p>
           )}
+
+          {report.partialErrors && Object.keys(report.partialErrors).some((k) => report.partialErrors[k]) && (
+            <div className="mt-2 rounded-lg bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40 px-3 py-2">
+              {Object.keys(report.partialErrors).filter((k) => report.partialErrors[k]).map((k) => (
+                <p key={k} className="text-[11px] text-rose-600">{k}: {report.partialErrors[k]}</p>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
