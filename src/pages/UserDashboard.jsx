@@ -266,8 +266,15 @@ function AttendanceMiniWidget() {
       idleTimerRef.current = setTimeout(goIdle, IDLE_MS);
     };
     const goIdle = async () => {
-      setIdleWarning(true);
-      try { const res = await api.post("/attendance/break/start", { reason: "Auto Idle" }); setRecord(res.data); } catch {}
+      try {
+        const res = await api.post("/attendance/break/start", { reason: "Auto Idle" });
+        setRecord(res.data);
+        // Cross-device guard: the backend may keep status "active" if the
+        // employee has been active on another device (e.g. mobile) within
+        // the idle cutoff, even though this browser tab has been idle.
+        // Only show the idle banner when it actually went idle.
+        setIdleWarning(res.data?.status === "idle");
+      } catch {}
     };
     const events = ["mousemove", "keydown", "mousedown", "touchstart", "scroll"];
     events.forEach(e => window.addEventListener(e, resetIdle, { passive: true }));
