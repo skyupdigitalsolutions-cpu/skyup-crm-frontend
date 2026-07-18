@@ -419,6 +419,21 @@ export default function WebsiteAnalyticsDashboard() {
           ]} /></div>
       )}
 
+      {/* SECTION — Google Ads ad groups (only when GA4 is linked to Google Ads) */}
+      {Array.isArray(data?.adGroups) && data.adGroups.length > 0 && (
+        <div><h2 className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5] mb-3">Ad Group Performance <span className="text-[11px] font-normal text-[#8B92A9]">(Google Ads)</span></h2>
+          <SortableTable initialSort={{ key: "sessions", dir: "desc" }} rows={data.adGroups} columns={[
+            { key: "adGroup", label: "Ad Group", render: (r) => <span className="font-semibold">{r.adGroup}</span> },
+            { key: "campaign", label: "Campaign" },
+            { key: "impressions", label: "Impr.", align: "right", render: (r) => num(r.impressions) },
+            { key: "clicks", label: "Clicks", align: "right", render: (r) => num(r.clicks) },
+            { key: "cost", label: "Cost", align: "right", render: (r) => num(r.cost) },
+            { key: "sessions", label: "Sessions", align: "right", render: (r) => num(r.sessions) },
+            { key: "conversions", label: "Conv.", align: "right", render: (r) => num(r.conversions) },
+            { key: "engagementRate", label: "Engagement", align: "right", render: (r) => `${r.engagementRate}%` },
+          ]} /></div>
+      )}
+
       {/* SECTION 3 — Landing pages */}
       {Array.isArray(data?.landingPages) && (
         <div><h2 className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5] mb-3">Landing Page Performance</h2>
