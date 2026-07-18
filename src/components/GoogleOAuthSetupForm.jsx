@@ -22,16 +22,41 @@ import {
 
 // Best-effort suggestion for the redirect URI the OAuth client must register.
 // Derived at runtime from the app's own API base — never hardcoded.
-function suggestedRedirectUri() {
+function suggestedRedirectUri(callbackPath) {
   const base = import.meta.env.VITE_API_URL;
   if (base && /^https?:\/\//i.test(base)) {
-    return `${base.replace(/\/+$/, "")}/google-analytics/callback`;
+    return `${base.replace(/\/+$/, "")}${callbackPath}`;
   }
   // Relative "/api" (dev/proxy) — fall back to current origin.
-  return `${window.location.origin}/api/google-analytics/callback`;
+  return `${window.location.origin}/api${callbackPath}`;
 }
 
-export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCancel }) {
+// Per-product wiring so the same form serves Analytics and Ads.
+const VARIANTS = {
+  analytics: {
+    basePath: "/google-analytics",
+    callbackPath: "/google-analytics/callback",
+    title: "Set up Google Analytics",
+    blurb: "Add your Google OAuth credentials to connect GA — no server changes needed.",
+    guide: [
+      { n: "2", html: 'Enable <b>Google Analytics Data API</b> + <b>Analytics Admin API</b>.' },
+      { n: "3", html: 'Configure the OAuth consent screen with scope <code>analytics.readonly</code>.' },
+    ],
+  },
+  ads: {
+    basePath: "/google-ads-api",
+    callbackPath: "/google-ads-api/callback",
+    title: "Set up Google Ads API",
+    blurb: "Add your Google OAuth credentials to connect Google Ads — no server changes needed.",
+    guide: [
+      { n: "2", html: 'Enable the <b>Google Ads API</b> in this project.' },
+      { n: "3", html: 'Configure the OAuth consent screen with scope <code>adwords</code>. A <b>developer token</b> (from your Manager account API Center) must be set on the server.' },
+    ],
+  },
+};
+
+export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCancel, variant = "analytics" }) {
+  const cfg = VARIANTS[variant] || VARIANTS.analytics;
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [redirectUri, setRedirectUri] = useState("");
@@ -48,15 +73,15 @@ export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCance
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get("/google-analytics/oauth-config");
+      const { data } = await api.get(`${cfg.basePath}/oauth-config`);
       setClientId(data.clientId || "");
-      setRedirectUri(data.redirectUri || suggestedRedirectUri());
+      setRedirectUri(data.redirectUri || suggestedRedirectUri(cfg.callbackPath));
       setHasSecret(!!data.hasSecret);
       setSource(data.source || null);
     } catch {
-      setRedirectUri(suggestedRedirectUri());
+      setRedirectUri(suggestedRedirectUri(cfg.callbackPath));
     } finally { setLoading(false); }
-  }, []);
+  }, [cfg.basePath, cfg.callbackPath]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -73,7 +98,7 @@ export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCance
 
     setSaving(true);
     try {
-      await api.post("/google-analytics/oauth-config", {
+      await api.post(`${cfg.basePath}/oauth-config`, {
         clientId: clientId.trim(),
         clientSecret: clientSecret.trim(), // blank keeps the existing secret
         redirectUri: redirectUri.trim(),
@@ -98,9 +123,9 @@ export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCance
           <KeyRound className="w-4.5 h-4.5 text-emerald-600" />
         </div>
         <div className="min-w-0">
-          <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Set up Google Analytics</p>
+          <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{cfg.title}</p>
           <p className="text-[11px] text-[#8B92A9] mt-0.5">
-            Add your Google OAuth credentials to connect GA — no server changes needed.
+            {cfg.blurb}{" "}
             {source === "env" && " Server env credentials are active; saving here overrides them for this company."}
           </p>
         </div>
@@ -116,8 +141,7 @@ export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCance
         {showGuide && (
           <div className="px-3 py-3 text-[11px] leading-relaxed text-[#4B5168] dark:text-[#9DA3BB] space-y-1.5">
             <p>1. Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-emerald-600 font-semibold inline-flex items-center gap-0.5">Google Cloud Console → Credentials <ExternalLink className="w-3 h-3" /></a></p>
-            <p>2. Enable <span className="font-semibold">Google Analytics Data API</span> + <span className="font-semibold">Analytics Admin API</span>.</p>
-            <p>3. Configure the OAuth consent screen with scope <code className="bg-black/5 dark:bg-white/10 px-1 rounded">analytics.readonly</code>.</p>
+            {cfg.guide.map((g) => (<p key={g.n}>{g.n}. <span dangerouslySetInnerHTML={{ __html: g.html }} /></p>))}
             <p>4. Create an <span className="font-semibold">OAuth client ID → Web application</span>.</p>
             <p>5. Under <span className="font-semibold">Authorized redirect URIs</span>, add the exact URI below.</p>
             <p>6. Copy the <span className="font-semibold">Client ID</span> &amp; <span className="font-semibold">Client Secret</span> into the fields here.</p>
@@ -130,7 +154,7 @@ export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCance
         <label className={LABEL}>Authorized Redirect URI <span className="text-[#DC2626]">*</span></label>
         <div className="relative">
           <input type="text" value={redirectUri} onChange={(e) => setRedirectUri(e.target.value)}
-            placeholder="https://your-api-host/api/google-analytics/callback" className={`${FIELD} pr-10`} />
+            placeholder={`https://your-api-host/api${cfg.callbackPath}`} className={`${FIELD} pr-10`} />
           <button type="button" onClick={copyRedirect} title="Copy" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-emerald-600">
             {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
           </button>
