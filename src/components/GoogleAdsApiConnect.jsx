@@ -62,6 +62,9 @@ export default function GoogleAdsApiConnect({ onSynced }) {
     try {
       const { data } = await api.post("/google-ads-api/sync");
       setMsg(`Synced ${data.campaigns} campaigns (${data.updated} updated, ${data.created} added).`);
+      const pe = data.partialErrors || {};
+      const reasons = Object.keys(pe).filter((k) => pe[k]).map((k) => `${k}: ${pe[k]}`);
+      if (reasons.length) setError(reasons.join(" · "));
       await loadStatus();
       onSynced && onSynced();
     } catch (e) { setError(e?.response?.data?.message || "Sync failed."); }
