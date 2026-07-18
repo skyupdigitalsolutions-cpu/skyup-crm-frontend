@@ -62,6 +62,10 @@ export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCance
   const [redirectUri, setRedirectUri] = useState("");
   const [hasSecret, setHasSecret] = useState(false);
   const [source, setSource] = useState(null);
+  const [developerToken, setDeveloperToken] = useState("");
+  const [hasDeveloperToken, setHasDeveloperToken] = useState(false);
+  const [loginCustomerId, setLoginCustomerId] = useState("");
+  const [showDevToken, setShowDevToken] = useState(false);
 
   const [showSecret, setShowSecret] = useState(false);
   const [showGuide, setShowGuide] = useState(!compact);
@@ -77,6 +81,8 @@ export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCance
       setClientId(data.clientId || "");
       setRedirectUri(data.redirectUri || suggestedRedirectUri(cfg.callbackPath));
       setHasSecret(!!data.hasSecret);
+      setHasDeveloperToken(!!data.hasDeveloperToken);
+      setLoginCustomerId(data.loginCustomerId || "");
       setSource(data.source || null);
     } catch {
       setRedirectUri(suggestedRedirectUri(cfg.callbackPath));
@@ -95,6 +101,7 @@ export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCance
     if (!redirectUri.trim()) return setError("Redirect URI is required.");
     if (!/^https?:\/\//i.test(redirectUri.trim())) return setError("Redirect URI must start with http:// or https://");
     if (!clientSecret.trim() && !hasSecret) return setError("Client Secret is required.");
+    if (variant === "ads" && !developerToken.trim() && !hasDeveloperToken) return setError("Developer token is required.");
 
     setSaving(true);
     try {
@@ -102,6 +109,8 @@ export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCance
         clientId: clientId.trim(),
         clientSecret: clientSecret.trim(), // blank keeps the existing secret
         redirectUri: redirectUri.trim(),
+        developerToken: developerToken.trim(), // blank keeps the existing token
+        loginCustomerId: loginCustomerId.trim(),
       });
       onSaved && onSaved();
     } catch (e) {
@@ -181,6 +190,30 @@ export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCance
         </div>
         <p className="text-[10px] text-[#8B92A9] mt-1">Stored encrypted on the server. Never shown again after saving.</p>
       </div>
+
+      {/* Google Ads only — Developer token + Login customer ID */}
+      {variant === "ads" && (
+        <>
+          <div>
+            <label className={LABEL}>Developer Token {hasDeveloperToken ? <span className="text-[10px] font-normal text-emerald-600">(saved — leave blank to keep)</span> : <span className="text-[#DC2626]">*</span>}</label>
+            <div className="relative">
+              <input type={showDevToken ? "text" : "password"} value={developerToken} onChange={(e) => setDeveloperToken(e.target.value)}
+                placeholder={hasDeveloperToken ? "••••••••••••••••" : "from your Manager account → API Center"} className={`${FIELD} pr-10`} />
+              <button type="button" onClick={() => setShowDevToken((v) => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168]">
+                {showDevToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-[10px] text-[#8B92A9] mt-1">Google Ads → Manager account → Admin → API Center. Needs Basic access to read live accounts.</p>
+          </div>
+
+          <div>
+            <label className={LABEL}>Login Customer ID <span className="text-[10px] font-normal text-[#8B92A9]">(manager ID — optional)</span></label>
+            <input type="text" value={loginCustomerId} onChange={(e) => setLoginCustomerId(e.target.value)}
+              placeholder="e.g. 9578092037 (digits only)" className={FIELD} />
+            <p className="text-[10px] text-[#8B92A9] mt-1">Set this to your Manager (MCC) account ID when the Ads account is accessed through a manager.</p>
+          </div>
+        </>
+      )}
 
       {error && <p className="text-[12px] text-rose-600">{error}</p>}
 
