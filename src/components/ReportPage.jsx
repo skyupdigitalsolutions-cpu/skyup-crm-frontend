@@ -8,6 +8,7 @@ import { normalizePhone } from "../utils/normalizePhone";
 import { AlertTriangle } from "lucide-react";
 import NonConversionReport from "./NonConversionReport";
 import MetaInsightsReport from "./MetaInsightsReport";
+import MetaAdLevelReport from "./MetaAdLevelReport";
 import GoogleAdsInsightsReport from "./GoogleAdsInsightsReport";
 import GoogleAdsDashboard from "./GoogleAdsDashboard";
 import WebsiteInsightsReport from "./WebsiteInsightsReport";
@@ -2104,6 +2105,7 @@ export default function ReportPage() {
     { id: "leads",          label: "Lead Report" },
     { id: "nonConversion",  label: "Non-Conversion" },
     { id: "meta",           label: "Meta Performance" },
+    { id: "metaAds",        label: "Meta Ad Level" },
     { id: "google",         label: "Google Ads Performance" },
     { id: "website",        label: "Website Performance" },
   ];
@@ -2134,6 +2136,7 @@ export default function ReportPage() {
       {subTab === "leads"         && <LeadReportPage />}
       {subTab === "nonConversion" && <NonConversionReport />}
       {subTab === "meta"          && <MetaInsightsReport />}
+      {subTab === "metaAds"       && <div className="max-w-6xl mx-auto px-4 md:px-8 py-6"><MetaAdLevelReport /></div>}
       {subTab === "google"        && <GoogleAdsDashboard />}
       {subTab === "website"       && <WebsiteAnalyticsDashboard />}
     </div>
