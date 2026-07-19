@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import api from "../data/axiosConfig";
 import GoogleAdsApiConnect from "./GoogleAdsApiConnect";
 import GoogleAdsBreakdown from "./GoogleAdsBreakdown";
+import AISummaryPanel from "./AISummaryPanel";
 import {
   TrendingUp, TrendingDown, Minus, Sparkles, Loader2, FileDown, AlertTriangle,
   IndianRupee, Users, Target, MousePointerClick, Award, Percent, ArrowUpDown,
@@ -144,7 +145,7 @@ export default function GoogleAdsDashboard() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const { data } = await api.get("/google-ads-config/dashboard", { params: { ...params(), ai: "false" } });
+      const { data } = await api.get("/google-ads-config/dashboard", { params: { ...params(), ai: "true" }, timeout: 70000 });
       setData(data);
     } catch (e) {
       setError(e?.response?.data?.message || "Failed to load dashboard.");
@@ -255,56 +256,15 @@ export default function GoogleAdsDashboard() {
           )}
         </section>
 
-        {/* SECTION 12 — AI analysis */}
+        {/* SECTION 12 — AI Summary & Suggestions */}
         {data && (
-          <section className={`${CARD} overflow-hidden`}>
-            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#E4E7EF] dark:border-[#1E2133] bg-gradient-to-r from-blue-50 to-sky-50 dark:from-blue-950/20 dark:to-sky-950/20">
-              <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center"><Sparkles className="w-3.5 h-3.5 text-white" /></div>
-              <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">AI Business Analysis</span>
-              {data.aiAnalysis?.priority && (
-                <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  data.aiAnalysis.priority === "High" ? "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
-                  : data.aiAnalysis.priority === "Low" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                  : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"}`}>
-                  {data.aiAnalysis.priority} priority
-                </span>
-              )}
-            </div>
-            <div className="p-5">
-              {data.aiAnalysisError ? (
-                <div className="flex items-center gap-2 text-[13px] text-amber-600 dark:text-amber-400"><AlertTriangle className="w-4 h-4" /> {data.aiAnalysisError}</div>
-              ) : !data.aiAnalysis ? (
-                <div className="flex flex-col items-center py-6 gap-2 text-center">
-                  <Sparkles className="w-7 h-7 text-[#C4C9DA]" />
-                  <p className="text-[13px] text-[#8B92A9]">Click "Generate AI Report" to analyze spend, funnel drop-offs and sales performance.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {data.aiAnalysis.summary && <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed border-l-2 border-blue-400 pl-3">{data.aiAnalysis.summary}</p>}
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {data.aiAnalysis.problems?.length > 0 && (
-                      <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40 rounded-xl p-4">
-                        <div className="flex items-center gap-1.5 mb-3"><AlertCircle className="w-3.5 h-3.5 text-rose-600" /><span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">Problems Detected</span></div>
-                        <ul className="space-y-2">{data.aiAnalysis.problems.map((p, i) => <li key={i} className="text-[12px] text-[#334155] dark:text-[#CBD5E1]">• {p}</li>)}</ul>
-                      </div>
-                    )}
-                    {data.aiAnalysis.recommendations?.length > 0 && (
-                      <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl p-4">
-                        <div className="flex items-center gap-1.5 mb-3"><Lightbulb className="w-3.5 h-3.5 text-emerald-600" /><span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Recommendations</span></div>
-                        <ul className="space-y-2">{data.aiAnalysis.recommendations.map((r, i) => <li key={i} className="text-[12px] text-[#334155] dark:text-[#CBD5E1]">• {r}</li>)}</ul>
-                      </div>
-                    )}
-                  </div>
-                  {data.aiAnalysis.expectedImpact && (
-                    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl p-4 flex items-start gap-2.5">
-                      <CheckCircle2 className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-                      <div><span className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] block mb-1">Expected Business Impact</span><span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{data.aiAnalysis.expectedImpact}</span></div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
+          <AISummaryPanel
+            analysis={data.aiAnalysis}
+            error={data.aiAnalysisError}
+            loading={aiLoading}
+            onRegenerate={generateAI}
+            source="google"
+          />
         )}
 
         {/* SECTION 3 — Funnel */}
