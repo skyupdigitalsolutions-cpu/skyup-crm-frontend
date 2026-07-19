@@ -21,6 +21,8 @@ const Campaigns      = lazy(() => import("./components/Campaigns"));
 const Dailyreport    = lazy(() => import("./components/DailyReport"));
 const ReportPage     = lazy(() => import("./components/ReportPage"));
 const PerfMarketing  = lazy(() => import("./components/PerformanceMarketingDashboard"));
+const MktLogin       = lazy(() => import("./marketing/MarketingLogin"));
+const MktDashboard   = lazy(() => import("./marketing/MarketingDashboard"));
 const AdminLeadsPage = lazy(() => import("./components/AdminLeadsPage"));
 const Communications = lazy(() => import("./components/Communications"));
 const AttendancePage = lazy(() => import("./pages/AttendancePage"));
@@ -458,6 +460,11 @@ function AppInner() {
     <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
         <Routes>
+          {/* ── Marketing Panel — fully standalone, no CRM auth guards ──── */}
+          <Route path="/marketing/login" element={<Suspense fallback={null}><MktLogin /></Suspense>} />
+          <Route path="/marketing" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"/></div>}><MktDashboard /></Suspense>} />
+
+          {/* ── CRM routes ─────────────────────────────────────────────────────── */}
 
           {/* ── Public login routes ── */}
           <Route path="/login"            element={<LoginGuard><UserLogin /></LoginGuard>} />
