@@ -5,6 +5,7 @@ import {
   Sparkles, Lightbulb, ThumbsUp, ThumbsDown, FileDown, Loader2,
   BarChart3, MousePointerClick, Target, Zap, Eye, ArrowUpRight,
 } from "lucide-react";
+import AISummaryPanel from "./AISummaryPanel";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Meta Ad Performance Report (admin)
@@ -142,7 +143,7 @@ export default function MetaInsightsReport() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const { data } = await api.get("/meta-config/insights", { params: { from, to, ai: "false" } });
+      const { data } = await api.get("/meta-config/insights", { params: { from, to, ai: "true" }, timeout: 60000 });
       setData(data);
     } catch (e) {
       setError(e?.response?.data?.message || "Failed to load Meta insights.");
@@ -310,88 +311,16 @@ export default function MetaInsightsReport() {
           );
         })()}
 
-        {/* ── AI analysis panel ───────────────────────────────────────────── */}
+        {/* ── AI Summary & Suggestions ─────────────────────────────────────── */}
         {data && (
-          <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
-            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#E4E7EF] dark:border-[#1E2133] bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-indigo-950/20 dark:to-violet-950/20">
-              <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
-                <Sparkles className="w-3.5 h-3.5 text-white" />
-              </div>
-              <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">AI Performance Analysis & Suggestions</span>
-              {data.aiFromCache && (
-                <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">Cached</span>
-              )}
-            </div>
-            <div className="p-5">
-              {!data.aiAnalysis && !data.aiAnalysisError ? (
-                <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
-                  <Sparkles className="w-7 h-7 text-[#C4C9DA]" />
-                  <p className="text-[13px] text-[#8B92A9]">No AI analysis yet.</p>
-                  <p className="text-[12px] text-[#C4C9DA]">Click "Generate AI Report" above to run it.</p>
-                </div>
-              ) : data.aiAnalysisError ? (
-                <div className="flex items-center gap-2 text-[13px] text-amber-600 dark:text-amber-400">
-                  <AlertTriangle className="w-4 h-4 shrink-0" /> {data.aiAnalysisError}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {data.aiAnalysis.summary && (
-                    <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed border-l-2 border-indigo-400 pl-3">
-                      {data.aiAnalysis.summary}
-                    </p>
-                  )}
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {Array.isArray(data.aiAnalysis.topPerformers) && data.aiAnalysis.topPerformers.length > 0 && (
-                      <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl p-4">
-                        <div className="flex items-center gap-1.5 mb-3">
-                          <ThumbsUp className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Top Performers</span>
-                        </div>
-                        <ul className="space-y-2">
-                          {data.aiAnalysis.topPerformers.map((p, i) => (
-                            <li key={i} className="text-[12px] text-[#334155] dark:text-[#CBD5E1]">
-                              <span className="font-semibold text-[#0F1117] dark:text-[#DDE1F5]">{p.campaign}:</span> {p.why}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {Array.isArray(data.aiAnalysis.underperformers) && data.aiAnalysis.underperformers.length > 0 && (
-                      <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40 rounded-xl p-4">
-                        <div className="flex items-center gap-1.5 mb-3">
-                          <ThumbsDown className="w-3.5 h-3.5 text-rose-600" />
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">Needs Attention</span>
-                        </div>
-                        <ul className="space-y-2">
-                          {data.aiAnalysis.underperformers.map((p, i) => (
-                            <li key={i} className="text-[12px] text-[#334155] dark:text-[#CBD5E1]">
-                              <span className="font-semibold text-[#0F1117] dark:text-[#DDE1F5]">{p.campaign}:</span> {p.issue}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                  {Array.isArray(data.aiAnalysis.suggestions) && data.aiAnalysis.suggestions.length > 0 && (
-                    <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl p-4">
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9]">Improvement Suggestions</span>
-                      </div>
-                      <ul className="space-y-2">
-                        {data.aiAnalysis.suggestions.map((s, i) => (
-                          <li key={i} className="flex items-start gap-2.5 text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
-                            <span className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-                            {s}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+          <AISummaryPanel
+            analysis={data.aiAnalysis}
+            error={data.aiAnalysisError}
+            loading={aiLoading}
+            cached={data.aiFromCache}
+            onRegenerate={generateAI}
+            source="meta"
+          />
         )}
 
         {/* ── Per-campaign cards ──────────────────────────────────────────── */}
