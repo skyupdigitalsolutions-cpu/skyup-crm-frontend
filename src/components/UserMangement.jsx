@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../data/axiosConfig";
+import { EmployeeLanguages } from "./LanguageControls";
 import { getRole, getStoredUser } from "../data/dataService";
 import useEntitlements from "../hooks/useEntitlements";
 
@@ -505,6 +506,12 @@ function MemberRow({ member, onRequestRemove, onViewCreds, onReassign, onMeeting
           <p className="text-[10px] text-blue-500 dark:text-blue-400 truncate mt-0.5">
             Assigned: {assignedAdminName}
           </p>
+        )}
+        {/* Languages this employee can handle (for language-based lead assignment) */}
+        {!isAdmin && (
+          <div className="mt-1.5 max-w-sm">
+            <EmployeeLanguages user={member} compact />
+          </div>
         )}
       </div>
       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition">
