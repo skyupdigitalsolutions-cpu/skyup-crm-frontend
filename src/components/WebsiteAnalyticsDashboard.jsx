@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../data/axiosConfig";
 import GoogleOAuthSetupForm from "./GoogleOAuthSetupForm";
+import AISummaryPanel from "./AISummaryPanel";
 import {
   Globe, Loader2, Sparkles, AlertTriangle, TrendingUp, TrendingDown, Minus,
   Users, MousePointerClick, Timer, Target, RefreshCw, Link2, CheckCircle2,
@@ -216,7 +217,7 @@ export default function WebsiteAnalyticsDashboard() {
     finally { withAI ? setAiLoading(false) : setLoading(false); }
   }, [from, to, status]);
 
-  useEffect(() => { if (status?.connected && !status?.needsProperty) loadDashboard(false); }, [from, to, status]); // eslint-disable-line
+  useEffect(() => { if (status?.connected && !status?.needsProperty) loadDashboard(true); }, [from, to, status]); // eslint-disable-line
 
   // ── Render states ───────────────────────────────────────────────────────────
   if (statusLoading) {
@@ -350,30 +351,14 @@ export default function WebsiteAnalyticsDashboard() {
         </div>
       )}
 
-      {/* AI panel */}
-      {(data?.aiAnalysis || data?.aiAnalysisError || aiLoading) && (
-        <div className={`${CARD} overflow-hidden`}>
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#E4E7EF] dark:border-[#1E2133] bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20">
-            <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center"><Sparkles className="w-3.5 h-3.5 text-white" /></div>
-            <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">AI Website Analysis</span>
-            {data?.aiAnalysis?.priority && <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${data.aiAnalysis.priority === "High" ? "bg-rose-100 text-rose-700" : data.aiAnalysis.priority === "Low" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{data.aiAnalysis.priority} priority</span>}
-          </div>
-          <div className="p-5">
-            {aiLoading ? <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-emerald-500" /></div>
-              : data?.aiAnalysisError ? <p className="text-[13px] text-amber-600 flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{data.aiAnalysisError}</p>
-              : data?.aiAnalysis ? (
-                <div className="space-y-4">
-                  {data.aiAnalysis.summary && <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed border-l-2 border-emerald-400 pl-3">{data.aiAnalysis.summary}</p>}
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {data.aiAnalysis.problems?.length > 0 && <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40 rounded-xl p-4"><div className="flex items-center gap-1.5 mb-2"><AlertCircle className="w-3.5 h-3.5 text-rose-600" /><span className="text-[10px] font-bold uppercase tracking-wider text-rose-700">Problems</span></div><ul className="space-y-1.5">{data.aiAnalysis.problems.map((p, i) => <li key={i} className="text-[12px] text-[#334155] dark:text-[#CBD5E1]">• {p}</li>)}</ul></div>}
-                    {data.aiAnalysis.recommendations?.length > 0 && <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl p-4"><div className="flex items-center gap-1.5 mb-2"><Lightbulb className="w-3.5 h-3.5 text-emerald-600" /><span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Recommendations</span></div><ul className="space-y-1.5">{data.aiAnalysis.recommendations.map((r, i) => <li key={i} className="text-[12px] text-[#334155] dark:text-[#CBD5E1]">• {r}</li>)}</ul></div>}
-                  </div>
-                  {data.aiAnalysis.expectedImpact && <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl p-4 flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" /><div><span className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] block mb-1">Expected Impact</span><span className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{data.aiAnalysis.expectedImpact}</span></div></div>}
-                </div>
-              ) : null}
-          </div>
-        </div>
-      )}
+      {/* AI Summary & Suggestions */}
+      <AISummaryPanel
+        analysis={data?.aiAnalysis}
+        error={data?.aiAnalysisError}
+        loading={aiLoading}
+        onRegenerate={() => loadDashboard(true)}
+        source="website"
+      />
 
       {/* SECTION 11 — Trend charts */}
       {ts.length > 0 && (
