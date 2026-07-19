@@ -4,10 +4,10 @@ import GoogleAdsApiConnect from "./GoogleAdsApiConnect";
 import GoogleAdsBreakdown from "./GoogleAdsBreakdown";
 import {
   TrendingUp, TrendingDown, Minus, Sparkles, Loader2, FileDown, AlertTriangle,
-  DollarSign, Users, Target, MousePointerClick, Award, Percent, ArrowUpDown,
+  IndianRupee, Users, Target, MousePointerClick, Award, Percent, ArrowUpDown,
   Filter, Lightbulb, AlertCircle, CheckCircle2, ChevronUp, ChevronDown, Wallet,
 } from "lucide-react";
-
+ 
 // ─────────────────────────────────────────────────────────────────────────────
 // Google Ads — Business Performance Dashboard
 // Revenue-focused view built from CRM data + manually-entered ad metrics.
@@ -45,8 +45,8 @@ function KpiCard({ kpi }) {
   const tl = TL[t.color] || TL.orange;
   const TrendIcon = t.dir === "up" ? TrendingUp : t.dir === "down" ? TrendingDown : Minus;
   const ICONS = {
-    spend: Wallet, revenue: DollarSign, roas: TrendingUp, roi: Percent, clicks: MousePointerClick,
-    leads: Users, qualified: Target, won: Award, cpl: DollarSign, cpa: DollarSign, conversionRate: Percent,
+    spend: Wallet, revenue: IndianRupee, roas: TrendingUp, roi: Percent, clicks: MousePointerClick,
+    leads: Users, qualified: Target, won: Award, cpl: IndianRupee, cpa: IndianRupee, conversionRate: Percent,
   };
   const Icon = ICONS[kpi.key] || Target;
   return (
