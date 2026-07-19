@@ -42,14 +42,91 @@ const STAT_META = [
 
 function StatCard({ label, value, icon: Icon, accent, bg }) {
   return (
-    <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-4 flex flex-col gap-3">
-      <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+    <div className={`relative overflow-hidden bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-4 flex flex-col gap-3 transition-all hover:shadow-lg hover:-translate-y-0.5`}>
+      <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
         <Icon className={`w-4 h-4 ${accent}`} />
       </div>
       <div>
         <p className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">{label}</p>
-        <p className="text-[18px] font-bold text-[#0F1117] dark:text-[#DDE1F5] leading-none">{value}</p>
+        <p className="text-[20px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5] leading-none">{value}</p>
       </div>
+    </div>
+  );
+}
+
+const CHART_COLORS = ["#6366F1", "#10B981", "#F59E0B", "#EF4444", "#0EA5E9", "#8B5CF6", "#EC4899", "#14B8A6", "#F97316", "#64748B"];
+
+// Ranked gradient bars
+function RankBars({ rows, valueKey, labelKey, format }) {
+  const data = (rows || []).filter((r) => (Number(r[valueKey]) || 0) > 0).slice(0, 8);
+  if (!data.length) return <div className="text-[12px] text-[#8B92A9] py-8 text-center">No data in this range</div>;
+  const max = Math.max(1, ...data.map((d) => Number(d[valueKey]) || 0));
+  return (
+    <div className="space-y-2.5">
+      {data.map((d, i) => (
+        <div key={i} className="flex items-center gap-2.5">
+          <span className="w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>{i + 1}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1">
+              <span className="truncate text-[11px] font-medium text-[#4B5168] dark:text-[#9DA3BB]" title={d[labelKey]}>{d[labelKey] || "—"}</span>
+              <span className="text-[11px] font-bold tabular-nums text-[#0F1117] dark:text-[#DDE1F5] ml-2">{format ? format(d[valueKey]) : numfmt(d[valueKey])}</span>
+            </div>
+            <div className="h-2 rounded-full bg-[#F1F3F9] dark:bg-white/5 overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{ width: `${((Number(d[valueKey]) || 0) / max) * 100}%`, background: `linear-gradient(90deg, ${CHART_COLORS[i % CHART_COLORS.length]}CC, ${CHART_COLORS[i % CHART_COLORS.length]})` }} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Donut with center total
+function Donut({ data, format, centerLabel }) {
+  const rows = (data || []).filter((d) => (Number(d.value) || 0) > 0);
+  const total = rows.reduce((s, d) => s + (Number(d.value) || 0), 0) || 1;
+  let acc = 0;
+  const R = 54, C = 2 * Math.PI * R;
+  if (!rows.length) return <div className="text-[12px] text-[#8B92A9] py-8 text-center">No data</div>;
+  return (
+    <div className="flex items-center gap-4">
+      <div className="relative w-[130px] h-[130px] shrink-0">
+        <svg viewBox="0 0 140 140" className="w-full h-full">
+          <g transform="translate(70,70) rotate(-90)">
+            <circle r={R} fill="none" stroke="currentColor" className="text-[#F1F3F9] dark:text-white/5" strokeWidth="15" />
+            {rows.slice(0, 10).map((d, i) => {
+              const frac = (Number(d.value) || 0) / total;
+              const el = <circle key={i} r={R} fill="none" stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth="15" strokeLinecap="round" strokeDasharray={`${Math.max(0, frac * C - 2)} ${C}`} strokeDashoffset={-acc * C} />;
+              acc += frac; return el;
+            })}
+          </g>
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-[9px] text-[#8B92A9] uppercase tracking-wide">{centerLabel || "Total"}</span>
+          <span className="text-[13px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{format ? format(total) : numfmt(total)}</span>
+        </div>
+      </div>
+      <div className="flex-1 min-w-0 space-y-1.5">
+        {rows.slice(0, 6).map((d, i) => (
+          <div key={i} className="flex items-center gap-2 text-[11px]">
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+            <span className="truncate text-[#4B5168] dark:text-[#9DA3BB]" title={d.label}>{d.label}</span>
+            <span className="ml-auto font-bold text-[#0F1117] dark:text-[#DDE1F5]">{Math.round((d.value / total) * 100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChartCard({ title, icon: Icon, children }) {
+  return (
+    <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-4">
+      <div className="flex items-center gap-2 mb-3">
+        {Icon && <Icon className="w-4 h-4 text-[#8B92A9]" />}
+        <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">{title}</p>
+      </div>
+      {children}
     </div>
   );
 }
@@ -180,6 +257,58 @@ export default function MetaInsightsReport() {
             ))}
           </div>
         )}
+
+        {/* ── Plain-language summary strip ─────────────────────────────────── */}
+        {t && (
+          <div className="rounded-2xl p-4 bg-gradient-to-br from-indigo-500 via-blue-500 to-sky-500 text-white shadow-md">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Sparkles className="w-4 h-4" />
+              <span className="text-[11px] font-bold uppercase tracking-wider opacity-90">At a glance</span>
+            </div>
+            {(t.spend || 0) > 0 || (t.leads || 0) > 0 ? (
+              <p className="text-[13px] leading-relaxed">
+                You spent <b>{money(t.spend)}</b> across <b>{numfmt((data.campaigns || []).length)}</b> campaign(s), reaching <b>{numfmt(t.impressions)}</b> impressions
+                and <b>{numfmt(t.clicks)}</b> clicks, and captured <b>{numfmt(t.leads)}</b> leads at <b>{money(t.costPerLead)}</b> each.
+                {(t.converted || 0) > 0 ? <> Of those, <b>{numfmt(t.converted)}</b> converted{t.costPerConversion != null ? <> at <b>{money(t.costPerConversion)}</b> per conversion</> : null}.</> : null}
+              </p>
+            ) : (
+              <p className="text-[13px] leading-relaxed opacity-95">No Meta spend or leads in this period. Pick a wider date range or a period when campaigns were active.</p>
+            )}
+          </div>
+        )}
+
+        {/* ── Charts ───────────────────────────────────────────────────────── */}
+        {data && Array.isArray(data.campaigns) && data.campaigns.some((c) => c.metrics && (c.metrics.spend || 0) > 0) && (() => {
+          const rows = data.campaigns.map((c) => ({
+            name:  c.campaignName || "—",
+            spend: (c.metrics && c.metrics.spend) || 0,
+            leads: c.leads || 0,
+            cpl:   c.costPerLead || 0,
+          }));
+          const bySpend = [...rows].sort((a, b) => b.spend - a.spend);
+          const byLeads = [...rows].sort((a, b) => b.leads - a.leads);
+          const byCpl   = rows.filter((r) => r.cpl > 0).sort((a, b) => a.cpl - b.cpl); // lower = better
+          return (
+            <>
+              <div className="grid md:grid-cols-2 gap-3">
+                <ChartCard title="Spend by Campaign" icon={BarChart3}>
+                  <RankBars rows={bySpend} valueKey="spend" labelKey="name" format={money} />
+                </ChartCard>
+                <ChartCard title="Spend Share" icon={Target}>
+                  <Donut data={bySpend.map((r) => ({ label: r.name, value: r.spend }))} format={money} centerLabel="Spend" />
+                </ChartCard>
+              </div>
+              <div className="grid md:grid-cols-2 gap-3">
+                <ChartCard title="Leads by Campaign" icon={Target}>
+                  <RankBars rows={byLeads} valueKey="leads" labelKey="name" format={numfmt} />
+                </ChartCard>
+                <ChartCard title="Cost per Lead (lower is better)" icon={TrendingUp}>
+                  <RankBars rows={byCpl} valueKey="cpl" labelKey="name" format={money} />
+                </ChartCard>
+              </div>
+            </>
+          );
+        })()}
 
         {/* ── AI analysis panel ───────────────────────────────────────────── */}
         {data && (
