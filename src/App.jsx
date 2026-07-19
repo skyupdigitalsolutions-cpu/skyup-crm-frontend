@@ -20,6 +20,7 @@ const Dashboard      = lazy(() => import("./components/Dashboard"));
 const Campaigns      = lazy(() => import("./components/Campaigns"));
 const Dailyreport    = lazy(() => import("./components/DailyReport"));
 const ReportPage     = lazy(() => import("./components/ReportPage"));
+const PerfMarketing  = lazy(() => import("./components/PerformanceMarketingDashboard"));
 const AdminLeadsPage = lazy(() => import("./components/AdminLeadsPage"));
 const Communications = lazy(() => import("./components/Communications"));
 const AttendancePage = lazy(() => import("./pages/AttendancePage"));
@@ -527,6 +528,9 @@ function AppInner() {
           }/>
 
           {/* ── Admin-only pages ── */}
+          <Route path="/performance-marketing" element={
+              <AppLayout><PerfMarketing /></AppLayout>
+          } />
           <Route path="/reportpage" element={
             <AdminRoute>
               <AppLayout><FeatureGate featureKey="basic-reports"><ReportPage /></FeatureGate></AppLayout>
