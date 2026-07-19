@@ -7,6 +7,7 @@ import CRMEncryption from "../utils/CRMEncryption";
 import { getRole } from "../data/dataService";
 import { normalizePhone } from "../utils/normalizePhone";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
+import { LanguageFilter, LeadLanguageBadge } from "./LanguageControls";
 import {
   RefreshCw,
   Plus,
@@ -1755,6 +1756,7 @@ function mapLead(l) {
     campaign:       l.campaign       || "—",
     adSetName:      l.adSetName      || "",
     agent:          l.user?.name || l.assignedTo?.name || l.agent || "Unassigned",
+    language:       l.language       || "",
     status:         l.status         || "New",
     Quality:        l.temperature || l.Quality || null,
     // ── Qualification scoring (Meta ad-set leads) ──────────────────────────
@@ -1812,6 +1814,7 @@ export default function AdminLeadsPage() {
   const [filterSrc,   setFilterSrc]   = useState("All");
   const [filterTemp,  setFilterTemp]  = useState("All");
   const [filterProject, setFilterProject] = useState("All");
+  const [filterLang,    setFilterLang]    = useState("");
   const [projects,      setProjects]      = useState([]);
   const [dateFrom,    setDateFrom]    = useState("");
   const [dateTo,      setDateTo]      = useState("");
@@ -2008,11 +2011,13 @@ export default function AdminLeadsPage() {
           (p?._id ? String(p._id) : String(p)) === filterProject
         );
 
+      const matchLang   = !filterLang ? true : (filterLang === "none" ? !l.language : l.language === filterLang);
+
       let matchDate = true;
       if (dateFrom) matchDate = matchDate && new Date(l._raw_date) >= new Date(dateFrom);
       if (dateTo)   matchDate = matchDate && new Date(l._raw_date) <= new Date(dateTo + "T23:59:59");
 
-      return matchSearch && matchSt && matchAgent && matchSrc && matchTemp && matchDate && matchProject;
+      return matchSearch && matchSt && matchAgent && matchSrc && matchTemp && matchDate && matchProject && matchLang;
     });
     return res.slice().sort((a, b) => {
       if (sortBy === "date_desc") return new Date(b._raw_date || 0) - new Date(a._raw_date || 0);
@@ -2021,14 +2026,14 @@ export default function AdminLeadsPage() {
       if (sortBy === "status")    return a.status.localeCompare(b.status);
       return 0;
     });
-  }, [allLeads, search, filterSt, filterAgent, filterSrc, filterTemp, dateFrom, dateTo, sortBy, filterProject]);
+  }, [allLeads, search, filterSt, filterAgent, filterSrc, filterTemp, dateFrom, dateTo, sortBy, filterProject, filterLang]);
 
   const totalPages = Math.ceil(displayed.length / PER_PAGE);
   const paged      = displayed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const clearFilters = () => {
     setSearch(""); setFilterSt("All"); setFilterAgent("All"); setFilterSrc("All");
-    setFilterTemp("All"); setFilterProject("All"); setDateFrom(""); setDateTo(""); setPage(1);
+    setFilterTemp("All"); setFilterProject("All"); setFilterLang(""); setDateFrom(""); setDateTo(""); setPage(1);
     setShowMoreFilters(false);
   };
 
@@ -2165,6 +2170,7 @@ export default function AdminLeadsPage() {
           </select>
 
           {/* Desktop-only: Project filter */}
+          <span className="hidden sm:inline-flex"><LanguageFilter value={filterLang} onChange={v => { setFilterLang(v); setPage(1); }} /></span>
           <select value={filterProject} onChange={e => { setFilterProject(e.target.value); setPage(1); }} className={`${INP} hidden sm:block`}>
             <option value="All">All Projects</option>
             {projects.map(p => (
@@ -2377,6 +2383,9 @@ export default function AdminLeadsPage() {
                                   <QualificationScore lead={l} showCategory={false} />
                                 </div>
                               )}
+                              <div className="mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                <LeadLanguageBadge lead={l} onChange={(id, lang) => setAllLeads(prev => prev.map(x => String(x._id) === String(id) ? { ...x, language: lang } : x))} />
+                              </div>
                             </div>
                           </div>
                         </td>
