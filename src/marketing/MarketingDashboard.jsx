@@ -289,6 +289,44 @@ function MktAdRow({ad}){
   );
 }
 
+// ── Meta campaign card for MetaAdsTab (own component — no hook in map) ────────
+function MetaCampaignCard({name,ads,ci}){
+  const[open,setOpen]=useState(false);
+  const spend=ads.reduce((s,a)=>s+(a.metrics.spend||0),0);
+  const impr=ads.reduce((s,a)=>s+(a.metrics.impressions||0),0);
+  const clicks=ads.reduce((s,a)=>s+(a.metrics.clicks||0),0);
+  const reach=ads.reduce((s,a)=>s+(a.metrics.reach||0),0);
+  const ctrC=impr>0?(clicks/impr)*100:0;
+  const active=ads.filter(a=>a.status==="ACTIVE").length;
+  const goodC=ads.filter(a=>scoreAd(a.metrics).label==="Good").length;
+  const needsC=ads.filter(a=>scoreAd(a.metrics).label==="Needs Attention").length;
+  const campScore=scoreAd({ctr:ctrC,cpc:clicks>0?spend/clicks:0,frequency:0});
+  const CampScoreIcon=campScore.icon;
+  return(
+    <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02]" onClick={()=>setOpen(!open)}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-[13px] shrink-0" style={{background:COLORS[ci%COLORS.length]}}>{ci+1}</div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5] truncate">{name}</p>
+          <p className="text-[10px] text-[#8B92A9]">{ads.length} ads · {active} active · <span className="text-emerald-600">{goodC} good</span> · <span className="text-rose-500">{needsC} need attention</span></p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="text-right hidden sm:block"><p className="text-[12px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">₹{Number(spend).toLocaleString("en-IN",{maximumFractionDigits:0})}</p><p className="text-[9px] text-[#8B92A9]">Spent</p></div>
+          <div className="text-right hidden md:block"><p className="text-[12px] font-bold" style={{color:ctrC>=2?"#10B981":ctrC>=1?"#F59E0B":"#EF4444"}}>{ctrC.toFixed(2)}%</p><p className="text-[9px] text-[#8B92A9]">CTR</p></div>
+          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${campScore.bg}`} style={{color:campScore.color}}><CampScoreIcon className="w-3 h-3"/>{campScore.label}</span>
+          {open?<ChevronUp className="w-4 h-4 text-[#8B92A9]"/>:<ChevronDown className="w-4 h-4 text-[#8B92A9]"/>}
+        </div>
+      </div>
+      <div className="grid grid-cols-4 sm:grid-cols-8 bg-[#F8F9FC] dark:bg-[#0D0F14] border-t border-[#E4E7EF] dark:border-[#1E2133] divide-x divide-[#E4E7EF] dark:divide-[#1E2133]">
+        {[["Spend",`₹${Number(spend).toLocaleString("en-IN",{maximumFractionDigits:0})}`],["Impressions",Number(impr).toLocaleString("en-IN")],["Reach",Number(reach).toLocaleString("en-IN")],["Clicks",Number(clicks).toLocaleString("en-IN")],["CTR",`${ctrC.toFixed(2)}%`],["CPM",`₹${impr>0?(spend/impr*1000).toFixed(2):0}`],["CPC",`₹${clicks>0?(spend/clicks).toFixed(2):0}`],["Ads",ads.length]].map(([k,v])=>(
+          <div key={k} className="flex flex-col px-2 py-2"><span className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">{k}</span><span className="text-[11px] font-bold text-[#0F1117] dark:text-[#DDE1F5] tabular-nums">{v}</span></div>
+        ))}
+      </div>
+      {open&&<div>{ads.map((ad,ai)=><MktAdRow key={ad.adId||ai} ad={ad}/>)}</div>}
+    </div>
+  );
+}
+
 // ── Meta Ads tab ─────────────────────────────────────────────────────────────
 function MetaAdsTab({from,to}){
   const[data,setData]=useState(null);
@@ -384,43 +422,9 @@ function MetaAdsTab({from,to}){
       {view==="campaigns"&&(
         <div className="space-y-3">
           {byCampaign.length===0&&<div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-10 text-center text-[12px] text-[#8B92A9]">No ads in this period. Try a wider date range.</div>}
-          {byCampaign.map(([name,ads],ci)=>{
-            const spend=ads.reduce((s,a)=>s+(a.metrics.spend||0),0);
-            const impr=ads.reduce((s,a)=>s+(a.metrics.impressions||0),0);
-            const clicks=ads.reduce((s,a)=>s+(a.metrics.clicks||0),0);
-            const reach=ads.reduce((s,a)=>s+(a.metrics.reach||0),0);
-            const ctrC=impr>0?(clicks/impr)*100:0;
-            const active=ads.filter(a=>a.status==="ACTIVE").length;
-            const goodC=ads.filter(a=>scoreAd(a.metrics).label==="Good").length;
-            const needsC=ads.filter(a=>scoreAd(a.metrics).label==="Needs Attention").length;
-            const campScore=scoreAd({ctr:ctrC,cpc:clicks>0?spend/clicks:0,frequency:0});
-            const CampScoreIcon=campScore.icon;
-            const[open,setOpen]=useState(false);
-            return(
-              <div key={name} className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
-                <div className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02]" onClick={()=>setOpen(!open)}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-[13px] shrink-0" style={{background:COLORS[ci%COLORS.length]}}>{ci+1}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5] truncate">{name}</p>
-                    <p className="text-[10px] text-[#8B92A9]">{ads.length} ads · {active} active · <span className="text-emerald-600">{goodC} good</span> · <span className="text-rose-500">{needsC} need attention</span></p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="text-right hidden sm:block"><p className="text-[12px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">₹{Number(spend).toLocaleString("en-IN",{maximumFractionDigits:0})}</p><p className="text-[9px] text-[#8B92A9]">Spent</p></div>
-                    <div className="text-right hidden md:block"><p className="text-[12px] font-bold" style={{color:ctrC>=2?"#10B981":ctrC>=1?"#F59E0B":"#EF4444"}}>{ctrC.toFixed(2)}%</p><p className="text-[9px] text-[#8B92A9]">CTR</p></div>
-                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${campScore.bg}`} style={{color:campScore.color}}><CampScoreIcon className="w-3 h-3"/>{campScore.label}</span>
-                    {open?<ChevronUp className="w-4 h-4 text-[#8B92A9]"/>:<ChevronDown className="w-4 h-4 text-[#8B92A9]"/>}
-                  </div>
-                </div>
-                {/* Metrics strip */}
-                <div className="grid grid-cols-4 sm:grid-cols-8 bg-[#F8F9FC] dark:bg-[#0D0F14] border-t border-[#E4E7EF] dark:border-[#1E2133] divide-x divide-[#E4E7EF] dark:divide-[#1E2133]">
-                  {[["Spend",`₹${Number(spend).toLocaleString("en-IN",{maximumFractionDigits:0})}`],["Impressions",Number(impr).toLocaleString("en-IN")],["Reach",Number(reach).toLocaleString("en-IN")],["Clicks",Number(clicks).toLocaleString("en-IN")],["CTR",`${ctrC.toFixed(2)}%`],["CPM",`₹${impr>0?(spend/impr*1000).toFixed(2):0}`],["CPC",`₹${clicks>0?(spend/clicks).toFixed(2):0}`],["Ads",ads.length]].map(([k,v])=>(
-                    <div key={k} className="flex flex-col px-2 py-2"><span className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">{k}</span><span className="text-[11px] font-bold text-[#0F1117] dark:text-[#DDE1F5] tabular-nums">{v}</span></div>
-                  ))}
-                </div>
-                {open&&<div>{ads.map((ad,ai)=><MktAdRow key={ad.adId||ai} ad={ad}/>)}</div>}
-              </div>
-            );
-          })}
+          {byCampaign.map(([name,ads],ci)=>(
+            <MetaCampaignCard key={name+ci} name={name} ads={ads} ci={ci}/>
+          ))}
         </div>
       )}
 
