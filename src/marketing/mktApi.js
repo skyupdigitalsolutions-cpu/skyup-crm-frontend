@@ -25,7 +25,8 @@ mktApi.interceptors.response.use(
   }
 );
 
-// Use main /api/auth/login (same endpoint as CRM — admin creds work here)
-export const mktAuthApi = axios.create({ baseURL: `${BASE}/api/auth` });
+// Use the dedicated marketing panel login endpoint (not main CRM /auth/login)
+// so marketing-only users are never blocked by the main CRM auth guard.
+export const mktAuthApi = axios.create({ baseURL: `${BASE}/api/marketing-panel` });
 
 export default mktApi;
