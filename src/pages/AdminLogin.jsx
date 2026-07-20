@@ -91,7 +91,12 @@ export default function AdminLogin() {
         navigate("/dashboard");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed. Please try again.");
+      const d = err?.response?.data;
+      if (d?.marketingOnly || d?.redirectTo === "/marketing/login") {
+        setError("This account is for the Performance Marketing Dashboard. Please log in at: skyupcrm.com/marketing/login");
+      } else {
+        setError(d?.message || "Login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
