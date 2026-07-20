@@ -17,19 +17,21 @@ export default function MarketingLogin() {
     if (!email.trim() || !password) { setError("Email and password are required."); return; }
     setLoading(true); setError("");
     try {
+      // Uses dedicated /api/marketing-panel/login — only accepts marketingAccess users
       const { data } = await mktAuthApi.post("/login", { email: email.trim().toLowerCase(), password });
-      // Only admins can use the marketing panel
-      const allowed = ["admin", "sub_admin", "super_admin", "superadmin"];
-      if (!allowed.includes(data.role)) {
-        setError("Access denied. Marketing panel is for admins only.");
-        return;
-      }
       localStorage.setItem("mkt_token", data.token);
-      localStorage.setItem("mkt_user", JSON.stringify({ name: data.name, email: data.email, role: data.role, companyName: data.companyName }));
+      localStorage.setItem("mkt_user", JSON.stringify({
+        name: data.name, email: data.email, role: data.role,
+        companyName: data.companyName || data.companyId,
+      }));
       nav("/marketing");
-    } catch (e) {
-      const msg = e?.response?.data?.message || "Login failed. Check your credentials.";
-      setError(msg);
+    } catch (err) {
+      const d = err?.response?.data;
+      if (d?.marketingOnly || (d?.message || "").toLowerCase().includes("marketing panel")) {
+        setError("This account is for the Performance Marketing Panel. You are on the right page — please check your credentials.");
+      } else {
+        setError(d?.message || "Login failed. Check your credentials.");
+      }
     } finally { setLoading(false); }
   };
 
