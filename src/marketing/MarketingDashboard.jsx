@@ -8,7 +8,7 @@ import {
   Loader2, LogOut, Sun, Moon, ChevronUp, ChevronDown, ArrowUpDown,
   Search, Layers, Award, Zap, PieChart, Bell, X, Star, Filter,
   Eye, MousePointerClick, IndianRupee, Percent, Image, ExternalLink,
-  Info, CheckCircle2 as Check2,
+  Info, TrendingUp as TUp,
 } from "lucide-react";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -459,7 +459,76 @@ function MetaAdsTab({from,to}){
   );
 }
 
-// ── Leads Intelligence Tab ────────────────────────────────────────────────────
+// ── Campaign ad-level card (own component so useState is valid) ───────────────
+const CAMP_COLORS=["#6366F1","#10B981","#F59E0B","#EF4444","#0EA5E9","#8B5CF6"];
+function CampaignAdCard({camp,ci}){
+  const[open,setOpen]=useState(false);
+  return(
+    <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-4 cursor-pointer hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02] transition-colors" onClick={()=>setOpen(!open)}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-[13px] shrink-0"
+          style={{background:CAMP_COLORS[ci%CAMP_COLORS.length]}}>{ci+1}</div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5] truncate">{camp.campaign}</p>
+          <p className="text-[10px] text-[#8B92A9]">{camp.adSets.length} ad set{camp.adSets.length!==1?"s":""} · {camp.total} total leads</p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="text-right">
+            <p className="text-[16px] font-extrabold text-emerald-600">{camp.converted}</p>
+            <p className="text-[9px] text-[#8B92A9] uppercase tracking-wide">Converted</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[16px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{camp.convRate}%</p>
+            <p className="text-[9px] text-[#8B92A9] uppercase tracking-wide">Conv. Rate</p>
+          </div>
+          {open?<ChevronUp className="w-4 h-4 text-[#8B92A9]"/>:<ChevronDown className="w-4 h-4 text-[#8B92A9]"/>}
+        </div>
+      </div>
+      <div className="px-4 pb-3">
+        <ConvBar total={camp.total} converted={camp.converted}
+          inProgress={camp.adSets.reduce((s,a)=>s+(a.inProgress||0),0)}
+          notInt={camp.adSets.reduce((s,a)=>s+(a.notInt||0),0)}/>
+      </div>
+      {open&&(
+        <div className="border-t border-[#E4E7EF] dark:border-[#1E2133]">
+          <div className="grid grid-cols-8 bg-[#F8F9FC] dark:bg-[#0D0F14] px-4 py-2 text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] gap-2">
+            <div className="col-span-2">Ad Set / Source</div>
+            <div className="text-center">Total</div>
+            <div className="text-center text-blue-600">New</div>
+            <div className="text-center text-amber-600">In Progress</div>
+            <div className="text-center text-purple-600">Verif.</div>
+            <div className="text-center text-emerald-600">Converted</div>
+            <div className="text-center text-rose-500">Not Int.</div>
+          </div>
+          {camp.adSets.map((adSet,ai)=>(
+            <div key={ai} className="border-t border-[#F1F3F9] dark:border-white/5">
+              <div className="grid grid-cols-8 px-4 py-3 gap-2 hover:bg-[#F8F9FC] dark:hover:bg-white/[0.015] transition-colors">
+                <div className="col-span-2">
+                  <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] truncate">{adSet.adSet||"—"}</p>
+                  <p className="text-[10px] text-[#8B92A9]">{adSet.source}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[14px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{adSet.total}</p>
+                  <p className="text-[9px] font-bold text-[#8B92A9]">{adSet.convRate}% conv</p>
+                </div>
+                <div className="text-center"><p className="text-[14px] font-bold text-blue-600">{adSet.newLeads}</p></div>
+                <div className="text-center"><p className="text-[14px] font-bold text-amber-600">{adSet.inProgress}</p></div>
+                <div className="text-center"><p className="text-[14px] font-bold text-purple-600">{adSet.verif}</p></div>
+                <div className="text-center"><p className="text-[16px] font-extrabold text-emerald-600">{adSet.converted}</p></div>
+                <div className="text-center"><p className="text-[14px] font-bold text-rose-500">{adSet.notInt}</p></div>
+              </div>
+              <div className="px-4 pb-2">
+                <ConvBar total={adSet.total} converted={adSet.converted} inProgress={adSet.inProgress} notInt={adSet.notInt}/>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 const STATUS_COLOR = {
   "New":             { bg:"bg-blue-50 text-blue-700 dark:bg-blue-950/30",     dot:"#3B82F6" },
   "In Progress":     { bg:"bg-amber-50 text-amber-700 dark:bg-amber-950/30",  dot:"#F59E0B" },
@@ -594,7 +663,7 @@ function LeadsIntelligenceTab({from,to}){
 
       {/* View tabs */}
       <div className="flex gap-1 bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl p-1">
-        {[["adlevel","📡 Ad-Level Breakdown"],["converting","✅ Converting Leads"],["all","📋 All Leads"]].map(([v,l])=>(
+        {[["adlevel","Ad-Level Breakdown"],["converting","Converting Leads"],["all","All Leads"]].map(([v,l])=>(
           <button key={v} onClick={()=>{setView(v);setSearch("");}}
             className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${view===v?"bg-indigo-600 text-white shadow":"text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#DDE1F5]"}`}>{l}</button>
         ))}
@@ -606,76 +675,9 @@ function LeadsIntelligenceTab({from,to}){
           {(!data.adLevel||data.adLevel.length===0)&&(
             <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-10 text-center text-[12px] text-[#8B92A9]">No lead data in this period.</div>
           )}
-          {(data.adLevel||[]).map((camp,ci)=>{
-            const [open,setOpen]=useState(false);
-            return(
-              <div key={camp.campaign} className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
-                {/* Campaign header */}
-                <div className="flex items-center gap-3 px-4 py-4 cursor-pointer hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02] transition-colors" onClick={()=>setOpen(!open)}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-[13px] shrink-0"
-                    style={{background:["#6366F1","#10B981","#F59E0B","#EF4444","#0EA5E9","#8B5CF6"][ci%6]}}>{ci+1}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5] truncate">{camp.campaign}</p>
-                    <p className="text-[10px] text-[#8B92A9]">{camp.adSets.length} ad set{camp.adSets.length!==1?"s":""} · {camp.total} total leads</p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <p className="text-[14px] font-extrabold text-emerald-600">{camp.converted}</p>
-                      <p className="text-[9px] text-[#8B92A9] uppercase tracking-wide">Converted</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[14px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{camp.convRate}%</p>
-                      <p className="text-[9px] text-[#8B92A9] uppercase tracking-wide">Conv. Rate</p>
-                    </div>
-                    {open?<ChevronUp className="w-4 h-4 text-[#8B92A9]"/>:<ChevronDown className="w-4 h-4 text-[#8B92A9]"/>}
-                  </div>
-                </div>
-
-                {/* Campaign conversion bar */}
-                <div className="px-4 pb-3">
-                  <ConvBar total={camp.total} converted={camp.converted} inProgress={camp.adSets.reduce((s,a)=>s+(a.inProgress||0),0)} notInt={camp.adSets.reduce((s,a)=>s+(a.notInt||0),0)}/>
-                </div>
-
-                {/* Ad set rows */}
-                {open&&(
-                  <div className="border-t border-[#E4E7EF] dark:border-[#1E2133]">
-                    {/* Table header */}
-                    <div className="grid grid-cols-8 bg-[#F8F9FC] dark:bg-[#0D0F14] px-4 py-2 text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] gap-2">
-                      <div className="col-span-2">Ad Set / Source</div>
-                      <div className="text-center">Total</div>
-                      <div className="text-center text-blue-600">New</div>
-                      <div className="text-center text-amber-600">In Progress</div>
-                      <div className="text-center text-purple-600">Verif.</div>
-                      <div className="text-center text-emerald-600">Converted</div>
-                      <div className="text-center text-rose-500">Not Int.</div>
-                    </div>
-                    {camp.adSets.map((adSet,ai)=>(
-                      <div key={ai} className="border-t border-[#F1F3F9] dark:border-white/5">
-                        <div className="grid grid-cols-8 px-4 py-3 gap-2 hover:bg-[#F8F9FC] dark:hover:bg-white/[0.015] transition-colors">
-                          <div className="col-span-2">
-                            <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] truncate">{adSet.adSet||"—"}</p>
-                            <p className="text-[10px] text-[#8B92A9]">{adSet.source}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-[13px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{adSet.total}</p>
-                            <p className="text-[9px] font-bold text-[#8B92A9]">{adSet.convRate}% conv</p>
-                          </div>
-                          <div className="text-center"><p className="text-[13px] font-bold text-blue-600">{adSet.newLeads}</p></div>
-                          <div className="text-center"><p className="text-[13px] font-bold text-amber-600">{adSet.inProgress}</p></div>
-                          <div className="text-center"><p className="text-[13px] font-bold text-purple-600">{adSet.verif}</p></div>
-                          <div className="text-center"><p className="text-[14px] font-extrabold text-emerald-600">{adSet.converted}</p></div>
-                          <div className="text-center"><p className="text-[13px] font-bold text-rose-500">{adSet.notInt}</p></div>
-                        </div>
-                        <div className="px-4 pb-2">
-                          <ConvBar total={adSet.total} converted={adSet.converted} inProgress={adSet.inProgress} notInt={adSet.notInt}/>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {(data.adLevel||[]).map((camp,ci)=>(
+            <CampaignAdCard key={camp.campaign+ci} camp={camp} ci={ci}/>
+          ))}
         </div>
       )}
 
@@ -840,7 +842,7 @@ export default function MarketingDashboard() {
       <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-5 space-y-4">
         {/* ── TAB NAV ─────────────────────────────────────────────────────── */}
         <div className="flex gap-1 bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-1.5">
-          {[["overview","📊 Overview"],["meta","🎯 Meta Ads"],["leads","🎯 Leads"]].map(([v,l])=>(
+          {[["overview","Overview"],["meta","Meta Ads"],["leads","Leads"]].map(([v,l])=>(
             <button key={v} onClick={()=>setActiveTab(v)}
               className={`flex-1 py-2 rounded-xl text-[12px] font-bold transition-colors ${activeTab===v?"bg-indigo-600 text-white shadow":"text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#DDE1F5]"}`}>{l}</button>
           ))}
