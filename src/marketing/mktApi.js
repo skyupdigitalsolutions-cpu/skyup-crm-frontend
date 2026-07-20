@@ -1,11 +1,13 @@
 // src/marketing/mktApi.js
-// Axios client for the marketing panel — uses its own localStorage key (mkt_token)
-// so it never conflicts with the CRM admin session.
+// Marketing panel axios client — own session key (mkt_token), never touches CRM session.
+// Uses the same VITE_API_URL as axiosConfig (already includes /api),
+// then appends /marketing-panel as a relative sub-path.
 import axios from "axios";
 
-const BASE = import.meta.env.VITE_API_URL || "https://skyup-crm-backend.onrender.com";
+// e.g. https://skyup-crm-backend.onrender.com/api  (same as main axiosConfig)
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
-const mktApi = axios.create({ baseURL: `${BASE}/api/marketing-panel` });
+const mktApi = axios.create({ baseURL: `${API_BASE}/marketing-panel` });
 
 mktApi.interceptors.request.use((cfg) => {
   const token = localStorage.getItem("mkt_token");
@@ -25,8 +27,7 @@ mktApi.interceptors.response.use(
   }
 );
 
-// Use the dedicated marketing panel login endpoint (not main CRM /auth/login)
-// so marketing-only users are never blocked by the main CRM auth guard.
-export const mktAuthApi = axios.create({ baseURL: `${BASE}/api/marketing-panel` });
+// Dedicated marketing login — same base, hits POST /api/marketing-panel/login
+export const mktAuthApi = axios.create({ baseURL: `${API_BASE}/marketing-panel` });
 
 export default mktApi;
