@@ -7,6 +7,8 @@ import {
   Calendar, AlertTriangle, AlertCircle, TrendingUp, TrendingDown, Minus, RefreshCw,
   Loader2, LogOut, Sun, Moon, ChevronUp, ChevronDown, ArrowUpDown,
   Search, Layers, Award, Zap, PieChart, Bell, X, Star, Filter,
+  Eye, MousePointerClick, IndianRupee, Percent, Image, ExternalLink,
+  Info, CheckCircle2 as Check2,
 } from "lucide-react";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -212,10 +214,544 @@ function Panel({ title, icon:Icon, children, className="" }) {
 }
 
 // ── MAIN DASHBOARD ────────────────────────────────────────────────────────────
+// ── Ad performance scoring ────────────────────────────────────────────────────
+function scoreAd(m) {
+  const ctr=Number(m.ctr)||0, freq=Number(m.frequency)||0, cpc=Number(m.cpc)||0;
+  if(ctr>=2&&freq<=4) return{label:"Good",color:"#10B981",bg:"bg-emerald-50 dark:bg-emerald-950/20",icon:CheckCircle2};
+  if(ctr>=1||(cpc>0&&freq<=6)) return{label:"Fair",color:"#F59E0B",bg:"bg-amber-50 dark:bg-amber-950/20",icon:Info};
+  return{label:"Needs Attention",color:"#EF4444",bg:"bg-rose-50 dark:bg-rose-950/20",icon:AlertCircle};
+}
+
+function getTips(m,cr){
+  const tips=[]; const ctr=Number(m.ctr)||0,freq=Number(m.frequency)||0,cpc=Number(m.cpc)||0,reach=Number(m.reach)||0,impr=Number(m.impressions)||0;
+  if(ctr<1) tips.push("Low CTR (<1%) — try a stronger hook in your headline or use a more attention-grabbing image/video.");
+  if(ctr>=3) tips.push("High CTR — ad is performing well. Consider increasing the budget to scale reach.");
+  if(freq>5) tips.push(`High frequency (${Number(freq).toFixed(1)}×) — audience is seeing this too often. Refresh the creative or expand the audience.`);
+  if(freq>8) tips.push("Severe audience fatigue — CPM is likely rising. Pause or rotate this ad creative urgently.");
+  if(cpc>50) tips.push("High CPC — test different creatives or audience segments to reduce click cost.");
+  if(reach>0&&impr>0&&(impr/reach)>6) tips.push("Very high frequency vs reach — widen your audience targeting.");
+  if(!cr.headline&&!cr.body) tips.push("No creative copy detected — ensure the ad is properly set up in Meta Ads Manager.");
+  if(cr.cta==="LEARN_MORE"&&ctr<1) tips.push("'Learn More' CTA with low CTR — try 'Sign Up', 'Get Quote', or 'Contact Us' for more direct action.");
+  return tips.length?tips:["Ad is within normal range. Monitor frequency and CTR over time."];
+}
+
+// ── Meta ad row ───────────────────────────────────────────────────────────────
+function MktAdRow({ad}){
+  const[showCr,setShowCr]=useState(false);
+  const[showTips,setShowTips]=useState(false);
+  const m=ad.metrics||{},cr=ad.creative||{};
+  const score=scoreAd(m),tips=getTips(m,cr),ScoreIcon=score.icon;
+  const statusCls={"ACTIVE":"bg-emerald-50 text-emerald-700","PAUSED":"bg-amber-50 text-amber-700","CAMPAIGN_PAUSED":"bg-slate-100 text-slate-500","DELETED":"bg-rose-50 text-rose-600"}[ad.status]||"bg-slate-100 text-slate-500";
+  return(
+    <div className="px-4 py-3 hover:bg-[#F8F9FC] dark:hover:bg-white/[0.015] transition-colors border-b border-[#F1F3F9] dark:border-white/5 last:border-0">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] truncate">{ad.adName}</p>
+          <p className="text-[10px] text-[#8B92A9] truncate">{ad.adsetName}</p>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap justify-end shrink-0">
+          {ad.status&&<span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${statusCls}`}>{ad.status.toLowerCase().replace(/_/g," ")}</span>}
+          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${score.bg}`} style={{color:score.color}}><ScoreIcon className="w-3 h-3"/>{score.label}</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-4 sm:grid-cols-8 gap-1 mb-2">
+        {[["Spend",`₹${Number(m.spend||0).toLocaleString("en-IN",{maximumFractionDigits:0})}`],["Impr.",Number(m.impressions||0).toLocaleString("en-IN")],["Reach",Number(m.reach||0).toLocaleString("en-IN")],["Clicks",Number(m.clicks||0).toLocaleString("en-IN")],["CTR",`${Number(m.ctr||0).toFixed(2)}%`],["CPM",`₹${Number(m.cpm||0).toFixed(2)}`],["CPC",`₹${Number(m.cpc||0).toFixed(2)}`],["Freq.",`${Number(m.frequency||0).toFixed(1)}×`]].map(([k,v])=>(
+          <div key={k} className="bg-[#F8F9FC] dark:bg-white/5 rounded-lg px-2 py-1.5">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">{k}</p>
+            <p className="text-[11px] font-bold text-[#0F1117] dark:text-[#DDE1F5] tabular-nums">{v}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        {(cr.body||cr.headline||cr.thumbnail)&&<button onClick={()=>setShowCr(!showCr)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"><Image className="w-3 h-3"/>{showCr?"Hide creative":"View creative"}</button>}
+        <button onClick={()=>setShowTips(!showTips)} className={`inline-flex items-center gap-1 text-[11px] font-semibold ${showTips?"text-amber-600":"text-[#8B92A9] hover:text-amber-600"}`}><Zap className="w-3 h-3"/>{showTips?"Hide tips":`${tips.length} tip${tips.length!==1?"s":""}`}</button>
+        {cr.linkUrl&&<a href={cr.linkUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-600 hover:underline ml-auto"><ExternalLink className="w-3 h-3"/>{cr.linkUrl.replace(/^https?:\/\//,"").slice(0,30)}…</a>}
+      </div>
+      {showCr&&(cr.body||cr.headline||cr.thumbnail)&&(
+        <div className="mt-2 p-3 rounded-xl bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133]">
+          <div className="flex gap-3">
+            {cr.thumbnail&&<img src={cr.thumbnail} alt="Ad" className="w-16 h-16 object-cover rounded-lg shrink-0" onError={e=>{e.target.style.display="none";}}/>}
+            <div className="flex-1 min-w-0 space-y-1">
+              {cr.headline&&<p className="text-[12px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">{cr.headline}</p>}
+              {cr.body&&<p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{cr.body}</p>}
+              {cr.cta&&<span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30"><Zap className="w-3 h-3"/>{cr.cta.replace(/_/g," ")}</span>}
+            </div>
+          </div>
+        </div>
+      )}
+      {showTips&&(
+        <div className="mt-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/10 border border-amber-200 dark:border-amber-800/30">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-1.5 flex items-center gap-1"><Zap className="w-3 h-3"/>Improvement Suggestions</p>
+          <ul className="space-y-1.5">{tips.map((t,i)=><li key={i} className="flex items-start gap-2 text-[11px] text-amber-800 dark:text-amber-300"><span className="w-4 h-4 rounded-full bg-amber-200 dark:bg-amber-800/40 text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i+1}</span>{t}</li>)}</ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Meta Ads tab ─────────────────────────────────────────────────────────────
+function MetaAdsTab({from,to}){
+  const[data,setData]=useState(null);
+  const[loading,setLoad]=useState(false);
+  const[error,setError]=useState("");
+  const[view,setView]=useState("campaigns"); // campaigns | table
+  const[search,setSearch]=useState("");
+
+  const load=useCallback(async()=>{
+    setLoad(true);setError("");
+    try{const{data:d}=await mktApi.get("/meta-ad-level",{params:{from,to}});setData(d);}
+    catch(e){setError(e?.response?.data?.message||"Failed to load Meta ad data.");}
+    finally{setLoad(false);}
+  },[from,to]);
+
+  useEffect(()=>{load();},[load]);
+
+  const byCampaign=useMemo(()=>{
+    const map={};
+    (data?.ads||[]).forEach(a=>{const k=a.campaignName||"Unknown";if(!map[k])map[k]=[];map[k].push(a);});
+    return Object.entries(map).sort((a,b)=>b[1].reduce((s,x)=>s+(x.metrics.spend||0),0)-a[1].reduce((s,x)=>s+(x.metrics.spend||0),0));
+  },[data]);
+
+  const filtered=useMemo(()=>(data?.ads||[]).filter(a=>!search||a.adName.toLowerCase().includes(search.toLowerCase())||(a.campaignName||"").toLowerCase().includes(search.toLowerCase())),[data,search]);
+  const t=data?.totals||{};
+  const ctr=t.impressions>0?((t.clicks/t.impressions)*100).toFixed(2):0;
+  const goodAds=(data?.ads||[]).filter(a=>scoreAd(a.metrics).label==="Good").length;
+  const needsAds=(data?.ads||[]).filter(a=>scoreAd(a.metrics).label==="Needs Attention").length;
+  const COLORS=["#6366F1","#10B981","#F59E0B","#EF4444","#0EA5E9","#8B5CF6","#EC4899","#14B8A6"];
+
+  if(loading&&!data) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-[#8B92A9]"/></div>;
+  if(error) return <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 text-rose-600 text-[12px]"><AlertTriangle className="w-4 h-4 shrink-0"/>{error}</div>;
+  if(data&&!data.configured) return <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-10 text-center"><BarChart3 className="w-8 h-8 text-[#C4C9DA] mx-auto mb-3" strokeWidth={1.5}/><p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] mb-1">No Meta ad accounts configured</p><p className="text-[12px] text-[#8B92A9]">Add an Ad Account ID + ads_read token to a Meta campaign config in the CRM.</p></div>;
+  if(!data) return null;
+
+  return(
+    <div className="space-y-4">
+      {/* Summary strip */}
+      {t.spend>0&&(
+        <div className="rounded-2xl p-4 bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-md">
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70 mb-1">{data.ads.length} ads · {byCampaign.length} campaigns · {data.range?.from} → {data.range?.to}</p>
+          <p className="text-[13px] leading-relaxed">
+            Spent <b>₹{Number(t.spend).toLocaleString("en-IN",{maximumFractionDigits:0})}</b> reaching <b>{Number(t.reach).toLocaleString("en-IN")}</b> people with <b>{Number(t.impressions).toLocaleString("en-IN")}</b> impressions and <b>{Number(t.clicks).toLocaleString("en-IN")}</b> clicks (<b>{ctr}% CTR</b>).{" "}
+            <span className="text-emerald-300 font-bold">{goodAds} ads</span> performing well · <span className="text-rose-300 font-bold">{needsAds} ads</span> need attention.
+          </p>
+        </div>
+      )}
+
+      {/* KPIs */}
+      {t.spend>0&&(
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {[
+            {icon:IndianRupee,label:"Spend",value:"₹"+Number(t.spend).toLocaleString("en-IN",{maximumFractionDigits:0}),tint:"#EF4444"},
+            {icon:Eye,label:"Impressions",value:Number(t.impressions).toLocaleString("en-IN"),tint:"#6366F1"},
+            {icon:Users,label:"Reach",value:Number(t.reach).toLocaleString("en-IN"),tint:"#10B981"},
+            {icon:MousePointerClick,label:"Clicks",value:Number(t.clicks).toLocaleString("en-IN"),tint:"#0EA5E9"},
+            {icon:Percent,label:"CTR",value:`${ctr}%`,tint:"#F59E0B"},
+            {icon:BarChart3,label:"Campaigns",value:byCampaign.length,tint:"#8B5CF6"},
+            {icon:CheckCircle2,label:"Good Ads",value:goodAds,tint:"#10B981"},
+            {icon:AlertCircle,label:"Need Attention",value:needsAds,tint:"#EF4444"},
+          ].map(c=>(
+            <div key={c.label} className="relative overflow-hidden bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-3.5 hover:shadow-md transition-all" style={{background:`linear-gradient(135deg,${c.tint}14 0%,transparent 70%)`}}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{background:`${c.tint}22`}}><c.icon className="w-3.5 h-3.5" style={{color:c.tint}}/></span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9]">{c.label}</span>
+              </div>
+              <p className="text-[18px] font-extrabold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{c.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* View toggle + search */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Ad Details</p>
+        <div className="flex gap-1 bg-[#F1F3F9] dark:bg-white/5 rounded-xl p-1">
+          {[["campaigns","By Campaign"],["table","All Ads"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setView(v)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${view===v?"bg-white dark:bg-[#11131C] text-indigo-600 shadow-sm":"text-[#8B92A9] hover:text-[#4B5168]"}`}>{l}</button>
+          ))}
+        </div>
+        {view==="table"&&(
+          <div className="relative ml-2">
+            <Search className="w-3.5 h-3.5 text-[#8B92A9] absolute left-2.5 top-1/2 -translate-y-1/2"/>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" className="text-[11px] pl-8 pr-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] focus:outline-none text-[#0F1117] dark:text-[#DDE1F5] w-44"/>
+          </div>
+        )}
+        <button onClick={load} disabled={loading} className="ml-auto inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#1E2133] text-[11px] font-semibold text-[#8B92A9] hover:text-indigo-600">
+          {loading?<Loader2 className="w-3.5 h-3.5 animate-spin"/>:<RefreshCw className="w-3.5 h-3.5"/>}
+        </button>
+      </div>
+
+      {/* Campaign view */}
+      {view==="campaigns"&&(
+        <div className="space-y-3">
+          {byCampaign.length===0&&<div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-10 text-center text-[12px] text-[#8B92A9]">No ads in this period. Try a wider date range.</div>}
+          {byCampaign.map(([name,ads],ci)=>{
+            const spend=ads.reduce((s,a)=>s+(a.metrics.spend||0),0);
+            const impr=ads.reduce((s,a)=>s+(a.metrics.impressions||0),0);
+            const clicks=ads.reduce((s,a)=>s+(a.metrics.clicks||0),0);
+            const reach=ads.reduce((s,a)=>s+(a.metrics.reach||0),0);
+            const ctrC=impr>0?(clicks/impr)*100:0;
+            const active=ads.filter(a=>a.status==="ACTIVE").length;
+            const goodC=ads.filter(a=>scoreAd(a.metrics).label==="Good").length;
+            const needsC=ads.filter(a=>scoreAd(a.metrics).label==="Needs Attention").length;
+            const campScore=scoreAd({ctr:ctrC,cpc:clicks>0?spend/clicks:0,frequency:0});
+            const CampScoreIcon=campScore.icon;
+            const[open,setOpen]=useState(false);
+            return(
+              <div key={name} className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02]" onClick={()=>setOpen(!open)}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-[13px] shrink-0" style={{background:COLORS[ci%COLORS.length]}}>{ci+1}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5] truncate">{name}</p>
+                    <p className="text-[10px] text-[#8B92A9]">{ads.length} ads · {active} active · <span className="text-emerald-600">{goodC} good</span> · <span className="text-rose-500">{needsC} need attention</span></p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-right hidden sm:block"><p className="text-[12px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">₹{Number(spend).toLocaleString("en-IN",{maximumFractionDigits:0})}</p><p className="text-[9px] text-[#8B92A9]">Spent</p></div>
+                    <div className="text-right hidden md:block"><p className="text-[12px] font-bold" style={{color:ctrC>=2?"#10B981":ctrC>=1?"#F59E0B":"#EF4444"}}>{ctrC.toFixed(2)}%</p><p className="text-[9px] text-[#8B92A9]">CTR</p></div>
+                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${campScore.bg}`} style={{color:campScore.color}}><CampScoreIcon className="w-3 h-3"/>{campScore.label}</span>
+                    {open?<ChevronUp className="w-4 h-4 text-[#8B92A9]"/>:<ChevronDown className="w-4 h-4 text-[#8B92A9]"/>}
+                  </div>
+                </div>
+                {/* Metrics strip */}
+                <div className="grid grid-cols-4 sm:grid-cols-8 bg-[#F8F9FC] dark:bg-[#0D0F14] border-t border-[#E4E7EF] dark:border-[#1E2133] divide-x divide-[#E4E7EF] dark:divide-[#1E2133]">
+                  {[["Spend",`₹${Number(spend).toLocaleString("en-IN",{maximumFractionDigits:0})}`],["Impressions",Number(impr).toLocaleString("en-IN")],["Reach",Number(reach).toLocaleString("en-IN")],["Clicks",Number(clicks).toLocaleString("en-IN")],["CTR",`${ctrC.toFixed(2)}%`],["CPM",`₹${impr>0?(spend/impr*1000).toFixed(2):0}`],["CPC",`₹${clicks>0?(spend/clicks).toFixed(2):0}`],["Ads",ads.length]].map(([k,v])=>(
+                    <div key={k} className="flex flex-col px-2 py-2"><span className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">{k}</span><span className="text-[11px] font-bold text-[#0F1117] dark:text-[#DDE1F5] tabular-nums">{v}</span></div>
+                  ))}
+                </div>
+                {open&&<div>{ads.map((ad,ai)=><MktAdRow key={ad.adId||ai} ad={ad}/>)}</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Table view */}
+      {view==="table"&&(
+        <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead><tr className="border-b border-[#E4E7EF] dark:border-[#1E2133] bg-[#F8F9FC] dark:bg-[#0D0F14]">
+              {["Ad","Campaign","Status","Score","Spend","Impr.","Clicks","CTR","CPC","Freq."].map(h=><th key={h} className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {filtered.map((ad,i)=>{
+                const m=ad.metrics||{},sc=scoreAd(m),SI=sc.icon;
+                const stCls={"ACTIVE":"bg-emerald-50 text-emerald-700","PAUSED":"bg-amber-50 text-amber-700","CAMPAIGN_PAUSED":"bg-slate-100 text-slate-500","DELETED":"bg-rose-50 text-rose-600"}[ad.status]||"bg-slate-100 text-slate-500";
+                return(
+                  <tr key={ad.adId||i} className="border-b border-[#F1F3F9] dark:border-white/5 last:border-0 hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02]">
+                    <td className="px-3 py-2.5 text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] max-w-[150px] truncate" title={ad.adName}>{ad.adName}</td>
+                    <td className="px-3 py-2.5 text-[11px] text-[#8B92A9] max-w-[120px] truncate">{ad.campaignName}</td>
+                    <td className="px-3 py-2.5"><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${stCls}`}>{(ad.status||"").toLowerCase().replace(/_/g," ")}</span></td>
+                    <td className="px-3 py-2.5"><span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.bg}`} style={{color:sc.color}}><SI className="w-3 h-3"/>{sc.label}</span></td>
+                    <td className="px-3 py-2.5 text-right text-[12px] tabular-nums font-semibold text-[#0F1117] dark:text-[#DDE1F5]">₹{Number(m.spend||0).toLocaleString("en-IN",{maximumFractionDigits:0})}</td>
+                    <td className="px-3 py-2.5 text-right text-[11px] tabular-nums text-[#8B92A9]">{Number(m.impressions||0).toLocaleString("en-IN")}</td>
+                    <td className="px-3 py-2.5 text-right text-[11px] tabular-nums text-[#8B92A9]">{Number(m.clicks||0).toLocaleString("en-IN")}</td>
+                    <td className="px-3 py-2.5 text-right text-[12px] tabular-nums font-bold" style={{color:Number(m.ctr)>=2?"#10B981":Number(m.ctr)>=1?"#F59E0B":"#EF4444"}}>{Number(m.ctr||0).toFixed(2)}%</td>
+                    <td className="px-3 py-2.5 text-right text-[11px] tabular-nums text-[#8B92A9]">₹{Number(m.cpc||0).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 text-right text-[12px] tabular-nums font-bold" style={{color:Number(m.frequency)>5?"#EF4444":Number(m.frequency)>3?"#F59E0B":"#10B981"}}>{Number(m.frequency||0).toFixed(1)}×</td>
+                  </tr>
+                );
+              })}
+              {!filtered.length&&<tr><td colSpan={10} className="px-3 py-8 text-center text-[12px] text-[#8B92A9]">No ads match</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Leads Intelligence Tab ────────────────────────────────────────────────────
+const STATUS_COLOR = {
+  "New":             { bg:"bg-blue-50 text-blue-700 dark:bg-blue-950/30",     dot:"#3B82F6" },
+  "In Progress":     { bg:"bg-amber-50 text-amber-700 dark:bg-amber-950/30",  dot:"#F59E0B" },
+  "Converted":       { bg:"bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30", dot:"#10B981" },
+  "Not Interested":  { bg:"bg-rose-50 text-rose-700 dark:bg-rose-950/30",     dot:"#EF4444" },
+  "Verification":    { bg:"bg-purple-50 text-purple-700 dark:bg-purple-950/30",dot:"#8B5CF6" },
+};
+
+function StatusBadge({status}){
+  const s=STATUS_COLOR[status]||{bg:"bg-slate-100 text-slate-500",dot:"#94A3B8"};
+  return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${s.bg}`}>{status||"—"}</span>;
+}
+
+function ConvBar({total,converted,inProgress,notInt}){
+  if(!total) return null;
+  const pct=v=>Math.round((v/total)*100);
+  const segs=[
+    {v:converted,  color:"#10B981",label:"Converted"},
+    {v:inProgress, color:"#F59E0B",label:"In Progress"},
+    {v:notInt,     color:"#EF4444",label:"Not Interested"},
+  ];
+  return(
+    <div>
+      <div className="flex h-2 rounded-full overflow-hidden gap-px bg-[#F1F3F9] dark:bg-white/5">
+        {segs.map(s=>s.v>0&&<div key={s.label} className="rounded-full" style={{width:`${pct(s.v)}%`,background:s.color}}/>)}
+      </div>
+      <div className="flex items-center gap-2 mt-1 flex-wrap">
+        {segs.map(s=><span key={s.label} className="inline-flex items-center gap-1 text-[9px] text-[#8B92A9]">
+          <span className="w-1.5 h-1.5 rounded-full" style={{background:s.color}}/>{s.label}: <b className="text-[#4B5168] dark:text-[#9DA3BB]">{s.v}</b> ({pct(s.v)}%)
+        </span>)}
+      </div>
+    </div>
+  );
+}
+
+function LeadsIntelligenceTab({from,to}){
+  const[data,setData]=useState(null);
+  const[loading,setLoad]=useState(false);
+  const[error,setError]=useState("");
+  const[view,setView]=useState("adlevel"); // adlevel | converting | all
+  const[campFilter,setCampFilter]=useState("");
+  const[statusFilter,setStatusFilter]=useState("");
+  const[search,setSearch]=useState("");
+
+  const load=useCallback(async()=>{
+    setLoad(true);setError("");
+    try{
+      const p={};
+      if(from)p.from=from; if(to)p.to=to;
+      if(campFilter)p.campaign=campFilter;
+      if(statusFilter)p.status=statusFilter;
+      const{data:d}=await mktApi.get("/leads-intelligence",{params:p});
+      setData(d);
+    }catch(e){setError(e?.response?.data?.message||"Failed to load leads data.");}
+    finally{setLoad(false);}
+  },[from,to,campFilter,statusFilter]);
+
+  useEffect(()=>{load();},[load]);
+
+  const filteredLeads=useMemo(()=>{
+    const src=view==="converting"?(data?.convertedLeads||[]):(data?.allLeads||[]);
+    if(!search)return src;
+    const q=search.toLowerCase();
+    return src.filter(l=>l.name.toLowerCase().includes(q)||l.mobile.includes(q)||(l.campaign||"").toLowerCase().includes(q)||(l.adSet||"").toLowerCase().includes(q));
+  },[data,view,search]);
+
+  const totals=useMemo(()=>{
+    const leads=data?.allLeads||[];
+    return{
+      total:leads.length,
+      converted:leads.filter(l=>l.status==="Converted").length,
+      inProgress:leads.filter(l=>l.status==="In Progress").length,
+      notInt:leads.filter(l=>l.status==="Not Interested").length,
+      newLeads:leads.filter(l=>l.status==="New").length,
+    };
+  },[data]);
+
+  if(loading&&!data) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-[#8B92A9]"/></div>;
+  if(error) return <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 text-rose-600 text-[12px]"><AlertTriangle className="w-4 h-4 shrink-0"/>{error}</div>;
+
+  return(
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
+          <Target className="w-4 h-4 text-white"/>
+        </div>
+        <div>
+          <p className="text-[15px] font-extrabold text-[#0F1117] dark:text-[#F0F2FA] leading-tight">Leads Intelligence</p>
+          <p className="text-[11px] text-[#8B92A9]">Ad-level lead attribution · conversion tracking · lead details</p>
+        </div>
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
+          <select value={campFilter} onChange={e=>{setCampFilter(e.target.value);}}
+            className="text-[11px] bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-lg px-2.5 py-1.5 focus:outline-none text-[#4B5168] dark:text-[#9DA3BB]">
+            <option value="">All campaigns</option>
+            {(data?.filters?.campaigns||[]).map(c=><option key={c} value={c}>{c}</option>)}
+          </select>
+          <button onClick={load} disabled={loading} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[11px] font-bold">
+            {loading?<Loader2 className="w-3.5 h-3.5 animate-spin"/>:<RefreshCw className="w-3.5 h-3.5"/>}
+          </button>
+        </div>
+      </div>
+
+      {/* KPI summary */}
+      {data&&(
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {[
+            {label:"Total Leads",  value:totals.total,     tint:"#6366F1"},
+            {label:"New",          value:totals.newLeads,  tint:"#3B82F6"},
+            {label:"In Progress",  value:totals.inProgress,tint:"#F59E0B"},
+            {label:"Converted",    value:totals.converted, tint:"#10B981"},
+            {label:"Not Interested",value:totals.notInt,   tint:"#EF4444"},
+          ].map(c=>(
+            <div key={c.label} className="relative overflow-hidden bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-3" style={{background:`linear-gradient(135deg,${c.tint}12 0%,transparent 70%)`}}>
+              <p className="text-[20px] font-extrabold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{c.value}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] mt-0.5">{c.label}</p>
+              <div className="absolute right-3 top-3 w-2 h-2 rounded-full" style={{background:c.tint}}/>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Conversion summary strip */}
+      {data&&totals.total>0&&(
+        <div className="rounded-2xl p-4 bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-md">
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70 mb-1">{data.range?.from} → {data.range?.to}</p>
+          <p className="text-[13px] leading-relaxed">
+            <b>{totals.total}</b> leads generated — <b className="text-emerald-200">{totals.converted} converted</b> ({totals.total>0?Math.round((totals.converted/totals.total)*100):0}% conversion rate), <b>{totals.inProgress}</b> in progress, <b className="text-rose-300">{totals.notInt}</b> not interested.
+          </p>
+        </div>
+      )}
+
+      {/* View tabs */}
+      <div className="flex gap-1 bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl p-1">
+        {[["adlevel","📡 Ad-Level Breakdown"],["converting","✅ Converting Leads"],["all","📋 All Leads"]].map(([v,l])=>(
+          <button key={v} onClick={()=>{setView(v);setSearch("");}}
+            className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${view===v?"bg-indigo-600 text-white shadow":"text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#DDE1F5]"}`}>{l}</button>
+        ))}
+      </div>
+
+      {/* ── AD-LEVEL BREAKDOWN ─────────────────────────────────────────────── */}
+      {view==="adlevel"&&data&&(
+        <div className="space-y-3">
+          {(!data.adLevel||data.adLevel.length===0)&&(
+            <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-10 text-center text-[12px] text-[#8B92A9]">No lead data in this period.</div>
+          )}
+          {(data.adLevel||[]).map((camp,ci)=>{
+            const [open,setOpen]=useState(false);
+            return(
+              <div key={camp.campaign} className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+                {/* Campaign header */}
+                <div className="flex items-center gap-3 px-4 py-4 cursor-pointer hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02] transition-colors" onClick={()=>setOpen(!open)}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-[13px] shrink-0"
+                    style={{background:["#6366F1","#10B981","#F59E0B","#EF4444","#0EA5E9","#8B5CF6"][ci%6]}}>{ci+1}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5] truncate">{camp.campaign}</p>
+                    <p className="text-[10px] text-[#8B92A9]">{camp.adSets.length} ad set{camp.adSets.length!==1?"s":""} · {camp.total} total leads</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <p className="text-[14px] font-extrabold text-emerald-600">{camp.converted}</p>
+                      <p className="text-[9px] text-[#8B92A9] uppercase tracking-wide">Converted</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[14px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{camp.convRate}%</p>
+                      <p className="text-[9px] text-[#8B92A9] uppercase tracking-wide">Conv. Rate</p>
+                    </div>
+                    {open?<ChevronUp className="w-4 h-4 text-[#8B92A9]"/>:<ChevronDown className="w-4 h-4 text-[#8B92A9]"/>}
+                  </div>
+                </div>
+
+                {/* Campaign conversion bar */}
+                <div className="px-4 pb-3">
+                  <ConvBar total={camp.total} converted={camp.converted} inProgress={camp.adSets.reduce((s,a)=>s+(a.inProgress||0),0)} notInt={camp.adSets.reduce((s,a)=>s+(a.notInt||0),0)}/>
+                </div>
+
+                {/* Ad set rows */}
+                {open&&(
+                  <div className="border-t border-[#E4E7EF] dark:border-[#1E2133]">
+                    {/* Table header */}
+                    <div className="grid grid-cols-8 bg-[#F8F9FC] dark:bg-[#0D0F14] px-4 py-2 text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] gap-2">
+                      <div className="col-span-2">Ad Set / Source</div>
+                      <div className="text-center">Total</div>
+                      <div className="text-center text-blue-600">New</div>
+                      <div className="text-center text-amber-600">In Progress</div>
+                      <div className="text-center text-purple-600">Verif.</div>
+                      <div className="text-center text-emerald-600">Converted</div>
+                      <div className="text-center text-rose-500">Not Int.</div>
+                    </div>
+                    {camp.adSets.map((adSet,ai)=>(
+                      <div key={ai} className="border-t border-[#F1F3F9] dark:border-white/5">
+                        <div className="grid grid-cols-8 px-4 py-3 gap-2 hover:bg-[#F8F9FC] dark:hover:bg-white/[0.015] transition-colors">
+                          <div className="col-span-2">
+                            <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] truncate">{adSet.adSet||"—"}</p>
+                            <p className="text-[10px] text-[#8B92A9]">{adSet.source}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[13px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{adSet.total}</p>
+                            <p className="text-[9px] font-bold text-[#8B92A9]">{adSet.convRate}% conv</p>
+                          </div>
+                          <div className="text-center"><p className="text-[13px] font-bold text-blue-600">{adSet.newLeads}</p></div>
+                          <div className="text-center"><p className="text-[13px] font-bold text-amber-600">{adSet.inProgress}</p></div>
+                          <div className="text-center"><p className="text-[13px] font-bold text-purple-600">{adSet.verif}</p></div>
+                          <div className="text-center"><p className="text-[14px] font-extrabold text-emerald-600">{adSet.converted}</p></div>
+                          <div className="text-center"><p className="text-[13px] font-bold text-rose-500">{adSet.notInt}</p></div>
+                        </div>
+                        <div className="px-4 pb-2">
+                          <ConvBar total={adSet.total} converted={adSet.converted} inProgress={adSet.inProgress} notInt={adSet.notInt}/>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── CONVERTING / ALL LEADS TABLE ───────────────────────────────────── */}
+      {(view==="converting"||view==="all")&&data&&(
+        <div className="space-y-2">
+          {/* Search */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="w-3.5 h-3.5 text-[#8B92A9] absolute left-2.5 top-1/2 -translate-y-1/2"/>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, phone, campaign…"
+                className="w-full text-[12px] pl-8 pr-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] focus:outline-none text-[#0F1117] dark:text-[#DDE1F5]"/>
+            </div>
+            <span className="text-[11px] text-[#8B92A9] ml-auto">{filteredLeads.length} leads</span>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead><tr className="border-b border-[#E4E7EF] dark:border-[#1E2133] bg-[#F8F9FC] dark:bg-[#0D0F14]">
+                {["Lead","Contact","Campaign","Ad Set","Source","Status","Agent","Date","Last Remark"].map(h=>(
+                  <th key={h} className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] px-3 py-2.5 text-left whitespace-nowrap">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {filteredLeads.slice(0,200).map((l,i)=>(
+                  <tr key={l._id||i} className="border-b border-[#F1F3F9] dark:border-white/5 last:border-0 hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02] transition-colors">
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0"
+                          style={{background:l.status==="Converted"?"#10B981":l.status==="In Progress"?"#F59E0B":"#6366F1"}}>
+                          {(l.name||"?").charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5]">{l.name}</p>
+                          {l.language&&<span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30">{l.language}</span>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <p className="text-[12px] tabular-nums text-[#4B5168] dark:text-[#9DA3BB]">{l.mobile}</p>
+                      {l.email&&<p className="text-[10px] text-[#8B92A9] truncate max-w-[120px]">{l.email}</p>}
+                    </td>
+                    <td className="px-3 py-3 text-[11px] text-[#4B5168] dark:text-[#9DA3BB] max-w-[130px]">
+                      <p className="truncate font-medium" title={l.campaign}>{l.campaign||"—"}</p>
+                    </td>
+                    <td className="px-3 py-3 text-[11px] text-[#8B92A9] max-w-[120px]">
+                      <p className="truncate" title={l.adSet}>{l.adSet||"—"}</p>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#F8F9FC] dark:bg-white/5 text-[#4B5168] dark:text-[#9DA3BB]">{l.source||"—"}</span>
+                    </td>
+                    <td className="px-3 py-3"><StatusBadge status={l.status}/></td>
+                    <td className="px-3 py-3 text-[11px] text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{l.agent}</td>
+                    <td className="px-3 py-3 text-[11px] text-[#8B92A9] whitespace-nowrap">{l.date?new Date(l.date).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"2-digit"}):""}</td>
+                    <td className="px-3 py-3 text-[11px] text-[#8B92A9] max-w-[180px]">
+                      <p className="line-clamp-2" title={l.remark}>{l.remark||"—"}</p>
+                    </td>
+                  </tr>
+                ))}
+                {filteredLeads.length===0&&<tr><td colSpan={9} className="px-3 py-10 text-center text-[12px] text-[#8B92A9]">No leads match</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {filteredLeads.length>200&&<p className="text-center text-[11px] text-[#8B92A9]">Showing 200 of {filteredLeads.length} — use the campaign filter to narrow results.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MarketingDashboard() {
   const nav=useNavigate();
   const user=JSON.parse(localStorage.getItem("mkt_user")||"{}");
   const [dark,setDark]=useState(()=>localStorage.getItem("mkt_dark")==="true");
+  const [activeTab,setActiveTab]=useState("overview");
   const [data,setData]=useState(null);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
@@ -302,7 +838,20 @@ export default function MarketingDashboard() {
       </nav>
 
       <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-5 space-y-4">
-        {/* ── FILTERS ─────────────────────────────────────────────────────── */}
+        {/* ── TAB NAV ─────────────────────────────────────────────────────── */}
+        <div className="flex gap-1 bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-1.5">
+          {[["overview","📊 Overview"],["meta","🎯 Meta Ads"],["leads","🎯 Leads"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setActiveTab(v)}
+              className={`flex-1 py-2 rounded-xl text-[12px] font-bold transition-colors ${activeTab===v?"bg-indigo-600 text-white shadow":"text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#DDE1F5]"}`}>{l}</button>
+          ))}
+        </div>
+
+        {/* ── META ADS TAB ─────────────────────────────────────────────────── */}
+        {activeTab==="meta"&&<MetaAdsTab from={from} to={to}/>}
+        {activeTab==="leads"&&<LeadsIntelligenceTab from={from} to={to}/>}
+
+        {/* ── OVERVIEW TAB ─────────────────────────────────────────────────── */}
+        {activeTab==="overview"&&<div className="space-y-4">
         <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex gap-1 flex-wrap">
@@ -339,7 +888,7 @@ export default function MarketingDashboard() {
         {error&&<div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/30 text-rose-600 text-[13px]"><AlertTriangle className="w-4 h-4 shrink-0"/>{error}</div>}
         {loading&&!data&&<div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[#8B92A9]"/></div>}
 
-        {data&&(<>
+        {data&&<>
           {/* ── KPI GRID ──────────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             <Kpi icon={Users}        label="Total Leads"    value={num(k.totalLeads)}      tint="#6366F1" trend={k.trends?.totalLeads} spark={sparkTotal}/>
@@ -453,7 +1002,9 @@ export default function MarketingDashboard() {
           <div className="text-center py-4 text-[11px] text-[#8B92A9]">
             SkyUp CRM · Performance Marketing Panel · {user.companyName} · Data as of {to}
           </div>
-        </>)}
+        </>
+        }
+        </div>}
       </div>
     </div>
   );
