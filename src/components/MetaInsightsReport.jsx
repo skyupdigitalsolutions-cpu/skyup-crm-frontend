@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import api from "../data/axiosConfig";
 import {
   TrendingUp, AlertTriangle, AlertCircle, CheckCircle2, Info,
@@ -247,6 +247,104 @@ export default function MetaInsightsReport() {
               ))}
             </div>
           )}
+
+          {/* ── Category-wise spend — shown when 2+ categories exist ──────── */}
+          {data && data.campaigns && (() => {
+            const COLORS_CAT = ["#6366F1","#10B981","#F59E0B","#EF4444","#0EA5E9","#8B5CF6","#EC4899","#14B8A6","#F97316","#64748B"];
+            const catMap = {};
+            (data.campaigns || []).forEach((c) => {
+              const cat = (c.category && c.category.trim()) ? c.category.trim() : "Uncategorised";
+              if (!catMap[cat]) catMap[cat] = { spend: 0, leads: 0, converted: 0, clicks: 0, impressions: 0, count: 0 };
+              catMap[cat].spend       += (c.metrics && c.metrics.spend)       || 0;
+              catMap[cat].leads       += c.leads     || 0;
+              catMap[cat].converted   += c.converted || 0;
+              catMap[cat].clicks      += (c.metrics && c.metrics.clicks)      || 0;
+              catMap[cat].impressions += (c.metrics && c.metrics.impressions) || 0;
+              catMap[cat].count++;
+            });
+            const cats = Object.entries(catMap)
+              .filter(([, v]) => v.spend > 0 || v.leads > 0)
+              .sort((a, b) => b[1].spend - a[1].spend);
+            if (cats.length < 2) return null;
+            const totalSpend = cats.reduce((s, [, v]) => s + v.spend, 0) || 1;
+            const maxSpend   = cats[0][1].spend || 1;
+            return (
+              <div className="border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+                {/* Section header */}
+                <div className="flex items-center justify-between px-4 py-2.5 bg-[#F8F9FC] dark:bg-[#0D0F14] border-b border-[#E4E7EF] dark:border-[#1E2133]">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#8B92A9]">Category-wise Spend</p>
+                  <p className="text-[10px] text-[#8B92A9]">{cats.length} categories</p>
+                </div>
+                {/* Category rows */}
+                <div className="divide-y divide-[#F1F3F9] dark:divide-white/5">
+                  {cats.map(([cat, v], i) => {
+                    const spendPct = Math.round((v.spend / totalSpend) * 100);
+                    const barW     = Math.max(2, (v.spend / maxSpend) * 100);
+                    const cpl      = v.leads > 0 ? Math.round((v.spend / v.leads) * 100) / 100 : null;
+                    const convRate = v.leads > 0 ? Math.round((v.converted / v.leads) * 10000) / 100 : null;
+                    const ctr      = v.impressions > 0 ? ((v.clicks / v.impressions) * 100).toFixed(2) : null;
+                    return (
+                      <div key={cat} className="px-4 py-2.5 hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02] transition-colors">
+                        <div className="flex items-center gap-3">
+                          {/* Colour dot + name + count */}
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: COLORS_CAT[i % COLORS_CAT.length] }} />
+                            <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] truncate">{cat}</span>
+                            <span className="text-[9px] text-[#8B92A9] shrink-0 hidden sm:inline">{v.count} config{v.count !== 1 ? "s" : ""}</span>
+                          </div>
+                          {/* Metrics */}
+                          <div className="flex items-center gap-4 shrink-0">
+                            <div className="text-right">
+                              <p className="text-[13px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5] tabular-nums">
+                                ₹{Number(v.spend).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                              </p>
+                              <p className="text-[9px] text-[#8B92A9]">{spendPct}% of total</p>
+                            </div>
+                            <div className="text-right hidden sm:block">
+                              <p className="text-[12px] font-bold text-indigo-600 tabular-nums">{v.leads}</p>
+                              <p className="text-[9px] text-[#8B92A9]">Leads</p>
+                            </div>
+                            <div className="text-right hidden md:block">
+                              <p className="text-[12px] font-bold text-emerald-600 tabular-nums">{v.converted}</p>
+                              <p className="text-[9px] text-[#8B92A9]">Conv.</p>
+                            </div>
+                            {convRate !== null && (
+                              <div className="text-right hidden md:block">
+                                <p className="text-[12px] font-bold tabular-nums"
+                                  style={{ color: convRate >= 10 ? "#10B981" : convRate >= 5 ? "#F59E0B" : "#EF4444" }}>
+                                  {convRate}%
+                                </p>
+                                <p className="text-[9px] text-[#8B92A9]">Conv%</p>
+                              </div>
+                            )}
+                            {cpl !== null && (
+                              <div className="text-right hidden lg:block">
+                                <p className="text-[12px] font-bold text-purple-600 tabular-nums">
+                                  ₹{Number(cpl).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                                </p>
+                                <p className="text-[9px] text-[#8B92A9]">CPL</p>
+                              </div>
+                            )}
+                            {ctr !== null && (
+                              <div className="text-right hidden lg:block">
+                                <p className="text-[12px] font-bold text-amber-600 tabular-nums">{ctr}%</p>
+                                <p className="text-[9px] text-[#8B92A9]">CTR</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {/* Spend bar */}
+                        <div className="mt-1.5 h-1.5 rounded-full bg-[#F1F3F9] dark:bg-white/5 overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${barW}%`, background: `linear-gradient(90deg, ${COLORS_CAT[i % COLORS_CAT.length]}99, ${COLORS_CAT[i % COLORS_CAT.length]})` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
