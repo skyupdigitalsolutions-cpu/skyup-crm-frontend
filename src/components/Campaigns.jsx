@@ -466,7 +466,7 @@ function CreateModal({ onClose, onCreated }) {
   const empty = {
     campaignName: "", pageId: "", pageAccessToken: "", appSecret: "", verifyToken: "",
     graphApiVersion: "v25.0", formIds: "", formId: "", defaultStatus: "New",
-    adSetName: "", parentCampaignName: "",
+    adSetName: "", parentCampaignName: "", category: "",
     // Ad performance (Insights API) — optional
     adAccountId: "", adsToken: "",
   };
@@ -494,6 +494,7 @@ function CreateModal({ onClose, onCreated }) {
         graphApiVersion: form.graphApiVersion.trim() || "v25.0",
         adSetName: form.adSetName.trim() || undefined,
         parentCampaignName: form.parentCampaignName.trim() || undefined,
+        category: form.category ? form.category.trim() : undefined,
         // Ad performance (Insights API) credentials — optional.
         adAccountId: form.adAccountId.trim() || "",
         adsToken: form.adsToken.trim() || "",
@@ -577,6 +578,13 @@ function CreateModal({ onClose, onCreated }) {
                 </label>
                 <input type="text" value={form.parentCampaignName || ""} onChange={set("parentCampaignName")} placeholder="e.g. Summer Sale 2025" className={FIELD_CLS} />
                 <p className="text-[10px] text-[#8B92A9] mt-1">Groups related ad sets together on this page</p>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Category <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span>
+                </label>
+                <input type="text" value={form.category || ""} onChange={set("category")} placeholder="e.g. Real Estate, Education, Healthcare" className={FIELD_CLS} />
+                <p className="text-[10px] text-[#8B92A9] mt-1">Groups campaigns by category in the Performance Marketing Dashboard</p>
               </div>
             </div>
           </div>
