@@ -357,32 +357,6 @@ export default function MetaInsightsReport() {
           </div>
         )}
 
-        {/* ── KPI stat grid ────────────────────────────────────────────────── */}
-        {loading && !t && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-            {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-4 h-24 animate-pulse" />
-            ))}
-          </div>
-        )}
-
-        {t && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-            {[
-              { label: "Total Spend",  value: money(t.spend) },
-              { label: "Leads",        value: numfmt(t.leads) },
-              { label: "Converted",    value: numfmt(t.converted || 0) },
-              { label: "Conv. Rate",   value: t.conversionRatePct == null ? "—" : `${t.conversionRatePct}%` },
-              { label: "Cost / Lead",  value: money(t.costPerLead) },
-              { label: "Cost / Conv.", value: t.costPerConversion == null ? "—" : money(t.costPerConversion) },
-              { label: "Clicks",       value: numfmt(t.clicks) },
-            ].map((c, i) => (
-              <StatCard key={c.label} label={c.label} value={c.value}
-                icon={STAT_META[i].icon} accent={STAT_META[i].accent} bg={STAT_META[i].bg} />
-            ))}
-          </div>
-        )}
-
         {/* ── Plain-language summary strip ─────────────────────────────────── */}
         {t && (
           <div className="rounded-2xl p-4 bg-gradient-to-br from-indigo-500 via-blue-500 to-sky-500 text-white shadow-md">
