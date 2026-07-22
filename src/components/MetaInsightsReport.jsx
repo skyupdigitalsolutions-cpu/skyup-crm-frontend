@@ -181,46 +181,72 @@ export default function MetaInsightsReport() {
 
       {/* ── Page header ─────────────────────────────────────────────────── */}
       <div className="px-4 md:px-8 pt-6 pb-4 border-b border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] no-print">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-white" />
+        <div className="max-w-6xl mx-auto space-y-4">
+          {/* Top row: title + controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-[18px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Meta Ad Performance</h1>
+                <p className="text-[12px] text-[#8B92A9]">Spend, CPM, CPC, CTR, reach and cost-per-lead per campaign</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-[18px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Meta Ad Performance</h1>
-              <p className="text-[12px] text-[#8B92A9]">Spend, CPM, CPC, CTR, reach and cost-per-lead per campaign</p>
+
+            {/* Controls row */}
+            <div className="flex flex-wrap items-center gap-2 no-print">
+              {/* Date range picker */}
+              <div className="flex items-center gap-2 bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl px-3 py-2">
+                <div>
+                  <label className="block text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">From</label>
+                  <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+                    className="text-[12px] font-semibold bg-transparent text-[#0F1117] dark:text-[#DDE1F5] focus:outline-none cursor-pointer" />
+                </div>
+                <span className="text-[#C4C9DA] text-sm">→</span>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">To</label>
+                  <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
+                    className="text-[12px] font-semibold bg-transparent text-[#0F1117] dark:text-[#DDE1F5] focus:outline-none cursor-pointer" />
+                </div>
+                {loading && <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin ml-1" />}
+              </div>
+
+              <button onClick={generateAI} disabled={aiLoading || loading}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[12px] font-semibold transition">
+                {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {aiLoading ? "Generating…" : data?.aiAnalysis ? "Re-generate AI" : "Generate AI Report"}
+              </button>
+
+              <button onClick={exportPDF} disabled={!data}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold hover:border-indigo-400 dark:hover:border-indigo-600 disabled:opacity-40 transition">
+                <FileDown className="w-3.5 h-3.5" /> Export PDF
+              </button>
             </div>
           </div>
 
-          {/* Controls row */}
-          <div className="flex flex-wrap items-center gap-2 no-print">
-            {/* Date range picker */}
-            <div className="flex items-center gap-2 bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl px-3 py-2">
-              <div>
-                <label className="block text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">From</label>
-                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-                  className="text-[12px] font-semibold bg-transparent text-[#0F1117] dark:text-[#DDE1F5] focus:outline-none cursor-pointer" />
-              </div>
-              <span className="text-[#C4C9DA] text-sm">→</span>
-              <div>
-                <label className="block text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">To</label>
-                <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
-                  className="text-[12px] font-semibold bg-transparent text-[#0F1117] dark:text-[#DDE1F5] focus:outline-none cursor-pointer" />
-              </div>
-              {loading && <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin ml-1" />}
+          {/* ── Header KPI cards — shown once data loads ──────────────────── */}
+          {data && data.totals && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+              {[
+                { label: "Spend",       value: money(data.totals.spend),          tint: "#EF4444", icon: "₹" },
+                { label: "Impressions", value: numfmt(data.totals.impressions),    tint: "#6366F1", icon: "👁" },
+                { label: "Reach",       value: numfmt(data.totals.reach),          tint: "#10B981", icon: "🎯" },
+                { label: "Clicks",      value: numfmt(data.totals.clicks),         tint: "#0EA5E9", icon: "🖱" },
+                { label: "CTR",         value: data.totals.impressions > 0 ? `${((data.totals.clicks / data.totals.impressions) * 100).toFixed(2)}%` : "—", tint: "#F59E0B", icon: "%" },
+                { label: "Leads",       value: numfmt(data.totals.leads),          tint: "#8B5CF6", icon: "👤" },
+                { label: "Cost/Lead",   value: money(data.totals.costPerLead),     tint: "#EC4899", icon: "₹" },
+                { label: "Conv. Rate",  value: data.totals.conversionRatePct != null ? `${data.totals.conversionRatePct}%` : "—", tint: "#10B981", icon: "✓" },
+              ].map((k) => (
+                <div key={k.label} className="relative overflow-hidden rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] px-3 py-2.5 hover:shadow-sm transition-all"
+                  style={{ background: `linear-gradient(135deg, ${k.tint}12 0%, transparent 70%)` }}>
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-1">{k.label}</p>
+                  <p className="text-[15px] font-extrabold text-[#0F1117] dark:text-[#F0F2FA] leading-none tabular-nums">{k.value}</p>
+                  <div className="absolute right-2 top-2 text-[14px] opacity-20 select-none">{k.icon}</div>
+                </div>
+              ))}
             </div>
-
-            <button onClick={generateAI} disabled={aiLoading || loading}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[12px] font-semibold transition">
-              {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              {aiLoading ? "Generating…" : data?.aiAnalysis ? "Re-generate AI" : "Generate AI Report"}
-            </button>
-
-            <button onClick={exportPDF} disabled={!data}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold hover:border-indigo-400 dark:hover:border-indigo-600 disabled:opacity-40 transition">
-              <FileDown className="w-3.5 h-3.5" /> Export PDF
-            </button>
-          </div>
+          )}
         </div>
       </div>
 
