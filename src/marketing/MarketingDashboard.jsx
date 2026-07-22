@@ -289,7 +289,364 @@ function MktAdRow({ad}){
   );
 }
 
-// ── Meta campaign card for MetaAdsTab (own component — no hook in map) ────────
+// ── Meta Campaigns Tab (primary view) ────────────────────────────────────────
+function MetaCampaignRow({camp,idx}){
+  const[open,setOpen]=useState(false);
+  const m=camp.metrics||{};
+  const isConfigured=camp.configured;
+  const hasSpend=(m.spend||0)>0;
+  const statusActive=camp.metaActive!==false&&camp.isActive!==false;
+
+  // Performance rating
+  const ctr=Number(m.ctr)||0, freq=Number(m.frequency)||0;
+  const perf = ctr>=2&&freq<=4?"Good":ctr>=1?"Fair":"Needs Attention";
+  const perfColor = perf==="Good"?"#10B981":perf==="Fair"?"#F59E0B":"#EF4444";
+  const perfBg    = perf==="Good"?"bg-emerald-50 dark:bg-emerald-950/20":perf==="Fair"?"bg-amber-50 dark:bg-amber-950/20":"bg-rose-50 dark:bg-rose-950/20";
+  const PerfIcon  = perf==="Good"?CheckCircle2:perf==="Fair"?Info:AlertCircle;
+
+  const convRate=camp.leads>0?Math.round((camp.converted/camp.leads)*10000)/100:0;
+
+  return(
+    <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+      {/* Campaign header */}
+      <div className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02] transition-colors" onClick={()=>setOpen(!open)}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-[13px] shrink-0"
+          style={{background:COLORS[idx%COLORS.length]}}>{idx+1}</div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5] truncate">{camp.campaignName}</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {camp.category&&<span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400">{camp.category}</span>}
+            <p className="text-[10px] text-[#8B92A9] truncate">{camp.adSetName||"Campaign level"}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusActive?"bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30":"bg-slate-100 text-slate-500 dark:bg-white/5"}`}>
+            {statusActive?"Active":"Paused"}
+          </span>
+          {isConfigured&&hasSpend&&(
+            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${perfBg}`} style={{color:perfColor}}>
+              <PerfIcon className="w-3 h-3"/>{perf}
+            </span>
+          )}
+          {open?<ChevronUp className="w-4 h-4 text-[#8B92A9]"/>:<ChevronDown className="w-4 h-4 text-[#8B92A9]"/>}
+        </div>
+      </div>
+
+      {/* Metrics strip */}
+      {isConfigured?(
+        <div className="grid grid-cols-4 sm:grid-cols-8 bg-[#F8F9FC] dark:bg-[#0D0F14] border-t border-[#E4E7EF] dark:border-[#1E2133] divide-x divide-[#E4E7EF] dark:divide-[#1E2133]">
+          {[
+            ["Spend",    hasSpend?`₹${Number(m.spend).toLocaleString("en-IN",{maximumFractionDigits:0})}`:"—"],
+            ["Impr.",    hasSpend?Number(m.impressions||0).toLocaleString("en-IN"):"—"],
+            ["Reach",    hasSpend?Number(m.reach||0).toLocaleString("en-IN"):"—"],
+            ["Clicks",   hasSpend?Number(m.clicks||0).toLocaleString("en-IN"):"—"],
+            ["CTR",      hasSpend?`${Number(m.ctr||0).toFixed(2)}%`:"—"],
+            ["CPM",      hasSpend?`₹${Number(m.cpm||0).toFixed(2)}`:"—"],
+            ["Leads",    camp.leads||0],
+            ["Converted",camp.converted||0],
+          ].map(([k,v])=>(
+            <div key={k} className="flex flex-col px-2 py-2">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">{k}</span>
+              <span className="text-[11px] font-bold text-[#0F1117] dark:text-[#DDE1F5] tabular-nums">{v}</span>
+            </div>
+          ))}
+        </div>
+      ):(
+        <div className="px-4 py-2 bg-[#F8F9FC] dark:bg-[#0D0F14] border-t border-[#E4E7EF] dark:border-[#1E2133]">
+          <p className="text-[11px] text-[#8B92A9]">No ads_read token configured — add Ad Account ID + token to see metrics.</p>
+        </div>
+      )}
+
+      {/* Expanded: CPL + Conv Rate + Issues + Suggestions */}
+      {open&&(
+        <div className="px-4 py-4 border-t border-[#E4E7EF] dark:border-[#1E2133] space-y-3">
+          {/* CPL + Conv Rate KPIs */}
+          {isConfigured&&(
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                {label:"Cost per Lead",    value:camp.costPerLead?`₹${Number(camp.costPerLead).toLocaleString("en-IN",{maximumFractionDigits:2})}`:"—",tint:"#6366F1"},
+                {label:"Conv. Rate",       value:camp.leads>0?`${convRate}%`:"—",tint:"#10B981"},
+                {label:"Cost per Conv.",   value:camp.costPerConversion?`₹${Number(camp.costPerConversion).toLocaleString("en-IN",{maximumFractionDigits:2})}`:"—",tint:"#F59E0B"},
+                {label:"Frequency",        value:hasSpend?`${Number(m.frequency||0).toFixed(1)}×`:"—",tint:Number(m.frequency)>5?"#EF4444":"#0EA5E9"},
+              ].map(c=>(
+                <div key={c.label} className="rounded-xl p-3 border border-[#E4E7EF] dark:border-[#1E2133]" style={{background:`${c.tint}0D`}}>
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] mb-0.5">{c.label}</p>
+                  <p className="text-[15px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{c.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Setup issues */}
+          {camp.issues&&camp.issues.length>0&&(
+            <div className="space-y-1.5">
+              {camp.issues.map((issue,i)=>(
+                <div key={i} className={`flex items-start gap-2 px-3 py-2 rounded-xl text-[11px] ${issue.level==="error"?"bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400":issue.level==="warn"?"bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400":"bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400"}`}>
+                  {issue.level==="error"?<AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5"/>:issue.level==="warn"?<AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5"/>:<Info className="w-3.5 h-3.5 shrink-0 mt-0.5"/>}
+                  {issue.msg}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetaCampaignsTab({from,to}){
+  const[data,setData]=useState(null);
+  const[loading,setLoad]=useState(false);
+  const[error,setError]=useState("");
+  const[aiLoading,setAiLoad]=useState(false);
+  const[catFilter,setCatFilter]=useState(""); // category filter
+
+  const load=useCallback(async(withAI=false)=>{
+    withAI?setAiLoad(true):setLoad(true);setError("");
+    try{
+      const{data:d}=await mktApi.get("/meta-insights",{params:{from,to,ai:withAI?"true":"false"},timeout:withAI?70000:30000});
+      setData(d);
+    }catch(e){setError(e?.response?.data?.message||"Failed to load Meta campaign data.");}
+    finally{withAI?setAiLoad(false):setLoad(false);}
+  },[from,to]);
+
+  useEffect(()=>{load(false);},[load]);
+
+  const allCamps=data?.campaigns||[];
+  // All distinct categories for filter
+  const categories=useMemo(()=>{
+    const cats=new Set(allCamps.map(c=>c.category||"").filter(Boolean));
+    return Array.from(cats).sort();
+  },[allCamps]);
+
+  // Filter by selected category
+  const camps=useMemo(()=>catFilter?allCamps.filter(c=>(c.category||"")=== catFilter):allCamps,[allCamps,catFilter]);
+
+  // Group camps by category for grouped view
+  const byCategory=useMemo(()=>{
+    const map={};
+    camps.forEach(c=>{const k=c.category||"Uncategorised";if(!map[k])map[k]=[];map[k].push(c);});
+    return Object.entries(map).sort((a,b)=>a[0]==="Uncategorised"?1:b[0]==="Uncategorised"?-1:a[0].localeCompare(b[0]));
+  },[camps]);
+
+  const t=data?.totals||{};
+  const configured=allCamps.filter(c=>c.configured&&c.metrics&&(c.metrics.spend||0)>0);
+  const ai=data?.aiAnalysis;
+
+  if(loading&&!data) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-[#8B92A9]"/></div>;
+  if(error) return <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 text-rose-600 text-[12px]"><AlertTriangle className="w-4 h-4 shrink-0"/>{error}</div>;
+
+  return(
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0">
+          <BarChart3 className="w-4 h-4 text-white"/>
+        </div>
+        <div>
+          <p className="text-[15px] font-extrabold text-[#0F1117] dark:text-[#F0F2FA] leading-tight">Meta Campaign Performance</p>
+          <p className="text-[11px] text-[#8B92A9]">Spend · reach · CTR · leads · conversions · CPL per campaign</p>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={()=>load(false)} disabled={loading||aiLoading}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] text-[11px] font-semibold text-[#8B92A9] hover:text-indigo-600">
+            {loading?<Loader2 className="w-3.5 h-3.5 animate-spin"/>:<RefreshCw className="w-3.5 h-3.5"/>} Refresh
+          </button>
+          <button onClick={()=>load(true)} disabled={loading||aiLoading}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[11px] font-bold">
+            {aiLoading?<Loader2 className="w-3.5 h-3.5 animate-spin"/>:<Zap className="w-3.5 h-3.5"/>} Generate AI Analysis
+          </button>
+        </div>
+      </div>
+
+      {/* Summary strip */}
+      {data&&(t.spend>0||t.leads>0)&&(
+        <div className="rounded-2xl p-4 bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 text-white shadow-md">
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70 mb-1.5">{camps.length} campaign configs · {from} → {to}</p>
+          <p className="text-[13px] leading-relaxed">
+            Spent <b>₹{Number(t.spend||0).toLocaleString("en-IN",{maximumFractionDigits:0})}</b> reaching <b>{Number(t.reach||0).toLocaleString("en-IN")}</b> people,
+            generating <b>{t.leads||0} leads</b> at <b>₹{t.costPerLead||"—"}/lead</b> with <b>{t.converted||0} conversions</b> ({t.conversionRatePct||0}% conv. rate).
+          </p>
+        </div>
+      )}
+
+      {/* KPIs */}
+      {data&&(t.spend>0||t.leads>0)&&(
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {[
+            {icon:IndianRupee,label:"Total Spend",    value:`₹${Number(t.spend||0).toLocaleString("en-IN",{maximumFractionDigits:0})}`,tint:"#EF4444"},
+            {icon:Eye,        label:"Impressions",    value:Number(t.impressions||0).toLocaleString("en-IN"),tint:"#6366F1"},
+            {icon:Users,      label:"Reach",          value:Number(t.reach||0).toLocaleString("en-IN"),tint:"#10B981"},
+            {icon:MousePointerClick,label:"Clicks",   value:Number(t.clicks||0).toLocaleString("en-IN"),tint:"#0EA5E9"},
+            {icon:Target,     label:"Leads",          value:t.leads||0,tint:"#F59E0B"},
+            {icon:CheckCircle2,label:"Converted",     value:t.converted||0,tint:"#10B981"},
+            {icon:IndianRupee,label:"Cost per Lead",  value:t.costPerLead?`₹${t.costPerLead}`:"—",tint:"#8B5CF6"},
+            {icon:Percent,    label:"Conv. Rate",     value:t.conversionRatePct!=null?`${t.conversionRatePct}%`:"—",tint:"#EC4899"},
+          ].map(c=>(
+            <div key={c.label} className="relative overflow-hidden bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-3.5 hover:shadow-md transition-all" style={{background:`linear-gradient(135deg,${c.tint}12 0%,transparent 70%)`}}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{background:`${c.tint}22`}}><c.icon className="w-3.5 h-3.5" style={{color:c.tint}}/></span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9]">{c.label}</span>
+              </div>
+              <p className="text-[18px] font-extrabold text-[#0F1117] dark:text-[#F0F2FA] leading-none">{c.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Category-wise spend breakdown */}
+      {data&&byCategory.length>1&&(()=>{
+        // Compute per-category totals
+        const catStats=byCategory.map(([cat,catCamps])=>({
+          cat,
+          spend:  catCamps.reduce((s,c)=>s+(c.metrics&&c.metrics.spend||0),0),
+          leads:  catCamps.reduce((s,c)=>s+(c.leads||0),0),
+          conv:   catCamps.reduce((s,c)=>s+(c.converted||0),0),
+          impr:   catCamps.reduce((s,c)=>s+(c.metrics&&c.metrics.impressions||0),0),
+          clicks: catCamps.reduce((s,c)=>s+(c.metrics&&c.metrics.clicks||0),0),
+          count:  catCamps.length,
+        })).filter(c=>c.spend>0||c.leads>0).sort((a,b)=>b.spend-a.spend);
+        if(!catStats.length) return null;
+        const maxSpend=Math.max(1,...catStats.map(c=>c.spend));
+        const totalSpend=catStats.reduce((s,c)=>s+c.spend,0)||1;
+        return(
+          <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Category-wise Performance</p>
+                <p className="text-[10px] text-[#8B92A9] mt-0.5">Spend distribution across {catStats.length} categories</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {catStats.map((c,i)=>{
+                const convRate=c.leads>0?Math.round((c.conv/c.leads)*10000)/100:0;
+                const cpl=c.leads>0?Math.round((c.spend/c.leads)*100)/100:null;
+                const spendPct=Math.round((c.spend/totalSpend)*100);
+                const barW=Math.max(2,(c.spend/maxSpend)*100);
+                return(
+                  <div key={c.cat} className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{background:COLORS[i%COLORS.length]}}/>
+                        <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] truncate">{c.cat}</span>
+                        <span className="text-[10px] text-[#8B92A9] shrink-0">{c.count} campaign{c.count!==1?"s":""}</span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 text-right">
+                        <div>
+                          <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">₹{Number(c.spend).toLocaleString("en-IN",{maximumFractionDigits:0})}</p>
+                          <p className="text-[9px] text-[#8B92A9]">{spendPct}% of spend</p>
+                        </div>
+                        <div className="hidden sm:block">
+                          <p className="text-[12px] font-bold text-blue-600">{c.leads}</p>
+                          <p className="text-[9px] text-[#8B92A9]">Leads</p>
+                        </div>
+                        <div className="hidden md:block">
+                          <p className="text-[12px] font-bold text-emerald-600">{c.conv}</p>
+                          <p className="text-[9px] text-[#8B92A9]">Converted</p>
+                        </div>
+                        <div className="hidden md:block">
+                          <p className="text-[12px] font-bold" style={{color:convRate>=10?"#10B981":convRate>=5?"#F59E0B":"#EF4444"}}>{convRate}%</p>
+                          <p className="text-[9px] text-[#8B92A9]">Conv%</p>
+                        </div>
+                        {cpl&&<div className="hidden lg:block">
+                          <p className="text-[12px] font-bold text-purple-600">₹{Number(cpl).toLocaleString("en-IN",{maximumFractionDigits:0})}</p>
+                          <p className="text-[9px] text-[#8B92A9]">CPL</p>
+                        </div>}
+                      </div>
+                    </div>
+                    {/* Spend bar */}
+                    <div className="h-2.5 rounded-full bg-[#F1F3F9] dark:bg-white/5 overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{width:`${barW}%`,background:`linear-gradient(90deg,${COLORS[i%COLORS.length]}CC,${COLORS[i%COLORS.length]})`}}/>
+                    </div>
+                    {/* Mini metrics strip */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {c.impr>0&&<span className="text-[10px] text-[#8B92A9]">👁 {Number(c.impr).toLocaleString("en-IN")} impressions</span>}
+                      {c.clicks>0&&<span className="text-[10px] text-[#8B92A9]">🖱 {Number(c.clicks).toLocaleString("en-IN")} clicks</span>}
+                      {c.impr>0&&c.clicks>0&&<span className="text-[10px] text-[#8B92A9]">CTR {((c.clicks/c.impr)*100).toFixed(2)}%</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* AI Analysis panel */}
+      {data&&(
+        <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+          <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-[#E4E7EF] dark:border-[#1E2133] bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-indigo-950/20 dark:to-violet-950/20">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0">
+              <Zap className="w-3.5 h-3.5 text-white"/>
+            </div>
+            <div className="flex-1">
+              <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">AI Campaign Analysis & Suggestions</p>
+              <p className="text-[10px] text-[#8B92A9]">Click "Generate AI Analysis" to get insights and improvement recommendations</p>
+            </div>
+          </div>
+          <div className="p-5">
+            {aiLoading&&<div className="flex flex-col items-center py-10 gap-3"><Loader2 className="w-6 h-6 animate-spin text-indigo-500"/><p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#DDE1F5]">Analysing campaigns…</p><p className="text-[11px] text-[#8B92A9]">This takes 10–20 seconds</p></div>}
+            {!aiLoading&&!ai&&<div className="flex flex-col items-center py-8 text-center"><Zap className="w-8 h-8 text-[#C4C9DA] mb-2"/><p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#DDE1F5]">No analysis yet</p><p className="text-[12px] text-[#8B92A9] mt-0.5">Click "Generate AI Analysis" above to get recommendations.</p></div>}
+            {!aiLoading&&ai&&(
+              <div className="space-y-4">
+                {ai.summary&&<div className="rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/20 dark:to-violet-950/20 border border-indigo-100 dark:border-indigo-900/40 p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 mb-1.5 flex items-center gap-1"><Star className="w-3 h-3"/>Summary</p><p className="text-[13px] text-[#334155] dark:text-[#CBD5E1] leading-relaxed">{ai.summary}</p></div>}
+                <div className="grid md:grid-cols-2 gap-3">
+                  {ai.topPerformers&&ai.topPerformers.length>0&&<div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-2 flex items-center gap-1"><TrendingUp className="w-3 h-3"/>Top Performers</p><ul className="space-y-2">{ai.topPerformers.map((p,i)=><li key={i} className="text-[12px] text-[#334155] dark:text-[#CBD5E1]"><span className="font-semibold text-[#0F1117] dark:text-[#DDE1F5]">{p.campaign}:</span> {p.why}</li>)}</ul></div>}
+                  {ai.underperformers&&ai.underperformers.length>0&&<div className="rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40 p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 mb-2 flex items-center gap-1"><TrendingDown className="w-3 h-3"/>Needs Attention</p><ul className="space-y-2">{ai.underperformers.map((p,i)=><li key={i} className="text-[12px] text-[#334155] dark:text-[#CBD5E1]"><span className="font-semibold text-[#0F1117] dark:text-[#DDE1F5]">{p.campaign}:</span> {p.issue}</li>)}</ul></div>}
+                </div>
+                {ai.suggestions&&ai.suggestions.length>0&&<div className="rounded-xl bg-amber-50 dark:bg-amber-950/10 border border-amber-200 dark:border-amber-800/30 p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-2 flex items-center gap-1"><Zap className="w-3 h-3"/>Improvement Suggestions</p><ul className="space-y-2">{ai.suggestions.map((s,i)=><li key={i} className="flex items-start gap-2 text-[12px] text-[#4B5168] dark:text-[#9DA3BB]"><span className="w-4 h-4 rounded-full bg-amber-200 dark:bg-amber-800/40 text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i+1}</span>{s}</li>)}</ul></div>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Campaign cards — grouped by category */}
+      {data&&(
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">{camps.length} Campaign Configs</p>
+            {/* Category filter */}
+            {categories.length>0&&(
+              <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+                <span className="text-[11px] text-[#8B92A9]">Category:</span>
+                <button onClick={()=>setCatFilter("")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${!catFilter?"bg-indigo-600 text-white":"bg-[#F1F3F9] dark:bg-white/5 text-[#4B5168] dark:text-[#9DA3BB] hover:bg-indigo-50"}`}>
+                  All
+                </button>
+                {categories.map(cat=>(
+                  <button key={cat} onClick={()=>setCatFilter(cat)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${catFilter===cat?"bg-indigo-600 text-white":"bg-[#F1F3F9] dark:bg-white/5 text-[#4B5168] dark:text-[#9DA3BB] hover:bg-indigo-50"}`}>
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-[#8B92A9]">{configured.length} with data · Click to expand</p>
+          </div>
+          {camps.length===0&&<div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-10 text-center"><BarChart3 className="w-8 h-8 text-[#C4C9DA] mx-auto mb-3" strokeWidth={1.5}/><p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#DDE1F5]">No Meta campaigns configured</p><p className="text-[12px] text-[#8B92A9] mt-1">Add campaigns in the CRM Campaigns section to see performance here.</p></div>}
+          {/* Render grouped by category */}
+          {byCategory.map(([cat,catCamps])=>(
+            <div key={cat}>
+              {byCategory.length>1&&(
+                <div className="flex items-center gap-2 py-1.5">
+                  <div className="h-px flex-1 bg-[#E4E7EF] dark:bg-[#1E2133]"/>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
+                    {cat} · {catCamps.length} campaign{catCamps.length!==1?"s":""}
+                  </span>
+                  <div className="h-px flex-1 bg-[#E4E7EF] dark:bg-[#1E2133]"/>
+                </div>
+              )}
+              {catCamps.map((camp,i)=><MetaCampaignRow key={camp.configId||i} camp={camp} idx={i}/>)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function MetaCampaignCard({name,ads,ci}){
   const[open,setOpen]=useState(false);
   const spend=ads.reduce((s,a)=>s+(a.metrics.spend||0),0);
@@ -757,7 +1114,7 @@ export default function MarketingDashboard() {
   const nav=useNavigate();
   const user=JSON.parse(localStorage.getItem("mkt_user")||"{}");
   const [dark,setDark]=useState(()=>localStorage.getItem("mkt_dark")==="true");
-  const [activeTab,setActiveTab]=useState("overview");
+  const [activeTab,setActiveTab]=useState("meta");
   const [data,setData]=useState(null);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
@@ -846,15 +1203,16 @@ export default function MarketingDashboard() {
       <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-5 space-y-4">
         {/* ── TAB NAV ─────────────────────────────────────────────────────── */}
         <div className="flex gap-1 bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-1.5">
-          {[["overview","Overview"],["meta","Meta Ads"],["leads","Leads"]].map(([v,l])=>(
+          {[["meta","Meta Campaigns"],["leads","Leads"],["adlevel","Ad-Level"],["overview","Overview"]].map(([v,l])=>(
             <button key={v} onClick={()=>setActiveTab(v)}
               className={`flex-1 py-2 rounded-xl text-[12px] font-bold transition-colors ${activeTab===v?"bg-indigo-600 text-white shadow":"text-[#8B92A9] hover:text-[#4B5168] dark:hover:text-[#DDE1F5]"}`}>{l}</button>
           ))}
         </div>
 
         {/* ── META ADS TAB ─────────────────────────────────────────────────── */}
-        {activeTab==="meta"&&<MetaAdsTab from={from} to={to}/>}
+        {activeTab==="meta"&&<MetaCampaignsTab from={from} to={to}/>}
         {activeTab==="leads"&&<LeadsIntelligenceTab from={from} to={to}/>}
+        {activeTab==="adlevel"&&<MetaAdsTab from={from} to={to}/>}
 
         {/* ── OVERVIEW TAB ─────────────────────────────────────────────────── */}
         {activeTab==="overview"&&<div className="space-y-4">
