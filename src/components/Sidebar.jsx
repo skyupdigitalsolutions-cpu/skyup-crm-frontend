@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import useEntitlements from "../hooks/useEntitlements";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import api from "../data/axiosConfig";
+import api, { clearAllCache } from "../data/axiosConfig";
 
 // ── Nav items for ADMIN ───────────────────────────────────────────────────────
 const ADMIN_NAV_ITEMS = [
@@ -331,6 +331,10 @@ export function Sidebar() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    // Wipe the in-memory GET cache — otherwise the next admin who logs in on
+    // this same tab (no full page reload happens here) can be served this
+    // admin's cached dashboard/leads data for up to 30 seconds.
+    clearAllCache();
     // Notify same-tab NotificationProvider so socket disconnects immediately
     window.dispatchEvent(new Event("user_changed"));
     navigate("/login", { replace: true });
