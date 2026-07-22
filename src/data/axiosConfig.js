@@ -38,17 +38,31 @@ export function clearCache(fragment) {
   }
 }
 
+// Wipe the entire cache outright. MUST be called on every login/logout —
+// otherwise responses cached under one admin's session can be served to the
+// next admin who logs in on the same tab (SPA navigation never reloads this
+// module, so the Map survives the swap).
+export function clearAllCache() {
+  _cache.clear();
+}
+
 // ── Request interceptor — inject token + serve from cache ────────────────────
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
   if (config.method === "get" && isCacheable(config.url)) {
-    const key   = (config.url || "") + JSON.stringify(config.params || {});
+    // IMPORTANT: the cache key includes the current token. Two different
+    // admins/companies hitting the exact same URL+params must never share a
+    // cache entry — keying on the token guarantees that even if a
+    // clearCache()/clearAllCache() call is ever missed somewhere, one
+    // session's data cannot leak into another session's dashboard.
+    const key   = (token || "anon") + "|" + (config.url || "") + JSON.stringify(config.params || {});
     const entry = _cache.get(key);
     if (entry && Date.now() - entry.ts < CACHE_TTL) {
       config.adapter = () => Promise.resolve(entry.response);
     }
+    config.__cacheKey = key;
   }
 
   return config;
@@ -58,7 +72,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => {
     if (response.config.method === "get" && isCacheable(response.config.url)) {
-      const key = (response.config.url || "") + JSON.stringify(response.config.params || {});
+      const key = response.config.__cacheKey ||
+        ((localStorage.getItem("token") || "anon") + "|" + (response.config.url || "") + JSON.stringify(response.config.params || {}));
       _cache.set(key, { ts: Date.now(), response });
     }
     return response;
@@ -83,6 +98,7 @@ api.interceptors.response.use(
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       localStorage.removeItem("company_brand");
+      clearAllCache();
       window.dispatchEvent(new Event("user_changed"));
       window.location.href = "/login";
     }
