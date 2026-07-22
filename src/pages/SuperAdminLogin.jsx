@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import api from "../data/axiosConfig";
+import api, { clearAllCache } from "../data/axiosConfig";
 import toast from "react-hot-toast";
 
 // ── 6-box OTP input ────────────────────────────────────────────────────────────
@@ -114,6 +114,12 @@ export default function SuperAdminLogin() {
     setLoading(true); setError("");
     try {
       const res = await api.post("/superadmin/verify-otp", { email: pendingEmail, otp: cleanOtp });
+
+      // Wipe any responses cached under a previous session on this tab before
+      // storing the new token — otherwise this super admin can briefly see
+      // whatever company's data was cached from the previous session.
+      clearAllCache();
+
       localStorage.setItem("token", res.data.token);
 
       // FIX: backend may return either flat companyId/companyName fields
