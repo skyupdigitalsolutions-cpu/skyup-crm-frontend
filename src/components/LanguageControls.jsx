@@ -95,6 +95,9 @@ export function EmployeeLanguages({ user, onSaved, compact = false }) {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const firstRun = useRef(true);
+  // Unique datalist ID per user so multiple rows don't share the same list
+  const listId = `emp-lang-${user?._id || user?.id || Math.random().toString(36).slice(2)}`;
+
   useEffect(() => { if (firstRun.current) { firstRun.current = false; return; } setDirty(true); }, [langs]);
 
   const add = (v) => { const t = String(v).trim(); if (t && !langs.some((l) => l.toLowerCase() === t.toLowerCase())) setLangs([...langs, t]); setInput(""); };
@@ -116,10 +119,14 @@ export function EmployeeLanguages({ user, onSaved, compact = false }) {
         ))}
       </div>
       <div className="flex items-center gap-1.5">
-        <input list="emp-lang-suggestions" value={input} onChange={(e) => setInput(e.target.value)}
+        <select value={input} onChange={(e) => { if (e.target.value) { add(e.target.value); } }}
+          className="flex-1 text-[12px] px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] focus:outline-none text-[#0F1117] dark:text-[#DDE1F5]">
+          <option value="">Add language + Enter</option>
+          {COMMON_LANGUAGES.filter((l) => !langs.some((x) => x.toLowerCase() === l.toLowerCase())).map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+        <input value={input} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(input); } }}
-          placeholder="Add language + Enter" className="flex-1 text-[12px] px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] focus:outline-none" />
-        <datalist id="emp-lang-suggestions">{COMMON_LANGUAGES.map((l) => <option key={l} value={l} />)}</datalist>
+          placeholder="Or type custom…" className="w-24 text-[12px] px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] focus:outline-none" />
         <button onClick={() => add(input)} className="p-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#1E2133] text-[#8B92A9] hover:text-indigo-600"><Plus className="w-3.5 h-3.5" /></button>
         {dirty && <button onClick={save} disabled={saving} className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold inline-flex items-center gap-1">
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Save
