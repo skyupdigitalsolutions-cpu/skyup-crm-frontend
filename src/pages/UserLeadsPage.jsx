@@ -78,6 +78,7 @@ phone:          l.primaryPhone   || l.mobile || l.phone || "",
     date:           fmtDate(l.date   || l.createdAt),
     _raw_date:      l.date           || l.createdAt || null,
     callHistory:    Array.isArray(l.callHistory)    ? l.callHistory    : [],
+    templateHistory: Array.isArray(l.templateHistory) ? l.templateHistory : [],
     meetingRemarks: Array.isArray(l.meetingRemarks) ? l.meetingRemarks : [],
     initialRemark:  l.initialRemark  || "",
     scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
@@ -866,6 +867,39 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                             <span className="text-[#8B92A9] shrink-0 text-[12px]">{h.calledAt ? fmtDate(h.calledAt) : "—"}</span>
                           </div>
                           <p className="text-[#4B5168] dark:text-white italic truncate">{h.remark || "—"}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {lead.templateHistory.length > 0 && (
+                <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
+                  <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">
+                    WhatsApp Templates Sent ({lead.templateHistory.length})
+                  </p>
+                  <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                    {[...lead.templateHistory].reverse().map((t, i) => (
+                      <div key={i} className="flex gap-2.5 text-[13px]">
+                        <div className="w-1.5 shrink-0 mt-1">
+                          <div className={`w-1.5 h-1.5 rounded-full ${t.status === "failed" ? "bg-[#DC2626]" : "bg-[#22C55E]"}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-[#0F1117] dark:text-white truncate">{t.templateName}</span>
+                            <span className="text-[#8B92A9] shrink-0 text-[12px]">
+                              {t.sentAt
+                                ? new Date(t.sentAt).toLocaleString("en-IN", {
+                                    day: "2-digit", month: "short", year: "numeric",
+                                    hour: "2-digit", minute: "2-digit", hour12: true,
+                                    timeZone: "Asia/Kolkata",
+                                  })
+                                : "—"}
+                            </span>
+                          </div>
+                          {t.status === "failed" && (
+                            <p className="text-[#DC2626] italic truncate">failed to send</p>
+                          )}
                         </div>
                       </div>
                     ))}
