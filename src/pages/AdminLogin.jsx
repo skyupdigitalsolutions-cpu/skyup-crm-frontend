@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import api from "../data/axiosConfig";
+import api, { clearAllCache } from "../data/axiosConfig";
 import CRMEncryption from "../utils/CRMEncryption";
 import toast from "react-hot-toast";
 import { CheckCircle2 } from "lucide-react";
@@ -41,6 +41,11 @@ export default function AdminLogin() {
       }
 
       const token = res.data.token;
+
+      // Wipe any responses cached under a previous session on this tab before
+      // storing the new token — otherwise this admin can briefly see the
+      // previous admin's cached dashboard/leads data.
+      clearAllCache();
 
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify({
