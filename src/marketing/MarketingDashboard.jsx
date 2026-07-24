@@ -790,6 +790,40 @@ function GoogleAdsTab({ from, to, refreshKey }) {
   );
 }
 
+// ── Ad-level campaign card (must be a component — useState cannot be in .map) ─
+function AdLevelCampCard({ camp, ci }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-4 cursor-pointer hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02]" onClick={()=>setOpen(!open)}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-[13px] shrink-0" style={{background:COLORS[ci%COLORS.length]}}>{ci+1}</div>
+        <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5] truncate">{camp.campaign}</p><p className="text-[10px] text-[#8B92A9]">{camp.adSets.length} ad sets · {camp.total} leads</p></div>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="text-right"><p className="text-[15px] font-extrabold text-emerald-600">{camp.converted}</p><p className="text-[9px] text-[#8B92A9]">Converted</p></div>
+          <div className="text-right"><p className="text-[15px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{camp.convRate}%</p><p className="text-[9px] text-[#8B92A9]">Conv. Rate</p></div>
+          {open?<ChevronUp className="w-4 h-4 text-[#8B92A9]"/>:<ChevronDown className="w-4 h-4 text-[#8B92A9]"/>}
+        </div>
+      </div>
+      <div className="px-4 pb-3"><ConvBar total={camp.total} converted={camp.converted} inProgress={camp.adSets.reduce((s,a)=>s+(a.inProgress||0),0)} notInt={camp.adSets.reduce((s,a)=>s+(a.notInt||0),0)}/></div>
+      {open&&<div className="border-t border-[#E4E7EF] dark:border-[#1E2133]">
+        {camp.adSets.map((adSet,ai)=>(
+          <div key={ai} className="border-b border-[#F1F3F9] dark:border-white/5 last:border-0">
+            <div className="grid grid-cols-8 px-4 py-3 gap-2">
+              <div className="col-span-2"><p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] truncate">{adSet.adSet||"—"}</p><p className="text-[10px] text-[#8B92A9]">{adSet.source}</p></div>
+              <div className="text-center"><p className="text-[14px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{adSet.total}</p><p className="text-[9px] text-[#8B92A9]">{adSet.convRate}% conv</p></div>
+              <div className="text-center"><p className="text-[14px] font-bold text-blue-600">{adSet.newLeads}</p><p className="text-[9px] text-[#8B92A9]">New</p></div>
+              <div className="text-center"><p className="text-[14px] font-bold text-amber-600">{adSet.inProgress}</p><p className="text-[9px] text-[#8B92A9]">In Prog</p></div>
+              <div className="text-center"><p className="text-[14px] font-bold text-purple-600">{adSet.verif}</p><p className="text-[9px] text-[#8B92A9]">Verif</p></div>
+              <div className="text-center"><p className="text-[16px] font-extrabold text-emerald-600">{adSet.converted}</p><p className="text-[9px] text-[#8B92A9]">Conv.</p></div>
+              <div className="text-center"><p className="text-[14px] font-bold text-rose-500">{adSet.notInt}</p><p className="text-[9px] text-[#8B92A9]">Not Int.</p></div>
+            </div>
+          </div>
+        ))}
+      </div>}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ── LEADS TAB ────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
@@ -866,38 +900,9 @@ function LeadsTab({ from, to, refreshKey }) {
       {view==="adlevel"&&data&&(
         <div className="space-y-3">
           {(!data.adLevel||!data.adLevel.length)&&<div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-10 text-center text-[12px] text-[#8B92A9]">No lead data in this period.</div>}
-          {(data.adLevel||[]).map((camp,ci)=>{
-            const [open,setOpen]=useState(false);
-            return(
-              <div key={ci} className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-hidden">
-                <div className="flex items-center gap-3 px-4 py-4 cursor-pointer hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02]" onClick={()=>setOpen(!open)}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-[13px] shrink-0" style={{background:COLORS[ci%COLORS.length]}}>{ci+1}</div>
-                  <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-[#0F1117] dark:text-[#DDE1F5] truncate">{camp.campaign}</p><p className="text-[10px] text-[#8B92A9]">{camp.adSets.length} ad sets · {camp.total} leads</p></div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right"><p className="text-[15px] font-extrabold text-emerald-600">{camp.converted}</p><p className="text-[9px] text-[#8B92A9]">Converted</p></div>
-                    <div className="text-right"><p className="text-[15px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{camp.convRate}%</p><p className="text-[9px] text-[#8B92A9]">Conv. Rate</p></div>
-                    {open?<ChevronUp className="w-4 h-4 text-[#8B92A9]"/>:<ChevronDown className="w-4 h-4 text-[#8B92A9]"/>}
-                  </div>
-                </div>
-                <div className="px-4 pb-3"><ConvBar total={camp.total} converted={camp.converted} inProgress={camp.adSets.reduce((s,a)=>s+(a.inProgress||0),0)} notInt={camp.adSets.reduce((s,a)=>s+(a.notInt||0),0)}/></div>
-                {open&&<div className="border-t border-[#E4E7EF] dark:border-[#1E2133]">
-                  {camp.adSets.map((adSet,ai)=>(
-                    <div key={ai} className="border-b border-[#F1F3F9] dark:border-white/5 last:border-0">
-                      <div className="grid grid-cols-8 px-4 py-3 gap-2">
-                        <div className="col-span-2"><p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] truncate">{adSet.adSet||"—"}</p><p className="text-[10px] text-[#8B92A9]">{adSet.source}</p></div>
-                        <div className="text-center"><p className="text-[14px] font-extrabold text-[#0F1117] dark:text-[#DDE1F5]">{adSet.total}</p><p className="text-[9px] text-[#8B92A9]">{adSet.convRate}% conv</p></div>
-                        <div className="text-center"><p className="text-[14px] font-bold text-blue-600">{adSet.newLeads}</p><p className="text-[9px] text-[#8B92A9]">New</p></div>
-                        <div className="text-center"><p className="text-[14px] font-bold text-amber-600">{adSet.inProgress}</p><p className="text-[9px] text-[#8B92A9]">In Prog</p></div>
-                        <div className="text-center"><p className="text-[14px] font-bold text-purple-600">{adSet.verif}</p><p className="text-[9px] text-[#8B92A9]">Verif</p></div>
-                        <div className="text-center"><p className="text-[16px] font-extrabold text-emerald-600">{adSet.converted}</p><p className="text-[9px] text-[#8B92A9]">Conv.</p></div>
-                        <div className="text-center"><p className="text-[14px] font-bold text-rose-500">{adSet.notInt}</p><p className="text-[9px] text-[#8B92A9]">Not Int.</p></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>}
-              </div>
-            );
-          })}
+          {(data.adLevel||[]).map((camp,ci)=>(
+            <AdLevelCampCard key={camp.campaign+ci} camp={camp} ci={ci}/>
+          ))}
         </div>
       )}
 
