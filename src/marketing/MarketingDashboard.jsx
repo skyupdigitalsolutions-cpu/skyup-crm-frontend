@@ -403,13 +403,14 @@ function MetaCampaignDetail({ configId, from, to, onBack }) {
   const daily=data.daily||[];
   const spend=daily.reduce((s,d)=>s+(d.spend||0),0);
   const avgDeal=Number(cfg.avgDealValue)||0;
+  const isAdSetScoped=data.scopedToAdSet||false;
 
   const kpis=[
     {icon:IndianRupee,label:"Total Spend",value:inr(spend),tint:"#EF4444"},
     {icon:Eye,label:"Impressions",value:num(daily.reduce((s,d)=>s+(d.impressions||0),0)),tint:"#6366F1"},
     {icon:Users,label:"Reach",value:num(daily.reduce((s,d)=>s+(d.reach||0),0)),tint:"#10B981"},
     {icon:MousePointerClick,label:"Clicks",value:num(daily.reduce((s,d)=>s+(d.clicks||0),0)),tint:"#0EA5E9"},
-    {icon:Target,label:"Leads (CRM)",value:num(data.crmLeads),tint:"#F59E0B"},
+    {icon:Target,label:isAdSetScoped?"Leads (this ad set)":"Leads (campaign)",value:num(data.crmLeads),tint:"#F59E0B"},
     {icon:Star,label:"Qualified",value:num(data.crmQualified),tint:"#A855F7",sub:"Hot leads"},
     {icon:CheckCircle2,label:"Converted",value:num(data.crmConverted),tint:"#10B981"},
     {icon:IndianRupee,label:"Revenue",value:inr(data.revenue),tint:"#14B8A6",sub:avgDeal?`₹${num(avgDeal)}/deal`:"Set avg deal value"},
@@ -432,6 +433,10 @@ function MetaCampaignDetail({ configId, from, to, onBack }) {
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {cfg.category&&<span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30">{cfg.category}</span>}
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.isActive?"bg-emerald-50 text-emerald-700":"bg-slate-100 text-slate-500"}`}>{cfg.isActive?"Active":"Paused"}</span>
+              {isAdSetScoped
+                ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-950/30">📊 CRM data scoped to this ad set</span>
+                : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 dark:bg-amber-950/30">📊 CRM data = entire campaign (no ad set name set)</span>
+              }
               {!avgDeal&&<span className="text-[10px] text-amber-600 font-semibold">⚠ Set avg deal value in campaign edit to enable ROAS</span>}
             </div>
           </div>
