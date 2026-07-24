@@ -2104,12 +2104,12 @@ function AdSetLeadsPanel({ adSet }) {
 
 // ── Campaign Card ─────────────────────────────────────────────────────────────
 // NOTE: No "Sync from Meta" button here — sync lives only on the group header
-function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification }) {
+function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification, isSuperAdmin, adminList, onAssign }) {
   const st = STATUS_STYLE[c.status] || STATUS_STYLE.Active;
   const ch = CHANNEL_STYLE[c.channel] || CHANNEL_STYLE.Meta;
   const editHoverCls = c._isMeta ? "hover:border-[#E1306C] hover:text-[#E1306C]" : c._isWebsite ? "hover:border-[#16A34A] hover:text-[#16A34A]" : "hover:border-[#EA4335] hover:text-[#EA4335]";
-  // Meta Ad Sets (have adSetName) get Qualification instead of Pause + Delete
   const isMetaAdSet = c._isMeta && !!c.adSetName;
+  const isUnowned = !c.createdBy;
 
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] transition-shadow">
@@ -2159,6 +2159,36 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification
           </span>
         </div>
 
+        {/* Super-admin: show unowned badge + assign button */}
+        {isSuperAdmin && isUnowned && (
+          <div className="flex items-center justify-between gap-2 mb-3 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium truncate">No owner — visible to all admins</span>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onAssign && onAssign(c); }}
+              className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold transition whitespace-nowrap"
+            >
+              Assign
+            </button>
+          </div>
+        )}
+
+        {/* Super-admin: show owner name when assigned */}
+        {isSuperAdmin && c.createdBy && (
+          <div className="flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-800/20">
+            <Users className="w-3 h-3 text-emerald-500 shrink-0" />
+            <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">Assigned to an admin</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); onAssign && onAssign(c); }}
+              className="ml-auto text-[10px] text-emerald-600 hover:underline font-semibold"
+            >
+              Reassign
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
           <button onClick={() => onSelect(c)} className="flex-1 py-2 rounded-xl bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] text-[12px] font-semibold hover:bg-[#dce7ff] dark:hover:bg-[#1e2d52] transition">
             View leads ({c.leads})
@@ -2182,6 +2212,21 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification
 // ── Main Campaigns page ───────────────────────────────────────────────────────
 export default function Campaigns() {
   const { hasFeature } = usePlanFeatures();
+  const { getRole } = require("../data/dataService") ? (() => { try { return require("../data/dataService"); } catch { return {}; } })() : {};
+
+  // ── Role detection ──────────────────────────────────────────────────────────
+  const isSuperAdmin = (() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const role = (user.role || "").toLowerCase();
+      return role === "super_admin" || role === "superadmin";
+    } catch { return false; }
+  })();
+
+  // ── Admin list (fetched only for super_admin to populate assign dropdown) ───
+  const [adminList, setAdminList] = useState([]);
+  const [assigningCampaign, setAssigningCampaign] = useState(null); // { c, selectedAdminId }
+  const [assignLoading, setAssignLoading] = useState(false);
 
   // Per-campaign-type feature flags — each is independently controllable
   const canMeta    = hasFeature("meta-ads");
@@ -2211,6 +2256,15 @@ export default function Campaigns() {
   // This is the ONLY variable that controls the Sync Meta button visibility.
   // It must be computed AFTER campaigns are loaded.
   const isMetaConnected = campaigns.some((c) => c._isMeta);
+
+  // Fetch admin list once for super_admin
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    api.get("/admin/").then(r => {
+      const list = Array.isArray(r.data) ? r.data : (r.data?.admins || r.data?.data || []);
+      setAdminList(list.filter(a => a.role === "admin"));
+    }).catch(() => {});
+  }, [isSuperAdmin]);
 
   const fetchCampaigns = useCallback(async () => {
     setPageLoading(true);
@@ -2283,6 +2337,8 @@ export default function Campaigns() {
         metaFormStatus: cfg.metaFormStatus || "",
         metaAdsetStatus: cfg.metaAdsetStatus || "",
         metaCampaignStatus: cfg.metaCampaignStatus || "",
+        createdBy: cfg.createdBy || null,
+        _configType: "meta",
       }));
 
       const googleLeadCounts = await Promise.allSettled(
@@ -2315,6 +2371,8 @@ export default function Campaigns() {
         defaultStatus: cfg.defaultStatus || "New",
         impressions: cfg.impressions ?? 0,
         clicks: cfg.clicks ?? 0,
+        createdBy: cfg.createdBy || null,
+        _configType: "google",
       }));
 
       const websiteLeadCounts = await Promise.allSettled(
@@ -2344,6 +2402,8 @@ export default function Campaigns() {
         company: cfg.company,
         isActive: cfg.isActive,
         defaultStatus: cfg.defaultStatus || "New",
+        createdBy: cfg.createdBy || null,
+        _configType: "website",
       }));
 
       setCampaigns([...shapedMeta, ...shapedGoogleFixed, ...shapedWebsite]);
@@ -2417,6 +2477,9 @@ export default function Campaigns() {
     onToggle: handleToggle,
     onDelete: handleDelete,
     onQualification: setQualificationAdSet,
+    isSuperAdmin,
+    adminList,
+    onAssign: isSuperAdmin ? (c) => setAssigningCampaign({ c, selectedAdminId: "" }) : null,
   });
 
   const isEmpty = Object.keys(groupedMeta).length === 0 && ungrouped.length === 0;
@@ -2438,7 +2501,70 @@ export default function Campaigns() {
       ]
     : [{ label: "Campaigns", onClick: null }];
 
+  // ── Assign ownership handler ────────────────────────────────────────────────
+  const handleConfirmAssign = async () => {
+    if (!assigningCampaign || !assigningCampaign.selectedAdminId) return;
+    const { c, selectedAdminId } = assigningCampaign;
+    const endpointMap = { meta: "/meta-config/claim-ownership", google: "/google-ads-config/claim-ownership", website: "/website-config/claim-ownership" };
+    const endpoint = endpointMap[c._configType];
+    if (!endpoint) return;
+    setAssignLoading(true);
+    try {
+      await api.post(endpoint, { adminId: selectedAdminId, configId: c._id });
+      setAssigningCampaign(null);
+      fetchCampaigns();
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to assign ownership.");
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
   return (
+    <>
+      {/* ── Assign Ownership Modal ────────────────────────────────────────────── */}
+      {assigningCampaign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setAssigningCampaign(null)}>
+          <div className="bg-white dark:bg-[#1A1D27] rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Assign Campaign Owner</h3>
+                <p className="text-[12px] text-[#8B92A9] mt-1 break-all">{assigningCampaign.c.name}</p>
+              </div>
+              <button onClick={() => setAssigningCampaign(null)} className="text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white ml-2 shrink-0"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] mb-4 leading-relaxed">
+              This campaign will become visible <strong>only to the selected admin</strong>. Their team will be used for round-robin lead assignment.
+            </p>
+            <label className="block text-[11px] font-bold text-[#4B5168] dark:text-[#9DA3BB] uppercase tracking-wider mb-1.5">Select Admin</label>
+            <select
+              value={assigningCampaign.selectedAdminId}
+              onChange={e => setAssigningCampaign(prev => ({ ...prev, selectedAdminId: e.target.value }))}
+              className="w-full text-[13px] px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] focus:outline-none focus:ring-2 focus:ring-indigo-500 text-[#0F1117] dark:text-[#F0F2FA] mb-4"
+            >
+              <option value="">— Select an admin —</option>
+              {adminList.map(a => (
+                <option key={a._id} value={a._id}>{a.name}{a.email ? ` (${a.email})` : ""}</option>
+              ))}
+            </select>
+            {adminList.length === 0 && (
+              <p className="text-[11px] text-amber-600 mb-4">No admins found. Create an admin first.</p>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => setAssigningCampaign(null)} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-white/5 transition">Cancel</button>
+              <button
+                onClick={handleConfirmAssign}
+                disabled={!assigningCampaign.selectedAdminId || assignLoading}
+                className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[13px] font-bold transition flex items-center justify-center gap-2"
+              >
+                {assignLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                Assign Owner
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen font-poppins px-4 py-5 sm:px-6 sm:py-8 overflow-x-hidden">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -2887,5 +3013,6 @@ export default function Campaigns() {
         />
       )}
     </div>
+    </>
   );
 }
