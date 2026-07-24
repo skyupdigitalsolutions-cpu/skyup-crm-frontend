@@ -1060,6 +1060,22 @@ function ReportsTab({ from, to, refreshKey }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ── AD-LEVEL TAB — individual ad cards with full creative + metrics ───────────
 // ─────────────────────────────────────────────────────────────────────────────
+function getTips(m, cr) {
+  const tips = [];
+  const ctr = Number(m.ctr) || 0, freq = Number(m.frequency) || 0, cpc = Number(m.cpc) || 0;
+  const spend = Number(m.spend) || 0, impr = Number(m.impressions) || 0, reach = Number(m.reach) || 0;
+  if (ctr < 1) tips.push("Low CTR (<1%) — try a stronger hook in the headline or a more attention-grabbing image/video.");
+  if (ctr >= 3) tips.push("High CTR — ad is performing well. Consider increasing budget to scale reach.");
+  if (freq > 5) tips.push(`High frequency (${Number(freq).toFixed(1)}×) — audience is seeing this too often. Refresh the creative or expand the audience.`);
+  if (freq > 8) tips.push("Severe fatigue — widen audience or pause and rotate this creative urgently.");
+  if (cpc > 50) tips.push("High CPC — test different creatives or audience segments to reduce click cost.");
+  if (reach > 0 && impr > 0 && (impr / reach) > 6) tips.push("Very high impressions/reach ratio — consider widening your targeting.");
+  if (!cr.headline && !cr.body) tips.push("No creative copy detected — ensure the ad is set up correctly in Meta Ads Manager.");
+  if (cr.cta === "LEARN_MORE" && ctr < 1) tips.push("'Learn More' CTA with low CTR — try 'Sign Up', 'Get Quote', or 'Contact Us'.");
+  if (spend > 0 && impr === 0) tips.push("Spend recorded but zero impressions — check ad review status or delivery settings.");
+  return tips.length ? tips : ["Ad is within normal range. Monitor frequency and CTR over time."];
+}
+
 function AdCard({ ad }) {
   const [showCr,setShowCr]=useState(false);
   const [showTips,setShowTips]=useState(false);
