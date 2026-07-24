@@ -510,13 +510,13 @@ function MetaAdsTab({ from, to, refreshKey }) {
 
   useEffect(()=>{load(false);},[load,refreshKey]);
 
-  if(detailId) return <MetaCampaignDetail configId={detailId} from={from} to={to} onBack={()=>setDetailId(null)}/>;
-
   const allCamps=data?.campaigns||[];
   const categories=useMemo(()=>Array.from(new Set(allCamps.map(c=>c.category||"").filter(Boolean))).sort(),[allCamps]);
   const camps=useMemo(()=>catFilter?allCamps.filter(c=>(c.category||"")===catFilter):allCamps,[allCamps,catFilter]);
   const t=data?.totals||{};
   const ai=data?.aiAnalysis;
+
+  if(detailId) return <MetaCampaignDetail configId={detailId} from={from} to={to} onBack={()=>setDetailId(null)}/>;
 
   if(loading&&!data) return <Loader/>;
   if(error) return <Err msg={error}/>;
