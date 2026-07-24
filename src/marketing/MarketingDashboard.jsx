@@ -918,7 +918,7 @@ function LeadsTab({ from, to, refreshKey }) {
           <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-x-auto">
             <table className="w-full border-collapse">
               <thead><tr className="border-b border-[#E4E7EF] dark:border-[#1E2133] bg-[#F8F9FC] dark:bg-[#0D0F14]">
-                {["Lead","Contact","Campaign","Ad Set","Source","Status","Agent","Date"].map(h=><th key={h} className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}
+                {["Lead","Contact","Campaign","Ad Set","Source","Status","Agent","Date","Latest Remark"].map(h=><th key={h} className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] px-3 py-2.5 text-left whitespace-nowrap">{h}</th>)}
               </tr></thead>
               <tbody>
                 {(view==="converting"?filteredLeads.filter(l=>l.status==="Converted"):filteredLeads).slice(0,200).map((l,i)=>(
@@ -931,9 +931,20 @@ function LeadsTab({ from, to, refreshKey }) {
                     <td className="px-3 py-3"><StatusBadge status={l.status}/></td>
                     <td className="px-3 py-3 text-[11px] text-[#4B5168] whitespace-nowrap">{l.agent}</td>
                     <td className="px-3 py-3 text-[11px] text-[#8B92A9] whitespace-nowrap">{l.date?new Date(l.date).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"2-digit"}):""}</td>
+                    <td className="px-3 py-3 max-w-[220px]">
+                      {l.latestRemark?(
+                        <div>
+                          <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] line-clamp-2" title={l.latestRemark}>{l.latestRemark}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            {l.latestRemarkBy&&<span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">{l.latestRemarkBy}</span>}
+                            {l.latestRemarkAt&&<span className="text-[9px] text-[#8B92A9]">{new Date(l.latestRemarkAt).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"2-digit"})}</span>}
+                          </div>
+                        </div>
+                      ):<span className="text-[11px] text-[#8B92A9]">—</span>}
+                    </td>
                   </tr>
                 ))}
-                {!filteredLeads.length&&<tr><td colSpan={8} className="px-3 py-8 text-center text-[12px] text-[#8B92A9]">No leads match</td></tr>}
+                {!filteredLeads.length&&<tr><td colSpan={9} className="px-3 py-8 text-center text-[12px] text-[#8B92A9]">No leads match</td></tr>}
               </tbody>
             </table>
           </div>
@@ -1122,6 +1133,29 @@ function AdCard({ ad }) {
         ))}
       </div>
 
+      {/* CRM Stats row */}
+      {(ad.crmLeads > 0 || ad.crmConverted > 0) && (
+        <div className="mx-4 mb-3 flex items-center gap-3 px-3 py-2 rounded-xl bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133]">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B92A9] shrink-0">CRM</span>
+          {[
+            {label:"Leads",value:ad.crmLeads,color:"#F59E0B"},
+            {label:"Qualified",value:ad.crmQualified,color:"#A855F7"},
+            {label:"Converted",value:ad.crmConverted,color:"#10B981"},
+          ].map(s=>(
+            <div key={s.label} className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{background:s.color}}/>
+              <span className="text-[10px] font-bold tabular-nums" style={{color:s.color}}>{s.value}</span>
+              <span className="text-[9px] text-[#8B92A9]">{s.label}</span>
+            </div>
+          ))}
+          {ad.crmLeads > 0 && ad.metrics.spend > 0 && (
+            <span className="ml-auto text-[10px] font-bold text-[#4B5168] dark:text-[#9DA3BB]">
+              CPL ₹{Math.round(ad.metrics.spend / ad.crmLeads).toLocaleString("en-IN")}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Creative section */}
       {hasCr&&(
         <div className="mx-4 mb-3">
@@ -1261,6 +1295,7 @@ function MetaAdLevelTab({ from, to, refreshKey }) {
             Spent <b>₹{Number(t.spend).toLocaleString("en-IN",{maximumFractionDigits:0})}</b> · <b>{Number(t.impressions).toLocaleString("en-IN")}</b> impressions · <b>{Number(t.clicks).toLocaleString("en-IN")}</b> clicks ·
             <span className="text-emerald-300 font-bold"> {goodCount} ads performing well</span> ·
             <span className="text-rose-300 font-bold"> {needsCount} need attention</span> · {activeCount} active
+            {data.crmTotals&&data.crmTotals.leads>0&&<> · CRM: <b>{data.crmTotals.leads} leads</b> · <b className="text-emerald-300">{data.crmTotals.converted} converted</b></>}
           </p>
         </div>
       )}
