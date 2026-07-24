@@ -777,7 +777,7 @@ export default function MarketingDashboard() {
   const nav=useNavigate();
   const user=JSON.parse(localStorage.getItem("mkt_user")||"{}");
   const [dark,setDark]=useState(()=>localStorage.getItem("mkt_dark")==="true");
-  const [activeTab,setActiveTab]=useState("meta");
+  const [activeTab,setActiveTab]=useState("overview");
   const [data,setData]=useState(null);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
@@ -839,7 +839,7 @@ export default function MarketingDashboard() {
     {stage:"Not Interested", count:k.notInterested||0, color:"#EF4444"},
   ];
 
-  const tabDef=[["meta","Meta Campaigns"],["leads","Leads"],["adlevel","Ad-Level"],["overview","Overview"]];
+  const tabDef=[["overview","Overview"],["meta","Meta Campaigns"],["leads","Leads"],["adlevel","Ad-Level"]];
 
   return(
     <div className="min-h-screen bg-[#F8F9FC] dark:bg-[#0D0F14]">
