@@ -2109,7 +2109,7 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification
   const ch = CHANNEL_STYLE[c.channel] || CHANNEL_STYLE.Meta;
   const editHoverCls = c._isMeta ? "hover:border-[#E1306C] hover:text-[#E1306C]" : c._isWebsite ? "hover:border-[#16A34A] hover:text-[#16A34A]" : "hover:border-[#EA4335] hover:text-[#EA4335]";
   const isMetaAdSet = c._isMeta && !!c.adSetName;
-  const isUnowned = !c.createdBy;
+  const isUnowned = !c.createdBy || (typeof c.createdBy === "object" && !c.createdBy._id && !c.createdBy);
 
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] transition-shadow">
@@ -2179,10 +2179,12 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification
         {isSuperAdmin && c.createdBy && (
           <div className="flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-800/20">
             <Users className="w-3 h-3 text-emerald-500 shrink-0" />
-            <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">Assigned to an admin</span>
+            <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium truncate">
+              Owner: <span className="font-bold">{c.createdByName || "Admin"}</span>
+            </span>
             <button
               onClick={(e) => { e.stopPropagation(); onAssign && onAssign(c); }}
-              className="ml-auto text-[10px] text-emerald-600 hover:underline font-semibold"
+              className="ml-auto text-[10px] text-emerald-600 hover:underline font-semibold shrink-0"
             >
               Reassign
             </button>
@@ -2337,7 +2339,8 @@ export default function Campaigns() {
         metaFormStatus: cfg.metaFormStatus || "",
         metaAdsetStatus: cfg.metaAdsetStatus || "",
         metaCampaignStatus: cfg.metaCampaignStatus || "",
-        createdBy: cfg.createdBy || null,
+        createdBy: cfg.createdBy ? (cfg.createdBy._id || cfg.createdBy) : null,
+        createdByName: (cfg.createdBy && cfg.createdBy.name) ? cfg.createdBy.name : "",
         _configType: "meta",
       }));
 
@@ -2371,7 +2374,8 @@ export default function Campaigns() {
         defaultStatus: cfg.defaultStatus || "New",
         impressions: cfg.impressions ?? 0,
         clicks: cfg.clicks ?? 0,
-        createdBy: cfg.createdBy || null,
+        createdBy: cfg.createdBy ? (cfg.createdBy._id || cfg.createdBy) : null,
+        createdByName: (cfg.createdBy && cfg.createdBy.name) ? cfg.createdBy.name : "",
         _configType: "google",
       }));
 
@@ -2402,7 +2406,8 @@ export default function Campaigns() {
         company: cfg.company,
         isActive: cfg.isActive,
         defaultStatus: cfg.defaultStatus || "New",
-        createdBy: cfg.createdBy || null,
+        createdBy: cfg.createdBy ? (cfg.createdBy._id || cfg.createdBy) : null,
+        createdByName: (cfg.createdBy && cfg.createdBy.name) ? cfg.createdBy.name : "",
         _configType: "website",
       }));
 
