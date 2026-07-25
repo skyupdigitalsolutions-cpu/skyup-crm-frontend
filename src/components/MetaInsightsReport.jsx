@@ -174,6 +174,7 @@ export default function MetaInsightsReport() {
 
   const exportPDF = () => window.print();
   const t = data?.totals;
+  const allNotConfigured = data?.campaigns?.length > 0 && data.campaigns.every(c => !c.configured);
 
   return (
     <div className="print-area">
@@ -354,6 +355,19 @@ export default function MetaInsightsReport() {
         {error && (
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 text-rose-600 dark:text-rose-400 text-[13px] font-semibold">
             <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
+          </div>
+        )}
+
+        {/* ── Setup required banner — shown when no config has adAccountId+adsToken ── */}
+        {allNotConfigured && (
+          <div className="flex items-start gap-3 px-5 py-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[13px] font-bold text-amber-800 dark:text-amber-300 mb-1">Ad Account not connected — showing CRM data only</p>
+              <p className="text-[12px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                To see spend, CPM, CPC, CTR and reach from Meta, go to <b>Campaigns → Edit campaign → Ad Performance</b> and add your <b>Ad Account ID</b> (<code className="font-mono">act_…</code>) and a token with <b>ads_read</b> permission. Lead counts below come from your CRM and are accurate regardless.
+              </p>
+            </div>
           </div>
         )}
 
