@@ -84,7 +84,7 @@ const TEMP_STYLE = {
   Cold: { bg: "bg-blue-50 dark:bg-blue-900/20",     text: "text-blue-500 dark:text-blue-400",     dot: "bg-blue-400" },
 };
 
-const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral", "CSV Import", "Channel Partner", "Other"];
+const ALL_SOURCES  = ["Manual", "Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral", "CSV Import", "Channel Partner", "Other"];
 
 function normalizeMobile(val) {
   return normalizePhone(val);
@@ -1122,7 +1122,7 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
   const [loading, setLoading] = useState(true);
   const [customSource, setCustomSource] = useState("");
   const [form, setForm] = useState({
-    name: "", mobile: "", secondaryPhone: "", email: "", source: "Google Ads", campaign: "",
+    name: "", mobile: "", secondaryPhone: "", email: "", source: "Manual", campaign: "",
     userId: "", status: "New", remark: "",
   });
   const [errors,     setErrors]     = useState({});
