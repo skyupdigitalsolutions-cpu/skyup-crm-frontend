@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import api from "../data/axiosConfig";
+import api, { clearCache } from "../data/axiosConfig";
 import {
   TrendingUp, AlertTriangle, AlertCircle, CheckCircle2, Info,
   Sparkles, Lightbulb, ThumbsUp, ThumbsDown, FileDown, Loader2,
@@ -140,11 +140,15 @@ export default function MetaInsightsReport() {
   const [error, setError]         = useState("");
   const [aiLoading, setAiLoading] = useState(false);
 
+  // Fast load — fetches campaign data WITHOUT AI (instant response).
+  // Called on mount and every time the date filter changes.
   const load = useCallback(async () => {
     setLoading(true); setError("");
+    // Clear axios cache for this endpoint so date changes always fetch fresh data.
+    try { clearCache("/meta-config/insights"); } catch {}
     try {
-      const { data } = await api.get("/meta-config/insights", { params: { from, to, ai: "true" }, timeout: 60000 });
-      setData(data);
+      const { data } = await api.get("/meta-config/insights", { params: { from, to, ai: "false" }, timeout: 30000 });
+      setData(prev => ({ ...data, aiAnalysis: prev?.aiAnalysis ?? data.aiAnalysis }));
     } catch (e) {
       setError(e?.response?.data?.message || "Failed to load Meta insights.");
     } finally {
@@ -154,6 +158,7 @@ export default function MetaInsightsReport() {
 
   const generateAI = useCallback(async () => {
     setAiLoading(true); setError("");
+    try { clearCache("/meta-config/insights"); } catch {}
     try {
       const { data } = await api.get("/meta-config/insights", { params: { from, to, ai: "true" }, timeout: 60000 });
       setData(data);
@@ -169,7 +174,7 @@ export default function MetaInsightsReport() {
     }
   }, [from, to]);
 
-  // Auto-reload whenever dates change (and on mount). No manual Run Report needed.
+  // Re-fetch immediately whenever dates change.
   useEffect(() => { load(); }, [from, to]); // eslint-disable-line
 
   const exportPDF = () => window.print();
