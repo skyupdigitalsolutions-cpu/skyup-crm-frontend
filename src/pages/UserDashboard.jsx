@@ -12,7 +12,7 @@ import CRMEncryption from "../utils/CRMEncryption";
 import { toIST } from "../utils/dateUtils";
 
 const crm = new CRMEncryption();
-const ALL_SOURCES  = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral"];
+const ALL_SOURCES  = ["Manual", "Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral"];
 const ALL_STATUSES = ["New", "In Progress", "Converted", "Not Interested"];
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -1251,7 +1251,7 @@ function AddLeadModal({ onClose, onAdd }) {
     phone:          "",        // primary
     secondaryPhone: "",        // secondary (optional)
     email:          "",
-    source:         "Google Ads",
+    source:         "Manual",
     campaign:       "",
     status:         "New",
     remark:         "",
