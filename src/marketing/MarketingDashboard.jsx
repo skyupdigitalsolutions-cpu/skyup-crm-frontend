@@ -1106,7 +1106,7 @@ function AdCard({ ad }) {
       <div className="flex items-start gap-3 px-4 pt-4 pb-2">
         {cr.thumbnail&&(
           <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-[#F1F3F9] dark:bg-white/5">
-            <img src={cr.thumbnail} alt="creative" className="w-full h-full object-cover" onError={e=>{e.target.parentNode.style.display="none";}}/>
+            <img src={cr.thumbnail} alt="creative" loading="lazy" decoding="async" className="w-full h-full object-cover" onError={e=>{e.target.parentNode.style.display="none";}}/>
           </div>
         )}
         <div className="flex-1 min-w-0">
@@ -1172,7 +1172,7 @@ function AdCard({ ad }) {
               {/* Creative preview with thumbnail */}
               {cr.thumbnail&&(
                 <div className="relative bg-[#F8F9FC] dark:bg-[#0D0F14] flex justify-center p-3 border-b border-[#E4E7EF] dark:border-[#1E2133]">
-                  <img src={cr.thumbnail} alt="Ad creative" className="max-h-48 rounded-lg object-contain shadow-sm" onError={e=>{e.target.parentNode.style.display="none";}}/>
+                  <img src={cr.thumbnail} alt="Ad creative" loading="lazy" decoding="async" className="max-h-48 rounded-lg object-contain shadow-sm" onError={e=>{e.target.parentNode.style.display="none";}}/>
                 </div>
               )}
               {/* Creative copy */}
@@ -1415,7 +1415,7 @@ function MetaAdLevelTab({ from, to, refreshKey }) {
                   <tr key={ad.adId||i} className="border-b border-[#F1F3F9] dark:border-white/5 last:border-0 hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2.5 max-w-[160px]">
                       <div className="flex items-center gap-2">
-                        {cr.thumbnail&&<img src={cr.thumbnail} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" onError={e=>{e.target.style.display="none";}}/>}
+                        {cr.thumbnail&&<img src={cr.thumbnail} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded-lg object-cover shrink-0" onError={e=>{e.target.style.display="none";}}/>}
                         <div className="min-w-0">
                           <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] truncate">{ad.adName}</p>
                           {cr.headline&&<p className="text-[10px] text-[#8B92A9] truncate">{cr.headline}</p>}
