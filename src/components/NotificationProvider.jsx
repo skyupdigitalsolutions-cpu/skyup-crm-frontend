@@ -444,11 +444,17 @@ export function NotificationProvider({ children }) {
       const msg = payload?.message;
       if (!msg || msg.direction !== 'inbound') return;
 
-      const name = payload.contactName || payload.waPhone || 'A lead';
+      const name = payload.leadName || payload.contactName || payload.waPhone || 'A lead';
+      const MEDIA_LABEL = {
+        image: '📷 Photo', video: '🎥 Video', audio: '🎤 Voice message',
+        document: '📄 Document', sticker: '💬 Sticker', location: '📍 Location',
+      };
       let bodyText =
-        msg.messageType === 'text' || !msg.messageType
-          ? (msg.body || '')
-          : `[${msg.messageType}]`;
+        msg.messageType && msg.messageType !== 'text'
+          ? (MEDIA_LABEL[msg.messageType] || msg.body || '📩 New message')
+          : (msg.body || '');
+      // Safety net for older messages saved as the raw "[unsupported]" tag.
+      if (!bodyText || bodyText === '[unsupported]') bodyText = '📩 New message';
       if (bodyText.length > 120) bodyText = bodyText.slice(0, 120) + '…';
 
       handleUpsert({
