@@ -1490,7 +1490,7 @@ function AddLeadModal({ onClose, onAdd }) {
               onChange={e => set("source", e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none"
             >
-              {["Google Ads","Facebook Ads","Web Form","Referral","Campaign","Other"].map(s => (
+              {["Google Ads","Facebook Ads","Web Form","Referral","Manual","CSV Import","Campaign","Other"].map(s => (
                 <option key={s}>{s}</option>
               ))}
             </select>
