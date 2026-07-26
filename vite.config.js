@@ -11,6 +11,33 @@ export default defineConfig({
   plugins: [react()],
   appType: 'spa',
 
+  // ── Production build tuning ────────────────────────────────────────────────
+  // Split heavy, rarely-changing vendor code into its own cacheable chunks so
+  // the entry bundle stays small and app redeploys don't force users to
+  // re-download React / charting libs. Route pages are already code-split via
+  // React.lazy() in App.jsx, so those stay in their own per-route chunks.
+  build: {
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('react-router')) return 'vendor-router';
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/scheduler/')
+          ) return 'vendor-react';
+          if (id.includes('chart.js')) return 'vendor-charts';
+          if (id.includes('framer-motion')) return 'vendor-motion';
+          if (id.includes('socket.io')) return 'vendor-socket';
+          if (id.includes('axios')) return 'vendor-axios';
+          return 'vendor';
+        },
+      },
+    },
+  },
+
   server: {
     host: true,
     port: 5173,
