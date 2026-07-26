@@ -31,6 +31,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import api from '../data/axiosConfig';
 import { AlertOctagon, AlertTriangle, ClipboardList, RefreshCw, MessageCircle, CheckCircle2, MapPin, Bell } from 'lucide-react';
@@ -576,10 +577,28 @@ function getPanelStyle(buttonRef) {
 
 export function NotificationBell() {
   const ctx = useNotifications();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState({});
   const panelRef  = useRef(null);
   const buttonRef = useRef(null);
+
+  // Click a notification → jump to the target lead's communication page.
+  // Employees ('user' role) use /user/communications; admins use /communications.
+  // The leadId is passed as a query param so the page auto-opens that lead's chat.
+  const openNotif = useCallback((notif) => {
+    if (!notif) return;
+    let role = '';
+    try { role = (JSON.parse(localStorage.getItem('user'))?.role || '').toLowerCase(); } catch { role = ''; }
+    const base = role === 'user' ? '/user/communications' : '/communications';
+    const isLeadNotif =
+      notif.type === 'whatsapp_message' || notif.type === 'new_lead' ||
+      notif.type === 'reassignment'     || notif.type === 'follow_up' ||
+      notif.type === 'lead_closed'      || !!notif.leadId;
+    if (!isLeadNotif) return;
+    setOpen(false);
+    navigate(notif.leadId ? `${base}?leadId=${notif.leadId}` : base);
+  }, [navigate]);
 
   // Recompute position whenever panel opens or window resizes/scrolls
   useEffect(() => {
@@ -659,7 +678,7 @@ export function NotificationBell() {
         ) : (
           <div className="divide-y divide-[#F0F2FA] dark:divide-[#262A38]">
             {notifications.map((n) => (
-              <NotificationItem key={n.id} notif={n} />
+              <NotificationItem key={n.id} notif={n} onOpen={openNotif} />
             ))}
           </div>
         )}
@@ -690,7 +709,9 @@ export function NotificationBell() {
 }
 
 // ── Single notification row ───────────────────────────────────────────────────
-function NotificationItem({ notif }) {
+function NotificationItem({ notif, onOpen }) {
+  const clickable = !!(onOpen && (notif.leadId ||
+    ['whatsapp_message', 'new_lead', 'reassignment', 'follow_up', 'lead_closed'].includes(notif.type)));
   const bgClass = notif.urgent
     ? 'bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30'
     : notif.type === 'subscription_expiry'
@@ -714,7 +735,11 @@ function NotificationItem({ notif }) {
   const showLeads     = !showCompanies && notif.leads?.length > 0;
 
   return (
-    <div className={`px-4 py-3 transition cursor-default ${bgClass}`}>
+    <div
+      className={`px-4 py-3 transition ${clickable ? 'cursor-pointer' : 'cursor-default'} ${bgClass}`}
+      onClick={clickable ? () => onOpen(notif) : undefined}
+      role={clickable ? 'button' : undefined}
+    >
       <div className="flex items-start gap-2.5">
         <span className={`mt-0.5 shrink-0 ${dotColor.replace('bg-', 'text-')}`}>
           {(() => {

@@ -1144,6 +1144,24 @@ export default function UserLeadCommunication() {
       .finally(() => setLoadingLeads(false));
   }, []);
 
+  // ── Auto-open a lead when arriving from a notification (?leadId=...) ─────────
+  // Clicking a "New WhatsApp reply" notification navigates here with
+  // ?leadId=<id>; once the assigned leads load we select that lead so its chat
+  // opens directly. The query param is then cleared so a refresh won't re-open.
+  useEffect(() => {
+    if (!leads.length) return;
+    let wantedId = null;
+    try { wantedId = new URLSearchParams(window.location.search).get("leadId"); } catch { wantedId = null; }
+    if (!wantedId) return;
+    const match = leads.find((l) => String(l._id) === String(wantedId));
+    if (match) {
+      setSelected(match);
+      setMsgText("");
+      setSendError("");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [leads]);
+
   // ── Look up conversation when a lead is selected ─────────────────────────
   useEffect(() => {
     if (!selected?._id) {
