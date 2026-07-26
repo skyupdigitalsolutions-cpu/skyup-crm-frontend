@@ -189,12 +189,17 @@ export default function WebsiteAnalyticsDashboard() {
   useEffect(() => { if (status?.connected && status?.needsProperty) loadProperties(); }, [status, loadProperties]);
 
   const chooseProperty = async (p) => {
+    if (savingProp) return;
     setSavingProp(true); setError("");
     try {
-      await api.post("/google-analytics/property", { propertyId: p.propertyId, propertyName: p.propertyName });
+      await api.post("/google-analytics/property", { propertyId: String(p.propertyId), propertyName: p.propertyName });
       await loadStatus();
-    } catch (e) { setError(e?.response?.data?.message || "Could not save property."); }
-    finally { setSavingProp(false); }
+    } catch (e) {
+      const msg = e?.response?.data?.message || "Could not save property. Please try again.";
+      setError(msg);
+    } finally {
+      setSavingProp(false);
+    }
   };
 
   const disconnect = async () => {
@@ -217,7 +222,7 @@ export default function WebsiteAnalyticsDashboard() {
     finally { withAI ? setAiLoading(false) : setLoading(false); }
   }, [from, to, status]);
 
-  useEffect(() => { if (status?.connected && !status?.needsProperty) loadDashboard(true); }, [from, to, status]); // eslint-disable-line
+  useEffect(() => { if (status?.connected && !status?.needsProperty) loadDashboard(false); }, [from, to, status]); // eslint-disable-line
 
   // ── Render states ───────────────────────────────────────────────────────────
   if (statusLoading) {
