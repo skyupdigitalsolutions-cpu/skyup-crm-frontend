@@ -126,7 +126,7 @@ export default function CompanyBrandSettings() {
         <div className="flex items-center gap-4">
           {currentLogo ? (
             <div className="relative">
-              <img src={currentLogo} alt="logo preview" className="h-14 w-auto max-w-[120px] object-contain rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] p-1" />
+              <img src={currentLogo} alt="logo preview" loading="lazy" decoding="async" className="h-14 w-auto max-w-[120px] object-contain rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] p-1" />
               <button
                 onClick={handleRemoveLogo}
                 className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition"
