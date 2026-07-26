@@ -250,7 +250,7 @@ export default function Companies() {
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
                         {c.logo ? (
-                          <img src={c.logo} alt={c.name} className="w-9 h-9 rounded-xl object-cover border border-[#E5E7EB] dark:border-[#262A38]" />
+                          <img src={c.logo} alt={c.name} loading="lazy" decoding="async" className="w-9 h-9 rounded-xl object-cover border border-[#E5E7EB] dark:border-[#262A38]" />
                         ) : (
                           <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
                             <span className="text-[13px] font-bold text-blue-600 dark:text-blue-400">
