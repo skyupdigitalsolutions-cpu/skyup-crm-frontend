@@ -13,7 +13,6 @@ import TermsGate from "./components/TermsGate";
 import { NotificationProvider, NotificationBell } from "./components/NotificationProvider";
 import { clearFeaturesCache } from "./hooks/usePlanFeatures";
 import TelegramSettings from "./components/TelegramSettings";
-import InvoiceTest from "./pages/InvoiceTest";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
 const Dashboard      = lazy(() => import("./components/Dashboard"));
@@ -48,6 +47,7 @@ const AdminLogin      = lazy(() => import("./pages/UserLogin")); // /admin/login
 const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
 const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
 const CustomReports   = lazy(() => import("./pages/CustomReports"));
+const InvoiceTest     = lazy(() => import("./pages/InvoiceTest"));
 
 // ── Page loader ───────────────────────────────────────────────────────────────
 function PageLoader() {
