@@ -238,7 +238,7 @@ function AdRow({ ad }) {
         <div className="mt-3 p-3 rounded-xl bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133]">
           <div className="flex gap-3">
             {cr.thumbnail && (
-              <img src={cr.thumbnail} alt="Ad" className="w-20 h-20 object-cover rounded-lg border border-[#E4E7EF] dark:border-[#1E2133] shrink-0"
+              <img src={cr.thumbnail} alt="Ad" loading="lazy" decoding="async" className="w-20 h-20 object-cover rounded-lg border border-[#E4E7EF] dark:border-[#1E2133] shrink-0"
                 onError={(e) => { e.target.style.display = "none"; }} />
             )}
             <div className="flex-1 min-w-0 space-y-1.5">
