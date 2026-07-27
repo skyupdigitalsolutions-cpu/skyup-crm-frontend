@@ -83,11 +83,17 @@ function Bubble({ msg, isOwn, onEdit }) {
   // Older inbound messages stored the URL in mediaId only, so fall back to it
   // when it looks like a URL — makes previously-received media render too.
   const rawMediaId = msg.mediaId || msg.media_id || null;
-  const url =
+  const candidateUrl =
     msg.mediaUrl || msg.media_url ||
     (/^https?:\/\//i.test(String(rawMediaId || "")) ? rawMediaId : null);
+  // Meta's lookaside URLs require an auth token and always 401 in the browser,
+  // so never try to render them — the server mirrors them to a public URL and
+  // pushes it via the wa_media_ready socket event.
+  const isPrivateMetaUrl = /lookaside\.fbsbx\.com|graph\.facebook\.com/i.test(String(candidateUrl || ""));
+  const url = isPrivateMetaUrl ? null : candidateUrl;
+  const [mediaFailed, setMediaFailed] = useState(false);
   const type = msg.messageType;
-  const isMedia = url && ["image", "video", "audio", "document"].includes(type);
+  const isMedia = url && !mediaFailed && ["image", "video", "audio", "document"].includes(type);
   // For media, the body doubles as the caption/filename — only show it as a
   // caption when it adds information beyond the rendered media itself.
   const caption = msg.body || msg.text || msg.message || "";
@@ -105,7 +111,7 @@ function Bubble({ msg, isOwn, onEdit }) {
           <div className="mb-1">
             {type === "image" && (
               <a href={url} target="_blank" rel="noreferrer">
-                <img src={url} alt={caption || "image"} className="rounded-lg max-h-60 w-auto object-cover cursor-pointer" />
+                <img src={url} alt={caption || "image"} onError={() => setMediaFailed(true)} className="rounded-lg max-h-60 w-auto object-cover cursor-pointer" />
               </a>
             )}
             {type === "video" && (
@@ -1579,6 +1585,18 @@ export default function UserLeadCommunication() {
     };
     socket.on("wa_message_status", handleStatus);
     socket.on("wa_status_update",  handleStatus); // legacy fallback
+
+    // ── Inbound media became viewable ─────────────────────────────────────────
+    // Media the lead sends arrives as a private Meta URL that can't be shown in
+    // a browser. The server mirrors it to public storage and emits this event
+    // with the usable URL — swap it in so the image/file appears without a
+    // refresh.
+    socket.on("wa_media_ready", ({ messageId, mediaUrl }) => {
+      if (!messageId || !mediaUrl) return;
+      setMessages((prev) =>
+        prev.map((m) => (String(m._id) === String(messageId) ? { ...m, mediaUrl } : m))
+      );
+    });
 
     return () => socket.disconnect();
   // eslint-disable-next-line react-hooks/exhaustive-deps
