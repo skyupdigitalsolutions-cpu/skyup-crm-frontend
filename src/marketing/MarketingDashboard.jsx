@@ -839,6 +839,7 @@ function LeadsTab({ from, to, refreshKey }) {
   const [view,setView]=useState("adlevel");
   const [campFilter,setCampFilter]=useState("");
   const [search,setSearch]=useState("");
+  const [statusFilter,setStatusFilter]=useState("");
 
   const load=useCallback(async()=>{
     setLoading(true);setError("");
@@ -852,7 +853,12 @@ function LeadsTab({ from, to, refreshKey }) {
   useEffect(()=>{load();},[load,refreshKey]);
 
   const leads=data?.allLeads||[];
-  const filteredLeads=useMemo(()=>{if(!search)return leads;const q=search.toLowerCase();return leads.filter(l=>l.name.toLowerCase().includes(q)||l.mobile.includes(q)||(l.campaign||"").toLowerCase().includes(q));},[leads,search]);
+  const filteredLeads=useMemo(()=>{
+    let res=leads;
+    if(statusFilter) res=res.filter(l=>l.status===statusFilter);
+    if(search){const q=search.toLowerCase();res=res.filter(l=>l.name.toLowerCase().includes(q)||l.mobile.includes(q)||(l.campaign||"").toLowerCase().includes(q));}
+    return res;
+  },[leads,search,statusFilter]);
 
   const pipeline=[
     {label:"New",count:leads.filter(l=>l.status==="New").length,color:"#3B82F6"},
@@ -879,13 +885,16 @@ function LeadsTab({ from, to, refreshKey }) {
         </div>
       </div>
 
-      {/* Pipeline cards */}
+      {/* Pipeline cards — click to filter */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         {pipeline.map(p=>(
-          <div key={p.label} className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl p-3" style={{background:`linear-gradient(135deg,${p.color}12 0%,transparent 70%)`}}>
-            <div className="flex items-center justify-between"><p className="text-[20px] font-extrabold text-[#0F1117] dark:text-[#F0F2FA]">{p.count}</p><span className="w-2 h-2 rounded-full" style={{background:p.color}}/></div>
+          <button key={p.label} onClick={()=>{setStatusFilter(statusFilter===p.label?"":p.label);setView("all");setSearch("");}}
+            className={`text-left bg-white dark:bg-[#11131C] border-2 rounded-2xl p-3 transition-all hover:shadow-md ${statusFilter===p.label?"border-current shadow-md":"border-[#E4E7EF] dark:border-[#1E2133]"}`}
+            style={{background:`linear-gradient(135deg,${p.color}12 0%,transparent 70%)`,borderColor:statusFilter===p.label?p.color:undefined}}>
+            <div className="flex items-center justify-between"><p className="text-[20px] font-extrabold text-[#0F1117] dark:text-[#F0F2FA]">{p.count}</p><span className="w-2.5 h-2.5 rounded-full" style={{background:p.color}}/></div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] mt-0.5">{p.label}</p>
-          </div>
+            {statusFilter===p.label&&<p className="text-[9px] font-bold mt-0.5" style={{color:p.color}}>● Filtered</p>}
+          </button>
         ))}
       </div>
 
@@ -894,11 +903,18 @@ function LeadsTab({ from, to, refreshKey }) {
         <p className="text-[13px] leading-relaxed"><b>{leads.length}</b> leads — <b className="text-emerald-200">{pipeline[3].count} converted</b> ({leads.length>0?Math.round((pipeline[3].count/leads.length)*100):0}% rate), <b>{pipeline[1].count}</b> in progress, <b className="text-rose-300">{pipeline[4].count}</b> not interested.</p>
       </div>}
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl p-1">
-        {[["adlevel","Ad-Level Breakdown"],["converting","Converting Leads"],["all","All Leads"]].map(([v,l])=>(
-          <button key={v} onClick={()=>{setView(v);setSearch("");}} className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${view===v?"bg-indigo-600 text-white shadow":"text-[#8B92A9] hover:text-[#4B5168]"}`}>{l}</button>
-        ))}
+      {/* Tabs + clear filter */}
+      <div className="flex items-center gap-2">
+        <div className="flex gap-1 bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-xl p-1 flex-1">
+          {[["adlevel","Ad-Level Breakdown"],["converting","Converting Leads"],["all","All Leads"]].map(([v,l])=>(
+            <button key={v} onClick={()=>{setView(v);setSearch("");}} className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${view===v?"bg-indigo-600 text-white shadow":"text-[#8B92A9] hover:text-[#4B5168]"}`}>{l}</button>
+          ))}
+        </div>
+        {statusFilter&&(
+          <button onClick={()=>setStatusFilter("")} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/20 text-rose-600 text-[11px] font-bold hover:bg-rose-100 transition-colors shrink-0">
+            ✕ {statusFilter}
+          </button>
+        )}
       </div>
 
       {/* Ad-level */}
@@ -918,7 +934,10 @@ function LeadsTab({ from, to, refreshKey }) {
             <div className="relative flex-1 max-w-xs"><Search className="w-3.5 h-3.5 text-[#8B92A9] absolute left-2.5 top-1/2 -translate-y-1/2"/>
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, phone, campaign…" className="w-full text-[12px] pl-8 pr-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] focus:outline-none text-[#0F1117] dark:text-[#DDE1F5]"/>
             </div>
-            <span className="text-[11px] text-[#8B92A9] ml-auto">{filteredLeads.length} leads</span>
+            <span className="text-[11px] text-[#8B92A9] ml-auto">
+              {(view==="converting"?filteredLeads.filter(l=>l.status==="Converted"):filteredLeads).length} leads
+              {statusFilter&&<span className="ml-1 font-semibold text-indigo-600">· {statusFilter}</span>}
+            </span>
           </div>
           <div className="bg-white dark:bg-[#11131C] border border-[#E4E7EF] dark:border-[#1E2133] rounded-2xl overflow-x-auto">
             <table className="w-full border-collapse">
