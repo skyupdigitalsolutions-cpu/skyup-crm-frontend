@@ -444,6 +444,8 @@ export function NotificationProvider({ children }) {
       const msg = payload?.message;
       if (!msg || msg.direction !== 'inbound') return;
 
+      // Nudge the sidebar's Communications badge to re-count.
+      try { window.dispatchEvent(new Event('wa_unread_refresh')); } catch (_) {}
       const name = payload.leadName || payload.contactName || payload.waPhone || 'A lead';
       const MEDIA_LABEL = {
         image: '📷 Photo', video: '🎥 Video', audio: '🎤 Voice message',

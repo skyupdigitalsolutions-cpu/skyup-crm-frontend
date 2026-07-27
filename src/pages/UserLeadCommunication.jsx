@@ -1847,6 +1847,9 @@ export default function UserLeadCommunication() {
                       onClick={() => {
                         setSelected(lead);
                         if (unread) setUnreadCounts((prev) => { const n = { ...prev }; delete n[lead._id]; return n; });
+                        // The backend clears this lead's unreadCount when the
+                        // conversation loads — refresh the sidebar badge after that.
+                        setTimeout(() => { try { window.dispatchEvent(new Event("wa_unread_refresh")); } catch (_) {} }, 1200);
                       }}
                       className={`w-full flex items-center gap-3 px-4 py-3 text-left transition border-b border-[#F0F2F5] dark:border-[#2A3942] ${
                         isActive ? "bg-[#EEF3FF] dark:bg-[#2A3942]" : "hover:bg-[#F8F9FC] dark:hover:bg-[#202C33]"

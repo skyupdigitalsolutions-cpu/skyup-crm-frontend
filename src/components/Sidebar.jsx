@@ -229,6 +229,8 @@ export function Sidebar() {
   );
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [followUpAlerts, setFollowUpAlerts] = useState({ todayCount: 0, overdueCount: 0 });
+  // Total unread inbound WhatsApp messages (red badge on Communications)
+  const [waUnread, setWaUnread] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Track viewport so the minimized (72px icon-rail) layout never applies on
@@ -292,6 +294,31 @@ export function Sidebar() {
     const interval = setInterval(fetchAlerts, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── WhatsApp unread total for the Communications badge ─────────────────────
+  // Mirrors the red badge in the Communications lead list. Counts inbound
+  // messages the leads sent that haven't been opened yet. Refreshes on a timer,
+  // whenever the route changes (so it clears right after reading a chat), and
+  // whenever a new WhatsApp message arrives via socket.
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token || isDeveloper) return;
+    const fetchUnread = async () => {
+      try {
+        const { data } = await api.get("/whatsapp/unread-counts");
+        const total = Object.values(data?.byLead || {}).reduce((a, b) => a + (b || 0), 0);
+        setWaUnread(total);
+      } catch (_) { /* silent — badge just stays as-is */ }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60 * 1000);
+    const onWaMessage = () => fetchUnread();
+    window.addEventListener("wa_unread_refresh", onWaMessage);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("wa_unread_refresh", onWaMessage);
+    };
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Refresh entitlements when plan_updated fires (e.g. after payment) ────
   useEffect(() => {
@@ -510,6 +537,8 @@ export function Sidebar() {
           {NAV_ITEMS.map((item) => {
             const isActive      = location.pathname === item.to;
             const isDailyReport = item.to === "/daily-report";
+            const isComms       = item.to === "/communications" || item.to === "/user/communications";
+            const hasWaUnread   = isComms && waUnread > 0;
             const hasOverdue    = isDailyReport && followUpAlerts.overdueCount > 0;
             const hasToday      = isDailyReport && !hasOverdue && followUpAlerts.todayCount > 0;
             return (
@@ -536,10 +565,24 @@ export function Sidebar() {
                       title={`${followUpAlerts.todayCount} follow-up${followUpAlerts.todayCount > 1 ? "s" : ""} due today`}
                     />
                   )}
+                  {hasWaUnread && (
+                    <span
+                      className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white dark:border-[#13161E]"
+                      title={`${waUnread} unread WhatsApp message${waUnread > 1 ? "s" : ""}`}
+                    />
+                  )}
                 </span>
                 {!effMinimized && (
                   <span className="nav-label flex items-center gap-1.5 flex-1">
                     {item.label}
+                    {hasWaUnread && (
+                      <span
+                        className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white"
+                        title={`${waUnread} unread WhatsApp message${waUnread > 1 ? "s" : ""}`}
+                      >
+                        {waUnread > 99 ? "99+" : waUnread}
+                      </span>
+                    )}
                     {hasOverdue && (
                       <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400">
                         {followUpAlerts.overdueCount > 9 ? "9+" : followUpAlerts.overdueCount}
