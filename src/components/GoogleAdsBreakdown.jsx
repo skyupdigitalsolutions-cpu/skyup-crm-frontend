@@ -264,6 +264,7 @@ export default function GoogleAdsBreakdown({ from, to }) {
     } catch (e) {
       const code = e?.response?.data?.code;
       if (code === "NOT_CONNECTED") setNote("Connect Google Ads above to see analytics.");
+      else if (code === "REAUTH_REQUIRED") setNote("Google Ads session expired — click Connect/Reconnect above to restore analytics.");
       else if (code === "NO_ACCOUNT") setNote("Pick a Google Ads account above to load analytics.");
       else if (code === "NO_DEV_TOKEN") setNote("Server developer token not set — add it to load analytics.");
       else setNote(e?.response?.data?.message || "Could not load Google Ads analytics.");
