@@ -78,7 +78,7 @@ const EMOJIS = [
   "📞","📱","📧","📄","📷","🎥","🕐","📍",
 ];
 
-function Bubble({ msg, isOwn, onEdit }) {
+function Bubble({ msg, isOwn, onEdit, onRetryMedia }) {
   const status = msg.status;
   // Older inbound messages stored the URL in mediaId only, so fall back to it
   // when it looks like a URL — makes previously-received media render too.
@@ -92,6 +92,7 @@ function Bubble({ msg, isOwn, onEdit }) {
   const isPrivateMetaUrl = /lookaside\.fbsbx\.com|graph\.facebook\.com/i.test(String(candidateUrl || ""));
   const url = isPrivateMetaUrl ? null : candidateUrl;
   const [mediaFailed, setMediaFailed] = useState(false);
+  const [retryState,  setRetryState]  = useState(null); // null | 'loading' | 'failed'
   const type = msg.messageType;
   const isMedia = url && !mediaFailed && ["image", "video", "audio", "document"].includes(type);
   // For media, the body doubles as the caption/filename — only show it as a
@@ -141,6 +142,19 @@ function Bubble({ msg, isOwn, onEdit }) {
             {type === "video"    && <Video className="w-3.5 h-3.5 inline mr-1" />}
             {type === "template" && <ClipboardList className="w-3.5 h-3.5 inline mr-1" />}
             <p className="break-words leading-relaxed inline">{caption}</p>
+            {/* Attachment the lead sent that isn't viewable yet — offer a retry.
+                WhatsApp hands us a private Meta link, so the server has to fetch
+                and re-host it before it can be displayed. */}
+            {!isOwn && ["image", "video", "audio", "document"].includes(type) && !url && onRetryMedia && (
+              <button
+                type="button"
+                onClick={() => onRetryMedia(msg, setRetryState)}
+                disabled={retryState === "loading"}
+                className="block mt-1 text-[11px] underline opacity-70 hover:opacity-100 disabled:opacity-40"
+              >
+                {retryState === "loading" ? "Loading…" : retryState === "failed" ? "Couldn't load — tap to retry" : "Tap to load attachment"}
+              </button>
+            )}
           </>
         )}
         <div className="flex items-center justify-end gap-1 mt-0.5">
@@ -1703,6 +1717,33 @@ export default function UserLeadCommunication() {
     inputRef.current?.focus();
   }, []);
 
+  // ── Retry loading a lead-sent attachment ────────────────────────────────────
+  // WhatsApp gives us a private Meta link that a browser can't open, so the
+  // server must download and re-host it. If that failed on arrival, this lets
+  // the agent retry from the chat and surfaces the real reason on failure.
+  const retryMedia = useCallback(async (msg, setRetryState) => {
+    if (!msg?._id) return;
+    setRetryState("loading");
+    try {
+      const { data } = await axios.post(
+        `${API_URL}/whatsapp/messages/${msg._id}/refresh-media`,
+        {},
+        authHeaders
+      );
+      if (data?.mediaUrl) {
+        setMessages((prev) =>
+          prev.map((m) => (String(m._id) === String(msg._id) ? { ...m, mediaUrl: data.mediaUrl } : m))
+        );
+        setRetryState(null);
+      } else {
+        setRetryState("failed");
+      }
+    } catch (err) {
+      setRetryState("failed");
+      setSendError(err.response?.data?.error || "Couldn't load this attachment");
+    }
+  }, []);
+
   // ── Edit a sent message (CRM copy only) ─────────────────────────────────────
   const startEditMessage = useCallback((msg) => {
     setEditingMsg(msg);
@@ -2034,6 +2075,7 @@ export default function UserLeadCommunication() {
                       msg={msg}
                       isOwn={msg.direction === "outbound" || msg.from === "admin"}
                       onEdit={startEditMessage}
+                      onRetryMedia={retryMedia}
                     />
                   ))
                 )}
