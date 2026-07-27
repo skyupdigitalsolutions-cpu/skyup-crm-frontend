@@ -559,7 +559,7 @@ function MetaAdsTab({ from, to, refreshKey }) {
             {icon:IndianRupee,label:"Spend",value:inr(t.spend),tint:"#EF4444"},
             {icon:Eye,label:"Impressions",value:num(t.impressions),tint:"#6366F1"},
             {icon:MousePointerClick,label:"Clicks",value:num(t.clicks),tint:"#0EA5E9"},
-            {icon:Target,label:"Leads",value:t.leads||0,tint:"#F59E0B"},
+            {icon:Percent,label:"Avg CTR",value:t.impressions>0?`${((t.clicks/t.impressions)*100).toFixed(2)}%`:"—",tint:"#F59E0B"},
             {icon:Star,label:"Qualified",value:t.qualified||0,tint:"#A855F7",sub:"Hot leads"},
             {icon:CheckCircle2,label:"Converted",value:t.converted||0,tint:"#10B981"},
             {icon:IndianRupee,label:"Revenue",value:inr(t.revenue),tint:"#14B8A6"},
@@ -613,7 +613,9 @@ function MetaAdsTab({ from, to, refreshKey }) {
             <tbody>
               {camps.map((c,i)=>{
                 const m=c.metrics||{};const hasSpend=(m.spend||0)>0;
-                const statusActive=c.metaActive!==false&&c.isActive!==false;
+                const isInactive=c.isActive===false;
+                const isPaused=!isInactive&&(c.metaActive===false||c.pausedByMeta||(c.metaAdsetStatus||"").toUpperCase()==="PAUSED"||(c.metaAdsetStatus||"").toUpperCase()==="CAMPAIGN_PAUSED");
+                const statusActive=!isInactive&&!isPaused;
                 return(
                   <tr key={c.configId||i} className="border-b border-[#F1F3F9] dark:border-white/5 last:border-0 hover:bg-[#F8F9FC] dark:hover:bg-white/[0.02] transition-colors">
                     <td className="px-3 py-3 min-w-[180px]">
@@ -626,16 +628,15 @@ function MetaAdsTab({ from, to, refreshKey }) {
                     <td className="px-3 py-3 text-right text-[12px] tabular-nums font-bold" style={{color:Number(m.ctr)>=2?"#10B981":Number(m.ctr)>=1?"#F59E0B":"#EF4444"}}>{hasSpend?`${Number(m.ctr||0).toFixed(2)}%`:"—"}</td>
                     <td className="px-3 py-3 text-right text-[11px] tabular-nums text-[#8B92A9]">{hasSpend?inr(m.cpc):"—"}</td>
                     <td className="px-3 py-3 text-right text-[11px] tabular-nums text-[#8B92A9]">{c.costPerLead?inr(c.costPerLead):"—"}</td>
-                    <td className="px-3 py-3 text-right text-[12px] tabular-nums font-bold text-[#0F1117] dark:text-[#DDE1F5]">{c.leads||0}</td>
                     <td className="px-3 py-3 text-right text-[12px] tabular-nums font-bold text-purple-600">{c.qualified||0}</td>
                     <td className="px-3 py-3 text-right text-[12px] tabular-nums font-bold text-emerald-600">{c.converted||0}</td>
                     <td className="px-3 py-3 text-right text-[12px] tabular-nums font-semibold text-[#0F1117] dark:text-[#DDE1F5]">{c.revenue>0?inr(c.revenue):"—"}</td>
                     <td className="px-3 py-3 text-right text-[12px] tabular-nums font-bold" style={{color:c.roas>=3?"#10B981":c.roas>=1?"#F59E0B":"#EF4444"}}>{c.roas>0?`${c.roas}x`:"—"}</td>
-                    <td className="px-3 py-3 text-right"><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusActive?"bg-emerald-50 text-emerald-700":"bg-slate-100 text-slate-500"}`}>{statusActive?"Active":"Paused"}</span></td>
+                    <td className="px-3 py-3 text-right"><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isInactive?"bg-slate-100 text-slate-500 dark:bg-white/5":isPaused?"bg-amber-50 text-amber-700 dark:bg-amber-950/30":"bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30"}`}>{isInactive?"Disabled":isPaused?"Paused":"Active"}</span></td>
                   </tr>
                 );
               })}
-              {!camps.length&&<tr><td colSpan={11} className="px-3 py-8 text-center text-[12px] text-[#8B92A9]">No campaigns configured.</td></tr>}
+              {!camps.length&&<tr><td colSpan={10} className="px-3 py-8 text-center text-[12px] text-[#8B92A9]">No campaigns configured.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -741,7 +742,6 @@ function GoogleAdsTab({ from, to, refreshKey }) {
           {[
             {icon:IndianRupee,label:"Spend",value:inr(t.spend),tint:"#EF4444"},
             {icon:Eye,label:"Impressions",value:num(t.impressions),tint:"#6366F1"},
-            {icon:Target,label:"Leads",value:num(t.leads),tint:"#F59E0B"},
             {icon:Star,label:"Qualified",value:num(t.qualified),tint:"#A855F7",sub:"Hot leads"},
             {icon:CheckCircle2,label:"Converted",value:num(t.converted),tint:"#10B981"},
             {icon:IndianRupee,label:"Revenue",value:inr(t.revenue),tint:"#14B8A6"},
