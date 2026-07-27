@@ -2,9 +2,11 @@ import { useState, useCallback, useEffect } from "react";
 import api from "../data/axiosConfig";
 import {
   TrendingUp, AlertTriangle, AlertCircle, CheckCircle2, Info,
-  Sparkles, Lightbulb, ThumbsUp, ThumbsDown, FileDown, Loader2,
+  Sparkles, Lightbulb, ThumbsUp, ThumbsDown, FileDown, FileSpreadsheet, Loader2,
   BarChart3, Target, Zap, ArrowUpRight, Users, PauseCircle,
 } from "lucide-react";
+import { exportReportCSV, exportReportPDF } from "../utils/reportExport";
+import { getRole } from "../data/dataService";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Source Performance Report (Google Ads / Website) — admin
@@ -135,7 +137,67 @@ export default function SourcePerformanceReport({
 
   useEffect(() => { load(); }, [from, to]); // eslint-disable-line
 
-  const exportPDF = () => window.print();
+  // Clean, data-driven export payload shared by CSV + PDF (channel-aware).
+  const buildExport = () => {
+    const tt = data?.totals || {};
+    const kpisOut = withCost ? [
+      { label: "Total Spend",  value: money(tt.cost) },
+      { label: "Impressions",  value: numfmt(tt.impressions) },
+      { label: "Clicks",       value: numfmt(tt.clicks) },
+      { label: "CPC",          value: tt.cpc == null ? "—" : money(tt.cpc) },
+      { label: "CTR",          value: pct(tt.ctr) },
+      { label: "CPM",          value: tt.cpm == null ? "—" : money(tt.cpm) },
+      { label: "Leads",        value: numfmt(tt.leads) },
+      { label: "Converted",    value: numfmt(tt.converted) },
+      { label: "Conv. Rate",   value: pct(tt.conversionRatePct) },
+      { label: "Cost / Lead",  value: tt.costPerLead == null ? "—" : money(tt.costPerLead) },
+      { label: "Cost / Conv.", value: tt.costPerConversion == null ? "—" : money(tt.costPerConversion) },
+      { label: "Campaigns",    value: numfmt(tt.campaigns) },
+    ] : [
+      { label: "Leads",      value: numfmt(tt.leads) },
+      { label: "Converted",  value: numfmt(tt.converted) },
+      { label: "Conv. Rate", value: pct(tt.conversionRatePct) },
+      { label: "Sources",    value: numfmt(tt.campaigns) },
+    ];
+    const columns = withCost
+      ? ["Campaign", "Status", "Spend", "Impressions", "Clicks", "CPC", "CTR", "CPM", "Leads", "Converted", "Conv Rate", "Cost/Lead", "Cost/Conv"]
+      : ["Source", "Status", "Leads", "Converted", "Conv Rate"];
+    const rows = (data?.campaigns || []).map((c) => (withCost ? [
+      c.campaignName || "—",
+      c.active === false ? "Paused" : "Active",
+      c.hasCost ? money(c.cost) : "—",
+      numfmt(c.impressions),
+      numfmt(c.clicks),
+      c.cpc == null ? "—" : money(c.cpc),
+      pct(c.ctr),
+      c.cpm == null ? "—" : money(c.cpm),
+      numfmt(c.leads),
+      numfmt(c.converted),
+      pct(c.conversionRatePct),
+      c.costPerLead == null ? "—" : money(c.costPerLead),
+      c.costPerConversion == null ? "—" : money(c.costPerConversion),
+    ] : [
+      c.campaignName || "—",
+      c.active === false ? "Paused" : "Active",
+      numfmt(c.leads),
+      numfmt(c.converted),
+      pct(c.conversionRatePct),
+    ]));
+    const rangeText = data?.range
+      ? `${String(data.range.from).slice(0, 10)} → ${String(data.range.to).slice(0, 10)}`
+      : `${from} → ${to}`;
+    return {
+      title,
+      subtitle,
+      rangeText,
+      kpis: kpisOut,
+      sections: [{ heading: withCost ? "Campaign Breakdown" : "Source Breakdown", columns, rows }],
+    };
+  };
+  const exportCSV = () => exportReportCSV(buildExport());
+  const exportPDF = () => exportReportPDF(buildExport());
+  // Report export is restricted to super admins only.
+  const isSuperAdmin = getRole() === "superadmin";
   const t = data?.totals;
 
   // KPI cards differ by channel: Google Ads shows spend/cost, Website is lead-only.
@@ -201,10 +263,19 @@ export default function SourcePerformanceReport({
               {aiLoading ? "Generating…" : data?.aiAnalysis ? "Re-generate AI" : "Generate AI Report"}
             </button>
 
-            <button onClick={exportPDF} disabled={!data}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold ${th.borderHover} disabled:opacity-40 transition`}>
-              <FileDown className="w-3.5 h-3.5" /> Export PDF
-            </button>
+            {isSuperAdmin && (
+              <>
+                <button onClick={exportCSV} disabled={!data}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold ${th.borderHover} disabled:opacity-40 transition`}>
+                  <FileSpreadsheet className="w-3.5 h-3.5" /> Export CSV
+                </button>
+
+                <button onClick={exportPDF} disabled={!data}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold ${th.borderHover} disabled:opacity-40 transition`}>
+                  <FileDown className="w-3.5 h-3.5" /> Export PDF
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
