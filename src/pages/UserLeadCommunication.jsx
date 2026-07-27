@@ -65,8 +65,28 @@ function Avatar({ name, size = "md" }) {
 }
 
 // ── Message bubble ─────────────────────────────────────────────────────────────
-function Bubble({ msg, isOwn }) {
+// ── Emoji palette for the composer picker ────────────────────────────────────
+// Kept as a plain array so no extra npm dependency is needed.
+const EMOJIS = [
+  "😀","😃","😄","😁","😆","😅","🤣","😂",
+  "🙂","🙃","😉","😊","😇","🥰","😍","😘",
+  "😋","😜","🤪","🤗","🤔","🤐","😐","😴",
+  "😎","🥳","😏","😢","😭","😤","😡","🥺",
+  "👍","👎","👌","🙏","👏","🙌","💪","🤝",
+  "❤️","🧡","💛","💚","💙","💜","🔥","✨",
+  "🎉","🎊","✅","❌","⚠️","❗","❓","💯",
+  "📞","📱","📧","📄","📷","🎥","🕐","📍",
+];
+
+function Bubble({ msg, isOwn, onEdit }) {
   const status = msg.status;
+  const url  = msg.mediaUrl || msg.media_url || null;
+  const type = msg.messageType;
+  const isMedia = url && ["image", "video", "audio", "document"].includes(type);
+  // For media, the body doubles as the caption/filename — only show it as a
+  // caption when it adds information beyond the rendered media itself.
+  const caption = msg.body || msg.text || msg.message || "";
+
   return (
     <div className={`flex mb-2 ${isOwn ? "justify-end" : "justify-start"} px-3`}>
       <div
@@ -76,13 +96,61 @@ function Bubble({ msg, isOwn }) {
             : "bg-white dark:bg-[#202C33] text-[#111B21] dark:text-[#E9EDEF] rounded-bl-none border border-[#E4E7EF] dark:border-transparent"
         }`}
       >
-        {msg.messageType === "image"    && <ImageIcon className="w-3.5 h-3.5 inline mr-1" />}
-        {msg.messageType === "document" && <FileText className="w-3.5 h-3.5 inline mr-1" />}
-        {msg.messageType === "audio"    && <Music className="w-3.5 h-3.5 inline mr-1" />}
-        {msg.messageType === "video"    && <Video className="w-3.5 h-3.5 inline mr-1" />}
-        {msg.messageType === "template" && <ClipboardList className="w-3.5 h-3.5 inline mr-1" />}
-        <p className="break-words leading-relaxed inline">{msg.body || msg.text || msg.message}</p>
+        {isMedia ? (
+          <div className="mb-1">
+            {type === "image" && (
+              <a href={url} target="_blank" rel="noreferrer">
+                <img src={url} alt={caption || "image"} className="rounded-lg max-h-60 w-auto object-cover cursor-pointer" />
+              </a>
+            )}
+            {type === "video" && (
+              <video src={url} controls playsInline className="rounded-lg max-h-60 w-full" />
+            )}
+            {type === "audio" && <audio src={url} controls className="w-56 max-w-full" />}
+            {type === "document" && (
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 px-2 py-2 rounded-lg bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition"
+              >
+                <FileText className="w-5 h-5 shrink-0" />
+                <span className="truncate underline">{caption || "Document"}</span>
+              </a>
+            )}
+            {caption && type !== "document" && (
+              <p className="break-words leading-relaxed mt-1">{caption}</p>
+            )}
+          </div>
+        ) : (
+          <>
+            {type === "image"    && <ImageIcon className="w-3.5 h-3.5 inline mr-1" />}
+            {type === "document" && <FileText className="w-3.5 h-3.5 inline mr-1" />}
+            {type === "audio"    && <Music className="w-3.5 h-3.5 inline mr-1" />}
+            {type === "video"    && <Video className="w-3.5 h-3.5 inline mr-1" />}
+            {type === "template" && <ClipboardList className="w-3.5 h-3.5 inline mr-1" />}
+            <p className="break-words leading-relaxed inline">{caption}</p>
+          </>
+        )}
         <div className="flex items-center justify-end gap-1 mt-0.5">
+          {msg.editedAt && (
+            <span
+              className="text-[10px] opacity-60 italic"
+              title="Edited in the CRM only — the lead still sees the original message on their phone."
+            >
+              edited
+            </span>
+          )}
+          {isOwn && onEdit && msg.messageType === "text" && !String(msg._id || "").startsWith("opt_") && (
+            <button
+              type="button"
+              onClick={() => onEdit(msg)}
+              title="Edit the CRM copy (the lead still sees the original)"
+              className="text-[10px] opacity-50 hover:opacity-100 underline transition"
+            >
+              edit
+            </button>
+          )}
           <p className="text-[10px] opacity-50">
             {fmtTime(msg.waTimestamp || msg.createdAt || msg.timestamp)}
           </p>
@@ -1106,6 +1174,17 @@ export default function UserLeadCommunication() {
   const [msgText,           setMsgText]           = useState("");
   const [sending,           setSending]           = useState(false);
   const [sendError,         setSendError]         = useState("");
+  // ── Attachments (+ menu) & emoji picker ────────────────────────────────────
+  const [showAttachMenu,    setShowAttachMenu]    = useState(false);
+  const [showEmoji,         setShowEmoji]         = useState(false);
+  const [uploading,         setUploading]         = useState(false);
+  const imageInputRef = useRef(null);   // photos & videos
+  const docInputRef   = useRef(null);   // any document
+  const gifInputRef   = useRef(null);   // .gif files
+  // ── Edit an already-sent message (CRM copy only) ───────────────────────────
+  const [editingMsg,  setEditingMsg]  = useState(null); // the message being edited
+  const [editText,    setEditText]    = useState("");
+  const [savingEdit,  setSavingEdit]  = useState(false);
   // Lets the employee manually open the "Send Template" panel any time —
   // not just when the session banner detects an expired session. This also
   // covers the case where a conversation has NEVER had a session opened yet
@@ -1116,6 +1195,8 @@ export default function UserLeadCommunication() {
   const [search,            setSearch]            = useState("");
   // unread counts keyed by lead._id
   const [unreadCounts,      setUnreadCounts]      = useState({});
+  // Total unread inbound messages across all of this agent's leads (header badge)
+  const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + (b || 0), 0);
   // maps conversationId (string) → lead._id (string) — built as leads are clicked
   const [convLeadMap,       setConvLeadMap]       = useState({});
 
@@ -1143,6 +1224,32 @@ export default function UserLeadCommunication() {
       .catch(() => {})
       .finally(() => setLoadingLeads(false));
   }, []);
+
+  // ── Seed the red unread badges from the server ──────────────────────────────
+  // The badge shows how many messages the LEAD sent that this agent hasn't
+  // opened yet. The count is stored on the conversation in the DB (incremented
+  // by the inbound WhatsApp webhook, cleared only when the agent opens that
+  // lead's chat), so it survives page reloads/navigation and is completely
+  // independent of the notification bell — clearing notifications never
+  // changes these numbers.
+  useEffect(() => {
+    if (!leads.length) return;
+    api
+      .get("/whatsapp/unread-counts")
+      .then(({ data }) => {
+        const byLead  = data?.byLead  || {};
+        const byPhone = data?.byPhone || {};
+        const next = {};
+        for (const l of leads) {
+          const id  = String(l._id);
+          const p10 = normalizePhone(l.mobile || l.phone || l.primaryPhone || "");
+          const n   = byLead[id] || (p10 ? byPhone[p10] : 0) || 0;
+          if (n > 0) next[id] = n;
+        }
+        setUnreadCounts(next);
+      })
+      .catch(() => {});
+  }, [leads]);
 
   // ── Auto-open a lead when arriving from a notification (?leadId=...) ─────────
   // Clicking a "New WhatsApp reply" notification navigates here with
@@ -1488,6 +1595,103 @@ export default function UserLeadCommunication() {
     }
   }, [msgText, conversation, sending]);
 
+  // ── Send an attachment (photo / video / audio / document / GIF) ─────────────
+  // The file is POSTed as multipart to /whatsapp/send-media; the backend uploads
+  // it to Cloudinary (WhatsApp needs a public HTTPS URL) and forwards it to the
+  // lead. Any text currently typed is used as the caption.
+  const handleFilePicked = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file later
+    if (!file || !conversation?._id) return;
+
+    // WhatsApp media ceiling is ~16MB (documents up to 100MB, but keep it safe).
+    const MAX_MB = 16;
+    if (file.size > MAX_MB * 1024 * 1024) {
+      setSendError(`File is too large (${(file.size / 1048576).toFixed(1)}MB). WhatsApp allows up to ${MAX_MB}MB.`);
+      return;
+    }
+
+    setShowAttachMenu(false);
+    setUploading(true);
+    setSendError("");
+
+    const caption = msgText.trim();
+    const isImg   = file.type.startsWith("image/") && file.type !== "image/gif";
+    const optimistic = {
+      _id: `opt_${Date.now()}`,
+      direction: "outbound",
+      body: caption || file.name,
+      messageType: isImg ? "image" : file.type.startsWith("video/") || file.type === "image/gif" ? "video"
+                   : file.type.startsWith("audio/") ? "audio" : "document",
+      mediaUrl: isImg ? URL.createObjectURL(file) : null,
+      waTimestamp: new Date(),
+      status: "pending",
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setMsgText("");
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("conversationId", conversation._id);
+      if (caption) fd.append("caption", caption);
+
+      const { data } = await axios.post(`${API_URL}/whatsapp/send-media`, fd, authHeaders);
+      const sentMsg = data?.message || data;
+      setMessages((prev) => prev.map((m) => (m._id === optimistic._id ? { ...optimistic, ...sentMsg } : m)));
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
+      const code = err.response?.data?.code;
+      setSendError(
+        code === "SESSION_EXPIRED"
+          ? "24-hour session expired. Send a template to re-engage before sending files."
+          : err.response?.data?.error || "Failed to send attachment"
+      );
+    } finally {
+      setUploading(false);
+    }
+  }, [conversation, msgText]);
+
+  // Insert an emoji at the end of the current message text.
+  const addEmoji = useCallback((emo) => {
+    setMsgText((prev) => prev + emo);
+    inputRef.current?.focus();
+  }, []);
+
+  // ── Edit a sent message (CRM copy only) ─────────────────────────────────────
+  const startEditMessage = useCallback((msg) => {
+    setEditingMsg(msg);
+    setEditText(msg.body || "");
+  }, []);
+
+  const saveEditMessage = useCallback(async () => {
+    const text = editText.trim();
+    if (!editingMsg?._id || !text || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      const { data } = await axios.patch(
+        `${API_URL}/whatsapp/messages/${editingMsg._id}`,
+        { text },
+        authHeaders
+      );
+      const updated = data?.message || {};
+      setMessages((prev) =>
+        prev.map((m) =>
+          String(m._id) === String(editingMsg._id)
+            ? { ...m, body: text, editedAt: updated.editedAt || new Date(), originalBody: updated.originalBody ?? m.originalBody ?? m.body }
+            : m
+        )
+      );
+      setEditingMsg(null);
+      setEditText("");
+    } catch (err) {
+      setSendError(err.response?.data?.error || "Failed to edit message");
+    } finally {
+      setSavingEdit(false);
+    }
+  }, [editText, editingMsg, savingEdit]);
+
   const filteredLeads = leads.filter(
     (l) =>
       (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -1596,7 +1800,17 @@ export default function UserLeadCommunication() {
           {/* Left panel: leads list — hidden on mobile when chat is open */}
           <div className={`w-80 shrink-0 flex flex-col border-r border-[#E4E7EF] dark:border-[#2A3942] bg-white dark:bg-[#111B21] ${selected ? "hidden sm:flex" : "flex"}`}>
             <div className="px-4 pt-5 pb-3 border-b border-[#E4E7EF] dark:border-[#2A3942]">
-              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#E9EDEF] mb-3">My Lead Chats</h2>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#E9EDEF] mb-3 flex items-center gap-2">
+                My Lead Chats
+                {totalUnread > 0 && (
+                  <span
+                    title={`${totalUnread} unread message${totalUnread > 1 ? "s" : ""} from your leads`}
+                    className="bg-[#EF4444] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm"
+                  >
+                    {totalUnread > 99 ? "99+" : totalUnread}
+                  </span>
+                )}
+              </h2>
               <div className="relative">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B92A9]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <circle cx="11" cy="11" r="8" />
@@ -1644,8 +1858,11 @@ export default function UserLeadCommunication() {
                         <p className="text-[11px] text-[#8B92A9] truncate">{maskPhone(lead.mobile || lead.phone)}</p>
                       </div>
                       {unread > 0 ? (
-                        <span className="bg-[#25D366] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shrink-0">
-                          {unread}
+                        <span
+                          title={`${unread} unread message${unread > 1 ? "s" : ""} from this lead`}
+                          className="bg-[#EF4444] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shrink-0 shadow-sm"
+                        >
+                          {unread > 99 ? "99+" : unread}
                         </span>
                       ) : (
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
@@ -1769,6 +1986,7 @@ export default function UserLeadCommunication() {
                       key={msg._id || i}
                       msg={msg}
                       isOwn={msg.direction === "outbound" || msg.from === "admin"}
+                      onEdit={startEditMessage}
                     />
                   ))
                 )}
@@ -1826,12 +2044,128 @@ export default function UserLeadCommunication() {
                   )}
                 </div>
               ) : (
-                <div className="bg-[#F0F2F5] dark:bg-[#202C33] px-3 py-2.5 flex items-end gap-2 shrink-0">
+                <div className="bg-[#F0F2F5] dark:bg-[#202C33] px-3 py-2.5 flex items-end gap-2 shrink-0 relative">
+                  {/* ── Edit message modal (CRM copy only) ── */}
+                  {editingMsg && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#2A3942] shadow-2xl p-5">
+                        <h3 className="text-[15px] font-bold text-[#111B21] dark:text-[#E9EDEF] mb-1">Edit message</h3>
+                        <p className="text-[11px] text-[#B45309] bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-2.5 py-2 mb-3 leading-relaxed">
+                          ⚠ This edits the CRM record only. WhatsApp has no way to change a message
+                          that was already delivered — <strong>the lead still sees the original text
+                          on their phone.</strong> To correct something for the lead, send a new
+                          follow-up message.
+                        </p>
+                        <textarea
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          rows={4}
+                          autoFocus
+                          className="w-full rounded-xl border border-[#E4E7EF] dark:border-[#3B4A54] bg-white dark:bg-[#202C33] px-3 py-2 text-[13px] text-[#111B21] dark:text-[#E9EDEF] focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 resize-none"
+                        />
+                        <div className="flex items-center justify-end gap-2 mt-3">
+                          <button
+                            type="button"
+                            onClick={() => { setEditingMsg(null); setEditText(""); }}
+                            className="px-3 py-2 text-[13px] font-semibold text-[#4B5168] dark:text-[#AEBAC1] hover:underline"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={saveEditMessage}
+                            disabled={savingEdit || !editText.trim()}
+                            className="px-4 py-2 rounded-xl bg-[#25D366] hover:bg-[#20B858] disabled:opacity-40 text-white text-[13px] font-semibold transition"
+                          >
+                            {savingEdit ? "Saving…" : "Save edit"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Hidden file inputs driven by the + menu */}
+                  <input ref={imageInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFilePicked} />
+                  <input ref={docInputRef}   type="file" className="hidden" onChange={handleFilePicked}
+                         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,application/*,text/*" />
+                  <input ref={gifInputRef}   type="file" accept="image/gif" className="hidden" onChange={handleFilePicked} />
+
+                  {/* ── Emoji picker ── */}
+                  {showEmoji && !isClosed && (
+                    <div className="absolute bottom-16 left-3 z-30 w-72 max-h-56 overflow-y-auto rounded-xl bg-white dark:bg-[#2A3942] shadow-2xl border border-[#E4E7EF] dark:border-[#3B4A54] p-2">
+                      <div className="grid grid-cols-8 gap-1">
+                        {EMOJIS.map((emo) => (
+                          <button
+                            key={emo}
+                            type="button"
+                            onClick={() => addEmoji(emo)}
+                            className="text-[19px] leading-none p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition"
+                          >
+                            {emo}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── + attachment menu ── */}
+                  {showAttachMenu && !isClosed && (
+                    <div className="absolute bottom-16 left-3 z-30 w-56 rounded-xl bg-white dark:bg-[#2A3942] shadow-2xl border border-[#E4E7EF] dark:border-[#3B4A54] overflow-hidden">
+                      {[
+                        { label: "Photo or Video", icon: ImageIcon, ref: imageInputRef, hint: "JPG, PNG, MP4" },
+                        { label: "GIF",            icon: Video,     ref: gifInputRef,   hint: "Sent as video so it animates" },
+                        { label: "Document",       icon: FileText,  ref: docInputRef,   hint: "PDF, Word, Excel, ZIP…" },
+                      ].map(({ label, icon: Icon, ref, hint }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => { setShowAttachMenu(false); ref.current?.click(); }}
+                          className="w-full flex items-start gap-3 px-3 py-2.5 text-left hover:bg-[#F0F2F5] dark:hover:bg-[#202C33] transition"
+                        >
+                          <Icon className="w-4 h-4 mt-0.5 text-[#25D366] shrink-0" />
+                          <span className="min-w-0">
+                            <span className="block text-[13px] font-semibold text-[#111B21] dark:text-[#E9EDEF]">{label}</span>
+                            <span className="block text-[10px] text-[#8B92A9] truncate">{hint}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* + button */}
+                  <button
+                    type="button"
+                    title="Attach photo, video, GIF or document"
+                    onClick={() => { setShowAttachMenu((v) => !v); setShowEmoji(false); }}
+                    disabled={isClosed || sending || uploading}
+                    className="w-10 h-10 rounded-full bg-white dark:bg-[#2A3942] hover:bg-[#E9EDEF] dark:hover:bg-[#3B4A54] disabled:opacity-40 flex items-center justify-center transition shrink-0 shadow-sm"
+                  >
+                    {uploading ? (
+                      <svg className="w-4 h-4 animate-spin text-[#25D366]" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                    ) : (
+                      <span className={`text-[22px] leading-none text-[#54656F] dark:text-[#AEBAC1] transition-transform ${showAttachMenu ? "rotate-45" : ""}`}>+</span>
+                    )}
+                  </button>
+
+                  {/* emoji button */}
+                  <button
+                    type="button"
+                    title="Emoji"
+                    onClick={() => { setShowEmoji((v) => !v); setShowAttachMenu(false); }}
+                    disabled={isClosed || sending}
+                    className="w-10 h-10 rounded-full bg-white dark:bg-[#2A3942] hover:bg-[#E9EDEF] dark:hover:bg-[#3B4A54] disabled:opacity-40 flex items-center justify-center transition shrink-0 shadow-sm text-[18px]"
+                  >
+                    🙂
+                  </button>
+
                   <div className="flex-1 bg-white dark:bg-[#2A3942] rounded-2xl px-4 py-2 min-h-[42px] flex items-center">
                     <textarea
                       ref={inputRef}
                       value={msgText}
                       onChange={(e) => setMsgText(e.target.value)}
+                      onFocus={() => { setShowEmoji(false); setShowAttachMenu(false); }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault();
