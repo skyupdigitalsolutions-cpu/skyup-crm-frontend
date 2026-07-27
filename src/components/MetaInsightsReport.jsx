@@ -2,10 +2,12 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import api, { clearCache } from "../data/axiosConfig";
 import {
   TrendingUp, AlertTriangle, AlertCircle, CheckCircle2, Info,
-  Sparkles, Lightbulb, ThumbsUp, ThumbsDown, FileDown, Loader2,
+  Sparkles, Lightbulb, ThumbsUp, ThumbsDown, FileDown, FileSpreadsheet, Loader2,
   BarChart3, MousePointerClick, Target, Zap, Eye, ArrowUpRight,
 } from "lucide-react";
 import AISummaryPanel from "./AISummaryPanel";
+import { exportReportCSV, exportReportPDF } from "../utils/reportExport";
+import { getRole } from "../data/dataService";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Meta Ad Performance Report (admin)
@@ -177,7 +179,54 @@ export default function MetaInsightsReport() {
   // Re-fetch immediately whenever dates change.
   useEffect(() => { load(); }, [from, to]); // eslint-disable-line
 
-  const exportPDF = () => window.print();
+  // Build a clean, data-driven export payload (used by both CSV + PDF) so the
+  // output doesn't depend on the live dark-mode DOM.
+  const buildExport = () => {
+    const tt = data?.totals || {};
+    const ctr = tt.impressions > 0 ? `${((tt.clicks / tt.impressions) * 100).toFixed(2)}%` : "—";
+    const kpis = [
+      { label: "Spend",       value: money(tt.spend) },
+      { label: "Impressions", value: numfmt(tt.impressions) },
+      { label: "Reach",       value: numfmt(tt.reach) },
+      { label: "Clicks",      value: numfmt(tt.clicks) },
+      { label: "CTR",         value: ctr },
+      { label: "Leads",       value: numfmt(tt.leads) },
+      { label: "Cost / Lead", value: money(tt.costPerLead) },
+      { label: "Conv. Rate",  value: tt.conversionRatePct != null ? `${tt.conversionRatePct}%` : "—" },
+    ];
+    const columns = ["Campaign", "Ad Set", "Spend", "Impressions", "Reach", "Clicks", "CTR", "CPM", "CPC", "Leads", "Converted", "Cost/Lead"];
+    const rows = (data?.campaigns || []).map((c) => {
+      const m = c.metrics || {};
+      return [
+        c.campaignName || "—",
+        c.adSetName || "",
+        money(m.spend),
+        numfmt(m.impressions),
+        numfmt(m.reach),
+        numfmt(m.clicks),
+        `${m.ctr || 0}%`,
+        money(m.cpm),
+        money(m.cpc),
+        numfmt(c.leads),
+        numfmt(c.converted || 0),
+        c.costPerLead == null ? "—" : money(c.costPerLead),
+      ];
+    });
+    const rangeText = data?.range
+      ? `${String(data.range.from).slice(0, 10)} → ${String(data.range.to).slice(0, 10)}`
+      : `${from} → ${to}`;
+    return {
+      title: "Meta Ad Performance",
+      subtitle: "Spend, CPM, CPC, CTR, reach and cost-per-lead per campaign",
+      rangeText,
+      kpis,
+      sections: [{ heading: "Campaign Breakdown", columns, rows }],
+    };
+  };
+  const exportCSV = () => exportReportCSV(buildExport());
+  const exportPDF = () => exportReportPDF(buildExport());
+  // Report export is restricted to super admins only.
+  const isSuperAdmin = getRole() === "superadmin";
   const t = data?.totals;
   const allNotConfigured = data?.campaigns?.length > 0 && data.campaigns.every(c => !c.configured);
 
@@ -224,10 +273,19 @@ export default function MetaInsightsReport() {
                 {aiLoading ? "Generating…" : data?.aiAnalysis ? "Re-generate AI" : "Generate AI Report"}
               </button>
 
-              <button onClick={exportPDF} disabled={!data}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold hover:border-indigo-400 dark:hover:border-indigo-600 disabled:opacity-40 transition">
-                <FileDown className="w-3.5 h-3.5" /> Export PDF
-              </button>
+              {isSuperAdmin && (
+                <>
+                  <button onClick={exportCSV} disabled={!data}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold hover:border-indigo-400 dark:hover:border-indigo-600 disabled:opacity-40 transition">
+                    <FileSpreadsheet className="w-3.5 h-3.5" /> Export CSV
+                  </button>
+
+                  <button onClick={exportPDF} disabled={!data}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[12px] font-semibold hover:border-indigo-400 dark:hover:border-indigo-600 disabled:opacity-40 transition">
+                    <FileDown className="w-3.5 h-3.5" /> Export PDF
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
