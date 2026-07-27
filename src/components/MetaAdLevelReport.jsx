@@ -114,7 +114,7 @@ function Donut({ data, format, centerLabel }) {
 }
 
 // ── Campaign summary card ─────────────────────────────────────────────────────
-function CampaignCard({ name, ads, idx }) {
+function CampaignCard({ name, ads, idx, leads = 0 }) {
   const [open, setOpen] = useState(false);
   const spend = ads.reduce((s, a) => s + (a.metrics.spend || 0), 0);
   const impr  = ads.reduce((s, a) => s + (a.metrics.impressions || 0), 0);
@@ -145,6 +145,10 @@ function CampaignCard({ name, ads, idx }) {
           <div className="text-right hidden md:block">
             <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">{pct(ctr)}</p>
             <p className="text-[10px] text-[#8B92A9]">CTR</p>
+          </div>
+          <div className="text-right hidden md:block">
+            <p className="text-[12px] font-bold text-indigo-600 dark:text-indigo-400">{num(leads)}</p>
+            <p className="text-[10px] text-[#8B92A9]">Leads</p>
           </div>
           <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${score.bg}`} style={{ color: score.color }}>
             <ScoreIcon className="w-3 h-3" />{score.label}
@@ -411,6 +415,8 @@ export default function MetaAdLevelReport() {
       { label: "Reach",       value: num(t.reach) },
       { label: "Clicks",      value: num(t.clicks) },
       { label: "CTR",         value: `${ctr}%` },
+      { label: "Total Leads", value: num(t.leads) },
+      { label: "Cost / Lead", value: t.costPerLead == null ? "—" : money(t.costPerLead) },
       { label: "Ads",         value: num((data?.ads || []).length) },
     ];
     const columns = ["Ad", "Ad Set", "Campaign", "Status", "Spend", "Impressions", "Reach", "Clicks", "CPM", "CPC", "CTR", "Freq"];
@@ -513,12 +519,13 @@ export default function MetaAdLevelReport() {
           )}
 
           {/* Summary strip */}
-          {t.spend > 0 && (
+          {(t.spend > 0 || t.leads > 0) && (
             <div className="rounded-2xl p-4 bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-md">
               <p className="text-[10px] font-bold uppercase tracking-wider opacity-70 mb-1.5">{data.ads.length} ads across {byCampaign.length} campaigns · {data.range?.from} → {data.range?.to}</p>
               <p className="text-[13px] leading-relaxed">
                 Total spend <b>{money(t.spend)}</b> — reached <b>{num(t.reach)}</b> people with <b>{num(t.impressions)}</b> impressions
                 and <b>{num(t.clicks)}</b> clicks (<b>{pct(ctr)}</b> CTR).{" "}
+                Captured <b>{num(t.leads)} leads</b>{t.costPerLead != null ? <> at <b>{money(t.costPerLead)}</b> each</> : null}.{" "}
                 <b className="text-emerald-300">{goodAds} ads</b> performing well,{" "}
                 <b className="text-rose-300">{needsAds} ads</b> need attention.
               </p>
@@ -526,14 +533,16 @@ export default function MetaAdLevelReport() {
           )}
 
           {/* KPIs */}
-          {t.spend > 0 && (
+          {(t.spend > 0 || t.leads > 0) && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
               <Kpi icon={IndianRupee}       label="Total Spend"    value={"₹" + Number(t.spend).toLocaleString("en-IN", { maximumFractionDigits: 0 })} tint="#EF4444" />
               <Kpi icon={Eye}               label="Impressions"    value={Number(t.impressions).toLocaleString("en-IN")} tint="#6366F1" />
               <Kpi icon={Users}             label="Reach"          value={Number(t.reach).toLocaleString("en-IN")}       tint="#10B981" />
               <Kpi icon={MousePointerClick} label="Clicks"         value={Number(t.clicks).toLocaleString("en-IN")}      tint="#0EA5E9" />
+              <Kpi icon={Target}            label="Total Leads"    value={num(t.leads)}        tint="#8B5CF6" />
+              <Kpi icon={IndianRupee}       label="Cost / Lead"    value={t.costPerLead == null ? "—" : money(t.costPerLead)} tint="#EC4899" />
               <Kpi icon={Percent}           label="CTR"            value={pct(ctr)}            tint="#F59E0B" />
-              <Kpi icon={Activity}          label="Campaigns"      value={byCampaign.length}   tint="#8B5CF6" />
+              <Kpi icon={Activity}          label="Campaigns"      value={byCampaign.length}   tint="#0EA5E9" />
               <Kpi icon={CheckCircle2}      label="Good Ads"       value={goodAds}             tint="#10B981" />
               <Kpi icon={AlertCircle}       label="Need Attention" value={needsAds}            tint="#EF4444" />
             </div>
@@ -562,7 +571,7 @@ export default function MetaAdLevelReport() {
           {view === "campaigns" && (
             <div className="space-y-2.5">
               {byCampaign.length === 0 && <div className={`${CARD} p-10 text-center text-[12px] text-[#8B92A9]`}>No ads found in this period.</div>}
-              {byCampaign.map(([name, ads], i) => <CampaignCard key={name} name={name} ads={ads} idx={i} />)}
+              {byCampaign.map(([name, ads], i) => <CampaignCard key={name} name={name} ads={ads} idx={i} leads={data.leadsByCampaign?.[name] || 0} />)}
             </div>
           )}
 
