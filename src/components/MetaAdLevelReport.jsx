@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import api from "../data/axiosConfig";
+import api, { clearCache } from "../data/axiosConfig";
 import {
   Loader2, AlertTriangle, RefreshCw, Eye, MousePointerClick, IndianRupee,
   Target, BarChart3, ExternalLink, Layers, Zap, Activity, Image,
@@ -371,6 +371,10 @@ export default function MetaAdLevelReport() {
 
   const load = useCallback(async () => {
     setLoad(true); setError("");
+    // Refresh fix: drop the 30s axios cache entry for this endpoint first,
+    // otherwise clicking "Refresh" with the same dates just re-serves the cached
+    // response and nothing appears to happen.
+    try { clearCache("/meta-config/ad-level"); } catch {}
     try { const { data: d } = await api.get("/meta-config/ad-level", { params: { from, to } }); setData(d); }
     catch (e) { setError(e?.response?.data?.message || "Failed to load ad-level data."); }
     finally { setLoad(false); }
