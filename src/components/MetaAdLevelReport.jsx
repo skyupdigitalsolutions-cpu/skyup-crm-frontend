@@ -5,7 +5,10 @@ import {
   Target, BarChart3, ExternalLink, Layers, Zap, Activity, Image,
   ChevronDown, ChevronUp, ArrowUpDown, Search, TrendingUp, TrendingDown,
   Minus, Users, Percent, Star, AlertCircle, CheckCircle2, Info,
+  FileDown, FileSpreadsheet,
 } from "lucide-react";
+import { exportReportCSV, exportReportPDF } from "../utils/reportExport";
+import { getRole } from "../data/dataService";
 
 // GET /meta-config/ad-level?from=&to=
 // Campaign-level grouping + individual ad performance + creative + improvement tips.
@@ -396,6 +399,50 @@ export default function MetaAdLevelReport() {
   const goodAds = (data?.ads || []).filter((a) => scoreAd(a.metrics).label === "Good").length;
   const needsAds= (data?.ads || []).filter((a) => scoreAd(a.metrics).label === "Needs Attention").length;
 
+  // ── Export (CSV + clean PDF) ──────────────────────────────────────────────
+  const buildExport = () => {
+    const kpis = [
+      { label: "Total Spend", value: money(t.spend) },
+      { label: "Impressions", value: num(t.impressions) },
+      { label: "Reach",       value: num(t.reach) },
+      { label: "Clicks",      value: num(t.clicks) },
+      { label: "CTR",         value: `${ctr}%` },
+      { label: "Ads",         value: num((data?.ads || []).length) },
+    ];
+    const columns = ["Ad", "Ad Set", "Campaign", "Status", "Spend", "Impressions", "Reach", "Clicks", "CPM", "CPC", "CTR", "Freq"];
+    const rows = (data?.ads || []).map((a) => {
+      const m = a.metrics || {};
+      return [
+        a.adName || "—",
+        a.adsetName || "",
+        a.campaignName || "",
+        a.status || "",
+        money(m.spend),
+        num(m.impressions),
+        num(m.reach),
+        num(m.clicks),
+        money(m.cpm),
+        money(m.cpc),
+        pct(m.ctr),
+        m.frequency != null ? Number(m.frequency).toFixed(2) : "—",
+      ];
+    });
+    const rangeText = data?.range
+      ? `${String(data.range.from).slice(0, 10)} → ${String(data.range.to).slice(0, 10)}`
+      : `${from} → ${to}`;
+    return {
+      title: "Meta Ad-Level Performance",
+      subtitle: "Spend, reach, CTR, frequency per individual ad",
+      rangeText,
+      kpis,
+      sections: [{ heading: "Ads Breakdown (sorted by spend)", columns, rows }],
+    };
+  };
+  const exportCSV = () => exportReportCSV(buildExport());
+  const exportPDF = () => exportReportPDF(buildExport());
+  // Report export is restricted to super admins only.
+  const isSuperAdmin = getRole() === "superadmin";
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -422,6 +469,18 @@ export default function MetaAdLevelReport() {
             </div>
             {loading && <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin ml-1" />}
           </div>
+          {isSuperAdmin && (
+            <>
+              <button onClick={exportCSV} disabled={!data || !data.configured}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[11px] font-bold hover:border-blue-400 dark:hover:border-blue-600 disabled:opacity-40 transition">
+                <FileSpreadsheet className="w-3.5 h-3.5" /> CSV
+              </button>
+              <button onClick={exportPDF} disabled={!data || !data.configured}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] text-[#4B5168] dark:text-[#9DA3BB] text-[11px] font-bold hover:border-blue-400 dark:hover:border-blue-600 disabled:opacity-40 transition">
+                <FileDown className="w-3.5 h-3.5" /> PDF
+              </button>
+            </>
+          )}
           <button onClick={load} disabled={loading}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 hover:opacity-90 disabled:opacity-50 text-white text-[11px] font-bold shadow-sm">
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Refresh
