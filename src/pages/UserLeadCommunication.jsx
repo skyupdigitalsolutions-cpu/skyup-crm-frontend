@@ -80,7 +80,12 @@ const EMOJIS = [
 
 function Bubble({ msg, isOwn, onEdit }) {
   const status = msg.status;
-  const url  = msg.mediaUrl || msg.media_url || null;
+  // Older inbound messages stored the URL in mediaId only, so fall back to it
+  // when it looks like a URL — makes previously-received media render too.
+  const rawMediaId = msg.mediaId || msg.media_id || null;
+  const url =
+    msg.mediaUrl || msg.media_url ||
+    (/^https?:\/\//i.test(String(rawMediaId || "")) ? rawMediaId : null);
   const type = msg.messageType;
   const isMedia = url && ["image", "video", "audio", "document"].includes(type);
   // For media, the body doubles as the caption/filename — only show it as a
@@ -1250,6 +1255,27 @@ export default function UserLeadCommunication() {
       })
       .catch(() => {});
   }, [leads]);
+
+  // ── Opening a chat clears its red badge immediately ─────────────────────────
+  // Runs for EVERY path that opens a lead — clicking the list, and auto-opening
+  // from a notification redirect. Previously only the click path cleared it, so
+  // arriving via a notification left the badge until a page refresh.
+  useEffect(() => {
+    const id = selected?._id;
+    if (!id) return;
+    setUnreadCounts((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    // The backend clears the stored unreadCount when the conversation loads;
+    // give it a beat, then have the sidebar badge re-count.
+    const t = setTimeout(() => {
+      try { window.dispatchEvent(new Event("wa_unread_refresh")); } catch (_) {}
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [selected?._id]);
 
   // ── Auto-open a lead when arriving from a notification (?leadId=...) ─────────
   // Clicking a "New WhatsApp reply" notification navigates here with
