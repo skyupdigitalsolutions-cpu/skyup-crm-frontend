@@ -51,13 +51,40 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
+  // ── Explicit tenant context for super admins (ISO A.8.3) ───────────────────
+  // A super-admin token is not bound to one company, so the server previously
+  // had to GUESS which tenant a request meant — it defaulted to the oldest
+  // active company, meaning writes could land on the wrong tenant. Sending the
+  // company explicitly removes the guesswork.
+  //
+  // Safe to always send: the backend only reads this header for super-admin
+  // tokens and ignores it for everyone else. If no company is known we send
+  // nothing, and the server falls back to its existing behaviour (and logs a
+  // [TENANT-WARN]) rather than failing.
+  try {
+    const raw = localStorage.getItem("user");
+    if (raw) {
+      const u = JSON.parse(raw);
+      const role = String(u?.role || "").toLowerCase();
+      if (role === "super_admin" || role === "superadmin") {
+        const companyId = u.companyId || u.company?._id || u.company;
+        if (companyId) config.headers["x-company-id"] = String(companyId);
+      }
+    }
+  } catch (_) { /* malformed user object — fall through without the header */ }
+
   if (config.method === "get" && isCacheable(config.url)) {
     // IMPORTANT: the cache key includes the current token. Two different
     // admins/companies hitting the exact same URL+params must never share a
     // cache entry — keying on the token guarantees that even if a
     // clearCache()/clearAllCache() call is ever missed somewhere, one
     // session's data cannot leak into another session's dashboard.
-    const key   = (token || "anon") + "|" + (config.url || "") + JSON.stringify(config.params || {});
+    //
+    // The tenant is also part of the key: a super-admin token stays the SAME
+    // while they switch between companies, so without this a cached response
+    // from Company A could be served while viewing Company B.
+    const tenant = config.headers["x-company-id"] || "";
+    const key   = (token || "anon") + "|" + tenant + "|" + (config.url || "") + JSON.stringify(config.params || {});
     const entry = _cache.get(key);
     if (entry && Date.now() - entry.ts < CACHE_TTL) {
       config.adapter = () => Promise.resolve(entry.response);
