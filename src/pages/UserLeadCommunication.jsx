@@ -1276,6 +1276,21 @@ export default function UserLeadCommunication() {
       .catch(() => {});
   }, [leads]);
 
+  // ── Mark the open conversation as read ──────────────────────────────────────
+  // Clears the stored unread count server-side. Called when a chat is opened AND
+  // whenever a message arrives while that chat is already on screen — otherwise
+  // the badge kept reappearing (the agent had clearly read the message, but the
+  // server counter was never reset, so it came back on the next refresh).
+  const markRead = useCallback((conversationId) => {
+    if (!conversationId) return;
+    axios
+      .post(`${API_URL}/whatsapp/conversations/${conversationId}/mark-read`, {}, authHeaders)
+      .then(() => {
+        try { window.dispatchEvent(new Event("wa_unread_refresh")); } catch (_) {}
+      })
+      .catch(() => {});
+  }, []);
+
   // ── Opening a chat clears its red badge immediately ─────────────────────────
   // Runs for EVERY path that opens a lead — clicking the list, and auto-opening
   // from a notification redirect. Previously only the click path cleared it, so
@@ -1296,6 +1311,11 @@ export default function UserLeadCommunication() {
     }, 1000);
     return () => clearTimeout(t);
   }, [selected?._id]);
+
+  // Whenever a conversation is on screen, it is being read — clear its count.
+  useEffect(() => {
+    if (conversation?._id) markRead(conversation._id);
+  }, [conversation?._id, markRead]);
 
   // ── Auto-open a lead when arriving from a notification (?leadId=...) ─────────
   // Clicking a "New WhatsApp reply" notification navigates here with
@@ -1448,6 +1468,8 @@ export default function UserLeadCommunication() {
       // matching needed, immune to masked numbers and duplicate conversations) ─
       if (incomingLeadId && currentLead?._id && String(incomingLeadId) === String(currentLead._id)) {
         console.log("[WA-DEBUG] Case 0 fired — inbound belongs to the OPEN lead");
+        // The agent is looking at this chat, so it is read the moment it lands.
+        if (msg.direction === "inbound") markRead(incomingConvId);
         // If the open conversation is a different record than where the message
         // landed, re-fetch from the authoritative conversation so the full
         // thread (including this message) shows.
@@ -1482,6 +1504,7 @@ export default function UserLeadCommunication() {
       // ── Case 1: Exact conversation ID match ──────────────────────────────
       if (currentConv && String(currentConv._id) === String(incomingConvId)) {
         console.log("[WA-DEBUG] Case 1 fired — appending msg to open chat");
+        if (msg.direction === "inbound") markRead(incomingConvId);
         if (msg.direction === "inbound" && newExpiry) {
           setConversation((prev) =>
             prev ? { ...prev, sessionExpiresAt: newExpiry, status: "waiting" } : prev
