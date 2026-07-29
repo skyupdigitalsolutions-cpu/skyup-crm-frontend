@@ -1800,11 +1800,17 @@ export default function UserLeadCommunication() {
     }
   }, [editText, editingMsg, savingEdit]);
 
-  const filteredLeads = leads.filter(
-    (l) =>
-      (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (l.mobile || l.phone || "").includes(search)
-  );
+  const filteredLeads = leads
+    .filter(
+      (l) =>
+        (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
+        (l.mobile || l.phone || "").includes(search)
+    )
+    // Pin leads with unread inbound messages (the red badge) to the top of the
+    // list, highest unread count first. Array.prototype.sort is stable, so
+    // leads with no unread messages keep their original server order below.
+    // .filter() already returned a fresh array, so this does not mutate `leads`.
+    .sort((a, b) => (unreadCounts[b._id] || 0) - (unreadCounts[a._id] || 0));
 
   const session = conversation?.sessionExpiresAt ? sessionBanner(conversation.sessionExpiresAt) : null;
   const isClosed = conversation?.status === "closed";
