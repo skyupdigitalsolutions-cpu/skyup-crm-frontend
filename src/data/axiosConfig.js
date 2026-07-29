@@ -22,6 +22,14 @@ const NO_CACHE = [
   "/auth/", "/login", "/logout",
   "/razorpay/", "/subscription",
   "/socket", "/chat",
+  // ── Realtime endpoints — MUST NOT be cached ────────────────────────────────
+  // These back live UI counters. The 30-second cache meant a refetch triggered
+  // by an incoming socket message was answered from the cache with the OLD
+  // value, so the red unread badge never appeared until a full page reload
+  // (which wipes this Map). The notification bell looked fine because it is
+  // driven by the socket directly and never makes an HTTP call.
+  "unread-counts",
+  "/whatsapp/conversations",
 ];
 
 function isCacheable(url = "") {
