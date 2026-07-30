@@ -6,23 +6,9 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../data/axiosConfig";
 import toast from "react-hot-toast";
-
-// ── Password strength helper ───────────────────────────────────────────────────
-function passwordStrength(pwd) {
-  if (!pwd) return { label: "", color: "" };
-  let score = 0;
-  if (pwd.length >= 8)           score++;
-  if (/[A-Z]/.test(pwd))        score++;
-  if (/[0-9]/.test(pwd))        score++;
-  if (/[^A-Za-z0-9]/.test(pwd)) score++;
-  const levels = [
-    { label: "Weak",   color: "bg-red-500"    },
-    { label: "Fair",   color: "bg-orange-400" },
-    { label: "Good",   color: "bg-yellow-400" },
-    { label: "Strong", color: "bg-green-500"  },
-  ];
-  return levels[Math.max(0, score - 1)] || levels[0];
-}
+// ISO/IEC 27001 A.5.17 — shared policy, kept in sync with the backend's
+// utils/passwordPolicy.js. See src/utils/passwordPolicy.js for details.
+import { validatePassword, passwordStrength, MIN_LENGTH } from "../utils/passwordPolicy";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -117,7 +103,8 @@ export default function ForgotPassword() {
     e.preventDefault();
     setError("");
     if (!newPassword) return setError("Please enter a new password.");
-    if (newPassword.length < 8) return setError("Password must be at least 8 characters.");
+    const { valid, errors } = validatePassword(newPassword, { email });
+    if (!valid) return setError(errors[0]);
     if (newPassword !== confirmPassword) return setError("Passwords do not match.");
 
     setLoading(true);
@@ -297,7 +284,7 @@ export default function ForgotPassword() {
                 <input
                   type={showNew ? "text" : "password"}
                   className={`${inputCls} pr-11`}
-                  placeholder="Min. 8 characters"
+                  placeholder={`Min. ${MIN_LENGTH} characters, 3 of: lower/upper/number/symbol`}
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
                   autoFocus
@@ -316,7 +303,7 @@ export default function ForgotPassword() {
                 <div className="mt-2 flex items-center gap-2">
                   <div className="flex-1 h-1 rounded-full bg-[#E4E7EF] dark:bg-[#1E2130] overflow-hidden">
                     <div className={`h-full rounded-full transition-all ${pwStrength.color}`}
-                      style={{ width: `${(["Weak","Fair","Good","Strong"].indexOf(pwStrength.label) + 1) * 25}%` }} />
+                      style={{ width: `${pwStrength.score * 25}%` }} />
                   </div>
                   <span className="text-[10px] font-semibold text-[#8B92A9]">{pwStrength.label}</span>
                 </div>
@@ -361,7 +348,7 @@ export default function ForgotPassword() {
               )}
             </div>
 
-            <button type="submit" disabled={loading || newPassword !== confirmPassword || newPassword.length < 8} className={btnCls}>
+            <button type="submit" disabled={loading || newPassword !== confirmPassword || !validatePassword(newPassword, { email }).valid} className={btnCls}>
               {loading
                 ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Resetting…</>
                 : "Reset Password"
