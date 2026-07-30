@@ -511,6 +511,13 @@ function CreateModal({ onClose, onCreated }) {
   };
 
   if (success) {
+    // ISO/IEC 27001 A.8.24 — never echo secrets to the DOM/UI. Show only a
+    // masked confirmation; the admin already typed these in this session, so
+    // re-displaying the raw string in plain text adds no legitimate value and
+    // creates an XSS/shoulder-surf/screenshot exposure surface. Full values
+    // still reach the backend via the API payload sent above — this only
+    // changes what's rendered here.
+    const mask = (v) => (v ? `••••••••${String(v).slice(-4)}` : "—");
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
         <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
@@ -522,10 +529,11 @@ function CreateModal({ onClose, onCreated }) {
             Meta leads from <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{form.campaignName}</span> will now flow into your CRM automatically.
           </p>
           <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl px-4 py-3 text-left text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-5 space-y-1 border border-[#E4E7EF] dark:border-[#262A38]">
-            <p className="font-semibold text-[#4B5168] dark:text-[#9DA3BB] text-[12px] mb-2"> Add these to your server <code className="bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] px-1 rounded">.env</code></p>
-            <p><span className="text-[#2563EB]">META_APP_SECRET</span>={form.appSecret}</p>
-            <p><span className="text-[#2563EB]">META_VERIFY_TOKEN</span>={form.verifyToken}</p>
-            <p><span className="text-[#2563EB]">META_GRAPH_API_VERSION</span>={form.graphApiVersion}</p>
+            <p className="font-semibold text-[#4B5168] dark:text-[#9DA3BB] text-[12px] mb-2">Credentials received — stored server-side only</p>
+            <p><span className="text-[#2563EB]">META_APP_SECRET</span>={mask(form.appSecret)}</p>
+            <p><span className="text-[#2563EB]">META_VERIFY_TOKEN</span>={mask(form.verifyToken)}</p>
+            <p><span className="text-[#2563EB]">META_GRAPH_API_VERSION</span>={form.graphApiVersion || "default"}</p>
+            <p className="text-[10px] pt-1 text-[#8B92A9] dark:text-[#565C75]">These are saved on the server and won't be shown again in full. To rotate them, use "Reconnect" from the campaign menu.</p>
           </div>
           <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#2563EB] text-white text-[13px] font-semibold hover:bg-blue-700 transition">Done</button>
         </div>
