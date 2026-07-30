@@ -1,0 +1,15 @@
+# Cloudflare Pages edge headers — ISO/IEC 27001:2022 A.8.9 / A.8.26
+# The backend's `helmet` config only covers API responses. Anything served
+# directly by Cloudflare Pages (this SPA's HTML/JS/CSS) needs its own headers.
+#
+# CSP is deliberately left OFF here for now — this SPA loads Google Fonts,
+# Socket.IO, and an inline theme-flash script in index.html. Turn CSP on only
+# after testing with the real production build (npm run preview), matching
+# the same opt-in caution the backend applies via ENABLE_CSP.
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
