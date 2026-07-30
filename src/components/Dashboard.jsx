@@ -1176,12 +1176,12 @@ export default function Dashboard() {
               {isSuperAdmin ? "SuperAdmin" : "Admin"}
             </span>
           </div>
-          <p className="text-[12px] sm:text-[13px] text-[#6B7280] dark:text-[#565C75] truncate">
-            Welcome back, {user?.name || "Admin"} ·{" "}
-            {isSuperAdmin
-              ? `${superStats?.totalCompanies || 0} companies · ${kpi.total.toLocaleString()} total leads`
-              : `${kpi.total.toLocaleString()} total leads · ${agents.length} users`}
-          </p>
+        <p className="text-[12px] sm:text-[13px] text-[#6B7280] dark:text-[#565C75] truncate">
+  Welcome back, {user?.name || "Admin"} ·{" "}
+  {isSuperAdmin
+    ? `${kpi.total.toLocaleString()} total leads`
+    : `${kpi.total.toLocaleString()} total leads · ${agents.length} users`}
+</p>
         </div>
 
         <div className="flex items-center gap-2">
