@@ -53,6 +53,7 @@ const FEATURE_GROUPS = [
   { group: "Automation (single-company rollout)", items: [
     { key: "leadNurtureSequence", label: "Lead Nurture Sequence" },
     { key: "callOutcomesReport",  label: "Call Outcomes Report (Answered/Not Answered)" },
+    { key: "metaConversionSync",  label: "Meta Conversions API Send-Back (status → CAPI event)" },
   ]},
 ];
 const ALL_FEATURE_KEYS = FEATURE_GROUPS.flatMap(g => g.items.map(i => i.key));
