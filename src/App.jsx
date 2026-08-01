@@ -18,6 +18,7 @@ import TelegramSettings from "./components/TelegramSettings";
 const Dashboard      = lazy(() => import("./components/Dashboard"));
 const Campaigns      = lazy(() => import("./components/Campaigns"));
 const Dailyreport    = lazy(() => import("./components/DailyReport"));
+const NurtureSequenceBuilder = lazy(() => import("./pages/Admin/NurtureSequenceBuilder"));
 const ReportPage     = lazy(() => import("./components/ReportPage"));
 const PerfMarketing  = lazy(() => import("./components/PerformanceMarketingDashboard"));
 const MktLogin       = lazy(() => import("./marketing/MarketingLogin"));
@@ -603,6 +604,13 @@ function AppInner() {
             <ProtectedRoute>
               <AppLayout><FeatureGate featureKey="daily-report"><DailyReportRoleSwitch /></FeatureGate></AppLayout>
             </ProtectedRoute>
+          }/>
+
+          {/* ── Lead nurture sequence — admin only, single-company rollout ── */}
+          <Route path="/nurture-sequence" element={
+            <AdminRoute>
+              <AppLayout><FeatureGate featureKey="leadNurtureSequence"><NurtureSequenceBuilder /></FeatureGate></AppLayout>
+            </AdminRoute>
           }/>
 
           {/* ── Invoice receipt preview (TEMPORARY — remove when done testing) ── */}
