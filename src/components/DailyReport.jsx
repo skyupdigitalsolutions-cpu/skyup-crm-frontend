@@ -9,6 +9,8 @@ import { useState } from 'react';
 import { Phone, AlertTriangle, CalendarDays } from 'lucide-react';
 import { getRole } from '../data/dataService';
 import { useDailyReport } from '../hooks/useDailyReport';
+import { useDailyOutcomesReport } from '../hooks/useDailyOutcomesReport';
+import useEntitlements from '../hooks/useEntitlements';
 import { addDays, formatLong, formatMedium, isToday } from '../utils/dateUtils';
 
 // ── Phone masking ─────────────────────────────────────────────────────────────
@@ -102,6 +104,14 @@ export default function DailyReport() {
   const isSuperAdmin = role === 'superadmin';
 
   const { data, loading, error, refresh } = useDailyReport({ date: viewDate });
+  const { hasFeature } = useEntitlements();
+  const showOutcomesTab = hasFeature('callOutcomesReport');
+  const {
+    data: outcomesData,
+    loading: outcomesLoading,
+    error: outcomesError,
+    refresh: refreshOutcomes,
+  } = useDailyOutcomesReport({ date: viewDate, enabled: showOutcomesTab });
 
   const summary     = data?.summary     || {};
   const leads       = data?.leads       || [];
@@ -144,6 +154,9 @@ export default function DailyReport() {
     { k: 'leads',       l: 'New Leads',          count: leads.length },
     { k: 'followups',   l: 'Follow-ups',         count: followUps.filter(f => f.urgency !== 'upcoming').length },
     { k: 'conversions', l: 'Conversions',        count: conversions.length },
+    ...(showOutcomesTab
+      ? [{ k: 'outcomes', l: 'Call Outcomes', count: outcomesData?.summary?.totalCalls || 0 }]
+      : []),
   ];
 
   if (loading) return <Skeleton />;
@@ -490,6 +503,87 @@ export default function DailyReport() {
               </div>
             )}
           </Card>
+        </div>
+      )}
+
+      {/* ════════════════ CALL OUTCOMES (Answered / Not Answered) ═══════════ */}
+      {tab === 'outcomes' && showOutcomesTab && (
+        <div className="space-y-5">
+          {outcomesError && (
+            <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
+              <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <p className="text-[12px] font-semibold text-red-600 dark:text-red-400 flex-1">{outcomesError}</p>
+              <button onClick={refreshOutcomes} className="text-red-600 dark:text-red-400 underline text-[11px] font-semibold">Retry</button>
+            </div>
+          )}
+
+          {outcomesLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {[...Array(3)].map((_, i) => <div key={i} className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl h-24 animate-pulse" />)}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <StatCard label="Total Calls"    value={outcomesData?.summary?.totalCalls ?? 0}   sub={formatMedium(viewDate)}       color="#2563EB" icon={<Phone className="w-3.5 h-3.5" />} />
+                <StatCard label="Answered"       value={outcomesData?.summary?.answered ?? 0}     sub="Calls picked up"               color="#059669" icon="✓" />
+                <StatCard label="Not Answered"   value={outcomesData?.summary?.notAnswered ?? 0}  sub="Missed / Busy / Switch Off"     color="#DC2626" icon="✕" />
+                <StatCard label="Answer Rate"    value={`${outcomesData?.summary?.answerRate ?? 0}%`} sub="Answered ÷ total calls"    color="#7C3AED" icon="~" />
+              </div>
+
+              <Card title="Breakdown by outcome" badge={outcomesData?.outcomes?.length || 0} bc="#2563EB">
+                {(!outcomesData?.outcomes || outcomesData.outcomes.length === 0) ? (
+                  <div className="py-12 text-center">
+                    <p className="text-[13px] text-[#8B92A9]">No calls logged for {formatMedium(viewDate)}.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {outcomesData.outcomes.map((o) => (
+                      <FunnelBar
+                        key={o.outcome}
+                        label={o.outcome}
+                        value={o.count}
+                        total={outcomesData.summary.totalCalls}
+                        color={
+                          o.outcome === 'Answered' ? '#059669' :
+                          o.outcome === 'Not Answered' ? '#DC2626' :
+                          o.outcome === 'Busy' ? '#D97706' :
+                          o.outcome === 'Switch Off' ? '#7C3AED' :
+                          '#2563EB'
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {isSuperAdmin && outcomesData?.agents?.length > 0 && (
+                <Card title="By agent" badge={outcomesData.agents.length} bc="#7C3AED">
+                  <div className="space-y-2">
+                    {outcomesData.agents
+                      .sort((a, b) => b.total - a.total)
+                      .map((a) => {
+                        const answered = a.outcomes['Answered'] || 0;
+                        const rate = a.total > 0 ? Math.round((answered / a.total) * 100) : 0;
+                        return (
+                          <div key={a.agentId || a.agentName} className="flex items-center gap-3 p-3 rounded-xl bg-[#F8F9FC] dark:bg-[#161822]">
+                            <div className="w-9 h-9 rounded-full bg-[#7C3AED] flex items-center justify-center text-white text-[11px] font-bold shrink-0">
+                              {(a.agentName || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{a.agentName}</div>
+                              <div className="text-[11px] text-[#8B92A9]">{a.total} calls · {answered} answered</div>
+                            </div>
+                            <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0" style={{ background: (rate >= 50 ? '#059669' : '#DC2626') + '20', color: rate >= 50 ? '#059669' : '#DC2626' }}>
+                              {rate}%
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </Card>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
