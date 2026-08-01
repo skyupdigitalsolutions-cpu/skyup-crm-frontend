@@ -469,6 +469,8 @@ function CreateModal({ onClose, onCreated }) {
     adSetName: "", parentCampaignName: "", category: "",
     // Ad performance (Insights API) — optional
     adAccountId: "", adsToken: "",
+    // Conversions API send-back — optional
+    pixelId: "", capiAccessToken: "",
   };
   const [form, setForm] = useState(empty);
   const [loading, setLoading] = useState(false);
@@ -498,6 +500,9 @@ function CreateModal({ onClose, onCreated }) {
         // Ad performance (Insights API) credentials — optional.
         adAccountId: form.adAccountId.trim() || "",
         adsToken: form.adsToken.trim() || "",
+        // Conversions API send-back credentials — optional.
+        pixelId: form.pixelId.trim() || "",
+        capiAccessToken: form.capiAccessToken.trim() || "",
         _meta: {
           META_APP_SECRET: form.appSecret.trim(),
           META_VERIFY_TOKEN: form.verifyToken.trim(),
@@ -650,6 +655,25 @@ function CreateModal({ onClose, onCreated }) {
                   </div>
                 </div>
               </div>
+              <div className="pt-2">
+                <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-1">Conversions API — send-back (optional)</p>
+                <p className="text-[10px] text-[#8B92A9] mb-3">
+                  Lets the CRM tell Meta which leads actually converted, so ad delivery optimizes toward real customers instead of raw form fills.
+                  Only active once your account has this feature enabled — ask before filling this in for a new client.
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Pixel ID</label>
+                    <input type="text" value={form.pixelId} onChange={set("pixelId")} placeholder="e.g. 1234567890123456" className={FIELD_CLS} />
+                    <p className="text-[10px] text-[#8B92A9] mt-1">Events Manager → Data Sources → your Pixel.</p>
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Conversions API Access Token</label>
+                    <input type="password" value={form.capiAccessToken} onChange={set("capiAccessToken")} placeholder="Generated from Events Manager → Settings → Conversions API" className={FIELD_CLS} />
+                    <p className="text-[10px] text-[#8B92A9] mt-1">Different from the page token above — this one is pixel-scoped.</p>
+                  </div>
+                </div>
+              </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Form IDs <span className="text-[10px] font-normal text-[#8B92A9]">(optional — blank = accept all)</span></label>
                 <input type="text" value={form.formIds} onChange={set("formIds")} placeholder="form_id_1, form_id_2" className={FIELD_CLS} />
@@ -713,6 +737,8 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
     parentCampaignName: campaign.parentCampaignName || "",
     adAccountId: campaign.adAccountId || "",
     adsToken: "",
+    pixelId: campaign.pixelId || "",
+    capiAccessToken: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -742,6 +768,10 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
       // adsToken only when a new one is entered (blank keeps the existing token).
       payload.adAccountId = form.adAccountId.trim();
       if (form.adsToken.trim()) payload.adsToken = form.adsToken.trim();
+      // Conversions API send-back — pixelId always sent (so it can be set/cleared);
+      // capiAccessToken only when a new one is entered (blank keeps existing token).
+      payload.pixelId = form.pixelId.trim();
+      if (form.capiAccessToken.trim()) payload.capiAccessToken = form.capiAccessToken.trim();
       await api.put(`/meta-config/${campaign._id}`, payload);
       setSuccess(true); onUpdated && onUpdated();
     } catch (err) { setError(err.response?.data?.message || err.message || "Failed to update campaign"); }
@@ -821,6 +851,20 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
                   <div>
                     <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">New Ads Token <span className="text-[10px] font-normal text-[#8B92A9]">(ads_read — blank keeps current)</span></label>
                     <input type="password" value={form.adsToken || ""} onChange={set("adsToken")} placeholder="Only if changing the ads_read token" className={FIELD_CLS} />
+                  </div>
+                </div>
+              </div>
+              <div className="pt-2">
+                <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-1">Conversions API — send-back</p>
+                <p className="text-[10px] text-[#8B92A9] mb-2">Tells Meta which leads converted, so it can optimize delivery. Only active once your account has this feature enabled.</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Pixel ID</label>
+                    <input type="text" value={form.pixelId || ""} onChange={set("pixelId")} placeholder="e.g. 1234567890123456" className={FIELD_CLS} />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">New CAPI Access Token <span className="text-[10px] font-normal text-[#8B92A9]">(blank keeps current)</span></label>
+                    <input type="password" value={form.capiAccessToken || ""} onChange={set("capiAccessToken")} placeholder="Only if changing the token" className={FIELD_CLS} />
                   </div>
                 </div>
               </div>
