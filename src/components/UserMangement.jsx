@@ -472,7 +472,7 @@ function SlotBar({ used, max, isAdmin }) {
 }
 
 // ── Member Row ────────────────────────────────────────────────────────────────
-function MemberRow({ member, onRequestRemove, onViewCreds, onReassign, onMeetingPermission }) {
+function MemberRow({ member, onRequestRemove, onResetPassword, onReassign, onMeetingPermission }) {
   const initials = member.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
   const uid = member._id || member.id || member.email;
   const isSuperAdmin = member.role === "super_admin" || member.role === "superadmin";
@@ -516,13 +516,19 @@ function MemberRow({ member, onRequestRemove, onViewCreds, onReassign, onMeeting
         )}
       </div>
       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition">
-        {member.password && (
+        {/* SECURITY FIX: this used to be "View credentials" — it required a
+            cached plaintext password (member.password) to even show up, and
+            let a super_admin look up any existing account's actual password
+            at any time. Replaced with "Reset Password": always available,
+            generates a brand-new password server-side (never stores it in
+            retrievable form), shown once via the same CredentialsModal. */}
+        {onResetPassword && (
           <button
-            onClick={() => onViewCreds(member)}
+            onClick={() => onResetPassword(member)}
             className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:border-blue-400 hover:text-blue-600 text-[#8B92A9] transition"
-            title="View credentials"
+            title="Reset password"
           >
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
           </button>
         )}
         {/* Edit/Reassign button — super admin only, for users */}
@@ -877,11 +883,10 @@ export default function UserManagement({
 
   useEffect(() => {
     api.get("/admin/")
-      .then((res) => setAdmins((res.data || []).map(a => ({
-        ...a,
-        // plainPassword is returned for super_admin requests — map it so view-creds works
-        password: a.plainPassword || a.password || null,
-      }))))
+      // SECURITY FIX: the backend no longer returns plainPassword in list
+      // responses (see controllers/adminController.js) — the old "view
+      // credentials" flow this fed is replaced by handleResetPassword above.
+      .then((res) => setAdmins(res.data || []))
       .catch(() => {});
 
     api.get("/admin/company/users")
@@ -890,7 +895,7 @@ export default function UserManagement({
         // Backward-compat: if still a plain array (old backend), handle that too
         const raw = Array.isArray(res.data) ? res.data : (res.data?.users || []);
         const total = Array.isArray(res.data) ? res.data.length : (res.data?.totalCompanyUsers ?? raw.length);
-        setUsers(raw.map(u => ({ ...u, password: u.plainPassword || u.password || null })));
+        setUsers(raw);
         setTotalCompanyUsers(total);
       })
       .catch(() => {});
@@ -918,6 +923,38 @@ export default function UserManagement({
   const [upgradeAlert,  setUpgradeAlert]  = useState("");
   const [pendingDelete, setPendingDelete] = useState(null);
   const [reassignFor,   setReassignFor]   = useState(null); // user to reassign
+  const [resettingId,   setResettingId]   = useState(null); // member currently being reset (disables double-click)
+
+  // SECURITY FIX: replaces the old "view credentials" flow (which read an
+  // account's actual stored password). This calls the backend's reset
+  // endpoint, which generates a brand-new password server-side and returns
+  // it exactly once — never stored anywhere retrievable afterward. Reuses
+  // the existing CredentialsModal for the same "copy this now" UX.
+  const handleResetPassword = async (member) => {
+    const isSuperAdmin = member.role === "super_admin" || member.role === "superadmin";
+    if (isSuperAdmin) {
+      window.alert("Super admin passwords can't be reset from here — use the forgot-password flow instead.");
+      return;
+    }
+    const isAdminRole = member.role === "admin";
+    const id = member._id || member.id;
+    if (!id) return;
+
+    if (!window.confirm(`Reset ${member.name}'s password? Their current password will stop working immediately, and you'll need to share the new one with them.`)) {
+      return;
+    }
+
+    setResettingId(id);
+    try {
+      const url = isAdminRole ? `/admin/${id}/reset-password` : `/admin/user/${id}/reset-password`;
+      const res = await api.patch(url);
+      setCredsFor({ ...member, password: res.data?.newPassword || "" });
+    } catch (e) {
+      window.alert(e.response?.data?.message || "Failed to reset password. Please try again.");
+    } finally {
+      setResettingId(null);
+    }
+  };
 
   // Called from a parent (e.g. plan downgrade) to bulk-remove members
   const handleDowngrade = async (adminsToRemove = [], usersToRemove = []) => {
@@ -968,7 +1005,8 @@ export default function UserManagement({
   const addMember = async ({ name, email, phone, role, password, assignedTo, contactAccountEmail }) => {
     if (role === "admin") {
       const res = await api.post("/admin/", { name, email, password });
-      // plainPassword comes back from backend (stored for super_admin credential view)
+      // One-time reveal only: backend echoes back the password the caller
+      // just typed (never stored — see controllers/adminController.js).
       const member = { ...res.data, phone, role: "admin", password: res.data.plainPassword || password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
       setAdmins(prev => [...prev, member]);
       setModal(null);
@@ -1237,7 +1275,7 @@ export default function UserManagement({
                                 key={m._id || m.email}
                                 member={{ ...m, role: m.role || "superadmin" }}
                                 onRequestRemove={null}
-                                onViewCreds={setCredsFor}
+                                onResetPassword={handleResetPassword}
                               />
                             ))}
                           </>
@@ -1257,7 +1295,7 @@ export default function UserManagement({
                                 key={m._id || m.email}
                                 member={{ ...m, role: "admin" }}
                                 onRequestRemove={requestRemove}
-                                onViewCreds={setCredsFor}
+                                onResetPassword={handleResetPassword}
                               />
                             ))}
                           </>
@@ -1313,7 +1351,7 @@ export default function UserManagement({
                     key={m._id || m.email}
                     member={{ ...m, role: "user" }}
                     onRequestRemove={requestRemove}
-                    onViewCreds={setCredsFor}
+                    onResetPassword={handleResetPassword}
                     onReassign={isCompanySuperAdmin ? setReassignFor : null}
                     onMeetingPermission={handleMeetingPermission}
                   />
