@@ -110,7 +110,11 @@ export default function NurtureSequenceBuilder() {
 
   const toggleArrayValue = (path, value) => {
     setDraft((d) => {
-      const next = structuredClone(d);
+      // NOTE: structuredClone() isn't available on Safari <15.4 or some
+      // embedded WebViews, and nothing else in this codebase relies on it.
+      // JSON round-trip is a safe deep-clone here since `draft` only ever
+      // holds plain JSON-serializable values (no Dates/Maps/functions).
+      const next = JSON.parse(JSON.stringify(d));
       const arr = path === "statuses" ? next.trigger.statuses
                 : path === "temperatures" ? next.trigger.temperatures
                 : path === "industries" ? next.trigger.industries
@@ -211,6 +215,12 @@ export default function NurtureSequenceBuilder() {
                       Fires after {r.trigger?.minDaysSinceLastTouch ?? "?"} day(s) idle
                       {r.trigger?.statuses?.length ? ` · status: ${r.trigger.statuses.join(", ")}` : ""}
                       {r.trigger?.temperatures?.length ? ` · temp: ${r.trigger.temperatures.join(", ")}` : ""}
+                      {r.trigger?.industries?.length ? ` · industry: ${r.trigger.industries.join(", ")}` : ""}
+                      {(() => {
+                        const tbs = r.action?.whatsapp?.templatesByStatus || {};
+                        const total = Object.values(tbs).reduce((sum, pool) => sum + (Array.isArray(pool) ? pool.filter((t) => t && t.trim()).length : (pool ? 1 : 0)), 0);
+                        return total > 0 ? ` · ${total} template(s)` : "";
+                      })()}
                     </div>
                   </div>
                   <button onClick={() => toggleEnabled(r)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold ${r.enabled ? "bg-[#059669]/10 text-[#059669]" : "bg-[#8B92A9]/10 text-[#8B92A9]"}`}>
@@ -308,34 +318,93 @@ export default function NurtureSequenceBuilder() {
                   />
                 </div>
 
-                {/* One template override per currently-selected status — lets
-                    the same rule send a different message depending on
-                    whether the lead is still New vs already In Progress vs
-                    Interested, etc. Only shows for statuses actually picked
-                    above; leave blank to fall back to the default template. */}
+                {/* Template POOL per currently-selected status — add 5-6
+                    variants per status so the same message isn't sent
+                    verbatim every time (one is picked at random when the
+                    rule fires). With 4 core statuses (New/In Progress/
+                    Interested/Converted) at ~5-6 each, that's ~20+ templates
+                    for one industry-scoped rule. Only shows for statuses
+                    actually picked above; a status with zero templates
+                    falls back to the default template. */}
                 {draft.trigger.statuses.length > 0 && (
-                  <div className="pl-3 border-l-2 border-[#E4E7EF] dark:border-[#262A38] space-y-2">
-                    <p className="text-[10px] font-semibold text-[#8B92A9] uppercase">Per-status template (optional — blank uses the default above)</p>
-                    {draft.trigger.statuses.map((st) => (
-                      <div key={st} className="flex items-center gap-2">
-                        <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] w-24 shrink-0">{st}</span>
-                        <input
-                          value={draft.action.whatsapp.templatesByStatus?.[st] || ""}
-                          onChange={(e) => setDraft({
-                            ...draft,
-                            action: {
-                              ...draft.action,
-                              whatsapp: {
-                                ...draft.action.whatsapp,
-                                templatesByStatus: { ...draft.action.whatsapp.templatesByStatus, [st]: e.target.value },
-                              },
-                            },
-                          })}
-                          placeholder={`Template for "${st}" (optional)`}
-                          className="flex-1 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[12px]"
-                        />
-                      </div>
-                    ))}
+                  <div className="pl-3 border-l-2 border-[#E4E7EF] dark:border-[#262A38] space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-semibold text-[#8B92A9] uppercase">
+                        Template pool per status (5-6 recommended each — one is picked at random per send)
+                      </p>
+                      {(() => {
+                        const total = draft.trigger.statuses.reduce(
+                          (sum, st) => sum + (draft.action.whatsapp.templatesByStatus?.[st]?.filter((t) => t && t.trim()).length || 0),
+                          0
+                        );
+                        return (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${total >= 20 ? "bg-[#059669]/10 text-[#059669]" : "bg-[#F59E0B]/10 text-[#F59E0B]"}`}>
+                            {total} template{total === 1 ? "" : "s"} total
+                          </span>
+                        );
+                      })()}
+                    </div>
+
+                    {draft.trigger.statuses.map((st) => {
+                      const pool = draft.action.whatsapp.templatesByStatus?.[st] || [];
+
+                      const setPool = (nextPool) => setDraft({
+                        ...draft,
+                        action: {
+                          ...draft.action,
+                          whatsapp: {
+                            ...draft.action.whatsapp,
+                            templatesByStatus: { ...draft.action.whatsapp.templatesByStatus, [st]: nextPool },
+                          },
+                        },
+                      });
+
+                      const updateSlot = (idx, value) => {
+                        const next = [...pool];
+                        next[idx] = value;
+                        setPool(next);
+                      };
+                      const addSlot = () => { if (pool.length < 6) setPool([...pool, ""]); };
+                      const removeSlot = (idx) => setPool(pool.filter((_, i) => i !== idx));
+
+                      return (
+                        <div key={st}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">{st}</span>
+                            <span className="text-[10px] text-[#8B92A9]">{pool.filter((t) => t && t.trim()).length}/6</span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {pool.map((tmpl, idx) => (
+                              <div key={idx} className="flex items-center gap-1.5">
+                                <input
+                                  value={tmpl}
+                                  onChange={(e) => updateSlot(idx, e.target.value)}
+                                  placeholder={`Template ${idx + 1} for "${st}"`}
+                                  className="flex-1 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[12px]"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeSlot(idx)}
+                                  className="text-[11px] text-red-500 font-semibold px-1.5"
+                                  title="Remove this template"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                            {pool.length < 6 && (
+                              <button
+                                type="button"
+                                onClick={addSlot}
+                                className="text-[11px] font-semibold text-[#2563EB]"
+                              >
+                                + Add template{pool.length === 0 ? "" : ` (${pool.length}/6)`}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
