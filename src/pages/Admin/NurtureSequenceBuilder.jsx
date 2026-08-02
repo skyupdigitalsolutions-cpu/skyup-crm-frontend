@@ -9,7 +9,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import api from "../../data/axiosConfig";
-import { ALL_STATUSES } from "../../utils/statusConfig";
+// Statuses relevant to nurture — deliberately NOT the same as the app-wide
+// ALL_STATUSES constant. "Not Interested", "Merged", and "Closed" leads are
+// dead ends (no nurture makes sense there), and "Interested" is a real
+// lead.status value in this CRM that the global constant doesn't list.
+const NURTURE_STATUSES = ["New", "In Progress", "Interested", "Verification", "Converted"];
+
+// Suggested industries — matches the tags agents pick from the mobile app's
+// remark-section "Industry" dropdown. Kept as a free-form field on the Lead
+// (like MetaConfig.category), so this is a starting list, not a hard enum —
+// an admin can still type a custom one if a rule needs it (handled as a
+// plain chip toggle, same widget as statuses/temperatures).
+const INDUSTRIES = ["Real Estate", "Healthcare", "Education", "E-commerce", "Finance", "Manufacturing", "Hospitality", "Other"];
 
 const TEMPERATURES = ["Hot", "Warm", "Cold"];
 
@@ -22,11 +33,23 @@ const emptyDraft = {
     minDaysSinceLastTouch: 3,
     requirePendingFollowUp: false,
     sources: [],
+    industries: [],
     includeManualOrImported: false,
   },
   action: {
-    whatsapp: { enabled: true, templateName: "", languageCode: "en" },
-    email:    { enabled: false, subject: "", fromName: "", bodyTemplate: "" },
+    whatsapp: {
+      enabled: true,
+      languageCode: "en",
+      // Default/fallback template — used when trigger.statuses is empty (rule
+      // matches "any" status) or a selected status has no override below.
+      templateName: "",
+      // Per-status overrides — only shown/used for statuses currently
+      // selected in trigger.statuses, so a "Cold lead re-engage" rule can
+      // send a different WhatsApp template depending on whether the lead is
+      // still "New" vs already "In Progress" vs "Interested", etc.
+      templatesByStatus: {},
+    },
+    email: { enabled: false, subject: "", fromName: "", bodyTemplate: "" },
     notifyAgent: false,
     notifyAgentMessage: "",
   },
@@ -90,6 +113,7 @@ export default function NurtureSequenceBuilder() {
       const next = structuredClone(d);
       const arr = path === "statuses" ? next.trigger.statuses
                 : path === "temperatures" ? next.trigger.temperatures
+                : path === "industries" ? next.trigger.industries
                 : next.trigger.sources;
       const idx = arr.indexOf(value);
       if (idx === -1) arr.push(value); else arr.splice(idx, 1);
@@ -219,12 +243,18 @@ export default function NurtureSequenceBuilder() {
 
           <div>
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase">Only fire for these statuses (empty = any)</label>
-            <div className="mt-1"><MultiChip options={ALL_STATUSES} selected={draft.trigger.statuses} onToggle={(v) => toggleArrayValue("statuses", v)} /></div>
+            <div className="mt-1"><MultiChip options={NURTURE_STATUSES} selected={draft.trigger.statuses} onToggle={(v) => toggleArrayValue("statuses", v)} /></div>
           </div>
 
           <div>
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase">Only fire for these temperatures (empty = any)</label>
             <div className="mt-1"><MultiChip options={TEMPERATURES} selected={draft.trigger.temperatures} onToggle={(v) => toggleArrayValue("temperatures", v)} /></div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-[#8B92A9] uppercase">Only fire for these industries (empty = any/untagged) — "domain-wise" filter</label>
+            <p className="text-[10px] text-[#8B92A9] mb-1">Matches the Industry tag agents set from the mobile app's remark section. Lets this rule send an industry-specific template (see Per-status template above).</p>
+            <div className="mt-1"><MultiChip options={INDUSTRIES} selected={draft.trigger.industries} onToggle={(v) => toggleArrayValue("industries", v)} /></div>
           </div>
 
           <div className="flex items-end gap-4">
@@ -268,12 +298,47 @@ export default function NurtureSequenceBuilder() {
               label="Send WhatsApp"
             />
             {draft.action.whatsapp.enabled && (
-              <input
-                value={draft.action.whatsapp.templateName}
-                onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, templateName: e.target.value } } })}
-                placeholder="MSG91 template name (must already be approved)"
-                className="mt-2 w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
-              />
+              <div className="mt-2 space-y-2">
+                <div>
+                  <input
+                    value={draft.action.whatsapp.templateName}
+                    onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, templateName: e.target.value } } })}
+                    placeholder='Default template (used for "any status", or a status with no override below)'
+                    className="w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
+                  />
+                </div>
+
+                {/* One template override per currently-selected status — lets
+                    the same rule send a different message depending on
+                    whether the lead is still New vs already In Progress vs
+                    Interested, etc. Only shows for statuses actually picked
+                    above; leave blank to fall back to the default template. */}
+                {draft.trigger.statuses.length > 0 && (
+                  <div className="pl-3 border-l-2 border-[#E4E7EF] dark:border-[#262A38] space-y-2">
+                    <p className="text-[10px] font-semibold text-[#8B92A9] uppercase">Per-status template (optional — blank uses the default above)</p>
+                    {draft.trigger.statuses.map((st) => (
+                      <div key={st} className="flex items-center gap-2">
+                        <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] w-24 shrink-0">{st}</span>
+                        <input
+                          value={draft.action.whatsapp.templatesByStatus?.[st] || ""}
+                          onChange={(e) => setDraft({
+                            ...draft,
+                            action: {
+                              ...draft.action,
+                              whatsapp: {
+                                ...draft.action.whatsapp,
+                                templatesByStatus: { ...draft.action.whatsapp.templatesByStatus, [st]: e.target.value },
+                              },
+                            },
+                          })}
+                          placeholder={`Template for "${st}" (optional)`}
+                          className="flex-1 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[12px]"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
