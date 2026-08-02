@@ -13,7 +13,7 @@ import api from "../../data/axiosConfig";
 // ALL_STATUSES constant. "Not Interested", "Merged", and "Closed" leads are
 // dead ends (no nurture makes sense there), and "Interested" is a real
 // lead.status value in this CRM that the global constant doesn't list.
-const NURTURE_STATUSES = ["New", "In Progress", "Interested", "Verification", "Converted"];
+const NURTURE_STATUSES = ["New", "In Progress", "Interested", "Converted"];
 
 // Suggested industries — matches the tags agents pick from the mobile app's
 // remark-section "Industry" dropdown. Kept as a free-form field on the Lead
