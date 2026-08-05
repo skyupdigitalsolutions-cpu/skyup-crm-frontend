@@ -38,6 +38,11 @@ export const STATUS_CONFIG = {
     text: "text-red-600 dark:text-red-400",
     dot:  "#DC2626",
   },
+  "Interest": {
+    bg:   "bg-emerald-100 dark:bg-emerald-950/40",
+    text: "text-emerald-600 dark:text-emerald-400",
+    dot:  "#059669",
+  },
   "Verification": {
     bg:   "bg-purple-100 dark:bg-purple-950/40",
     text: "text-purple-600 dark:text-purple-400",
@@ -76,6 +81,7 @@ export const STATUS_CONFIG = {
 export const ALL_STATUSES = [
   "New",
   "In Progress",
+  "Interest",
   "Converted",
   "Verification",
   "Not Interested",
