@@ -40,13 +40,15 @@ const emptyDraft = {
     whatsapp: {
       enabled: true,
       languageCode: "en",
-      // Default/fallback template — used when trigger.statuses is empty (rule
-      // matches "any" status) or a selected status has no override below.
+      // Which CRM status this rule's stage targets (e.g. "New" → Awareness).
+      // When a lead moves to a new status, the variation index resets to V1.
+      statusStage: "",
+      // Sequential variation pool — V1 through V5 in order.
+      // The job picks the next unused variation per lead (V1 → V2 → … → V5 → V1).
+      templateVariations: ["", "", "", "", ""],
+      // Default/fallback template — used when templateVariations is empty.
       templateName: "",
-      // Per-status overrides — only shown/used for statuses currently
-      // selected in trigger.statuses, so a "Cold lead re-engage" rule can
-      // send a different WhatsApp template depending on whether the lead is
-      // still "New" vs already "In Progress" vs "Interested", etc.
+      // Per-status overrides (legacy, kept for backward compat).
       templatesByStatus: {},
     },
     email: { enabled: false, subject: "", fromName: "", bodyTemplate: "" },
@@ -309,11 +311,57 @@ export default function NurtureSequenceBuilder() {
             />
             {draft.action.whatsapp.enabled && (
               <div className="mt-2 space-y-2">
+
+                {/* ── Status Stage ─────────────────────────────────────────── */}
                 <div>
+                  <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
+                    Status Stage — which CRM status triggers this rule
+                  </p>
+                  <select
+                    value={draft.action.whatsapp.statusStage}
+                    onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, statusStage: e.target.value } } })}
+                    className="w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
+                  >
+                    <option value="">— Any status (no stage gate) —</option>
+                    {NURTURE_STATUSES.map(s => <option key={s} value={s}>{s} → {s === "New" ? "Awareness" : s === "In Progress" ? "Interest" : s === "Interest" ? "Desire" : "Action"}</option>)}
+                  </select>
+                  <p className="text-[10px] text-[#8B92A9] mt-1">
+                    Rule only fires when lead's status matches this. Variation index resets to V1 when status changes stage.
+                  </p>
+                </div>
+
+                {/* ── Template Variations V1–V5 ────────────────────────────── */}
+                <div>
+                  <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
+                    Template Variations V1–V5 (sequential — V1 first send, V2 second, etc.)
+                  </p>
+                  {(draft.action.whatsapp.templateVariations || ["","","","",""]).map((v, i) => (
+                    <input
+                      key={i}
+                      value={v}
+                      onChange={(e) => {
+                        const next = [...(draft.action.whatsapp.templateVariations || ["","","","",""])];
+                        next[i] = e.target.value;
+                        setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, templateVariations: next } } });
+                      }}
+                      placeholder={`V${i+1} template name (e.g. real_estate_crm_awareness_v${i+1})`}
+                      className="w-full px-3 py-2 mb-1 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
+                    />
+                  ))}
+                  <p className="text-[10px] text-[#8B92A9] mt-1">
+                    Each lead cycles through V1→V2→V3→V4→V5→V1. Resets to V1 when lead moves to a new status stage.
+                  </p>
+                </div>
+
+                {/* ── Fallback single template ─────────────────────────────── */}
+                <div>
+                  <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
+                    Fallback template (used if variations are all empty)
+                  </p>
                   <input
                     value={draft.action.whatsapp.templateName}
                     onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, templateName: e.target.value } } })}
-                    placeholder='Default template (used for "any status", or a status with no override below)'
+                    placeholder='e.g. real_estate_crm_awareness_v1'
                     className="w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
                   />
                 </div>
