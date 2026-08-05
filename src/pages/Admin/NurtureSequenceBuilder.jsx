@@ -15,12 +15,28 @@ import api from "../../data/axiosConfig";
 // lead.status value in this CRM that the global constant doesn't list.
 const NURTURE_STATUSES = ["New", "In Progress", "Interested", "Converted"];
 
-// Suggested industries — matches the tags agents pick from the mobile app's
-// remark-section "Industry" dropdown. Kept as a free-form field on the Lead
-// (like MetaConfig.category), so this is a starting list, not a hard enum —
-// an admin can still type a custom one if a rule needs it (handled as a
-// plain chip toggle, same widget as statuses/temperatures).
-const INDUSTRIES = ["Real Estate", "Healthcare", "Education", "E-commerce", "Finance", "Manufacturing", "Hospitality", "Other"];
+// Industries — these MUST match utils/templateNameResolver.js on the backend,
+// because each one's slug becomes part of an APPROVED MSG91 template name
+// (e.g. "Interior Designers" → interior_designers_crm_action_v1).
+//
+// Do not add an industry here unless the matching templates exist and are
+// approved in MSG91, or auto-resolve will build a name that doesn't exist and
+// the send will fail. The previous list contained E-commerce / Manufacturing /
+// Hospitality / Other, none of which have templates in the library.
+const INDUSTRIES = [
+  "Healthcare", "Education", "Real Estate", "Logistics", "Finance",
+  "IT Solutions", "Digital Marketing", "Construction", "Local Business",
+  "Interior Designers", "Professional Services",
+];
+
+// The 4 funnel stages in the approved template library. The value is the exact
+// token used in the template name: <industry>_<service>_<stage>_v<n>
+const FUNNEL_STAGES = [
+  { value: "awareness", label: "Awareness — Day 0, first touch (no pitch)" },
+  { value: "interest",  label: "Interest — Day 2–3, name the pain + the fix" },
+  { value: "desire",    label: "Desire — Day 5–6, outcome & value" },
+  { value: "action",    label: "Action — Day 8–9, one clear next step" },
+];
 
 const TEMPERATURES = ["Hot", "Warm", "Cold"];
 
@@ -43,6 +59,11 @@ const emptyDraft = {
       // Which CRM status this rule's stage targets (e.g. "New" → Awareness).
       // When a lead moves to a new status, the variation index resets to V1.
       statusStage: "",
+      // When true, the template name is derived per-lead from the lead's own
+      // industry + service, so one rule covers all 88 industry×service combos.
+      autoResolveTemplate: true,
+      funnelStage: "",
+      variationCount: 5,
       // Sequential variation pool — V1 through V5 in order.
       // The job picks the next unused variation per lead (V1 → V2 → … → V5 → V1).
       templateVariations: ["", "", "", "", ""],
@@ -330,10 +351,64 @@ export default function NurtureSequenceBuilder() {
                   </p>
                 </div>
 
-                {/* ── Template Variations V1–V5 ────────────────────────────── */}
-                <div>
+                {/* ── Auto-resolve from the 1,760-template library ─────────── */}
+                <div className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] p-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!draft.action.whatsapp.autoResolveTemplate}
+                      onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, autoResolveTemplate: e.target.checked } } })}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-[13px] font-semibold">
+                      Auto-pick template from the lead's industry &amp; service
+                    </span>
+                  </label>
+                  <p className="text-[10px] text-[#8B92A9] mt-1">
+                    Recommended. Builds the approved template name automatically as
+                    <code className="mx-1">industry_service_stage_v1…v5</code>
+                    — so this one rule covers all 88 industry × service combinations
+                    instead of needing 88 separate rules.
+                  </p>
+
+                  {draft.action.whatsapp.autoResolveTemplate && (
+                    <div className="mt-3">
+                      <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
+                        Funnel stage (required)
+                      </p>
+                      <select
+                        value={draft.action.whatsapp.funnelStage || ""}
+                        onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, funnelStage: e.target.value } } })}
+                        className="w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
+                      >
+                        <option value="">— Select a stage —</option>
+                        {FUNNEL_STAGES.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                      </select>
+
+                      {draft.action.whatsapp.funnelStage && (
+                        <p className="text-[10px] text-[#8B92A9] mt-2">
+                          Example for an Interior Designers lead interested in CRM:
+                          <code className="ml-1">
+                            interior_designers_crm_{draft.action.whatsapp.funnelStage}_v1
+                          </code>
+                        </p>
+                      )}
+
+                      <p className="text-[10px] text-[#F5B547] mt-2">
+                        Leads with no Industry or Service set can&apos;t be matched to a
+                        template — they fall back to the manual list below, and are
+                        skipped if that is empty too.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Template Variations V1–V5 (manual / fallback) ─────────── */}
+                <div className={draft.action.whatsapp.autoResolveTemplate ? "opacity-60" : ""}>
                   <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
-                    Template Variations V1–V5 (sequential — V1 first send, V2 second, etc.)
+                    {draft.action.whatsapp.autoResolveTemplate
+                      ? "Manual fallback variations V1–V5 (used only when a lead has no industry/service)"
+                      : "Template Variations V1–V5 (sequential — V1 first send, V2 second, etc.)"}
                   </p>
                   {(draft.action.whatsapp.templateVariations || ["","","","",""]).map((v, i) => (
                     <input
