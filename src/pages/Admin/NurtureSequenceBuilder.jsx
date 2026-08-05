@@ -114,6 +114,12 @@ export default function NurtureSequenceBuilder() {
   const [error,   setError]   = useState("");
   const [draft,   setDraft]   = useState(emptyDraft);
   const [editingId, setEditingId] = useState(null);
+
+  // ── MSG91 template cache (auto-fetched, no manual typing) ──────────────────
+  const [templates, setTemplates]   = useState([]);
+  const [tplStats, setTplStats]     = useState(null);
+  const [syncing, setSyncing]       = useState(false);
+  const [syncMsg, setSyncMsg]       = useState("");
   const [saving,  setSaving]  = useState(false);
 
   const load = useCallback(async () => {
@@ -130,6 +136,35 @@ export default function NurtureSequenceBuilder() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Load whatever templates are already cached locally (fast, no MSG91 call).
+  const loadTemplates = useCallback(async () => {
+    try {
+      const { data } = await api.get("/nurture/templates");
+      setTemplates(data.templates || []);
+      setTplStats(data.stats || null);
+    } catch {
+      setTemplates([]);
+      setTplStats(null);
+    }
+  }, []);
+  useEffect(() => { loadTemplates(); }, [loadTemplates]);
+
+  // Pull the live list from MSG91 into the cache, then refresh.
+  const syncTemplates = async () => {
+    setSyncing(true);
+    setSyncMsg("");
+    try {
+      const { data } = await api.post("/nurture/templates/sync");
+      setSyncMsg(`✅ Synced ${data.total} template(s) — ${data.nurture} nurture, ${data.other} other.`);
+      await loadTemplates();
+    } catch (e) {
+      const msg = e?.response?.data?.message || e.message || "Sync failed";
+      setSyncMsg(`❌ ${msg}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const toggleArrayValue = (path, value) => {
     setDraft((d) => {
@@ -351,6 +386,27 @@ export default function NurtureSequenceBuilder() {
                   </p>
                 </div>
 
+                {/* ── MSG91 template sync ──────────────────────────────────── */}
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] px-3 py-2">
+                  <div className="text-[11px] text-[#8B92A9]">
+                    {tplStats
+                      ? <>Templates synced from MSG91: <b className="text-[#0F1117] dark:text-[#F0F2FA]">{tplStats.total}</b>
+                          {" "}({tplStats.nurture} nurture)</>
+                      : "No templates synced yet — click Sync to fetch them from MSG91."}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={syncTemplates}
+                    disabled={syncing}
+                    className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] disabled:opacity-50"
+                  >
+                    {syncing ? "Syncing…" : "Sync from MSG91"}
+                  </button>
+                </div>
+                {syncMsg && (
+                  <p className="text-[10px] whitespace-pre-wrap text-[#8B92A9]">{syncMsg}</p>
+                )}
+
                 {/* ── Auto-resolve from the 1,760-template library ─────────── */}
                 <div className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] p-3">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -394,6 +450,15 @@ export default function NurtureSequenceBuilder() {
                         </p>
                       )}
 
+                      {/* Live count of approved templates for this stage */}
+                      {tplStats && (
+                        <p className="text-[10px] text-[#38D39F] mt-2">
+                          {tplStats.byStage?.[draft.action.whatsapp.funnelStage] || 0} approved
+                          template(s) synced from MSG91 for this stage
+                          {" "}({tplStats.nurture} nurture templates total).
+                        </p>
+                      )}
+
                       <p className="text-[10px] text-[#F5B547] mt-2">
                         Leads with no Industry or Service set can&apos;t be matched to a
                         template — they fall back to the manual list below, and are
@@ -433,12 +498,31 @@ export default function NurtureSequenceBuilder() {
                   <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
                     Fallback template (used if variations are all empty)
                   </p>
+                  {/* Backed by the synced MSG91 list — type to filter, or pick
+                      from the dropdown. Still free-text so a brand-new template
+                      can be used before the next sync. */}
                   <input
+                    list="msg91-template-names"
                     value={draft.action.whatsapp.templateName}
                     onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, templateName: e.target.value } } })}
-                    placeholder='e.g. real_estate_crm_awareness_v1'
+                    placeholder={templates.length ? "Type to search synced templates…" : "e.g. real_estate_crm_awareness_v1"}
                     className="w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
                   />
+                  <datalist id="msg91-template-names">
+                    {templates.map((t) => (
+                      <option key={t.name} value={t.name}>
+                        {t.category}{t.status ? ` · ${t.status}` : ""}
+                      </option>
+                    ))}
+                  </datalist>
+                  {draft.action.whatsapp.templateName &&
+                    templates.length > 0 &&
+                    !templates.some((t) => t.name === draft.action.whatsapp.templateName) && (
+                      <p className="text-[10px] text-[#DC2626] mt-1">
+                        ⚠ Not in the synced MSG91 list — the send will fail unless you
+                        sync again or fix the name.
+                      </p>
+                  )}
                 </div>
 
                 {/* Template POOL per currently-selected status — add 5-6
