@@ -7,6 +7,7 @@ import { maskPhone, maskEmail } from "../utils/maskPhone";
 import { io } from "socket.io-client";
 import axios from "axios";
 import api from "../data/axiosConfig";
+import { sanitizeHtml } from "../utils/sanitizeHtml";
 import { AlertOctagon, Lightbulb, ClipboardList, BarChart3, RefreshCw, MessageCircle, Inbox, Smartphone, Target, FileText, Image as ImageIcon, Music, Video, MapPin, AlertTriangle, Zap, X, Check } from "lucide-react";
 
 const API_URL    = import.meta.env.VITE_API_URL;
@@ -2109,7 +2110,7 @@ function LogDetailModal({ logId, onClose }) {
               {log.body && (
                 <div>
                   <p className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-2">Email Body</p>
-                  <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-4 bg-white dark:bg-[#0D0F14] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] max-h-64 overflow-y-auto" dangerouslySetInnerHTML={{ __html: log.body }} />
+                  <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-4 bg-white dark:bg-[#0D0F14] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] max-h-64 overflow-y-auto" dangerouslySetInnerHTML={{ __html: sanitizeHtml(log.body) }} />
                 </div>
               )}
             </>
@@ -2355,7 +2356,7 @@ function EmailBlastModal({ onClose }) {
           {bodyTemplate && (
             <div>
               <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">Preview (sample data)</p>
-              <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-4 bg-white dark:bg-[#0D0F14] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] max-h-44 overflow-y-auto" dangerouslySetInnerHTML={{ __html: bodyTemplate.replace(/{{name}}/g, "<strong>Rahul Sharma</strong>").replace(/{{campaign}}/g, form.campaign || "Summer Sale").replace(/{{mobile}}/g, "9876543210").replace(/{{email}}/g, "rahul@example.com") }} />
+              <div className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-4 bg-white dark:bg-[#0D0F14] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] max-h-44 overflow-y-auto" dangerouslySetInnerHTML={{ __html: sanitizeHtml(bodyTemplate.replace(/{{name}}/g, "<strong>Rahul Sharma</strong>").replace(/{{campaign}}/g, form.campaign || "Summer Sale").replace(/{{mobile}}/g, "9876543210").replace(/{{email}}/g, "rahul@example.com")) }} />
             </div>
           )}
 

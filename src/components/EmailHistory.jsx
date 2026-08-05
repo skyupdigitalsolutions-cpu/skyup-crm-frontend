@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import api from "../data/axiosConfig";
+import { sanitizeHtml } from "../utils/sanitizeHtml";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmtDate = (iso) => {
@@ -109,7 +110,7 @@ function LogDetailModal({ logId, onClose }) {
                   <p className="text-[10px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-2">Email Body</p>
                   <div
                     className="border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-4 bg-white dark:bg-[#0D0F14] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] max-h-64 overflow-y-auto"
-                    dangerouslySetInnerHTML={{ __html: log.body }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(log.body) }}
                   />
                 </div>
               )}
