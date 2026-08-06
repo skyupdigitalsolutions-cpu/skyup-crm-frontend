@@ -503,7 +503,7 @@ export default function NurtureSequenceBuilder() {
                       Fires after {r.trigger?.minDaysSinceLastTouch ?? "?"} day(s) idle
                       {r.trigger?.statuses?.length ? ` · status: ${r.trigger.statuses.join(", ")}` : ""}
                       {r.trigger?.temperatures?.length ? ` · temp: ${r.trigger.temperatures.join(", ")}` : ""}
-                      {r.trigger?.industries?.length ? ` · industry: ${r.trigger.industries.join(", ")}` : ""}
+
                       {(() => {
                         const tbs = r.action?.whatsapp?.templatesByStatus || {};
                         const total = Object.values(tbs).reduce((sum, pool) => sum + (Array.isArray(pool) ? pool.filter((t) => t && t.trim()).length : (pool ? 1 : 0)), 0);
@@ -549,11 +549,7 @@ export default function NurtureSequenceBuilder() {
             <div className="mt-1"><MultiChip options={TEMPERATURES} selected={draft.trigger.temperatures} onToggle={(v) => toggleArrayValue("temperatures", v)} /></div>
           </div>
 
-          <div>
-            <label className="text-[11px] font-semibold text-[#8B92A9] uppercase">Only fire for these industries (empty = any/untagged) — "domain-wise" filter</label>
-            <p className="text-[10px] text-[#8B92A9] mb-1">Matches the Industry tag agents set from the mobile app's remark section. Lets this rule send an industry-specific template (see Per-status template above).</p>
-            <div className="mt-1"><MultiChip options={INDUSTRIES} selected={draft.trigger.industries} onToggle={(v) => toggleArrayValue("industries", v)} /></div>
-          </div>
+
 
           <div className="flex items-end gap-4">
             <div>
