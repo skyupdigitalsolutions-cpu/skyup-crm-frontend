@@ -29,14 +29,102 @@ const INDUSTRIES = [
   "Interior Designers", "Professional Services",
 ];
 
-// The 4 funnel stages in the approved template library. The value is the exact
-// token used in the template name: <industry>_<service>_<stage>_v<n>
+// The 4 funnel stages in the approved template library.
 const FUNNEL_STAGES = [
   { value: "awareness", label: "Awareness — Day 0, first touch (no pitch)" },
   { value: "interest",  label: "Interest — Day 2–3, name the pain + the fix" },
   { value: "desire",    label: "Desire — Day 5–6, outcome & value" },
   { value: "action",    label: "Action — Day 8–9, one clear next step" },
 ];
+
+// ── Template preview data (from the approved MSG91 sequence generator) ────────
+const SITE = "https://skyupdigitalsolutions.com/";
+const FOOT = `\n\n🌐 ${SITE}\n— *Skyup Digital Solutions*`;
+
+const SVC_DATA = {
+  "SEO":{ title:"Google Ranking (SEO)", e:"🔍", d1:"Show up on top of Google & Maps", d2:"Free, steady customers every month",
+    fix:"We get {{2}} ranking on top of Google & Maps for what your {cust} actually search — so you get found first, for free, every day.",
+    pains:["Your {cust} search on Google, but your competitors show up first — not you.","You depend only on references and word-of-mouth — nothing steady coming in.","You're nowhere on Google Maps, so nearby {cust} never find you.","The day you stop paying for ads, your leads stop too.","People search your service in your city, but {{2}} just doesn't appear."]},
+  "Paid Ads":{ title:"Google & Facebook Ads", e:"🎯", d1:"Leads coming in within days", d2:"Every rupee tracked, nothing wasted",
+    fix:"We run Google & Facebook ads that target only people ready to buy — and track every rupee, so your money brings real {cust}, fast.",
+    pains:["You're spending on ads but getting mostly junk leads and time-wasters.","You don't know which ad is working and which is wasting your money.","Your competitors' ads are everywhere and yours are nowhere.","You boosted a few posts on Facebook and got likes — but no customers.","You need {cust} now, and waiting months isn't an option."]},
+  "Website Design & Development":{ title:"Website Design", e:"💻", d1:"A website you'll be proud of", d2:"Works perfectly on mobile too",
+    fix:"We build {{2}} a fast, clean, mobile-friendly website that turns visitors into enquiries — working for you 24x7.",
+    pains:["People visit your website, look once, and leave without contacting you.","Your website looks old and loads slowly, especially on mobile.","You don't have a proper website yet — just a social media page.","{cust} can't easily find your number, services or how to enquire.","Your website brings you almost zero enquiries."]},
+  "AI Automation":{ title:"WhatsApp & AI Automation", e:"🤖", d1:"Instant replies to every customer", d2:"No lead missed, even at night",
+    fix:"We set up WhatsApp + AI that replies instantly, answers common questions and books {cust} in automatically — 24x7, even while you sleep.",
+    pains:["{cust} message at night or on holidays, no one replies, so they go elsewhere.","Your team wastes hours answering the same questions again and again.","Leads come in but follow-up is slow, and they go cold.","You miss calls and WhatsApp messages when you're busy.","You can't reply fast enough — and fast reply is what wins the deal."]},
+  "CRM":{ title:"Lead Management (CRM)", e:"📋", d1:"All your leads in one place", d2:"Auto follow-ups so none slip away",
+    fix:"We give {{2}} one simple place for every lead, with automatic reminders and follow-ups — so you close more of what you already get.",
+    pains:["Your leads are scattered across WhatsApp, calls and notebooks.","You forget to follow up, and good leads quietly slip away.","You don't know how many leads came in, or how many you lost.","Different team members lose track of who is following up with whom.","You're busy with old leads while new ones get ignored."]},
+  "Video Editing":{ title:"Video Editing", e:"🎬", d1:"Scroll-stopping reels & ads", d2:"Build trust and get shared more",
+    fix:"We make short, catchy reels and videos for {{2}} that stop the scroll, build trust and get shared.",
+    pains:["Your posts get ignored — photos alone don't grab attention anymore.","People don't fully trust a business they can't really 'see'.","Your competitors' reels are getting views and yours aren't.","You have no videos to show your work or build trust.","You want to reach more people locally but don't know how to make good reels."]},
+  "Graphic Design":{ title:"Graphic Design", e:"🎨", d1:"Clean, professional designs", d2:"A brand people remember",
+    fix:"We design clean, professional creatives and branding for {{2}} so you instantly look premium and trustworthy.",
+    pains:["Your posts and posters look basic and don't match the quality of your work.","Your brand looks different everywhere — no consistent, professional look.","You lose {cust} to competitors who simply look more trustworthy.","You waste time making creatives yourself in Canva.","You don't have a proper logo or brand identity yet."]},
+  "Social Media Marketing":{ title:"Social Media", e:"📱", d1:"Regular posts, done for you", d2:"More followers that become customers",
+    fix:"We handle {{2}}\'s Instagram & Facebook with a proper content plan — regular posts and reels that build an audience and bring enquiries.",
+    pains:["Your Instagram/Facebook is inactive, so people think you're not serious.","You post sometimes, but there's no plan and no enquiries from it.","Your competitors are active on social and grabbing your {cust}' attention.","You just don't have time to post regularly.","You get followers, but they never turn into customers."]},
+};
+
+const IND_DATA = {
+  "Healthcare":{ label:"clinics & hospitals", win:"more patients 🏥", wl:"more patients find you and trust you", cust:"patients" },
+  "Education":{ label:"schools, colleges & coaching centres", win:"more admissions 🎓", wl:"more admission enquiries every season", cust:"parents & students" },
+  "Real Estate":{ label:"real estate businesses", win:"more site visits 🏠", wl:"more buyers booking site visits", cust:"buyers" },
+  "Logistics":{ label:"logistics & transport companies", win:"more quote requests 🚚", wl:"more enquiries from the right companies", cust:"clients" },
+  "Finance":{ label:"finance businesses", win:"more clients 💰", wl:"more trusted enquiries for your services", cust:"clients" },
+  "IT Solutions":{ label:"IT & software companies", win:"more demos booked 💻", wl:"more demo bookings from real buyers", cust:"clients" },
+  "Digital Marketing":{ label:"marketing agencies", win:"more work handled under your brand 🤝", wl:"more capacity, delivered as your behind-the-scenes team", cust:"your clients" },
+  "Construction":{ label:"construction companies", win:"more project enquiries 🏗️", wl:"more enquiries from serious clients", cust:"clients" },
+  "Local Business":{ label:"local shops & businesses", win:"more walk-in customers 🛍️", wl:"more nearby customers calling & visiting", cust:"customers" },
+  "Interior Designers":{ label:"interior designers", win:"more high-value projects 🛋️", wl:"more big-budget project enquiries", cust:"homeowners" },
+  "Professional Services":{ label:"CA, legal & consulting firms", win:"more clients 📁", wl:"more quality client enquiries", cust:"clients" },
+};
+
+function px(str, cust) { return str.replace(/{cust}/g, cust); }
+
+function buildPreview(industry, service, stage, variationIndex) {
+  const s = SVC_DATA[service];
+  const i = IND_DATA[industry];
+  if (!s || !i) return "";
+  const v = variationIndex; // 0-based
+
+  if (stage === "awareness") {
+    const variants = [
+      `Hi {{1}} 👋\n\nThis is *Skyup Digital Solutions*, a Bangalore-based digital marketing team 🙂\n\nWe help ${i.label} get *${i.win}*.\n\nJust saying hello and putting us on your radar — nothing to sell today!\n\nI'll share something useful for {{2}} soon.`,
+      `Hi {{1}} 👋\n\nQuick question — is {{2}} getting enough new ${i.cust} from online? 🤔\n\nMost ${i.label} miss out simply because a few basics aren't set up right.\n\nWe're *Skyup Digital Solutions*, and this is exactly what we help with.\n\nMore on this soon 🙂`,
+      `Hi {{1}} 👋\n\nSmall free tip for {{2}} 👇\n\nRight now most ${i.label} lose ${i.cust} online without even realising it — just a few missing basics.\n\nWe're *Skyup Digital Solutions* and fixing this is what we do 🙂\n\nNo cost to chat. I'll share more soon.`,
+      `Hi {{1}} 👋\n\nWe're *Skyup Digital Solutions* — we work with ${i.label} like {{2}} to get *${i.win}*.\n\n${s.e} One thing we help a lot with is *${s.title}*.\n\nJust a hello for now 🙂 nothing to buy — something useful coming your way soon.`,
+      `Hi {{1}} 👋\n\nHope you're doing well! 🙂\n\nQuick intro — *Skyup Digital Solutions* helps ${i.label} grow online and get *${i.win}*.\n\nWe'd genuinely love to help {{2}} too. No pressure at all — just wanted to connect first.`,
+    ];
+    return (variants[v] || "") + FOOT;
+  }
+  if (stage === "interest") {
+    return `Hi {{1}} 👋\n\nHere's something a lot of ${i.label} quietly struggle with 👇\n\n😟 *The problem:* ${px(s.pains[v], i.cust)}\n\n✅ *How we fix it:* ${px(s.fix, i.cust)}\n\nFor {{2}}, that means *${i.wl}* ${s.e}\n\nWant to see how we'd do this for you?` + FOOT;
+  }
+  if (stage === "desire") {
+    const variants = [
+      `Hi {{1}} 👋\n\nJust imagine this for {{2}} 👇\n\n🎯 *${i.win}*\n⭐ ${s.d1}\n⭐ ${s.d2}\n\nAnd the best part — *we handle everything for you*, start to finish 🙌\n\nWant the details?`,
+      `Hi {{1}} 👋\n\nHere's what *${s.title}* can do for {{2}} 👇\n\n✅ ${s.d1}\n✅ ${s.d2}\n✅ ${i.wl}\n\nWe've helped other ${i.label} do exactly this — {{2}} can be next 🚀`,
+      `Hi {{1}} 👋\n\nHonest truth 👇\n\nYour competitors are already using *${s.title}* to get *${i.win}*.\n\nEvery day without it, those ${i.cust} go to them instead of {{2}} 😬\n\nWe can fix that for you quickly. Interested?`,
+      `Hi {{1}} 👋\n\nDon't worry — *you don't have to do anything technical* 🙌\n\nWe handle the full *${s.title}* setup for {{2}}:\n${s.e} ${s.title}\n✅ ${s.d1}\n\nYou focus on your business — we bring the ${i.cust} 🙂`,
+      `Hi {{1}} 👋\n\nWorried about budget? Totally fair 🙂\n\nWith *${s.title}*, you're not spending — you're *investing* to get *${i.win}*.\n\nWe keep it affordable and make every rupee work. 💰\n\nWant a plan that fits your budget?`,
+    ];
+    return (variants[v] || "") + FOOT;
+  }
+  if (stage === "action") {
+    const variants = [
+      `Hi {{1}} 👋\n\nLet's take the first step 🚀\n\n🎁 A *FREE business strategy session* for {{2}} — no cost, no pressure.\nWe'll show exactly how *${s.title}* gets you *${i.win}*.\n\n👉 Reply *YES*, or use *Call us / Ask us to call back* below 🙂`,
+      `Hi {{1}} 👋\n\nShall we do a quick *15-minute call*? 📞\n\nI'll walk you through how *${s.title}* works for {{2}} — simple, no jargon.\n\n👉 Reply with a good time, or tap *Call us* below 🙂`,
+      `Hi {{1}} 👋\n\nWant me to send {{2}} a simple plan for *${s.title}*? 📄\n\nJust reply *YES* and I'll share it — no obligation at all 🙂\n\nOr tap *Ask us to call back* below 👇`,
+      `Hi {{1}} 👋\n\nWe're taking on just a few new ${i.label} this month, and I'd love {{2}} to be one 🙂\n\n🎁 Free strategy session + a clear plan for *${i.win}*.\n\n👉 Reply to grab a slot, or *Call us* below 🙌`,
+      `Hi {{1}} 👋\n\nHappy to keep this simple 🙂\n\nWe can start with a quick WhatsApp chat about {{2}} — whatever's easy for you.\n\n👉 Message us, or use *Call us / Ask us to call back* below 🚀`,
+    ];
+    return (variants[v] || "") + FOOT;
+  }
+  return "";
+}
 
 const TEMPERATURES = ["Hot", "Warm", "Cold"];
 
@@ -136,6 +224,11 @@ export default function NurtureSequenceBuilder() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Template preview state
+  const [previewIndustry, setPreviewIndustry] = useState("");
+  const [previewService,  setPreviewService]  = useState("");
+  const [previewVariation, setPreviewVariation] = useState(0);
 
   // Load whatever templates are already cached locally (fast, no MSG91 call).
   const loadTemplates = useCallback(async () => {
@@ -448,6 +541,84 @@ export default function NurtureSequenceBuilder() {
                             interior_designers_crm_{draft.action.whatsapp.funnelStage}_v1
                           </code>
                         </p>
+                      )}
+
+                      {/* ── Live template preview panel ─────────────────── */}
+                      {draft.action.whatsapp.funnelStage && (
+                        <div className="mt-3 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+                          <div className="px-3 py-2 bg-[#F8F9FC] dark:bg-[#13161E] flex items-center justify-between flex-wrap gap-2">
+                            <p className="text-[10px] font-semibold text-[#8B92A9] uppercase">
+                              Preview — pick industry &amp; service to see the actual message
+                            </p>
+                            <div className="flex gap-2 flex-wrap">
+                              <select
+                                value={previewIndustry}
+                                onChange={e => { setPreviewIndustry(e.target.value); setPreviewVariation(0); }}
+                                className="text-[11px] px-2 py-1 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
+                              >
+                                <option value="">— Industry —</option>
+                                {INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                              </select>
+                              <select
+                                value={previewService}
+                                onChange={e => { setPreviewService(e.target.value); setPreviewVariation(0); }}
+                                className="text-[11px] px-2 py-1 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
+                              >
+                                <option value="">— Service —</option>
+                                {SERVICES.map(svc => <option key={svc} value={svc}>{svc}</option>)}
+                              </select>
+                            </div>
+                          </div>
+
+                          {previewIndustry && previewService ? (() => {
+                            const stage = draft.action.whatsapp.funnelStage;
+                            const body = buildPreview(previewIndustry, previewService, stage, previewVariation);
+                            const tplName = `${previewIndustry.toLowerCase().replace(/[^a-z0-9]+/g,"_")}_${previewService.toLowerCase().replace(/[^a-z0-9]+/g,"_")}_${stage}_v${previewVariation + 1}`;
+                            const inCache = templates.some(t => t.name === tplName);
+                            return (
+                              <div className="p-3">
+                                {/* Variation tabs */}
+                                <div className="flex gap-1 mb-2">
+                                  {[0,1,2,3,4].map(v => (
+                                    <button
+                                      key={v}
+                                      type="button"
+                                      onClick={() => setPreviewVariation(v)}
+                                      className={`w-7 h-7 rounded text-[11px] font-bold border transition-colors ${
+                                        previewVariation === v
+                                          ? "bg-[#0F1117] dark:bg-white text-white dark:text-[#0F1117] border-transparent"
+                                          : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9]"
+                                      }`}
+                                    >V{v + 1}</button>
+                                  ))}
+                                  <code className="ml-auto text-[10px] self-center text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#13161E] px-2 py-0.5 rounded">
+                                    {tplName}
+                                  </code>
+                                  {inCache
+                                    ? <span className="text-[10px] text-[#38D39F] self-center ml-1">✓ approved</span>
+                                    : <span className="text-[10px] text-[#F5B547] self-center ml-1">not in cache</span>
+                                  }
+                                </div>
+
+                                {/* WhatsApp-style message bubble */}
+                                <div className="rounded-[4px_14px_14px_14px] bg-[#075E54] text-white text-[12.5px] leading-relaxed p-3 whitespace-pre-wrap">
+                                  {body
+                                    .replace(/\*([^*]+)\*/g, "$1")
+                                    .replace(/{{1}}/g, "Rahul")
+                                    .replace(/{{2}}/g, previewIndustry === "Healthcare" ? "City Clinic" : `${previewIndustry} Co.`)
+                                  }
+                                </div>
+                                <p className="text-[9px] text-[#8B92A9] mt-1">
+                                  Preview replaces {"{{"+"1}}"} = "Rahul" and {"{{"+"2}}"} = business name. Real send uses the lead's actual values.
+                                </p>
+                              </div>
+                            );
+                          })() : (
+                            <p className="text-[11px] text-[#8B92A9] p-3">
+                              Select an industry and service above to preview the exact WhatsApp message for that combination.
+                            </p>
+                          )}
+                        </div>
                       )}
 
                       {/* Live count of approved templates for this stage */}
