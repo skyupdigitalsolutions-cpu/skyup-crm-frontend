@@ -200,6 +200,93 @@ function MultiChip({ options, selected, onToggle }) {
   );
 }
 
+
+// ── TemplatePreview — shows the actual WhatsApp message + MSG91 status ────────
+// A proper component (not an IIFE) so variables are always in scope.
+function TemplatePreview({ industry, service, stage, variation, templates, onVariationChange }) {
+  const slug = (x) => x.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  const tplName = `${slug(industry)}_${slug(service)}_${stage}_v${variation + 1}`;
+
+  // Look up this template in the synced MSG91 cache
+  const cached     = templates.find((t) => t.name === tplName);
+  const status     = cached?.status || "";   // "APPROVED" | "PENDING" | "REJECTED" | "PAUSED" | ""
+  const isApproved = status === "APPROVED";
+  const isPending  = status === "PENDING";
+  const isRejected = status === "REJECTED";
+  const isPaused   = status === "PAUSED";
+  const notSynced  = !cached;
+
+  // Build the message body and replace placeholders for display
+  const bizName = industry === "Healthcare" ? "City Clinic" : `${industry} Co.`;
+  const rawBody = buildPreview(industry, service, stage, variation) || "";
+  const display = rawBody
+    .replace(/\*([^*]+)\*/g, "$1")   // strip *bold* markers
+    .split("{{1}}").join("Rahul")
+    .split("{{2}}").join(bizName);
+
+  return (
+    <div className="p-3">
+      {/* Variation tabs V1–V5 */}
+      <div className="flex gap-1 mb-2 flex-wrap items-center">
+        {[0,1,2,3,4].map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onVariationChange(v)}
+            className={`w-7 h-7 rounded text-[11px] font-bold border transition-colors ${
+              variation === v
+                ? "bg-[#0F1117] dark:bg-white text-white dark:text-[#0F1117] border-transparent"
+                : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9]"
+            }`}
+          >V{v + 1}</button>
+        ))}
+
+        {/* Template name */}
+        <code className="ml-auto text-[10px] self-center text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#13161E] px-2 py-0.5 rounded">
+          {tplName}
+        </code>
+
+        {/* MSG91 status badge */}
+        {isApproved && (
+          <span className="text-[10px] font-semibold text-[#38D39F] self-center ml-1">✅ Approved</span>
+        )}
+        {isPending && (
+          <span className="text-[10px] font-semibold text-[#F5B547] self-center ml-1">⚠️ Pending — cannot send yet</span>
+        )}
+        {isRejected && (
+          <span className="text-[10px] font-semibold text-[#DC2626] self-center ml-1">❌ Rejected by Meta</span>
+        )}
+        {isPaused && (
+          <span className="text-[10px] font-semibold text-[#F5B547] self-center ml-1">⏸ Paused in MSG91</span>
+        )}
+        {notSynced && (
+          <span className="text-[10px] text-[#8B92A9] self-center ml-1">— not synced</span>
+        )}
+      </div>
+
+      {/* Status warning below the bubble when not approved */}
+      {isPending && (
+        <div className="mb-2 px-2 py-1.5 rounded bg-[#FEF3C7] dark:bg-[#78350F]/20 border border-[#F5B547]/40 text-[11px] text-[#92400E] dark:text-[#F5B547]">
+          ⚠️ This template is <b>pending Meta approval</b>. The nurture job will skip it until MSG91 shows it as Enabled.
+        </div>
+      )}
+      {isRejected && (
+        <div className="mb-2 px-2 py-1.5 rounded bg-[#FEE2E2] dark:bg-[#7F1D1D]/20 border border-[#DC2626]/40 text-[11px] text-[#991B1B] dark:text-[#F87171]">
+          ❌ This template was <b>rejected by Meta</b>. Edit and resubmit it in the MSG91 dashboard.
+        </div>
+      )}
+
+      {/* WhatsApp-style message bubble */}
+      <div className="rounded-[4px_14px_14px_14px] bg-[#075E54] text-white text-[12.5px] leading-relaxed p-3 whitespace-pre-wrap">
+        {display}
+      </div>
+      <p className="text-[9px] text-[#8B92A9] mt-1">
+        Preview replaces name = "Rahul" and business = "{bizName}". Real send uses the lead's actual values.
+      </p>
+    </div>
+  );
+}
+
 export default function NurtureSequenceBuilder() {
   const [rules,   setRules]   = useState([]);
   const [loading, setLoading] = useState(true);
@@ -578,50 +665,16 @@ export default function NurtureSequenceBuilder() {
                             </div>
                           </div>
 
-                          {(previewIndustry && previewService) ? (() => {
-                            const _stage    = draft.action.whatsapp.funnelStage;
-                            const _rawBody  = buildPreview(previewIndustry, previewService, _stage, previewVariation);
-                            const _slug     = (x) => x.toLowerCase().replace(/[^a-z0-9]+/g, "_");
-                            const _tplName  = `${_slug(previewIndustry)}_${_slug(previewService)}_${_stage}_v${previewVariation + 1}`;
-                            const _cachedTpl  = templates.find((t) => t.name === _tplName);
-                            const _isApproved = _cachedTpl?.status === "APPROVED";
-                            const _isPending  = _cachedTpl && !_isApproved;
-                            const _bizName    = previewIndustry === "Healthcare" ? "City Clinic" : `${previewIndustry} Co.`;
-                            const _display    = _rawBody
-                              .replace(/\*([^*]+)\*/g, "$1")
-                              .split("{{1}}").join("Rahul")
-                              .split("{{2}}").join(_bizName);
-                            return (
-                              <div className="p-3">
-                                <div className="flex gap-1 mb-2 flex-wrap">
-                                  {[0,1,2,3,4].map((v) => (
-                                    <button
-                                      key={v}
-                                      type="button"
-                                      onClick={() => setPreviewVariation(v)}
-                                      className={`w-7 h-7 rounded text-[11px] font-bold border transition-colors ${
-                                        previewVariation === v
-                                          ? "bg-[#0F1117] dark:bg-white text-white dark:text-[#0F1117] border-transparent"
-                                          : "border-[#E4E7EF] dark:border-[#262A38] text-[#8B92A9]"
-                                      }`}
-                                    >V{v + 1}</button>
-                                  ))}
-                                  <code className="ml-auto text-[10px] self-center text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#13161E] px-2 py-0.5 rounded">
-                                    {_tplName}
-                                  </code>
-                                  {_isApproved && <span className="text-[10px] text-[#38D39F] self-center ml-1">✓ approved</span>}
-                                  {_isPending && <span className="text-[10px] text-[#F5B547] self-center ml-1">⚠ {_cachedTpl?.status || "pending"} — cannot send until Meta approves</span>}
-                                  {!_cachedTpl && <span className="text-[10px] text-[#8B92A9] self-center ml-1">not synced</span>}
-                                </div>
-                                <div className="rounded-[4px_14px_14px_14px] bg-[#075E54] text-white text-[12.5px] leading-relaxed p-3 whitespace-pre-wrap">
-                                  {_display}
-                                </div>
-                                <p className="text-[9px] text-[#8B92A9] mt-1">
-                                  Preview replaces {"{{"+"1}}"} = "Rahul" and {"{{"+"2}}"} = business name. Real send uses the lead's actual values.
-                                </p>
-                              </div>
-                            );
-                          })() : (
+                          {(previewIndustry && previewService) ? (
+                              <TemplatePreview
+                                industry={previewIndustry}
+                                service={previewService}
+                                stage={draft.action.whatsapp.funnelStage}
+                                variation={previewVariation}
+                                templates={templates}
+                                onVariationChange={setPreviewVariation}
+                              />
+                          ) : (
                             <p className="text-[11px] text-[#8B92A9] p-3">
                               Select an industry and service above to preview the exact WhatsApp message for that combination.
                             </p>
