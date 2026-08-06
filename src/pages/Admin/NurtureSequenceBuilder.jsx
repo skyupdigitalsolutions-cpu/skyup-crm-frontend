@@ -28,6 +28,10 @@ const INDUSTRIES = [
   "IT Solutions", "Digital Marketing", "Construction", "Local Business",
   "Interior Designers", "Professional Services",
 ];
+const SERVICES = [
+  "SEO", "Paid Ads", "Website Design & Development", "AI Automation",
+  "CRM", "Video Editing", "Graphic Design", "Social Media Marketing",
+];
 
 // The 4 funnel stages in the approved template library.
 const FUNNEL_STAGES = [
