@@ -220,11 +220,13 @@ function TemplatePreview({ industry, service, stage, variation, templates, onVar
   const notSynced  = !cached;
 
   // What to actually display in the badge — normalize to user-friendly label
+  const isUnknown = rawStatus === "UNKNOWN" || rawStatus === "";
   const statusLabel = isApproved ? "Approved"
     : isPending  ? "Pending"
     : isRejected ? "Rejected"
     : isPaused   ? "Paused"
-    : rawStatus  || "Unknown";
+    : isUnknown  ? "Status unavailable"
+    : rawStatus;
 
   // Build the message body and replace placeholders for display
   const bizName = industry === "Healthcare" ? "City Clinic" : `${industry} Co.`;
@@ -373,7 +375,18 @@ export default function NurtureSequenceBuilder() {
     setSyncMsg("");
     try {
       const { data } = await api.post("/nurture/templates/sync");
-      setSyncMsg(`✅ Synced ${data.total} template(s) — ${data.nurture} nurture, ${data.other} other.`);
+      let msg = `✅ Synced ${data.total} template(s) — ${data.nurture} nurture, ${data.other} other.`;
+      // Show which fields MSG91 actually returned. If there is no status-like
+      // field here, MSG91's list endpoint simply does not expose approval
+      // state and we cannot display it accurately from this call.
+      if (Array.isArray(data.sampleKeys) && data.sampleKeys.length) {
+        msg += `\n\nFields MSG91 returned: ${data.sampleKeys.join(", ")}`;
+        const hasStatusLike = data.sampleKeys.some((k) => /status|state|approv|active|enabled/i.test(k));
+        msg += hasStatusLike
+          ? `\n→ A status-like field IS present. Send me this line and I will map it.`
+          : `\n⚠ No status field in this response — MSG91's list endpoint does not expose approval state.`;
+      }
+      setSyncMsg(msg);
       await loadTemplates();
     } catch (e) {
       const msg = e?.response?.data?.message || e.message || "Sync failed";
