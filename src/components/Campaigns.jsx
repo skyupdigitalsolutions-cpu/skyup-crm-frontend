@@ -2333,30 +2333,17 @@ export default function Campaigns() {
       const googleList = googleRes.status === "fulfilled" ? (Array.isArray(googleRes.value.data) ? googleRes.value.data : googleRes.value.data?.data || []) : [];
       const websiteList = websiteRes.status === "fulfilled" ? (websiteRes.value?.data?.data || []) : [];
 
-      const metaLeadCounts = await Promise.allSettled(
-        metaList.map((cfg) => {
-          // Scope strictly by metaConfigId so each ad set (and each bare-campaign
-          // config) counts ONLY its own leads — never the whole campaign name.
-          // Multiple configs can share the same campaignName (a campaign with
-          // several ad sets, or "skyup_ads" + an ad set under it). Counting by
-          // campaign name alone piled every sibling's leads onto the first card.
-          // metaConfigId is unique per config and is stamped on every webhook
-          // lead (utils/metaHelper.mapToLeadSchema), so it is the correct key.
-          // adSetName is still sent so the backend can also fold in any legacy
-          // leads (metaConfigId:null) that predate the metaConfigId field.
-          const adSetParam =
-            cfg.adSetName
-              ? `&adSetName=${encodeURIComponent(cfg.adSetName)}`
-              : "";
-          const cfgParam = cfg._id
-            ? `&metaConfigId=${encodeURIComponent(cfg._id)}`
-            : "";
-          return api
-            .get(`/lead/by-campaign?campaign=${encodeURIComponent(cfg.campaignName)}${adSetParam}${cfgParam}`)
-            .then((r) => (Array.isArray(r.data) ? r.data : r.data?.data || []).length)
-            .catch(() => 0);
-        }),
-      );
+      // PERF FIX: this used to fire one extra GET /lead/by-campaign — a FULL
+      // Lead.find() + 2 populates — PER campaign card, for Meta, Google AND
+      // Website, on every single page load/refresh/socket update. With N+M+K
+      // campaigns that was N+M+K extra round trips and N+M+K extra full-document
+      // Mongo queries, which is what made this page take 5-6 seconds to load.
+      // All three list endpoints (/meta-config, /google-ads-config,
+      // /website-config) now return `leads`/`converted` already computed
+      // server-side with cheap countDocuments() calls, so we just read them
+      // directly below. The per-campaign drill-down (fetchLeads, triggered only
+      // when a card is actually clicked) still uses /lead/by-campaign — that one
+      // fires once, on demand, and is unaffected by this change.
 
       const shapedMeta = metaList.map((cfg, idx) => ({
         _id: cfg._id,
@@ -2370,7 +2357,7 @@ export default function Campaigns() {
         // show as Paused here instead of always showing Active.
         status: (cfg.isActive && cfg.metaActive !== false) ? "Active" : "Paused",
         sent: cfg.sent ?? 0,
-        leads: metaLeadCounts[idx]?.status === "fulfilled" ? metaLeadCounts[idx].value : 0,
+        leads: cfg.leads ?? 0,
         converted: cfg.converted ?? 0,
         cost: cfg.cost ?? 0,
         date: fmtDate(cfg.createdAt),
@@ -2396,14 +2383,6 @@ export default function Campaigns() {
         _configType: "meta",
       }));
 
-      const googleLeadCounts = await Promise.allSettled(
-        googleList.map((cfg) =>
-          api.get(`/lead/by-campaign?campaign=${encodeURIComponent(cfg.campaignName)}`)
-            .then((r) => (Array.isArray(r.data) ? r.data : r.data?.data || []).length)
-            .catch(() => cfg.leads ?? 0),
-        ),
-      );
-
       const shapedGoogleFixed = googleList.map((cfg, idx) => ({
         _id: cfg._id,
         _isGoogle: true,
@@ -2412,7 +2391,7 @@ export default function Campaigns() {
         channel: "Google",
         status: cfg.isActive ? "Active" : "Paused",
         sent: cfg.sent ?? 0,
-        leads: googleLeadCounts[idx]?.status === "fulfilled" ? googleLeadCounts[idx].value : cfg.leads ?? 0,
+        leads: cfg.leads ?? 0,
         converted: cfg.converted ?? 0,
         cost: cfg.cost ?? 0,
         date: fmtDate(cfg.createdAt),
@@ -2431,14 +2410,6 @@ export default function Campaigns() {
         _configType: "google",
       }));
 
-      const websiteLeadCounts = await Promise.allSettled(
-        websiteList.map((cfg) =>
-          api.get(`/lead/by-campaign?campaign=${encodeURIComponent(cfg.sourceName)}`)
-            .then((r) => (Array.isArray(r.data) ? r.data : r.data?.data || []).length)
-            .catch(() => 0),
-        ),
-      );
-
       const shapedWebsite = websiteList.map((cfg, idx) => ({
         _id: cfg._id,
         _isWebsite: true,
@@ -2447,7 +2418,7 @@ export default function Campaigns() {
         channel: "Website",
         status: cfg.isActive ? "Active" : "Paused",
         sent: 0,
-        leads: websiteLeadCounts[idx]?.status === "fulfilled" ? websiteLeadCounts[idx].value : 0,
+        leads: cfg.leads ?? 0,
         converted: 0,
         cost: 0,
         date: fmtDate(cfg.createdAt),
