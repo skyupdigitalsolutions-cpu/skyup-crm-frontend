@@ -208,13 +208,23 @@ function TemplatePreview({ industry, service, stage, variation, templates, onVar
   const tplName = `${slug(industry)}_${slug(service)}_${stage}_v${variation + 1}`;
 
   // Look up this template in the synced MSG91 cache
-  const cached     = templates.find((t) => t.name === tplName);
-  const status     = cached?.status || "";   // "APPROVED" | "PENDING" | "REJECTED" | "PAUSED" | ""
-  const isApproved = status === "APPROVED";
-  const isPending  = status === "PENDING";
-  const isRejected = status === "REJECTED";
-  const isPaused   = status === "PAUSED";
+  const cached = templates.find((t) => t.name === tplName);
+
+  // MSG91 returns "Enabled" which we store as either "ENABLED" (old sync)
+  // or "APPROVED" (new sync after normalization fix). Accept both.
+  const rawStatus  = String(cached?.status || "").trim().toUpperCase();
+  const isApproved = ["APPROVED", "ENABLED", "ACTIVE", "LIVE"].includes(rawStatus);
+  const isPending  = ["PENDING", "SUBMITTED", "IN_APPEAL", "PENDING_REVIEW"].includes(rawStatus);
+  const isRejected = ["REJECTED", "REFUSED", "FLAGGED", "DISABLED_BY_META"].includes(rawStatus);
+  const isPaused   = ["PAUSED", "DISABLED", "ARCHIVED", "INACTIVE"].includes(rawStatus);
   const notSynced  = !cached;
+
+  // What to actually display in the badge — normalize to user-friendly label
+  const statusLabel = isApproved ? "Approved"
+    : isPending  ? "Pending"
+    : isRejected ? "Rejected"
+    : isPaused   ? "Paused"
+    : rawStatus  || "Unknown";
 
   // Build the message body and replace placeholders for display
   const bizName = industry === "Healthcare" ? "City Clinic" : `${industry} Co.`;
@@ -246,18 +256,31 @@ function TemplatePreview({ industry, service, stage, variation, templates, onVar
           {tplName}
         </code>
 
-        {/* MSG91 status badge */}
-        {isApproved && (
-          <span className="text-[10px] font-semibold text-[#38D39F] self-center ml-1">✅ Approved</span>
-        )}
-        {isPending && (
-          <span className="text-[10px] font-semibold text-[#F5B547] self-center ml-1">⚠️ Pending — cannot send yet</span>
-        )}
-        {isRejected && (
-          <span className="text-[10px] font-semibold text-[#DC2626] self-center ml-1">❌ Rejected by Meta</span>
-        )}
-        {isPaused && (
-          <span className="text-[10px] font-semibold text-[#F5B547] self-center ml-1">⏸ Paused in MSG91</span>
+        {/* MSG91 status badge — always shows, matches exactly what MSG91 dashboard shows */}
+        {notSynced ? (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-[#8B92A9] self-center ml-1">
+            Not synced
+          </span>
+        ) : isApproved ? (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 self-center ml-1">
+            ✅ Approved
+          </span>
+        ) : isPending ? (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 self-center ml-1">
+            ⏳ Pending
+          </span>
+        ) : isRejected ? (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 self-center ml-1">
+            ❌ Rejected
+          </span>
+        ) : isPaused ? (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 self-center ml-1">
+            ⏸ Paused
+          </span>
+        ) : (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-[#8B92A9] self-center ml-1">
+            {statusLabel}
+          </span>
         )}
         {notSynced && (
           <span className="text-[10px] text-[#8B92A9] self-center ml-1">— not synced</span>
