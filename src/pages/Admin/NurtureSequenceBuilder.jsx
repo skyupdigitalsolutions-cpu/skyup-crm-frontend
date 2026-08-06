@@ -583,10 +583,11 @@ export default function NurtureSequenceBuilder() {
                             const _rawBody  = buildPreview(previewIndustry, previewService, _stage, previewVariation);
                             const _slug     = (x) => x.toLowerCase().replace(/[^a-z0-9]+/g, "_");
                             const _tplName  = `${_slug(previewIndustry)}_${_slug(previewService)}_${_stage}_v${previewVariation + 1}`;
-                            const _inCache  = templates.some((t) => t.name === _tplName);
-                            const _bizName  = previewIndustry === "Healthcare" ? "City Clinic" : `${previewIndustry} Co.`;
-                            // Remove *bold* markers and replace variables for display
-                            const _display  = _rawBody
+                            const _cachedTpl  = templates.find((t) => t.name === _tplName);
+                            const _isApproved = _cachedTpl?.status === "APPROVED";
+                            const _isPending  = _cachedTpl && !_isApproved;
+                            const _bizName    = previewIndustry === "Healthcare" ? "City Clinic" : `${previewIndustry} Co.`;
+                            const _display    = _rawBody
                               .replace(/\*([^*]+)\*/g, "$1")
                               .split("{{1}}").join("Rahul")
                               .split("{{2}}").join(_bizName);
@@ -609,7 +610,7 @@ export default function NurtureSequenceBuilder() {
                                     {_tplName}
                                   </code>
                                   {_isApproved && <span className="text-[10px] text-[#38D39F] self-center ml-1">✓ approved</span>}
-                                  {_isPending && <span className="text-[10px] text-[#F5B547] self-center ml-1">⚠ {_cachedTpl.status || "pending"} — cannot send until Meta approves</span>}
+                                  {_isPending && <span className="text-[10px] text-[#F5B547] self-center ml-1">⚠ {_cachedTpl?.status || "pending"} — cannot send until Meta approves</span>}
                                   {!_cachedTpl && <span className="text-[10px] text-[#8B92A9] self-center ml-1">not synced</span>}
                                 </div>
                                 <div className="rounded-[4px_14px_14px_14px] bg-[#075E54] text-white text-[12.5px] leading-relaxed p-3 whitespace-pre-wrap">
