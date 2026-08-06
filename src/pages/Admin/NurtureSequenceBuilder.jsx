@@ -487,8 +487,12 @@ export default function NurtureSequenceBuilder() {
                 <div className="flex items-center justify-between gap-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] px-3 py-2">
                   <div className="text-[11px] text-[#8B92A9]">
                     {tplStats
-                      ? <>Templates synced from MSG91: <b className="text-[#0F1117] dark:text-[#F0F2FA]">{tplStats.total}</b>
-                          {" "}({tplStats.nurture} nurture)</>
+                      ? <>
+                          Templates synced: <b className="text-[#0F1117] dark:text-[#F0F2FA]">{tplStats.total}</b>
+                          {" · "}<span className="text-[#38D39F]">{tplStats.approved || tplStats.nurture} approved</span>
+                          {(tplStats.pending||0) > 0 && <span className="text-[#F5B547] ml-1">· {tplStats.pending} pending</span>}
+                          {(tplStats.rejected||0) > 0 && <span className="text-[#DC2626] ml-1">· {tplStats.rejected} rejected</span>}
+                        </>
                       : "No templates synced yet — click Sync to fetch them from MSG91."}
                   </div>
                   <button
@@ -604,10 +608,9 @@ export default function NurtureSequenceBuilder() {
                                   <code className="ml-auto text-[10px] self-center text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#13161E] px-2 py-0.5 rounded">
                                     {_tplName}
                                   </code>
-                                  {_inCache
-                                    ? <span className="text-[10px] text-[#38D39F] self-center ml-1">✓ approved</span>
-                                    : <span className="text-[10px] text-[#F5B547] self-center ml-1">not in cache</span>
-                                  }
+                                  {_isApproved && <span className="text-[10px] text-[#38D39F] self-center ml-1">✓ approved</span>}
+                                  {_isPending && <span className="text-[10px] text-[#F5B547] self-center ml-1">⚠ {_cachedTpl.status || "pending"} — cannot send until Meta approves</span>}
+                                  {!_cachedTpl && <span className="text-[10px] text-[#8B92A9] self-center ml-1">not synced</span>}
                                 </div>
                                 <div className="rounded-[4px_14px_14px_14px] bg-[#075E54] text-white text-[12.5px] leading-relaxed p-3 whitespace-pre-wrap">
                                   {_display}
@@ -626,13 +629,17 @@ export default function NurtureSequenceBuilder() {
                       )}
 
                       {/* Live count of approved templates for this stage */}
-                      {tplStats && (
-                        <p className="text-[10px] text-[#38D39F] mt-2">
-                          {tplStats.byStage?.[draft.action.whatsapp.funnelStage] || 0} approved
-                          template(s) synced from MSG91 for this stage
-                          {" "}({tplStats.nurture} nurture templates total).
-                        </p>
-                      )}
+                      {tplStats && (() => {
+                        const _ac = tplStats.byStage?.[draft.action.whatsapp.funnelStage] || 0;
+                        return (<>
+                          <p className="text-[10px] text-[#38D39F] mt-2">
+                            {_ac} approved template(s) synced from MSG91 for this stage
+                            ({tplStats.approved || tplStats.nurture} approved total).
+                          </p>
+                          {(tplStats.pending||0) > 0 && <p className="text-[10px] text-[#F5B547] mt-1">⚠ {tplStats.pending} pending Meta approval — skipped until approved.</p>}
+                          {(tplStats.rejected||0) > 0 && <p className="text-[10px] text-[#DC2626] mt-1">✕ {tplStats.rejected} rejected by Meta — cannot be sent.</p>}
+                        </>);
+                      })()}
 
                       <p className="text-[10px] text-[#F5B547] mt-2">
                         Leads with no Industry or Service set can&apos;t be matched to a
@@ -690,14 +697,14 @@ export default function NurtureSequenceBuilder() {
                       </option>
                     ))}
                   </datalist>
-                  {draft.action.whatsapp.templateName &&
-                    templates.length > 0 &&
-                    !templates.some((t) => t.name === draft.action.whatsapp.templateName) && (
-                      <p className="text-[10px] text-[#DC2626] mt-1">
-                        ⚠ Not in the synced MSG91 list — the send will fail unless you
-                        sync again or fix the name.
-                      </p>
-                  )}
+                  {draft.action.whatsapp.templateName && templates.length > 0 && (() => {
+                    const _ft = templates.find((t) => t.name === draft.action.whatsapp.templateName);
+                    if (!_ft) return <p className="text-[10px] text-[#F5B547] mt-1">⚠ Not found in synced MSG91 list — sync again or fix the name.</p>;
+                    if (_ft.status === "PENDING") return <p className="text-[10px] text-[#F5B547] mt-1">⚠ Pending Meta approval — sends skipped until approved.</p>;
+                    if (_ft.status === "REJECTED") return <p className="text-[10px] text-[#DC2626] mt-1">✕ Rejected by Meta — cannot be sent.</p>;
+                    if (_ft.status === "PAUSED") return <p className="text-[10px] text-[#F5B547] mt-1">⚠ Paused in MSG91 — re-enable before sending.</p>;
+                    return null;
+                  })()}
                 </div>
 
                 {/* Template POOL per currently-selected status — add 5-6
