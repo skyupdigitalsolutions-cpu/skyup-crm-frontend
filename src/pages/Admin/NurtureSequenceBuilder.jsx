@@ -278,8 +278,18 @@ function TemplatePreview({ industry, service, stage, variation, templates, onVar
             ⏸ Paused
           </span>
         ) : (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-[#8B92A9] self-center ml-1">
+          <span
+            className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-[#8B92A9] self-center ml-1"
+            title={cached?.rawStatusField || "MSG91 returned no status field"}
+          >
             {statusLabel}
+          </span>
+        )}
+
+        {/* Show exactly what MSG91 sent, so the status is never a mystery */}
+        {cached?.rawStatusField && (
+          <span className="text-[9px] text-[#8B92A9] self-center ml-1 opacity-70">
+            (MSG91: {cached.rawStatusField})
           </span>
         )}
         {notSynced && (
@@ -599,7 +609,7 @@ export default function NurtureSequenceBuilder() {
                     {tplStats
                       ? <>
                           Templates synced: <b className="text-[#0F1117] dark:text-[#F0F2FA]">{tplStats.total}</b>
-                          {" · "}<span className="text-[#38D39F]">{tplStats.approved || tplStats.nurture} approved</span>
+                          {" · "}<span className="text-[#38D39F]">{tplStats.approved ?? 0} approved</span>
                           {(tplStats.pending||0) > 0 && <span className="text-[#F5B547] ml-1">· {tplStats.pending} pending</span>}
                           {(tplStats.rejected||0) > 0 && <span className="text-[#DC2626] ml-1">· {tplStats.rejected} rejected</span>}
                         </>
@@ -711,7 +721,7 @@ export default function NurtureSequenceBuilder() {
                         return (<>
                           <p className="text-[10px] text-[#38D39F] mt-2">
                             {_ac} approved template(s) synced from MSG91 for this stage
-                            ({tplStats.approved || tplStats.nurture} approved total).
+                            ({tplStats.approved ?? 0} approved of {tplStats.nurture} nurture templates).
                           </p>
                           {(tplStats.pending||0) > 0 && <p className="text-[10px] text-[#F5B547] mt-1">⚠ {tplStats.pending} pending Meta approval — skipped until approved.</p>}
                           {(tplStats.rejected||0) > 0 && <p className="text-[10px] text-[#DC2626] mt-1">✕ {tplStats.rejected} rejected by Meta — cannot be sent.</p>}
