@@ -64,7 +64,7 @@ const SVC_DATA = {
     fix:"We design clean, professional creatives and branding for {{2}} so you instantly look premium and trustworthy.",
     pains:["Your posts and posters look basic and don't match the quality of your work.","Your brand looks different everywhere — no consistent, professional look.","You lose {cust} to competitors who simply look more trustworthy.","You waste time making creatives yourself in Canva.","You don't have a proper logo or brand identity yet."]},
   "Social Media Marketing":{ title:"Social Media", e:"📱", d1:"Regular posts, done for you", d2:"More followers that become customers",
-    fix:"We handle {{2}}\'s Instagram & Facebook with a proper content plan — regular posts and reels that build an audience and bring enquiries.",
+    fix:"We handle {{2}}'s Instagram & Facebook with a proper content plan — regular posts and reels that build an audience and bring enquiries.",
     pains:["Your Instagram/Facebook is inactive, so people think you're not serious.","You post sometimes, but there's no plan and no enquiries from it.","Your competitors are active on social and grabbing your {cust}' attention.","You just don't have time to post regularly.","You get followers, but they never turn into customers."]},
 };
 
@@ -570,16 +570,22 @@ export default function NurtureSequenceBuilder() {
                             </div>
                           </div>
 
-                          {previewIndustry && previewService ? (() => {
-                            const stage = draft.action.whatsapp.funnelStage;
-                            const body = buildPreview(previewIndustry, previewService, stage, previewVariation);
-                            const tplName = `${previewIndustry.toLowerCase().replace(/[^a-z0-9]+/g,"_")}_${previewService.toLowerCase().replace(/[^a-z0-9]+/g,"_")}_${stage}_v${previewVariation + 1}`;
-                            const inCache = templates.some(t => t.name === tplName);
+                          {(previewIndustry && previewService) ? (() => {
+                            const _stage    = draft.action.whatsapp.funnelStage;
+                            const _rawBody  = buildPreview(previewIndustry, previewService, _stage, previewVariation);
+                            const _slug     = (x) => x.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+                            const _tplName  = `${_slug(previewIndustry)}_${_slug(previewService)}_${_stage}_v${previewVariation + 1}`;
+                            const _inCache  = templates.some((t) => t.name === _tplName);
+                            const _bizName  = previewIndustry === "Healthcare" ? "City Clinic" : `${previewIndustry} Co.`;
+                            // Remove *bold* markers and replace variables for display
+                            const _display  = _rawBody
+                              .replace(/\*([^*]+)\*/g, "$1")
+                              .split("{{1}}").join("Rahul")
+                              .split("{{2}}").join(_bizName);
                             return (
                               <div className="p-3">
-                                {/* Variation tabs */}
-                                <div className="flex gap-1 mb-2">
-                                  {[0,1,2,3,4].map(v => (
+                                <div className="flex gap-1 mb-2 flex-wrap">
+                                  {[0,1,2,3,4].map((v) => (
                                     <button
                                       key={v}
                                       type="button"
@@ -592,21 +598,15 @@ export default function NurtureSequenceBuilder() {
                                     >V{v + 1}</button>
                                   ))}
                                   <code className="ml-auto text-[10px] self-center text-[#8B92A9] bg-[#F8F9FC] dark:bg-[#13161E] px-2 py-0.5 rounded">
-                                    {tplName}
+                                    {_tplName}
                                   </code>
-                                  {inCache
+                                  {_inCache
                                     ? <span className="text-[10px] text-[#38D39F] self-center ml-1">✓ approved</span>
                                     : <span className="text-[10px] text-[#F5B547] self-center ml-1">not in cache</span>
                                   }
                                 </div>
-
-                                {/* WhatsApp-style message bubble */}
                                 <div className="rounded-[4px_14px_14px_14px] bg-[#075E54] text-white text-[12.5px] leading-relaxed p-3 whitespace-pre-wrap">
-                                  {body
-                                    .replace(/\*([^*]+)\*/g, "$1")
-                                    .replace(/{{1}}/g, "Rahul")
-                                    .replace(/{{2}}/g, previewIndustry === "Healthcare" ? "City Clinic" : `${previewIndustry} Co.`)
-                                  }
+                                  {_display}
                                 </div>
                                 <p className="text-[9px] text-[#8B92A9] mt-1">
                                   Preview replaces {"{{"+"1}}"} = "Rahul" and {"{{"+"2}}"} = business name. Real send uses the lead's actual values.
