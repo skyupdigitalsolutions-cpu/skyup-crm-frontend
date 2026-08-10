@@ -48,6 +48,95 @@ function normalizePhone(p) {
   return digits.slice(-10); // always compare last 10 digits
 }
 
+// ── Message reconciliation (fixes the "sent message shows twice" bug) ─────────
+// When an agent sends a message we first drop an OPTIMISTIC placeholder into the
+// list with a temporary id (`opt_…`). The real message then arrives by TWO
+// independent paths that race each other:
+//   • the POST /whatsapp/send response (carries the real _id + waMessageId), and
+//   • the socket `wa_message` echo the backend broadcasts to the company room
+//     (carries the real _id).
+// The old code only de-duplicated by _id, so when the socket echo won the race
+// it didn't recognise the `opt_…` placeholder and appended a SECOND copy — you
+// saw two "hello"s until a refresh reloaded the single DB row. upsertMessages()
+// merges instead of blindly appending: it reconciles by _id, then waMessageId,
+// then (for our own outbound) the matching pending placeholder — so the message
+// only ever appears once, whichever path arrives first.
+function upsertMessages(prev, incoming) {
+  if (!incoming) return prev;
+
+  // 1) Same _id already in the list → update it in place.
+  if (incoming._id) {
+    const i = prev.findIndex((m) => m._id && String(m._id) === String(incoming._id));
+    if (i !== -1) {
+      const next = prev.slice();
+      next[i] = { ...next[i], ...incoming };
+      return next;
+    }
+  }
+
+  // 2) Same provider waMessageId already present → update it in place. Covers
+  //    the case where the placeholder was already reconciled to the real id by
+  //    one path and the other path arrives with the same waMessageId.
+  if (incoming.waMessageId) {
+    const i = prev.findIndex(
+      (m) => m.waMessageId && String(m.waMessageId) === String(incoming.waMessageId)
+    );
+    if (i !== -1) {
+      const next = prev.slice();
+      next[i] = { ...next[i], ...incoming };
+      return next;
+    }
+  }
+
+  // 3) Our own outbound echo → reconcile the oldest still-pending optimistic
+  //    placeholder of the same type + body instead of appending a duplicate.
+  if (incoming.direction === "outbound") {
+    const i = prev.findIndex(
+      (m) =>
+        String(m._id || "").startsWith("opt_") &&
+        m.direction === "outbound" &&
+        (m.messageType || "text") === (incoming.messageType || "text") &&
+        String(m.body || "") === String(incoming.body || "")
+    );
+    if (i !== -1) {
+      const next = prev.slice();
+      next[i] = { ...next[i], ...incoming };
+      return next;
+    }
+  }
+
+  // 4) Genuinely new → append.
+  return [...prev, incoming];
+}
+
+// Collapse any accidental duplicates that share an _id or waMessageId, keeping
+// the first occurrence (with later fields merged in). Used after reconciling an
+// optimistic send, in case the socket echo had already appended a copy.
+function dedupeMessages(list) {
+  const out = [];
+  const byId = new Map();
+  const byWa = new Map();
+  for (const m of list) {
+    const idKey = m._id ? String(m._id) : null;
+    const waKey = m.waMessageId ? String(m.waMessageId) : null;
+    const existingIdx =
+      (idKey && byId.has(idKey) ? byId.get(idKey) : undefined) ??
+      (waKey && byWa.has(waKey) ? byWa.get(waKey) : undefined);
+    if (existingIdx !== undefined) {
+      out[existingIdx] = { ...out[existingIdx], ...m };
+      const merged = out[existingIdx];
+      if (merged._id) byId.set(String(merged._id), existingIdx);
+      if (merged.waMessageId) byWa.set(String(merged.waMessageId), existingIdx);
+      continue;
+    }
+    const idx = out.push(m) - 1;
+    if (idKey) byId.set(idKey, idx);
+    if (waKey) byWa.set(waKey, idx);
+  }
+  return out;
+}
+
+
 // ── Avatar ────────────────────────────────────────────────────────────────────
 function Avatar({ name, size = "md" }) {
   const initials = (name || "?").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
@@ -1579,10 +1668,7 @@ export default function UserLeadCommunication() {
           if (msg.direction === "inbound" && newExpiry) {
             setConversation((prev) => prev ? { ...prev, sessionExpiresAt: newExpiry, status: "waiting" } : prev);
           }
-          setMessages((prev) => {
-            if (prev.some((m) => m._id && String(m._id) === String(msg._id))) return prev;
-            return [...prev, msg];
-          });
+          setMessages((prev) => upsertMessages(prev, msg));
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         }
         return;
@@ -1600,13 +1686,7 @@ export default function UserLeadCommunication() {
             prev ? { ...prev, sessionExpiresAt: newExpiry, status: "waiting" } : prev
           );
         }
-        setMessages((prev) => {
-          if (prev.some((m) => m._id && String(m._id) === String(msg._id))) {
-            console.log("[WA-DEBUG] msg already in list (dedup) — skip");
-            return prev;
-          }
-          return [...prev, msg];
-        });
+        setMessages((prev) => upsertMessages(prev, msg));
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         return;
       }
@@ -1661,10 +1741,7 @@ export default function UserLeadCommunication() {
             .catch(() => {});
         } else {
           // Case 2b: No conversation loaded yet → append directly
-          setMessages((prev) => {
-            if (prev.some((m) => m._id && String(m._id) === String(msg._id))) return prev;
-            return [...prev, msg];
-          });
+          setMessages((prev) => upsertMessages(prev, msg));
           if (newExpiry) {
             setConversation((prev) =>
               prev ? { ...prev, sessionExpiresAt: newExpiry, status: "waiting" } : prev
@@ -1757,7 +1834,13 @@ export default function UserLeadCommunication() {
         authHeaders
       );
       const sentMsg = data?.message || data;
-      setMessages((prev) => prev.map((m) => m._id === optimistic._id ? { ...optimistic, ...sentMsg } : m));
+      // Reconcile our placeholder with the saved message, then dedupe in case
+      // the socket echo already appended a copy (see upsertMessages comment).
+      setMessages((prev) =>
+        dedupeMessages(
+          prev.map((m) => (m._id === optimistic._id ? { ...optimistic, ...sentMsg } : m))
+        )
+      );
       if (selected?._id) bumpActivity(selected._id, { text, isTemplate: false });
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
@@ -1816,7 +1899,11 @@ export default function UserLeadCommunication() {
 
       const { data } = await axios.post(`${API_URL}/whatsapp/send-media`, fd, authHeaders);
       const sentMsg = data?.message || data;
-      setMessages((prev) => prev.map((m) => (m._id === optimistic._id ? { ...optimistic, ...sentMsg } : m)));
+      setMessages((prev) =>
+        dedupeMessages(
+          prev.map((m) => (m._id === optimistic._id ? { ...optimistic, ...sentMsg } : m))
+        )
+      );
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
       const code = err.response?.data?.code;
@@ -2256,7 +2343,7 @@ export default function UserLeadCommunication() {
                     conversationId={conversation._id}
                     authHeaders={authHeaders}
                     onSent={(msg, sentTemplateName) => {
-                      setMessages((prev) => [...prev, msg]);
+                      setMessages((prev) => upsertMessages(prev, msg));
                       if (selected?._id) {
                         bumpActivity(selected._id, {
                           text: sentTemplateName || msg.templateName || msg.body || "Template sent",
