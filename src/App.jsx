@@ -13,6 +13,7 @@ import TermsGate from "./components/TermsGate";
 import { NotificationProvider, NotificationBell } from "./components/NotificationProvider";
 import { clearFeaturesCache } from "./hooks/usePlanFeatures";
 import TelegramSettings from "./components/TelegramSettings";
+import DailyReportTelegramSettings from "./components/DailyReportTelegramSettings";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
 const Dashboard      = lazy(() => import("./components/Dashboard"));
@@ -358,6 +359,10 @@ function CompanyHeader() {
         {/* Telegram campaign notifications — admin and superadmin only */}
         {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
           <TelegramSettings />
+        )}
+        {/* Daily Telegram Report settings — admin and superadmin only */}
+        {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
+          <DailyReportTelegramSettings />
         )}
         <span className={`whitespace-nowrap shrink-0 text-[10px] sm:text-[11px] font-semibold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border ${roleColor}`}>
           {roleLabel}
