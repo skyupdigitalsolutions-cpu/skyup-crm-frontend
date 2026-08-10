@@ -1252,6 +1252,17 @@ export default function UserLeadCommunication() {
   const selectedRef      = useRef(null);   // selected lead
   const convLeadMapRef   = useRef({});
 
+  // Monotonic request tokens. Each time we START loading a conversation or its
+  // messages we bump the matching counter; an in-flight response is only
+  // allowed to write state / toggle its loading flag if it is STILL the latest
+  // request. This kills the "works once, then keeps spinning" bug, which was a
+  // stale-response race: switching leads (or a socket event changing
+  // `conversation` mid-flight) let an older fetch resolve after a newer one and
+  // either (a) clobber the current conversation's _id — causing an endless
+  // re-fetch ping-pong — or (b) leave loadingConv/loadingMsgs stuck true.
+  const convReqRef = useRef(0);
+  const msgsReqRef = useRef(0);
+
   useEffect(() => { conversationRef.current  = conversation;  }, [conversation]);
   useEffect(() => { selectedRef.current      = selected;      }, [selected]);
   useEffect(() => { convLeadMapRef.current   = convLeadMap;   }, [convLeadMap]);
@@ -1386,9 +1397,17 @@ export default function UserLeadCommunication() {
 
   // ── Look up conversation when a lead is selected ─────────────────────────
   useEffect(() => {
-    if (!selected?._id) {
+    const leadId = selected?._id;
+    // Bump the token FIRST so any still-in-flight conversation request from a
+    // previously selected lead is immediately considered stale and can neither
+    // write state nor flip loadingConv.
+    const reqId = ++convReqRef.current;
+    const isCurrent = () => reqId === convReqRef.current;
+
+    if (!leadId) {
       setConversation(null);
       setMessages([]);
+      setLoadingConv(false); // nothing to load — make sure the spinner clears
       return;
     }
     setLoadingConv(true);
@@ -1397,41 +1416,59 @@ export default function UserLeadCommunication() {
     setSendError("");
     setShowTemplatePanel(false);
     axios
-      .get(`${API_URL}/whatsapp/conversation-by-lead/${selected._id}`, authHeaders)
+      .get(`${API_URL}/whatsapp/conversation-by-lead/${leadId}`, authHeaders)
       .then((res) => {
+        if (!isCurrent()) return; // superseded by a newer selection — drop it
         const conv = res.data?.conversation || null;
         if (conv) {
           const convIdStr = String(conv._id);
           setConversation(conv);
           // Build the map so socket handler can look up which lead a convId belongs to
-          setConvLeadMap((prev) => ({ ...prev, [convIdStr]: selected._id }));
+          setConvLeadMap((prev) => ({ ...prev, [convIdStr]: leadId }));
           // Clear unread badge for this lead
-          setUnreadCounts((prev) => { const n = { ...prev }; delete n[selected._id]; return n; });
+          setUnreadCounts((prev) => { const n = { ...prev }; delete n[leadId]; return n; });
         } else {
           setConversation(null);
         }
       })
-      .catch(() => setConversation(null))
-      .finally(() => setLoadingConv(false));
+      .catch(() => { if (isCurrent()) setConversation(null); })
+      .finally(() => { if (isCurrent()) setLoadingConv(false); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?._id]);
 
   // ── Load messages once conversation is resolved ────────────────────────────
   useEffect(() => {
-    if (!conversation?._id) return;
+    const convId = conversation?._id;
+    const reqId = ++msgsReqRef.current;
+    const isCurrent = () => reqId === msgsReqRef.current;
+
+    // When the conversation clears (e.g. while switching leads) make sure the
+    // in-chat spinner is turned off — otherwise a superseded request that never
+    // ran its finally could leave it stuck on.
+    if (!convId) { setLoadingMsgs(false); return; }
+
     setLoadingMsgs(true);
     axios
-      .get(`${API_URL}/whatsapp/conversations/${conversation._id}/messages`, authHeaders)
+      .get(`${API_URL}/whatsapp/conversations/${convId}/messages`, authHeaders)
       .then((res) => {
+        if (!isCurrent()) return; // superseded — a newer conversation is loading
         const d = res.data;
         setMessages(Array.isArray(d) ? d : d?.messages || []);
-        // Sync fresh conversation meta (sessionExpiresAt) from the messages endpoint
+        // Sync fresh conversation meta (sessionExpiresAt, status…) from the
+        // messages endpoint — but NEVER change _id here. Previously a stale
+        // response for a lead you'd already navigated away from could merge its
+        // _id back onto the current conversation, which re-triggered this very
+        // effect and produced an endless "keeps loading" loop. Only merge when
+        // the response is still for the conversation on screen, and pin _id.
         if (d?.conversation) {
-          setConversation((prev) => prev ? { ...prev, ...d.conversation } : d.conversation);
+          setConversation((prev) => {
+            if (!prev || String(prev._id) !== String(convId)) return prev;
+            return { ...prev, ...d.conversation, _id: prev._id };
+          });
         }
       })
-      .catch(() => setMessages([]))
-      .finally(() => setLoadingMsgs(false));
+      .catch(() => { if (isCurrent()) setMessages([]); })
+      .finally(() => { if (isCurrent()) setLoadingMsgs(false); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation?._id]);
 
