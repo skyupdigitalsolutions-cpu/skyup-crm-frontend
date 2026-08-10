@@ -1017,10 +1017,7 @@ function DeveloperDailyReportPanel({ companyId, showToast }) {
   const loadConfig = useCallback(async () => {
     setLoading(true);
     try {
-      // Developer calls with x-company-id header so backend resolves correct company
-      const res = await api.get("/daily-report/settings", {
-        headers: { "x-company-id": companyId },
-      });
+      const res = await api.get(`/developer/companies/${companyId}/daily-report/settings`);
       const d = res.data || {};
       const s = {
         enabled: d.enabled || false, telegramBotToken: d.telegramBotToken || "",
@@ -1038,9 +1035,7 @@ function DeveloperDailyReportPanel({ companyId, showToast }) {
   const loadHistory = useCallback(async () => {
     setHistLoading(true);
     try {
-      const res = await api.get("/daily-report/history", {
-        headers: { "x-company-id": companyId },
-      });
+      const res = await api.get(`/developer/companies/${companyId}/daily-report/history`);
       setHistory(res.data?.history || []);
     } catch { /* silent */ }
     finally { setHistLoading(false); }
@@ -1065,9 +1060,7 @@ function DeveloperDailyReportPanel({ companyId, showToast }) {
       if (draft.telegramBotToken.trim() && !draft.telegramBotToken.includes("•")) {
         payload.telegramBotToken = draft.telegramBotToken.trim();
       }
-      await api.put("/daily-report/settings", payload, {
-        headers: { "x-company-id": companyId },
-      });
+      await api.put(`/developer/companies/${companyId}/daily-report/settings`, payload);
       setSaved(prev => ({ ...prev, ...payload, configured: !!(payload.telegramBotToken || prev?.configured) && !!payload.telegramChatId }));
       setDraft(prev => ({ ...prev, telegramBotToken: "" }));
       showToast("Daily report settings saved.", true);
@@ -1079,7 +1072,7 @@ function DeveloperDailyReportPanel({ companyId, showToast }) {
   const handleTest = async () => {
     setTesting(true);
     try {
-      await api.post("/daily-report/test", {}, { headers: { "x-company-id": companyId } });
+      await api.post(`/developer/companies/${companyId}/daily-report/test`);
       showToast("Test report sent to Telegram.", true);
     } catch (e) {
       showToast(e.response?.data?.message || "Test failed — check token and chat ID.", false);
@@ -1089,7 +1082,7 @@ function DeveloperDailyReportPanel({ companyId, showToast }) {
   const handleSendNow = async () => {
     setSendingNow(true);
     try {
-      const res = await api.post("/daily-report/send-now", {}, { headers: { "x-company-id": companyId } });
+      const res = await api.post(`/developer/companies/${companyId}/daily-report/send-now`);
       showToast(res.data?.skipped ? "Report already sent for today." : "Report sent successfully.", true);
       loadHistory();
     } catch (e) {
