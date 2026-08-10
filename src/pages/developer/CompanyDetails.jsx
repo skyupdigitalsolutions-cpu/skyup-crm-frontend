@@ -54,6 +54,7 @@ const FEATURE_GROUPS = [
     { key: "leadNurtureSequence", label: "Lead Nurture Sequence" },
     { key: "callOutcomesReport",  label: "Call Outcomes Report (Answered/Not Answered)" },
     { key: "metaConversionSync",  label: "Meta Conversions API Send-Back (status → CAPI event)" },
+    { key: "googleSheetIntegration", label: "Excel / Google Sheet Integration (Employee) — makes it available; company admin still has to enable it" },
   ]},
 ];
 const ALL_FEATURE_KEYS = FEATURE_GROUPS.flatMap(g => g.items.map(i => i.key));
