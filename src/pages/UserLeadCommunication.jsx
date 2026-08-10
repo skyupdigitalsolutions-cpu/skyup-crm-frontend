@@ -225,7 +225,7 @@ function ReEngageWidget({ conversationId, authHeaders, onSent }) {
         { conversationId, templateName: templateName.trim(), languageCode },
         authHeaders
       );
-      onSent(data.message);
+      onSent(data.message, templateName.trim());
       setTemplateName("");
     } catch (err) {
       setError(err.response?.data?.error || "Failed to send template");
@@ -476,7 +476,7 @@ function StartConversationPane({ lead, authHeaders, apiUrl, onStarted }) {
         { phone, contactName: lead.name, templateName: templateName.trim(), languageCode: langCode },
         authHeaders
       );
-      onStarted(data.conversation);
+      onStarted(data.conversation, templateName.trim());
     } catch (e) {
       setError(e.response?.data?.error || e.response?.data?.message || "Failed to start conversation");
     } finally {
@@ -1220,6 +1220,24 @@ export default function UserLeadCommunication() {
   const [search,            setSearch]            = useState("");
   // unread counts keyed by lead._id
   const [unreadCounts,      setUnreadCounts]      = useState({});
+  // FEATURE: recency + preview tracking for the lead list.
+  //   lastActivityAt   — keyed by lead._id → ISO/Date of the most recent
+  //                       message (inbound OR outbound). Used to sort the
+  //                       list so a lead stays near the top based on WHEN it
+  //                       was last active, not on whether it's currently
+  //                       unread. This is what fixes "a new message jumps to
+  //                       the top, then jumps away again the instant it's
+  //                       opened" — previously the list was sorted PURELY by
+  //                       unreadCounts, so reading a message (which zeroes
+  //                       its count) immediately dropped it out of position
+  //                       with nothing to hold its place.
+  //   lastMessagePreview — keyed by lead._id → { text, isTemplate }, shown as
+  //                       a one-line snippet under the lead's name so an
+  //                       agent can see what was last sent (including
+  //                       templates) without opening the chat — this is the
+  //                       "track of what template he sent" visibility.
+  const [lastActivityAt,     setLastActivityAt]     = useState({});
+  const [lastMessagePreview, setLastMessagePreview] = useState({});
   // Total unread inbound messages across all of this agent's leads (header badge)
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + (b || 0), 0);
   // maps conversationId (string) → lead._id (string) — built as leads are clicked
@@ -1265,13 +1283,29 @@ export default function UserLeadCommunication() {
         const byLead  = data?.byLead  || {};
         const byPhone = data?.byPhone || {};
         const next = {};
+        // FEATURE: seed recency + preview per lead, falling back from
+        // by-lead data to by-phone data the same way the unread badge does
+        // (covers conversations not yet linked to a lead record).
+        const atByLead   = data?.lastMessageAtByLead      || {};
+        const atByPhone  = data?.lastMessageAtByPhone     || {};
+        const pvByLead   = data?.lastMessagePreviewByLead  || {};
+        const pvByPhone  = data?.lastMessagePreviewByPhone || {};
+        const nextAt = {};
+        const nextPreview = {};
         for (const l of leads) {
           const id  = String(l._id);
           const p10 = normalizePhone(l.mobile || l.phone || l.primaryPhone || "");
           const n   = byLead[id] || (p10 ? byPhone[p10] : 0) || 0;
           if (n > 0) next[id] = n;
+
+          const at = atByLead[id] || (p10 ? atByPhone[p10] : null);
+          if (at) nextAt[id] = at;
+          const preview = pvByLead[id] ?? (p10 ? pvByPhone[p10] : undefined);
+          if (preview !== undefined) nextPreview[id] = preview;
         }
         setUnreadCounts(next);
+        setLastActivityAt(nextAt);
+        setLastMessagePreview(nextPreview);
       })
       .catch(() => {});
   }, [leads]);
@@ -1289,6 +1323,21 @@ export default function UserLeadCommunication() {
         try { window.dispatchEvent(new Event("wa_unread_refresh")); } catch (_) {}
       })
       .catch(() => {});
+  }, []);
+
+  // FEATURE: keep a lead's recency + preview fresh locally the instant a
+  // message goes either direction, without waiting for a full page reload of
+  // /whatsapp/unread-counts. Called from the socket handler (inbound/outbound
+  // arriving live) and from the send handlers (this agent's own outbound
+  // sends, including the very first template that starts a conversation).
+  const bumpActivity = useCallback((leadId, { text = "", isTemplate = false, at } = {}) => {
+    if (!leadId) return;
+    const id = String(leadId);
+    setLastActivityAt((prev) => ({ ...prev, [id]: at || new Date().toISOString() }));
+    setLastMessagePreview((prev) => ({
+      ...prev,
+      [id]: isTemplate ? `📄 Template: ${text || "sent"}` : String(text || "").slice(0, 120),
+    }));
   }, []);
 
   // ── Opening a chat clears its red badge immediately ─────────────────────────
@@ -1468,6 +1517,7 @@ export default function UserLeadCommunication() {
       // matching needed, immune to masked numbers and duplicate conversations) ─
       if (incomingLeadId && currentLead?._id && String(incomingLeadId) === String(currentLead._id)) {
         console.log("[WA-DEBUG] Case 0 fired — inbound belongs to the OPEN lead");
+        bumpActivity(currentLead._id, { text: msg.body, isTemplate: !!msg.isTemplate, at: msg.waTimestamp });
         // The agent is looking at this chat, so it is read the moment it lands.
         if (msg.direction === "inbound") markRead(incomingConvId);
         // If the open conversation is a different record than where the message
@@ -1504,6 +1554,9 @@ export default function UserLeadCommunication() {
       // ── Case 1: Exact conversation ID match ──────────────────────────────
       if (currentConv && String(currentConv._id) === String(incomingConvId)) {
         console.log("[WA-DEBUG] Case 1 fired — appending msg to open chat");
+        if (currentLead?._id) {
+          bumpActivity(currentLead._id, { text: msg.body, isTemplate: !!msg.isTemplate, at: msg.waTimestamp });
+        }
         if (msg.direction === "inbound") markRead(incomingConvId);
         if (msg.direction === "inbound" && newExpiry) {
           setConversation((prev) =>
@@ -1543,6 +1596,9 @@ export default function UserLeadCommunication() {
 
       if (phoneMatchesCurrentLead) {
         console.log("[WA-DEBUG] Case 2 fired — phone matches selected lead");
+        if (currentLead?._id) {
+          bumpActivity(currentLead._id, { text: msg.body, isTemplate: !!msg.isTemplate, at: msg.waTimestamp });
+        }
         if (currentConv && String(currentConv._id) !== String(incomingConvId)) {
           // Case 2a: Different conv ID → re-fetch from the authoritative conv
           axios
@@ -1590,6 +1646,7 @@ export default function UserLeadCommunication() {
           console.log("[WA-DEBUG] Case 3a — mapped to lead, bumping badge", leadId);
           setConvLeadMap((prev) => ({ ...prev, [String(incomingConvId)]: leadId }));
           setUnreadCounts((prev) => ({ ...prev, [leadId]: (prev[leadId] || 0) + 1 }));
+          bumpActivity(leadId, { text: msg.body, isTemplate: !!msg.isTemplate, at: msg.waTimestamp });
         } else if (inboundPhone) {
           setLeads((prevLeads) => {
             const matchedLead = prevLeads.find(
@@ -1605,6 +1662,7 @@ export default function UserLeadCommunication() {
                 ...prev,
                 [matchedLead._id]: (prev[matchedLead._id] || 0) + 1,
               }));
+              bumpActivity(matchedLead._id, { text: msg.body, isTemplate: !!msg.isTemplate, at: msg.waTimestamp });
             } else {
               console.warn("[WA-DEBUG] Case 3c — inbound phone", inboundPhone, "matches NO lead in this employee's list. Lead is not assigned to this user.");
             }
@@ -1663,6 +1721,7 @@ export default function UserLeadCommunication() {
       );
       const sentMsg = data?.message || data;
       setMessages((prev) => prev.map((m) => m._id === optimistic._id ? { ...optimistic, ...sentMsg } : m));
+      if (selected?._id) bumpActivity(selected._id, { text, isTemplate: false });
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
       const code = e.response?.data?.code;
@@ -1674,7 +1733,7 @@ export default function UserLeadCommunication() {
     } finally {
       setSending(false);
     }
-  }, [msgText, conversation, sending]);
+  }, [msgText, conversation, sending, selected, bumpActivity]);
 
   // ── Send an attachment (photo / video / audio / document / GIF) ─────────────
   // The file is POSTed as multipart to /whatsapp/send-media; the backend uploads
@@ -1806,11 +1865,25 @@ export default function UserLeadCommunication() {
         (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
         (l.mobile || l.phone || "").includes(search)
     )
-    // Pin leads with unread inbound messages (the red badge) to the top of the
-    // list, highest unread count first. Array.prototype.sort is stable, so
-    // leads with no unread messages keep their original server order below.
-    // .filter() already returned a fresh array, so this does not mutate `leads`.
-    .sort((a, b) => (unreadCounts[b._id] || 0) - (unreadCounts[a._id] || 0));
+    // FIX (reordering-on-read): the list used to be sorted PURELY by unread
+    // count. That is exactly why a lead jumped to the top on a new message and
+    // then dropped away the instant it was opened — opening a chat zeroes its
+    // unread count, and with no other sort key it fell back to arbitrary order.
+    //
+    // Sort by LAST ACTIVITY time instead (most recent first), the way every
+    // normal chat app does. Reading a message no longer changes a lead's
+    // position — the red unread badge still communicates "unread", but it is
+    // no longer what decides the order. Leads with any WhatsApp activity sort
+    // above leads with none; among leads with no activity we keep the original
+    // server order (Array.prototype.sort is stable). .filter() already returned
+    // a fresh array, so this does not mutate `leads`.
+    .sort((a, b) => {
+      const ta = lastActivityAt[a._id] ? new Date(lastActivityAt[a._id]).getTime() : 0;
+      const tb = lastActivityAt[b._id] ? new Date(lastActivityAt[b._id]).getTime() : 0;
+      if (tb !== ta) return tb - ta;
+      // Tie-breaker for leads with equal/absent activity: surface unread ones.
+      return (unreadCounts[b._id] || 0) - (unreadCounts[a._id] || 0);
+    });
 
   const session = conversation?.sessionExpiresAt ? sessionBanner(conversation.sessionExpiresAt) : null;
   const isClosed = conversation?.status === "closed";
@@ -1973,6 +2046,16 @@ export default function UserLeadCommunication() {
                       <div className="flex-1 min-w-0">
                         <p className={`text-[13px] truncate ${unread ? "font-bold text-[#0F1117] dark:text-white" : "font-semibold text-[#0F1117] dark:text-[#E9EDEF]"}`}>{lead.name}</p>
                         <p className="text-[11px] text-[#8B92A9] truncate">{maskPhone(lead.mobile || lead.phone)}</p>
+                        {/* FEATURE: last-message / last-template preview. Lets the
+                            agent see what was last sent to this lead — including
+                            whether a template already went out — without opening
+                            the chat, so they can track re-engagement at a glance.
+                            Rendered only when we actually have a preview. */}
+                        {lastMessagePreview[lead._id] ? (
+                          <p className={`text-[11px] truncate ${unread ? "text-[#0F1117] dark:text-[#E9EDEF] font-medium" : "text-[#A6ABBD] dark:text-[#6B7280]"}`}>
+                            {lastMessagePreview[lead._id]}
+                          </p>
+                        ) : null}
                       </div>
                       {unread > 0 ? (
                         <span
@@ -2012,12 +2095,15 @@ export default function UserLeadCommunication() {
               lead={selected}
               authHeaders={authHeaders}
               apiUrl={API_URL}
-              onStarted={(conv) => {
+              onStarted={(conv, sentTemplateName) => {
                 if (!conv) return;
                 const convIdStr = String(conv._id);
                 setConversation(conv);
                 setConvLeadMap((prev) => ({ ...prev, [convIdStr]: selected._id }));
                 setMessages([]);
+                if (sentTemplateName) {
+                  bumpActivity(selected._id, { text: sentTemplateName, isTemplate: true });
+                }
                 // Fetch messages after start
                 axios
                   .get(`${API_URL}/whatsapp/conversations/${conv._id}/messages`, authHeaders)
@@ -2132,8 +2218,14 @@ export default function UserLeadCommunication() {
                   <ReEngageWidget
                     conversationId={conversation._id}
                     authHeaders={authHeaders}
-                    onSent={(msg) => {
+                    onSent={(msg, sentTemplateName) => {
                       setMessages((prev) => [...prev, msg]);
+                      if (selected?._id) {
+                        bumpActivity(selected._id, {
+                          text: sentTemplateName || msg.templateName || msg.body || "Template sent",
+                          isTemplate: true,
+                        });
+                      }
                       // IMPORTANT: sending a template does NOT open WhatsApp's
                       // 24h session — only the LEAD's reply does (this mirrors
                       // the backend, which intentionally leaves
