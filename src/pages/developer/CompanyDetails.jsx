@@ -17,7 +17,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Loader2, Save, CheckCircle, XCircle, AlertTriangle,
   ToggleLeft, Sliders, Package, Gift, Sparkles, ScrollText,
-  Plus, X, Trash2, RefreshCw, Cloud, HardDrive,
+  Plus, X, Trash2, RefreshCw, Cloud, HardDrive, BarChart2, Eye, EyeOff,
 } from "lucide-react";
 import api from "../../data/axiosConfig";
 import AddonManager from "../../components/AddonManager";
@@ -96,13 +96,14 @@ const CREDIT_TYPES = ["transcription_summary_100mins"];
 const STATUS_OPTIONS = ["active", "trial", "paused", "suspended", "cancelled"];
 
 const TABS = [
-  { id: "features", label: "Features",   icon: ToggleLeft },
-  { id: "limits",   label: "Limits",     icon: Sliders },
-  { id: "addons",   label: "Addons",     icon: Package },
-  { id: "benefits", label: "Benefits",   icon: Gift },
-  { id: "credits",  label: "AI Credits", icon: Sparkles },
-  { id: "storage",  label: "Storage",    icon: HardDrive },
-  { id: "activity", label: "Activity",   icon: ScrollText },
+  { id: "features",      label: "Features",      icon: ToggleLeft },
+  { id: "limits",        label: "Limits",        icon: Sliders },
+  { id: "addons",        label: "Addons",        icon: Package },
+  { id: "benefits",      label: "Benefits",      icon: Gift },
+  { id: "credits",       label: "AI Credits",    icon: Sparkles },
+  { id: "storage",       label: "Storage",       icon: HardDrive },
+  { id: "daily-report",  label: "Daily Report",  icon: BarChart2 },
+  { id: "activity",      label: "Activity",      icon: ScrollText },
 ];
 
 function fmtDate(d) {
@@ -608,6 +609,11 @@ export default function CompanyDetails() {
         <CloudinaryPanel companyId={id} company={company} onRefresh={load} showToast={showToast} />
       )}
 
+      {/* ── DAILY REPORT TAB ── */}
+      {tab === "daily-report" && (
+        <DeveloperDailyReportPanel companyId={id} showToast={showToast} />
+      )}
+
       {/* ── ACTIVITY TAB ── */}
       {tab === "activity" && (
         <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl overflow-hidden">
@@ -955,6 +961,388 @@ function CloudinaryPanel({ companyId, company, onRefresh, showToast }) {
           Recordings already uploaded stay where they were; this affects new uploads.
         </p>
       </div>
+    </div>
+  );
+}
+
+// ── Developer Daily Report Panel ──────────────────────────────────────────────
+// Lets the developer view and edit the Daily Telegram Report config for any
+// company, and see the send history. Uses the same backend endpoints as the
+// admin settings panel, but called with developer auth.
+//
+// APIs: GET/PUT /daily-report/settings, POST /daily-report/test,
+//       POST /daily-report/send-now, GET /daily-report/history
+// Auth: protectAdmin on the backend — developer token passes because the
+//       developer middleware resolves company context from the URL param.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TIMEZONES_DEV = [
+  "Asia/Kolkata","Asia/Dubai","Asia/Singapore","Asia/Colombo","Asia/Dhaka",
+  "Asia/Karachi","Asia/Kathmandu","Asia/Bangkok","Asia/Kuala_Lumpur","Asia/Jakarta",
+  "Europe/London","America/New_York","America/Los_Angeles","UTC",
+];
+
+function StatusBadgeDev({ status }) {
+  const styles = {
+    sent:    "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
+    failed:  "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400",
+    skipped: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
+    pending: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
+  };
+  return (
+    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${styles[status] || styles.pending}`}>
+      {status}
+    </span>
+  );
+}
+
+function DeveloperDailyReportPanel({ companyId, showToast }) {
+  const [loading,    setLoading]    = useState(true);
+  const [saving,     setSaving]     = useState(false);
+  const [testing,    setTesting]    = useState(false);
+  const [sendingNow, setSendingNow] = useState(false);
+  const [showToken,  setShowToken]  = useState(false);
+  const [history,    setHistory]    = useState([]);
+  const [histLoading,setHistLoading]= useState(true);
+  const [activeSection, setActiveSection] = useState("config"); // "config" | "history"
+
+  const [saved, setSaved] = useState(null);
+  const [draft, setDraft] = useState({
+    enabled: false, telegramBotToken: "", telegramChatId: "",
+    reportTime: "19:00", timezone: "Asia/Kolkata", sendEmptyReport: false,
+  });
+
+  const set = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
+
+  const loadConfig = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Developer calls with x-company-id header so backend resolves correct company
+      const res = await api.get("/daily-report/settings", {
+        headers: { "x-company-id": companyId },
+      });
+      const d = res.data || {};
+      const s = {
+        enabled: d.enabled || false, telegramBotToken: d.telegramBotToken || "",
+        telegramChatId: d.telegramChatId || "", reportTime: d.reportTime || "19:00",
+        timezone: d.timezone || "Asia/Kolkata", sendEmptyReport: d.sendEmptyReport || false,
+        configured: d.configured || false,
+      };
+      setSaved(s);
+      setDraft({ ...s, telegramBotToken: "" });
+    } catch (e) {
+      showToast(e.response?.data?.message || "Failed to load daily report config", false);
+    } finally { setLoading(false); }
+  }, [companyId, showToast]);
+
+  const loadHistory = useCallback(async () => {
+    setHistLoading(true);
+    try {
+      const res = await api.get("/daily-report/history", {
+        headers: { "x-company-id": companyId },
+      });
+      setHistory(res.data?.history || []);
+    } catch { /* silent */ }
+    finally { setHistLoading(false); }
+  }, [companyId]);
+
+  useEffect(() => { loadConfig(); loadHistory(); }, [loadConfig, loadHistory]);
+
+  const hasChanges = saved && (
+    draft.enabled !== saved.enabled || draft.telegramChatId !== saved.telegramChatId ||
+    draft.reportTime !== saved.reportTime || draft.timezone !== saved.timezone ||
+    draft.sendEmptyReport !== saved.sendEmptyReport || draft.telegramBotToken.trim() !== ""
+  );
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        enabled: draft.enabled, telegramChatId: draft.telegramChatId.trim(),
+        reportTime: draft.reportTime, timezone: draft.timezone,
+        sendEmptyReport: draft.sendEmptyReport,
+      };
+      if (draft.telegramBotToken.trim() && !draft.telegramBotToken.includes("•")) {
+        payload.telegramBotToken = draft.telegramBotToken.trim();
+      }
+      await api.put("/daily-report/settings", payload, {
+        headers: { "x-company-id": companyId },
+      });
+      setSaved(prev => ({ ...prev, ...payload, configured: !!(payload.telegramBotToken || prev?.configured) && !!payload.telegramChatId }));
+      setDraft(prev => ({ ...prev, telegramBotToken: "" }));
+      showToast("Daily report settings saved.", true);
+    } catch (e) {
+      showToast(e.response?.data?.message || "Save failed.", false);
+    } finally { setSaving(false); }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      await api.post("/daily-report/test", {}, { headers: { "x-company-id": companyId } });
+      showToast("Test report sent to Telegram.", true);
+    } catch (e) {
+      showToast(e.response?.data?.message || "Test failed — check token and chat ID.", false);
+    } finally { setTesting(false); }
+  };
+
+  const handleSendNow = async () => {
+    setSendingNow(true);
+    try {
+      const res = await api.post("/daily-report/send-now", {}, { headers: { "x-company-id": companyId } });
+      showToast(res.data?.skipped ? "Report already sent for today." : "Report sent successfully.", true);
+      loadHistory();
+    } catch (e) {
+      showToast(e.response?.data?.message || "Send failed.", false);
+    } finally { setSendingNow(false); }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-[#8B92A9]" />
+      </div>
+    );
+  }
+
+  const isConfigured = saved?.configured;
+
+  return (
+    <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-[#F0F2FA] dark:border-[#1E2130] flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <BarChart2 className="w-4 h-4 text-indigo-500" />
+          <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Daily Telegram Report</h3>
+          {isConfigured && (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              saved?.enabled
+                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+                : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+            }`}>
+              {saved?.enabled ? "Enabled" : "Disabled"}
+            </span>
+          )}
+        </div>
+        {/* Section toggle */}
+        <div className="flex gap-1">
+          {[{ id:"config", label:"Config" }, { id:"history", label:"History" }].map(s => (
+            <button
+              key={s.id}
+              onClick={() => setActiveSection(s.id)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
+                activeSection === s.id
+                  ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400"
+                  : "border-[#E5E7EB] dark:border-[#262A38] text-[#6B7280] dark:text-[#9DA3BB] hover:border-[#9DA3BB]"
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeSection === "config" && (
+        <div className="px-5 py-4 space-y-4">
+
+          {/* Info banner */}
+          <div className="px-3 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/30">
+            <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
+              Configure the Daily Telegram Report for this company. Bot token is encrypted at rest.
+              Separate from campaign notification Telegram config.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            {/* Left column */}
+            <div className="space-y-3">
+              {/* Enable toggle */}
+              <div className="flex items-center justify-between p-3 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
+                <div>
+                  <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Enabled</p>
+                  <p className="text-[10px] text-[#8B92A9]">{draft.enabled ? "Reports will be sent" : "No reports sent"}</p>
+                </div>
+                <button onClick={() => set("enabled", !draft.enabled)}>
+                  {draft.enabled
+                    ? <ToggleLeft className="w-8 h-8 text-emerald-500 rotate-180" />
+                    : <ToggleLeft className="w-8 h-8 text-[#C4C9D9] dark:text-[#3E4257]" />
+                  }
+                </button>
+              </div>
+
+              {/* Bot Token */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
+                  Bot Token
+                  {saved?.configured
+                    ? <span className="ml-1.5 text-[10px] font-normal text-emerald-500">● set</span>
+                    : <span className="ml-1.5 text-[10px] font-normal text-amber-500">● not set</span>
+                  }
+                </label>
+                <div className="relative">
+                  <input
+                    type={showToken ? "text" : "password"}
+                    value={draft.telegramBotToken}
+                    onChange={e => set("telegramBotToken", e.target.value)}
+                    placeholder={saved?.configured ? "Leave blank to keep existing" : "7123456789:AAHxxxxxxxx"}
+                    className="w-full px-3 py-2 pr-8 rounded-xl border border-[#E5E7EB] dark:border-[#262A38]
+                      bg-white dark:bg-[#13161E] text-[11px] text-[#0F1117] dark:text-[#F0F2FA]
+                      placeholder:text-[#8B92A9] focus:outline-none focus:border-indigo-400 font-mono transition"
+                  />
+                  <button type="button" onClick={() => setShowToken(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-indigo-500">
+                    {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Chat ID */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
+                  Chat ID
+                  {saved?.telegramChatId && <span className="ml-1.5 text-[10px] font-normal text-emerald-500">● set</span>}
+                </label>
+                <input
+                  type="text"
+                  value={draft.telegramChatId}
+                  onChange={e => set("telegramChatId", e.target.value)}
+                  placeholder="-1001234567890"
+                  className="w-full px-3 py-2 rounded-xl border border-[#E5E7EB] dark:border-[#262A38]
+                    bg-white dark:bg-[#13161E] text-[11px] text-[#0F1117] dark:text-[#F0F2FA]
+                    placeholder:text-[#8B92A9] focus:outline-none focus:border-indigo-400 font-mono transition"
+                />
+              </div>
+            </div>
+
+            {/* Right column */}
+            <div className="space-y-3">
+              {/* Report Time */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Report Time</label>
+                <input
+                  type="time"
+                  value={draft.reportTime}
+                  onChange={e => set("reportTime", e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#E5E7EB] dark:border-[#262A38]
+                    bg-white dark:bg-[#13161E] text-[11px] text-[#0F1117] dark:text-[#F0F2FA]
+                    focus:outline-none focus:border-indigo-400 transition"
+                />
+              </div>
+
+              {/* Timezone */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">Timezone</label>
+                <select
+                  value={draft.timezone}
+                  onChange={e => set("timezone", e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#E5E7EB] dark:border-[#262A38]
+                    bg-white dark:bg-[#13161E] text-[11px] text-[#0F1117] dark:text-[#F0F2FA]
+                    focus:outline-none focus:border-indigo-400 transition"
+                >
+                  {TIMEZONES_DEV.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+                </select>
+              </div>
+
+              {/* Send empty */}
+              <div className="flex items-center justify-between p-3 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
+                <div>
+                  <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Send Empty Report</p>
+                  <p className="text-[10px] text-[#8B92A9]">{draft.sendEmptyReport ? "Send even with no activity" : "Skip if no activity"}</p>
+                </div>
+                <button onClick={() => set("sendEmptyReport", !draft.sendEmptyReport)}>
+                  {draft.sendEmptyReport
+                    ? <ToggleLeft className="w-8 h-8 text-sky-500 rotate-180" />
+                    : <ToggleLeft className="w-8 h-8 text-[#C4C9D9] dark:text-[#3E4257]" />
+                  }
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-[#F0F2FA] dark:border-[#1E2130]">
+            <button
+              onClick={handleSave}
+              disabled={saving || !hasChanges}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700
+                disabled:opacity-50 text-white text-[12px] font-semibold transition"
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {saving ? "Saving…" : "Save Settings"}
+            </button>
+            <button
+              onClick={handleTest}
+              disabled={testing || !isConfigured}
+              title={!isConfigured ? "Configure token + chat ID first" : "Send test report"}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#E5E7EB] dark:border-[#262A38]
+                text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]
+                hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400
+                disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              {testing ? "Sending…" : "Send Test"}
+            </button>
+            {isConfigured && (
+              <button
+                onClick={handleSendNow}
+                disabled={sendingNow}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-indigo-300 dark:border-indigo-700
+                  text-indigo-600 dark:text-indigo-400 text-[12px] font-semibold
+                  hover:bg-indigo-50 dark:hover:bg-indigo-900/20
+                  disabled:opacity-50 transition"
+              >
+                {sendingNow ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BarChart2 className="w-3.5 h-3.5" />}
+                {sendingNow ? "Sending…" : "Send Report Now"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeSection === "history" && (
+        <div className="px-5 py-4">
+          {histLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-5 h-5 animate-spin text-[#8B92A9]" />
+            </div>
+          ) : history.length === 0 ? (
+            <p className="text-center text-[13px] text-[#9DA3BB] py-10">No reports sent for this company yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {history.map((entry, i) => (
+                <div key={entry._id || i}
+                  className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl
+                    bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E5E7EB] dark:border-[#262A38]"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+                        {entry.reportDate}
+                      </span>
+                      <StatusBadgeDev status={entry.status} />
+                      {entry.triggeredBy !== "scheduler" && (
+                        <span className="text-[9px] italic text-[#8B92A9]">{entry.triggeredBy}</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-[#8B92A9] truncate">
+                      {entry.status === "sent"
+                        ? `${entry.employeeCount} employee${entry.employeeCount !== 1 ? "s" : ""} · ${entry.scheduledTime || ""} ${entry.timezone || ""}`
+                        : entry.status === "skipped"
+                        ? "No activity today — skipped"
+                        : entry.errorMessage || "—"
+                      }
+                    </p>
+                  </div>
+                  <span className="text-[10px] text-[#9DA3BB] shrink-0">
+                    {entry.generatedAt ? new Date(entry.generatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
