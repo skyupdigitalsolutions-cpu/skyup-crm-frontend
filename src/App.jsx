@@ -14,6 +14,7 @@ import { NotificationProvider, NotificationBell } from "./components/Notificatio
 import { clearFeaturesCache } from "./hooks/usePlanFeatures";
 import TelegramSettings from "./components/TelegramSettings";
 import DailyReportTelegramSettings from "./components/DailyReportTelegramSettings";
+import SheetIntegrationAdminSettings from "./components/SheetIntegrationAdminSettings";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
 const Dashboard      = lazy(() => import("./components/Dashboard"));
@@ -35,6 +36,7 @@ const UserDashboard          = lazy(() => import("./pages/UserDashboard"));
 const UserDailyReport        = lazy(() => import("./pages/UserDailyReport"));
 const UserLeadsPage          = lazy(() => import("./pages/UserLeadsPage"));
 const UserLeadCommunication  = lazy(() => import("./pages/UserLeadCommunication"));
+const UserSheetIntegration   = lazy(() => import("./pages/UserSheetIntegration"));
 
 // Developer pages
 const DeveloperDashboard         = lazy(() => import("./pages/developer/DeveloperDashboard"));
@@ -364,6 +366,11 @@ function CompanyHeader() {
         {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
           <DailyReportTelegramSettings />
         )}
+        {/* Employee Excel / Google Sheet integration control — admin/superadmin.
+            Self-hides unless the feature is available for this company. */}
+        {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
+          <SheetIntegrationAdminSettings />
+        )}
         <span className={`whitespace-nowrap shrink-0 text-[10px] sm:text-[11px] font-semibold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border ${roleColor}`}>
           {roleLabel}
         </span>
@@ -503,6 +510,17 @@ function AppInner() {
               <AppLayout>
                 <FeatureGate anyOf={["sms-blast", "whatsapp-blast", "email-blast"]}>
                   <UserLeadCommunication />
+                </FeatureGate>
+              </AppLayout>
+            </UserRoute>
+          }/>
+
+          {/* ── User Excel / Google Sheet integration ── */}
+          <Route path="/user/sheet-integration" element={
+            <UserRoute>
+              <AppLayout>
+                <FeatureGate featureKey="googleSheetIntegrationEnabled">
+                  <UserSheetIntegration />
                 </FeatureGate>
               </AppLayout>
             </UserRoute>
