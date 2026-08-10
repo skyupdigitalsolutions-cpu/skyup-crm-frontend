@@ -1327,6 +1327,13 @@ export default function UserLeadCommunication() {
   //                       "track of what template he sent" visibility.
   const [lastActivityAt,     setLastActivityAt]     = useState({});
   const [lastMessagePreview, setLastMessagePreview] = useState({});
+  // Has the initial recency/preview data (from /whatsapp/unread-counts) arrived
+  // yet? The lead list is sorted by lastActivityAt, but that map is empty until
+  // this endpoint returns — so if we render before it lands, the list first
+  // shows the raw My-Leads order and then visibly "jumps"/re-sorts into recency
+  // order a moment later. We hold the list on its spinner until this is true so
+  // it paints ONCE, already in the correct order, with no reshuffle.
+  const [activityLoaded,     setActivityLoaded]     = useState(false);
   // Total unread inbound messages across all of this agent's leads (header badge)
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + (b || 0), 0);
   // maps conversationId (string) → lead._id (string) — built as leads are clicked
@@ -1376,10 +1383,16 @@ export default function UserLeadCommunication() {
   // independent of the notification bell — clearing notifications never
   // changes these numbers.
   useEffect(() => {
-    if (!leads.length) return;
+    // Wait until the leads fetch has settled. If the agent has no leads at all
+    // there's nothing to seed — mark activity "loaded" so the list can render
+    // its empty state instead of spinning forever.
+    if (loadingLeads) return;
+    if (!leads.length) { setActivityLoaded(true); return; }
+    let cancelled = false;
     api
       .get("/whatsapp/unread-counts")
       .then(({ data }) => {
+        if (cancelled) return;
         const byLead  = data?.byLead  || {};
         const byPhone = data?.byPhone || {};
         const next = {};
@@ -1407,8 +1420,12 @@ export default function UserLeadCommunication() {
         setLastActivityAt(nextAt);
         setLastMessagePreview(nextPreview);
       })
-      .catch(() => {});
-  }, [leads]);
+      .catch(() => {})
+      // Reveal the list whether the call succeeded or failed — a failed seed
+      // just means no previews/recency, not a permanent spinner.
+      .finally(() => { if (!cancelled) setActivityLoaded(true); });
+    return () => { cancelled = true; };
+  }, [leads, loadingLeads]);
 
   // ── Mark the open conversation as read ──────────────────────────────────────
   // Clears the stored unread count server-side. Called when a chat is opened AND
@@ -2137,7 +2154,7 @@ export default function UserLeadCommunication() {
             </div>
 
             <div className="flex-1 overflow-y-auto">
-              {loadingLeads ? (
+              {loadingLeads || !activityLoaded ? (
                 <div className="flex justify-center items-center h-32">
                   <svg className="w-5 h-5 animate-spin text-[#25D366]" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
