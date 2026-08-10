@@ -12,7 +12,7 @@
 // Every save calls an existing backend endpoint that re-resolves entitlements
 // server-side. Nothing is hardcoded and no feature depends on another.
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Loader2, Save, CheckCircle, XCircle, AlertTriangle,
@@ -1014,6 +1014,11 @@ function DeveloperDailyReportPanel({ companyId, showToast }) {
 
   const set = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
 
+  // Use ref for showToast to avoid it being a useCallback/useEffect dependency
+  // (showToast changes identity on every parent render → infinite loop)
+  const showToastRef = useRef(showToast);
+  useEffect(() => { showToastRef.current = showToast; }, [showToast]);
+
   const loadConfig = useCallback(async () => {
     setLoading(true);
     try {
@@ -1028,9 +1033,12 @@ function DeveloperDailyReportPanel({ companyId, showToast }) {
       setSaved(s);
       setDraft({ ...s, telegramBotToken: "" });
     } catch (e) {
-      showToast(e.response?.data?.message || "Failed to load daily report config", false);
+      // 404 = backend route not deployed yet; show inline not a crash toast
+      if (e.response?.status !== 404) {
+        showToastRef.current(e.response?.data?.message || "Failed to load daily report config", false);
+      }
     } finally { setLoading(false); }
-  }, [companyId, showToast]);
+  }, [companyId]); // companyId only — showToast via ref
 
   const loadHistory = useCallback(async () => {
     setHistLoading(true);
@@ -1041,6 +1049,7 @@ function DeveloperDailyReportPanel({ companyId, showToast }) {
     finally { setHistLoading(false); }
   }, [companyId]);
 
+  // Run once on mount (companyId is stable for the lifetime of this panel)
   useEffect(() => { loadConfig(); loadHistory(); }, [loadConfig, loadHistory]);
 
   const hasChanges = saved && (
