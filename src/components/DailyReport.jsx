@@ -118,6 +118,7 @@ export default function DailyReport() {
   const sources     = data?.sources     || [];
   const employees   = data?.employees   || [];
   const followUps   = data?.followUps   || [];
+  const missingFollowUps = data?.missingFollowUps || [];
   const conversions = data?.conversions || [];
 
   const goBack    = () => setViewDate(d => addDays(d, -1));
@@ -152,7 +153,7 @@ export default function DailyReport() {
     { k: 'overview',    l: 'Overview',          count: null },
     { k: 'agents',      l: 'Employee Activity',  count: employees.filter(e => e.callsToday > 0 || e.leads > 0).length },
     { k: 'leads',       l: 'New Leads',          count: leads.length },
-    { k: 'followups',   l: 'Follow-ups',         count: followUps.filter(f => f.urgency !== 'upcoming').length },
+    { k: 'followups',   l: 'Follow-ups',         count: followUps.filter(f => f.urgency !== 'upcoming').length + missingFollowUps.length },
     { k: 'conversions', l: 'Conversions',        count: conversions.length },
     ...(showOutcomesTab
       ? [{ k: 'outcomes', l: 'Call Outcomes', count: outcomesData?.summary?.totalCalls || 0 }]
@@ -460,6 +461,41 @@ export default function DailyReport() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </Card>
+
+          {/* ── No follow-up date ever set (24h+) ─────────────────────────── */}
+          <Card title="No follow-up date set (24h+)" badge={missingFollowUps.length} bc="#DC2626">
+            {missingFollowUps.length === 0 ? (
+              <p className="text-[13px] text-[#8B92A9]">
+                Every lead from {formatMedium(viewDate)} that's 24h+ old has a follow-up scheduled. 🎉
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-[11px] text-[#8B92A9] mb-1">
+                  These leads never had a follow-up date set — the assigned employee gets an automatic reminder every 24 hours until one is added. Excludes "Not Interested" and "Converted".
+                </p>
+                {missingFollowUps.map((f) => (
+                  <div key={f._id} className="flex items-start gap-3 p-4 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/40 dark:bg-red-950/20">
+                    <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between flex-wrap gap-2 mb-1">
+                        <div>
+                          <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{f.name}</span>
+                          <span className="text-[11px] text-[#8B92A9] ml-2 font-mono">{maskPhone(f.mobile, isSuperAdmin)}</span>
+                        </div>
+                        <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400">
+                          {f.hoursSinceCreated}h with no follow-up
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">{f.status}</span>
+                        <span className="text-[11px] text-[#8B92A9] shrink-0">{f.assignedUser || 'Unassigned'}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </Card>
