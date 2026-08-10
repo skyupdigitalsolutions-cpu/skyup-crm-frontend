@@ -1014,31 +1014,45 @@ function DeveloperDailyReportPanel({ companyId, showToast }) {
 
   const set = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
 
-  // Use ref for showToast to avoid it being a useCallback/useEffect dependency
-  // (showToast changes identity on every parent render → infinite loop)
+  // Use refs to avoid stale closures and prevent re-render loops
   const showToastRef = useRef(showToast);
+  const hasFetchedRef = useRef(false);
   useEffect(() => { showToastRef.current = showToast; }, [showToast]);
 
-  const loadConfig = useCallback(async () => {
+  // Fetch once on mount only — use ref guard to prevent loop on re-renders
+  useEffect(() => {
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
+
+    // Load config
     setLoading(true);
-    try {
-      const res = await api.get(`/developer/companies/${companyId}/daily-report/settings`);
-      const d = res.data || {};
-      const s = {
-        enabled: d.enabled || false, telegramBotToken: d.telegramBotToken || "",
-        telegramChatId: d.telegramChatId || "", reportTime: d.reportTime || "19:00",
-        timezone: d.timezone || "Asia/Kolkata", sendEmptyReport: d.sendEmptyReport || false,
-        configured: d.configured || false,
-      };
-      setSaved(s);
-      setDraft({ ...s, telegramBotToken: "" });
-    } catch (e) {
-      // 404 = backend route not deployed yet; show inline not a crash toast
-      if (e.response?.status !== 404) {
-        showToastRef.current(e.response?.data?.message || "Failed to load daily report config", false);
-      }
-    } finally { setLoading(false); }
-  }, [companyId]); // companyId only — showToast via ref
+    api.get(`/developer/companies/${companyId}/daily-report/settings`)
+      .then(res => {
+        const d = res.data || {};
+        const s = {
+          enabled: d.enabled || false, telegramBotToken: d.telegramBotToken || "",
+          telegramChatId: d.telegramChatId || "", reportTime: d.reportTime || "19:00",
+          timezone: d.timezone || "Asia/Kolkata", sendEmptyReport: d.sendEmptyReport || false,
+          configured: d.configured || false,
+        };
+        setSaved(s);
+        setDraft({ ...s, telegramBotToken: "" });
+      })
+      .catch(e => {
+        if (e.response?.status !== 404) {
+          showToastRef.current(e.response?.data?.message || "Failed to load daily report config", false);
+        }
+      })
+      .finally(() => setLoading(false));
+
+    // Load history
+    setHistLoading(true);
+    api.get(`/developer/companies/${companyId}/daily-report/history`)
+      .then(res => setHistory(res.data?.history || []))
+      .catch(() => {})
+      .finally(() => setHistLoading(false));
+
+  }, [companyId]); // companyId is stable — runs exactly once per panel mount
 
   const loadHistory = useCallback(async () => {
     setHistLoading(true);
@@ -1048,9 +1062,6 @@ function DeveloperDailyReportPanel({ companyId, showToast }) {
     } catch { /* silent */ }
     finally { setHistLoading(false); }
   }, [companyId]);
-
-  // Run once on mount (companyId is stable for the lifetime of this panel)
-  useEffect(() => { loadConfig(); loadHistory(); }, [loadConfig, loadHistory]);
 
   const hasChanges = saved && (
     draft.enabled !== saved.enabled || draft.telegramChatId !== saved.telegramChatId ||
