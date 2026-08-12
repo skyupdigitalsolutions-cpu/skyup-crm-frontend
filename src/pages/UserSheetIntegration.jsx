@@ -67,6 +67,14 @@ export default function UserSheetIntegration() {
   const [syncing, setSyncing]   = useState(false);
   const [savingMap, setSavingMap] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  // BUG FIX: the auto-fetch-on-load test runs SILENTLY (no toast), which meant
+  // a failed test looked IDENTICAL to "just never tried yet" — the Column
+  // Mapping section always showed the same neutral "Run Test Connection to
+  // load your columns" placeholder whether the connection was fine and simply
+  // untested, or was actively broken (bad secret, mis-deployed Apps Script,
+  // sheet renamed/deleted, etc). Employees had zero signal to act on. Track the
+  // last error separately so it can render even when the triggering test was silent.
+  const [testError, setTestError] = useState(null);
 
   const [msg, setMsg] = useState(null);
   const flash = (type, text) => { setMsg({ type, text }); if (type === "ok") setTimeout(() => setMsg((m) => (m?.text === text ? null : m)), 6000); };
@@ -124,6 +132,7 @@ export default function UserSheetIntegration() {
       });
       setHeaders(data.headers || []);
       setSampleRows(data.sampleRows || []);
+      setTestError(null); // clear any previous failure now that it's working
       // merge suggested mapping only for columns we don't already map
       setMapping((prev) => {
         const next = { ...prev };
@@ -134,7 +143,9 @@ export default function UserSheetIntegration() {
       });
       if (!silent) flash("ok", data.message || "Connection successful.");
     } catch (e) {
-      if (!silent) flash("err", e.response?.data?.message || "Test failed.");
+      const errText = e.response?.data?.message || "Test failed.";
+      setTestError(errText); // ALWAYS recorded, even for the silent auto-test on load
+      if (!silent) flash("err", errText);
     } finally {
       setTesting(false);
     }
@@ -208,7 +219,7 @@ export default function UserSheetIntegration() {
     try {
       await api.delete("/sheet-integration/connection");
       clearCache("/sheet-integration");
-      setConn(null); setHeaders([]); setSampleRows([]); setMapping({});
+      setConn(null); setHeaders([]); setSampleRows([]); setMapping({}); setTestError(null);
       setForm({ sheetName: "", googleSheetId: "", appsScriptUrl: "", secretKey: "" });
       flash("ok", "Disconnected.");
     } catch (e) {
@@ -371,7 +382,14 @@ export default function UserSheetIntegration() {
             </div>
 
             {headers.length === 0 ? (
-              <p className="text-[12px] text-[#8B92A9]">Run “Test Connection” to load your sheet columns.</p>
+              testError ? (
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-[12px] font-medium border bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800">
+                  <AlertCircle className="w-4 h-4 mt-px shrink-0" />
+                  <span className="break-words">Couldn't load columns: {testError} — click "Refresh columns" above to retry after fixing this.</span>
+                </div>
+              ) : (
+                <p className="text-[12px] text-[#8B92A9]">Run "Test Connection" to load your sheet columns.</p>
+              )
             ) : (
               <>
                 <div className="space-y-2">
