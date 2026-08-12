@@ -2182,6 +2182,15 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification
                   Paused on Meta
                 </span>
               )}
+              {c._isMeta && c.tokenExpired && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 flex items-center gap-1"
+                  title={c.tokenErrorMessage || "Meta access token expired or was revoked."}
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  Token expired — reconnect Meta
+                </span>
+              )}
               {c.adSetName && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400">
                   Ad Set: {c.adSetName}
@@ -2378,6 +2387,12 @@ export default function Campaigns() {
         metaFormStatus: cfg.metaFormStatus || "",
         metaAdsetStatus: cfg.metaAdsetStatus || "",
         metaCampaignStatus: cfg.metaCampaignStatus || "",
+        // Token health — surfaced from MetaConfig by metaAutoSyncJob/metaSyncService
+        // the moment Meta returns an expired/invalid-token error, instead of that
+        // only ever showing up in server logs.
+        tokenExpired:       cfg.tokenExpired || false,
+        tokenErrorMessage:  cfg.tokenErrorMessage || "",
+        tokenErrorAt:       cfg.tokenErrorAt || null,
         createdBy: cfg.createdBy ? (cfg.createdBy._id || cfg.createdBy) : null,
         createdByName: (cfg.createdBy && cfg.createdBy.name) ? cfg.createdBy.name : "",
         _configType: "meta",
