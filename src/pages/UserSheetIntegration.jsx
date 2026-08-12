@@ -118,6 +118,19 @@ export default function UserSheetIntegration() {
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  // BUG FIX: "Google Sheet ID" is labeled/placeholder'd as just the ID
+  // ("1AbC…xyz"), but pasting the full sheet URL is an easy mistake — and the
+  // resulting bug is silent: the connection test succeeds (secret's fine,
+  // Apps Script responds fine), it just can't resolve that ID to a real
+  // sheet, so it comes back "Found 0 columns and 0 rows" with no visible
+  // error at all. Auto-extract the ID the moment a URL is pasted so this
+  // can't happen.
+  function extractSheetIdFromInput(v) {
+    const m = String(v || "").match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    return m ? m[1] : v;
+  }
+  const setGoogleSheetId = (v) => setField("googleSheetId", extractSheetIdFromInput(v));
+
   // ── Test Connection ─────────────────────────────────────────────────────────
   async function runTest(silent = false) {
     if (!form.appsScriptUrl && !conn?.appsScriptUrl) { flash("err", "Enter the Apps Script Web App URL first."); return; }
@@ -299,7 +312,7 @@ export default function UserSheetIntegration() {
             </div>
             <div>
               <label className={LABEL_CLS}>Google Sheet ID</label>
-              <input className={INPUT_CLS} placeholder="1AbC…xyz (from the sheet URL)" value={form.googleSheetId} onChange={(e) => setField("googleSheetId", e.target.value)} />
+              <input className={INPUT_CLS} placeholder="1AbC…xyz (from the sheet URL)" value={form.googleSheetId} onChange={(e) => setGoogleSheetId(e.target.value)} />
             </div>
           </div>
           <div>
