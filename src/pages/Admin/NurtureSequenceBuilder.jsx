@@ -377,15 +377,6 @@ export default function NurtureSequenceBuilder() {
   const [previewService,  setPreviewService]  = useState("");
   const [previewVariation, setPreviewVariation] = useState(0);
 
-  // ── Template Name Generator — fills the manual fallback (V1–V5) and the
-  // per-status pool from the exact same industry_service_stage_vN pattern
-  // that autoResolveTemplate uses per-lead, so nobody has to type 20+ names
-  // by hand for a single-industry/service-scoped rule. Purely a client-side
-  // convenience — still free-text after generation, so any name can be
-  // tweaked or cleared afterwards.
-  const [genIndustry, setGenIndustry] = useState("");
-  const [genService,  setGenService]  = useState("");
-
   // Load whatever templates are already cached locally (fast, no MSG91 call).
   const loadTemplates = useCallback(async () => {
     try {
@@ -441,42 +432,6 @@ export default function NurtureSequenceBuilder() {
       if (idx === -1) arr.push(value); else arr.splice(idx, 1);
       return next;
     });
-  };
-
-  // Fill the manual V1–V5 fallback list from genIndustry/genService + the
-  // rule's funnelStage (falls back to "awareness" if that hasn't been set,
-  // since the fallback box has no stage selector of its own).
-  const generateFallbackFromPattern = () => {
-    if (!genIndustry || !genService) return;
-    const stage = draft.action.whatsapp.funnelStage || "awareness";
-    const next = [1, 2, 3, 4, 5].map((n) => tplNameFor(genIndustry, genService, stage, n));
-    setDraft((d) => ({ ...d, action: { ...d.action, whatsapp: { ...d.action.whatsapp, templateVariations: next } } }));
-  };
-
-  // Fill the per-status 6-slot pool for ONE status from genIndustry/genService
-  // using that status's mapped funnel stage (New→awareness, etc.). Generates
-  // 5 names (v1–v5) — matching the 5 variants the template library actually
-  // has per stage — leaving slot 6 blank for a manual extra if needed.
-  const generatePoolFromPattern = (status) => {
-    if (!genIndustry || !genService) return;
-    const stage = STATUS_TO_STAGE[status] || "awareness";
-    const next = [1, 2, 3, 4, 5].map((n) => tplNameFor(genIndustry, genService, stage, n));
-    setDraft((d) => ({
-      ...d,
-      action: {
-        ...d.action,
-        whatsapp: {
-          ...d.action.whatsapp,
-          templatesByStatus: { ...d.action.whatsapp.templatesByStatus, [status]: next },
-        },
-      },
-    }));
-  };
-
-  // Fill every currently-selected status's pool in one click.
-  const generateAllPoolsFromPattern = () => {
-    if (!genIndustry || !genService) return;
-    draft.trigger.statuses.forEach((st) => generatePoolFromPattern(st));
   };
 
   const startEdit = (rule) => {
@@ -793,30 +748,19 @@ export default function NurtureSequenceBuilder() {
                   <p className="text-[10px] whitespace-pre-wrap text-[#8B92A9]">{syncMsg}</p>
                 )}
 
-                {/* ── Auto-resolve from the 1,760-template library ─────────── */}
+                {/* ── Template auto-resolve (always on) ────────────────────── */}
                 <div className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] p-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={!!draft.action.whatsapp.autoResolveTemplate}
-                      onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, autoResolveTemplate: e.target.checked } } })}
-                      className="w-4 h-4"
-                    />
-                    <span className="text-[13px] font-semibold">
-                      Auto-pick template from the lead's industry &amp; service
-                    </span>
-                  </label>
+                  <p className="text-[13px] font-semibold">
+                    ⚡ Template auto-picked from the lead's industry &amp; service
+                  </p>
                   <p className="text-[10px] text-[#8B92A9] mt-1">
-                    Recommended. Builds the approved template name automatically as
+                    Builds the approved template name automatically as
                     <code className="mx-1">industry_service_stage_v1…v5</code>
-                    — so this one rule covers all 88 industry × service combinations
-                    instead of needing 88 separate rules.
+                    — one rule covers all 88 industry × service combinations. No manual
+                    template entry needed.
                   </p>
 
-                  {/* ── Repeat-after-V5 toggle — always visible, applies to
-                      auto-resolve AND the manual V1–V5 fallback below, since
-                      both share the same variation-cycling logic on the
-                      backend nurture job. ─────────────────────────────────── */}
+                  {/* ── Repeat-after-V5 toggle ─────────────────────────────── */}
                   <label className="flex items-center gap-2 cursor-pointer select-none mt-3">
                     <input
                       type="checkbox"
@@ -834,8 +778,7 @@ export default function NurtureSequenceBuilder() {
                       : "OFF (default) — after V5, this rule stops sending to that lead. No wraparound."}
                   </p>
 
-                  {draft.action.whatsapp.autoResolveTemplate && (
-                    <div className="mt-3">
+                  <div className="mt-3">
                       <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
                         Funnel stage (required)
                       </p>
@@ -916,230 +859,10 @@ export default function NurtureSequenceBuilder() {
 
                       <p className="text-[10px] text-[#F5B547] mt-2">
                         Leads with no Industry or Service set can&apos;t be matched to a
-                        template — they fall back to the manual list below, and are
-                        skipped if that is empty too.
+                        template and are skipped by this rule.
                       </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Template Name Generator — fills V1–V5 below AND the
-                    per-status pool further down, from the same
-                    industry_service_stage_vN pattern autoResolve uses.
-                    Pick industry+service once, click Generate. ──────────── */}
-                <div className="rounded-lg border border-dashed border-[#2563EB]/40 bg-[#2563EB]/5 p-3">
-                  <p className="text-[11px] font-semibold text-[#2563EB] mb-2">
-                    ⚡ Template Name Generator — pattern-fill instead of typing each name
-                  </p>
-                  <div className="flex gap-2 flex-wrap">
-                    <select
-                      value={genIndustry}
-                      onChange={(e) => setGenIndustry(e.target.value)}
-                      className="text-[12px] px-2 py-1.5 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
-                    >
-                      <option value="">— Industry —</option>
-                      {INDUSTRIES.map((ind) => <option key={ind} value={ind}>{ind}</option>)}
-                    </select>
-                    <select
-                      value={genService}
-                      onChange={(e) => setGenService(e.target.value)}
-                      className="text-[12px] px-2 py-1.5 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
-                    >
-                      <option value="">— Service —</option>
-                      {SERVICES.map((svc) => <option key={svc} value={svc}>{svc}</option>)}
-                    </select>
-                    <button
-                      type="button"
-                      disabled={!genIndustry || !genService}
-                      onClick={generateFallbackFromPattern}
-                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[#2563EB] text-white disabled:opacity-40"
-                      title="Fills the V1–V5 fallback boxes below"
-                    >
-                      Fill V1–V5 fallback
-                    </button>
-                    {draft.trigger.statuses.length > 0 && (
-                      <button
-                        type="button"
-                        disabled={!genIndustry || !genService}
-                        onClick={generateAllPoolsFromPattern}
-                        className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[#059669] text-white disabled:opacity-40"
-                        title="Fills the per-status pool for every selected status further down"
-                      >
-                        Fill all status pools
-                      </button>
-                    )}
                   </div>
-                  <p className="text-[10px] text-[#8B92A9] mt-2">
-                    Fill uses <code>{genIndustry ? slug(genIndustry) : "industry"}_{genService ? slug(genService) : "service"}_stage_v1…v5</code> — the
-                    fallback box uses this rule's Funnel stage (or "awareness" if unset); the status
-                    pool uses each status's mapped stage (New→awareness, In Progress→interest,
-                    Interested→desire, Converted→action). Still plain text after filling — edit or
-                    clear any name manually.
-                  </p>
                 </div>
-
-                {/* ── Template Variations V1–V5 (manual / fallback) ─────────── */}
-                <div className={draft.action.whatsapp.autoResolveTemplate ? "opacity-60" : ""}>
-                  <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
-                    {draft.action.whatsapp.autoResolveTemplate
-                      ? "Manual fallback variations V1–V5 (used only when a lead has no industry/service)"
-                      : "Template Variations V1–V5 (sequential — V1 first send, V2 second, etc.)"}
-                  </p>
-                  {(draft.action.whatsapp.templateVariations || ["","","","",""]).map((v, i) => (
-                    <input
-                      key={i}
-                      value={v}
-                      onChange={(e) => {
-                        const next = [...(draft.action.whatsapp.templateVariations || ["","","","",""])];
-                        next[i] = e.target.value;
-                        setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, templateVariations: next } } });
-                      }}
-                      placeholder={`V${i+1} template name (e.g. real_estate_crm_awareness_v${i+1})`}
-                      className="w-full px-3 py-2 mb-1 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
-                    />
-                  ))}
-                  <p className="text-[10px] text-[#8B92A9] mt-1">
-                    Each lead sends V1→V2→V3→V4→V5 in order. Resets to V1 when lead moves to a new status stage.
-                    {draft.action.whatsapp.repeatVariations
-                      ? " After V5, it wraps back to V1 (Repeat toggle above is ON)."
-                      : " After V5, this rule stops sending to that lead (Repeat toggle above is OFF)."}
-                  </p>
-                </div>
-
-                {/* ── Fallback single template ─────────────────────────────── */}
-                <div>
-                  <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
-                    Fallback template (used if variations are all empty)
-                  </p>
-                  {/* Backed by the synced MSG91 list — type to filter, or pick
-                      from the dropdown. Still free-text so a brand-new template
-                      can be used before the next sync. */}
-                  <input
-                    list="msg91-template-names"
-                    value={draft.action.whatsapp.templateName}
-                    onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, templateName: e.target.value } } })}
-                    placeholder={templates.length ? "Type to search synced templates…" : "e.g. real_estate_crm_awareness_v1"}
-                    className="w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
-                  />
-                  <datalist id="msg91-template-names">
-                    {templates.map((t) => (
-                      <option key={t.name} value={t.name}>
-                        {t.category}{t.status ? ` · ${t.status}` : ""}
-                      </option>
-                    ))}
-                  </datalist>
-                  {draft.action.whatsapp.templateName && templates.length > 0 && (() => {
-                    const _ft = templates.find((t) => t.name === draft.action.whatsapp.templateName);
-                    if (!_ft) return <p className="text-[10px] text-[#F5B547] mt-1">⚠ Not found in synced MSG91 list — sync again or fix the name.</p>;
-                    if (_ft.status === "PENDING") return <p className="text-[10px] text-[#F5B547] mt-1">⚠ Pending Meta approval — sends skipped until approved.</p>;
-                    if (_ft.status === "REJECTED") return <p className="text-[10px] text-[#DC2626] mt-1">✕ Rejected by Meta — cannot be sent.</p>;
-                    if (_ft.status === "PAUSED") return <p className="text-[10px] text-[#F5B547] mt-1">⚠ Paused in MSG91 — re-enable before sending.</p>;
-                    return null;
-                  })()}
-                </div>
-
-                {/* Template POOL per currently-selected status — add 5-6
-                    variants per status so the same message isn't sent
-                    verbatim every time (one is picked at random when the
-                    rule fires). With 4 core statuses (New/In Progress/
-                    Interested/Converted) at ~5-6 each, that's ~20+ templates
-                    for one industry-scoped rule. Only shows for statuses
-                    actually picked above; a status with zero templates
-                    falls back to the default template. */}
-                {draft.trigger.statuses.length > 0 && (
-                  <div className="pl-3 border-l-2 border-[#E4E7EF] dark:border-[#262A38] space-y-4">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-semibold text-[#8B92A9] uppercase">
-                        Template pool per status (5-6 recommended each — one is picked at random per send)
-                      </p>
-                      {(() => {
-                        const total = draft.trigger.statuses.reduce(
-                          (sum, st) => sum + (draft.action.whatsapp.templatesByStatus?.[st]?.filter((t) => t && t.trim()).length || 0),
-                          0
-                        );
-                        return (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${total >= 20 ? "bg-[#059669]/10 text-[#059669]" : "bg-[#F59E0B]/10 text-[#F59E0B]"}`}>
-                            {total} template{total === 1 ? "" : "s"} total
-                          </span>
-                        );
-                      })()}
-                    </div>
-
-                    {draft.trigger.statuses.map((st) => {
-                      const pool = draft.action.whatsapp.templatesByStatus?.[st] || [];
-
-                      const setPool = (nextPool) => setDraft({
-                        ...draft,
-                        action: {
-                          ...draft.action,
-                          whatsapp: {
-                            ...draft.action.whatsapp,
-                            templatesByStatus: { ...draft.action.whatsapp.templatesByStatus, [st]: nextPool },
-                          },
-                        },
-                      });
-
-                      const updateSlot = (idx, value) => {
-                        const next = [...pool];
-                        next[idx] = value;
-                        setPool(next);
-                      };
-                      const addSlot = () => { if (pool.length < 6) setPool([...pool, ""]); };
-                      const removeSlot = (idx) => setPool(pool.filter((_, i) => i !== idx));
-
-                      return (
-                        <div key={st}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
-                              {st} <span className="text-[#8B92A9] font-normal">({STATUS_TO_STAGE[st] || "—"})</span>
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                disabled={!genIndustry || !genService}
-                                onClick={() => generatePoolFromPattern(st)}
-                                className="text-[10px] font-semibold text-[#2563EB] disabled:opacity-40"
-                                title="Fill this status's pool from the generator above"
-                              >
-                                Fill from pattern
-                              </button>
-                              <span className="text-[10px] text-[#8B92A9]">{pool.filter((t) => t && t.trim()).length}/6</span>
-                            </div>
-                          </div>
-                          <div className="space-y-1.5">
-                            {pool.map((tmpl, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5">
-                                <input
-                                  value={tmpl}
-                                  onChange={(e) => updateSlot(idx, e.target.value)}
-                                  placeholder={`Template ${idx + 1} for "${st}"`}
-                                  className="flex-1 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[12px]"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => removeSlot(idx)}
-                                  className="text-[11px] text-red-500 font-semibold px-1.5"
-                                  title="Remove this template"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            ))}
-                            {pool.length < 6 && (
-                              <button
-                                type="button"
-                                onClick={addSlot}
-                                className="text-[11px] font-semibold text-[#2563EB]"
-                              >
-                                + Add template{pool.length === 0 ? "" : ` (${pool.length}/6)`}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             )}
           </div>
