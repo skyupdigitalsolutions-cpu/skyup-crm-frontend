@@ -528,6 +528,71 @@ export default function NurtureSequenceBuilder() {
     }
   };
 
+  // ── Auto-build all 4 stage rules ────────────────────────────────────────
+  // autoResolveTemplate already resolves the exact template PER LEAD from
+  // that lead's own industry+service at send time — so one rule per funnel
+  // stage covers all 88 industry×service combos with zero manual template
+  // entry. This creates the 4 standard rules (skips any status that already
+  // has a rule) instead of building each one by hand in the form below.
+  const [autoBuilding, setAutoBuilding] = useState(false);
+  const STAGE_IDLE_DAYS = { "New": 1, "In Progress": 3, "Interested": 5, "Converted": 8 };
+
+  const autoBuildAllRules = async () => {
+    const existingStatuses = new Set(
+      rules.flatMap((r) => r.trigger?.statuses || [])
+    );
+    const toCreate = NURTURE_STATUSES.filter(
+      (st) => STATUS_TO_STAGE[st] && !existingStatuses.has(st)
+    );
+    if (toCreate.length === 0) {
+      setError("");
+      window.alert("All 4 stage rules already exist (matched by status) — nothing to create.");
+      return;
+    }
+    const ok = window.confirm(
+      `This will create ${toCreate.length} rule(s), one per status, each with ` +
+      `Auto-pick template ON (covers all industries/services automatically):\n\n` +
+      toCreate.map((st) => `• ${st} → ${STATUS_TO_STAGE[st]} (fires after ${STAGE_IDLE_DAYS[st]}d idle)`).join("\n")
+    );
+    if (!ok) return;
+
+    setAutoBuilding(true);
+    setError("");
+    try {
+      for (const st of toCreate) {
+        const stage = STATUS_TO_STAGE[st];
+        const payload = {
+          name: `${st} → ${stage} (auto)`,
+          enabled: true,
+          trigger: {
+            ...emptyDraft.trigger,
+            statuses: [st],
+            minDaysSinceLastTouch: STAGE_IDLE_DAYS[st],
+          },
+          action: {
+            whatsapp: {
+              ...emptyDraft.action.whatsapp,
+              enabled: true,
+              statusStage: st,
+              autoResolveTemplate: true,
+              funnelStage: stage,
+            },
+            email: { ...emptyDraft.action.email },
+            notifyAgent: false,
+            notifyAgentMessage: "",
+          },
+          repeatEveryDays: null,
+        };
+        await api.post("/nurture/rules", payload);
+      }
+      await load();
+    } catch (e) {
+      setError(e.response?.data?.message || "Auto-build failed partway — check Active Rules for what was created.");
+    } finally {
+      setAutoBuilding(false);
+    }
+  };
+
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-4 sm:px-6 py-8">
       <h1 className="text-[20px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Lead Nurture Sequence</h1>
@@ -544,8 +609,17 @@ export default function NurtureSequenceBuilder() {
 
       {/* ── Existing rules ────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden mb-6">
-        <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
+        <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Active Rules</h2>
+          <button
+            type="button"
+            onClick={autoBuildAllRules}
+            disabled={autoBuilding}
+            className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[#2563EB] text-white disabled:opacity-50"
+            title="Creates one rule per status (New/In Progress/Interested/Converted) with Auto-pick template ON — covers every industry×service combo automatically"
+          >
+            {autoBuilding ? "Building…" : "⚡ Auto-build all 4 stage rules"}
+          </button>
         </div>
         <div className="p-5">
           {loading ? (
