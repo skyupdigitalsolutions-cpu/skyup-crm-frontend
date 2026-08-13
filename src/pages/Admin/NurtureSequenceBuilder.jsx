@@ -171,8 +171,15 @@ const emptyDraft = {
       autoResolveTemplate: true,
       funnelStage: "",
       variationCount: 5,
+      // When false (default per Roshan's spec): after V5, the lead simply
+      // stops getting this rule's messages — no wraparound to V1. When true,
+      // it cycles V1→V2→…→V5→V1 indefinitely. NOTE: this flag must also be
+      // checked by the nurture job on the backend (the actual send loop
+      // lives there, not in this file) — it only travels as data from here.
+      repeatVariations: false,
       // Sequential variation pool — V1 through V5 in order.
-      // The job picks the next unused variation per lead (V1 → V2 → … → V5 → V1).
+      // The job picks the next unused variation per lead, then stops at V5
+      // unless repeatVariations is true (in which case it wraps to V1).
       templateVariations: ["", "", "", "", ""],
       // Default/fallback template — used when templateVariations is empty.
       templateName: "",
@@ -530,12 +537,22 @@ export default function NurtureSequenceBuilder() {
 
   // ── Auto-build all 4 stage rules ────────────────────────────────────────
   // autoResolveTemplate already resolves the exact template PER LEAD from
-  // that lead's own industry+service at send time — so one rule per funnel
-  // stage covers all 88 industry×service combos with zero manual template
-  // entry. This creates the 4 standard rules (skips any status that already
-  // has a rule) instead of building each one by hand in the form below.
+  // that lead's own industry+service at send time — sends V1→V2→…→V5 in
+  // order, then STOPS (repeatVariations: false) so nobody gets the same 5
+  // messages looping forever — so one rule per funnel stage covers all 88
+  // industry×service combos with zero manual template entry.
+  //
+  // Cadence per Roshan's spec (repeatEveryDays = resend interval):
+  //   New          → every 3 days, ALL leads EXCEPT manual/CSV-imported ones
+  //   In Progress  → every 2 days, all leads
+  //   Interested   → every 2 days, all leads
+  //   Converted    → every 1 day,  all leads
   const [autoBuilding, setAutoBuilding] = useState(false);
-  const STAGE_IDLE_DAYS = { "New": 1, "In Progress": 3, "Interested": 5, "Converted": 8 };
+  const STAGE_REPEAT_DAYS = { "New": 3, "In Progress": 2, "Interested": 2, "Converted": 1 };
+  // Only the New-status rule excludes manual/CSV-imported leads; the other
+  // 3 stages include everyone (by the time a lead is In Progress/Interested/
+  // Converted, source no longer matters).
+  const STAGE_INCLUDE_MANUAL_OR_IMPORTED = { "New": false, "In Progress": true, "Interested": true, "Converted": true };
 
   const autoBuildAllRules = async () => {
     const existingStatuses = new Set(
@@ -551,8 +568,11 @@ export default function NurtureSequenceBuilder() {
     }
     const ok = window.confirm(
       `This will create ${toCreate.length} rule(s), one per status, each with ` +
-      `Auto-pick template ON (covers all industries/services automatically):\n\n` +
-      toCreate.map((st) => `• ${st} → ${STATUS_TO_STAGE[st]} (fires after ${STAGE_IDLE_DAYS[st]}d idle)`).join("\n")
+      `Auto-pick template ON (V1→V2→…→V5, then STOPS — no repeat wraparound):\n\n` +
+      toCreate.map((st) => {
+        const inc = STAGE_INCLUDE_MANUAL_OR_IMPORTED[st];
+        return `• ${st} → ${STATUS_TO_STAGE[st]} (repeats every ${STAGE_REPEAT_DAYS[st]}d${inc ? "" : ", excludes manual/CSV leads"})`;
+      }).join("\n")
     );
     if (!ok) return;
 
@@ -561,13 +581,15 @@ export default function NurtureSequenceBuilder() {
     try {
       for (const st of toCreate) {
         const stage = STATUS_TO_STAGE[st];
+        const days = STAGE_REPEAT_DAYS[st];
         const payload = {
           name: `${st} → ${stage} (auto)`,
           enabled: true,
           trigger: {
             ...emptyDraft.trigger,
             statuses: [st],
-            minDaysSinceLastTouch: STAGE_IDLE_DAYS[st],
+            minDaysSinceLastTouch: days,
+            includeManualOrImported: STAGE_INCLUDE_MANUAL_OR_IMPORTED[st],
           },
           action: {
             whatsapp: {
@@ -576,12 +598,13 @@ export default function NurtureSequenceBuilder() {
               statusStage: st,
               autoResolveTemplate: true,
               funnelStage: stage,
+              repeatVariations: false, // stop after V5 — per Roshan's spec, no wraparound
             },
             email: { ...emptyDraft.action.email },
             notifyAgent: false,
             notifyAgentMessage: "",
           },
-          repeatEveryDays: null,
+          repeatEveryDays: days,
         };
         await api.post("/nurture/rules", payload);
       }
@@ -616,7 +639,7 @@ export default function NurtureSequenceBuilder() {
             onClick={autoBuildAllRules}
             disabled={autoBuilding}
             className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[#2563EB] text-white disabled:opacity-50"
-            title="Creates one rule per status (New/In Progress/Interested/Converted) with Auto-pick template ON — covers every industry×service combo automatically"
+            title="New: every 3d (excl. manual/CSV) · In Progress & Interested: every 2d · Converted: every 1d — auto-picks template per lead's industry+service, V1→V5 then stops (no repeat)"
           >
             {autoBuilding ? "Building…" : "⚡ Auto-build all 4 stage rules"}
           </button>
@@ -790,6 +813,27 @@ export default function NurtureSequenceBuilder() {
                     instead of needing 88 separate rules.
                   </p>
 
+                  {/* ── Repeat-after-V5 toggle — always visible, applies to
+                      auto-resolve AND the manual V1–V5 fallback below, since
+                      both share the same variation-cycling logic on the
+                      backend nurture job. ─────────────────────────────────── */}
+                  <label className="flex items-center gap-2 cursor-pointer select-none mt-3">
+                    <input
+                      type="checkbox"
+                      checked={!!draft.action.whatsapp.repeatVariations}
+                      onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, repeatVariations: e.target.checked } } })}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-[12px] font-semibold">
+                      Repeat variations after V5 (cycle back to V1)
+                    </span>
+                  </label>
+                  <p className="text-[10px] text-[#8B92A9] mt-1">
+                    {draft.action.whatsapp.repeatVariations
+                      ? "ON — after V5, the lead goes back to V1 and keeps getting messages indefinitely."
+                      : "OFF (default) — after V5, this rule stops sending to that lead. No wraparound."}
+                  </p>
+
                   {draft.action.whatsapp.autoResolveTemplate && (
                     <div className="mt-3">
                       <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
@@ -955,7 +999,10 @@ export default function NurtureSequenceBuilder() {
                     />
                   ))}
                   <p className="text-[10px] text-[#8B92A9] mt-1">
-                    Each lead cycles through V1→V2→V3→V4→V5→V1. Resets to V1 when lead moves to a new status stage.
+                    Each lead sends V1→V2→V3→V4→V5 in order. Resets to V1 when lead moves to a new status stage.
+                    {draft.action.whatsapp.repeatVariations
+                      ? " After V5, it wraps back to V1 (Repeat toggle above is ON)."
+                      : " After V5, this rule stops sending to that lead (Repeat toggle above is OFF)."}
                   </p>
                 </div>
 
