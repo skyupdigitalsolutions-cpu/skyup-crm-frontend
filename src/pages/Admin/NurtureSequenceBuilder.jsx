@@ -7,7 +7,7 @@
 // that hasn't been explicitly enabled from Developer > Company Details.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../../data/axiosConfig";
 // Statuses relevant to nurture — deliberately NOT the same as the app-wide
 // ALL_STATUSES constant. "Not Interested", "Merged", and "Closed" leads are
@@ -55,6 +55,31 @@ const STATUS_TO_STAGE = {
   "Interested": "desire",
   "Converted": "action",
 };
+
+// Shared MSG91 status classification — used by TemplatePreview AND the full
+// template library grid, so a template shows the same color/label everywhere.
+function classifyTemplateStatus(cached) {
+  const rawStatus  = String(cached?.status || "").trim().toUpperCase();
+  const isApproved = ["APPROVED", "ENABLED", "ACTIVE", "LIVE"].includes(rawStatus);
+  const isPending  = ["PENDING", "SUBMITTED", "IN_APPEAL", "PENDING_REVIEW"].includes(rawStatus);
+  const isRejected = ["REJECTED", "REFUSED", "FLAGGED", "DISABLED_BY_META"].includes(rawStatus);
+  const isPaused   = ["PAUSED", "DISABLED", "ARCHIVED", "INACTIVE"].includes(rawStatus);
+  const notSynced  = !cached;
+  const isUnknown  = rawStatus === "UNKNOWN" || rawStatus === "";
+  const label = isApproved ? "Approved"
+    : isPending  ? "Pending"
+    : isRejected ? "Rejected"
+    : isPaused   ? "Paused"
+    : notSynced  ? "Not synced"
+    : isUnknown  ? "Status unavailable"
+    : rawStatus;
+  const color = isApproved ? "#38D39F"
+    : isPending  ? "#F5B547"
+    : isRejected ? "#DC2626"
+    : isPaused   ? "#8B92A9"
+    : "#D8DAE5"; // not synced / unknown
+  return { rawStatus, isApproved, isPending, isRejected, isPaused, notSynced, isUnknown, label, color };
+}
 
 // ── Template preview data (from the approved MSG91 sequence generator) ────────
 const SITE = "https://skyupdigitalsolutions.com/";
@@ -230,24 +255,7 @@ function TemplatePreview({ industry, service, stage, variation, templates, onVar
 
   // Look up this template in the synced MSG91 cache
   const cached = templates.find((t) => t.name === tplName);
-
-  // MSG91 returns "Enabled" which we store as either "ENABLED" (old sync)
-  // or "APPROVED" (new sync after normalization fix). Accept both.
-  const rawStatus  = String(cached?.status || "").trim().toUpperCase();
-  const isApproved = ["APPROVED", "ENABLED", "ACTIVE", "LIVE"].includes(rawStatus);
-  const isPending  = ["PENDING", "SUBMITTED", "IN_APPEAL", "PENDING_REVIEW"].includes(rawStatus);
-  const isRejected = ["REJECTED", "REFUSED", "FLAGGED", "DISABLED_BY_META"].includes(rawStatus);
-  const isPaused   = ["PAUSED", "DISABLED", "ARCHIVED", "INACTIVE"].includes(rawStatus);
-  const notSynced  = !cached;
-
-  // What to actually display in the badge — normalize to user-friendly label
-  const isUnknown = rawStatus === "UNKNOWN" || rawStatus === "";
-  const statusLabel = isApproved ? "Approved"
-    : isPending  ? "Pending"
-    : isRejected ? "Rejected"
-    : isPaused   ? "Paused"
-    : isUnknown  ? "Status unavailable"
-    : rawStatus;
+  const { isApproved, isPending, isRejected, isPaused, notSynced, label: statusLabel } = classifyTemplateStatus(cached);
 
   // Build the message body and replace placeholders for display
   const bizName = industry === "Healthcare" ? "City Clinic" : `${industry} Co.`;
@@ -376,6 +384,23 @@ export default function NurtureSequenceBuilder() {
   const [previewIndustry, setPreviewIndustry] = useState("");
   const [previewService,  setPreviewService]  = useState("");
   const [previewVariation, setPreviewVariation] = useState(0);
+
+  // Full template library grid — shows sync/approval status for every
+  // industry × service × stage × variation combo (up to 1,760) at a glance,
+  // instead of previewing one combo at a time. Collapsed by default since
+  // it's a big table; filters narrow it down.
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [libFilterIndustry, setLibFilterIndustry] = useState("");
+  const [libFilterService,  setLibFilterService]  = useState("");
+  const [libFilterStage,    setLibFilterStage]    = useState("");
+
+  // O(1) lookup instead of templates.find() per cell — with up to 1,760
+  // cells this avoids a linear scan of the synced list for every single one.
+  const templateMap = useMemo(() => {
+    const m = new Map();
+    for (const t of templates) m.set(t.name, t);
+    return m;
+  }, [templates]);
 
   // Load whatever templates are already cached locally (fast, no MSG91 call).
   const loadTemplates = useCallback(async () => {
@@ -773,6 +798,105 @@ export default function NurtureSequenceBuilder() {
                 {syncMsg && (
                   <p className="text-[10px] whitespace-pre-wrap text-[#8B92A9]">{syncMsg}</p>
                 )}
+
+                {/* ── Full Template Library — every industry×service×stage×
+                    variation combo (up to 1,760) with live MSG91 sync status,
+                    so gaps are visible at a glance instead of checking one
+                    combo at a time via the preview dropdown. ─────────────── */}
+                <div className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38]">
+                  <button
+                    type="button"
+                    onClick={() => setShowLibrary((v) => !v)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-[12px] font-semibold"
+                  >
+                    <span>📚 Full Template Library ({INDUSTRIES.length * SERVICES.length * FUNNEL_STAGES.length * 5} combos)</span>
+                    <span className="text-[#8B92A9]">{showLibrary ? "▲ Hide" : "▼ Show"}</span>
+                  </button>
+
+                  {showLibrary && (
+                    <div className="px-3 pb-3">
+                      <div className="flex gap-2 flex-wrap mb-2">
+                        <select
+                          value={libFilterIndustry}
+                          onChange={(e) => setLibFilterIndustry(e.target.value)}
+                          className="text-[11px] px-2 py-1 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
+                        >
+                          <option value="">All industries</option>
+                          {INDUSTRIES.map((ind) => <option key={ind} value={ind}>{ind}</option>)}
+                        </select>
+                        <select
+                          value={libFilterService}
+                          onChange={(e) => setLibFilterService(e.target.value)}
+                          className="text-[11px] px-2 py-1 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
+                        >
+                          <option value="">All services</option>
+                          {SERVICES.map((svc) => <option key={svc} value={svc}>{svc}</option>)}
+                        </select>
+                        <select
+                          value={libFilterStage}
+                          onChange={(e) => setLibFilterStage(e.target.value)}
+                          className="text-[11px] px-2 py-1 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
+                        >
+                          <option value="">All stages</option>
+                          {FUNNEL_STAGES.map((st) => <option key={st.value} value={st.value}>{st.value}</option>)}
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-[10px] mb-2 text-[#8B92A9]">
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{background:"#38D39F"}} /> Approved</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{background:"#F5B547"}} /> Pending</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{background:"#DC2626"}} /> Rejected</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{background:"#8B92A9"}} /> Paused</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block border border-[#D8DAE5]" style={{background:"#D8DAE5"}} /> Not synced</span>
+                      </div>
+
+                      <div className="max-h-[420px] overflow-y-auto rounded-lg border border-[#E4E7EF] dark:border-[#262A38]">
+                        <table className="w-full text-[11px]">
+                          <thead className="sticky top-0 bg-[#F8F9FC] dark:bg-[#13161E]">
+                            <tr>
+                              <th className="text-left px-2 py-1.5 font-semibold text-[#8B92A9]">Industry</th>
+                              <th className="text-left px-2 py-1.5 font-semibold text-[#8B92A9]">Service</th>
+                              {FUNNEL_STAGES.filter((st) => !libFilterStage || st.value === libFilterStage).map((st) => (
+                                <th key={st.value} className="text-left px-2 py-1.5 font-semibold text-[#8B92A9] capitalize">{st.value} (V1–V5)</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {INDUSTRIES.filter((ind) => !libFilterIndustry || ind === libFilterIndustry).map((ind) =>
+                              SERVICES.filter((svc) => !libFilterService || svc === libFilterService).map((svc) => (
+                                <tr key={`${ind}__${svc}`} className="border-t border-[#E4E7EF] dark:border-[#262A38]">
+                                  <td className="px-2 py-1.5 whitespace-nowrap">{ind}</td>
+                                  <td className="px-2 py-1.5 whitespace-nowrap">{svc}</td>
+                                  {FUNNEL_STAGES.filter((st) => !libFilterStage || st.value === libFilterStage).map((st) => (
+                                    <td key={st.value} className="px-2 py-1.5">
+                                      <div className="flex gap-1">
+                                        {[1, 2, 3, 4, 5].map((n) => {
+                                          const tplName = tplNameFor(ind, svc, st.value, n);
+                                          const { color, label } = classifyTemplateStatus(templateMap.get(tplName));
+                                          return (
+                                            <span
+                                              key={n}
+                                              title={`${tplName} — ${label}`}
+                                              className="w-3.5 h-3.5 rounded-sm inline-block cursor-help"
+                                              style={{ background: color }}
+                                            />
+                                          );
+                                        })}
+                                      </div>
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[10px] text-[#8B92A9] mt-2">
+                        Hover any square for the exact template name and status. Click "Sync from MSG91" above to refresh.
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 {/* ── Template auto-resolve (always on) ────────────────────── */}
                 <div className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] p-3">
