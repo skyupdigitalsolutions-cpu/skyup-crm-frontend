@@ -430,6 +430,21 @@ export default function NurtureSequenceBuilder() {
                 : next.trigger.sources;
       const idx = arr.indexOf(value);
       if (idx === -1) arr.push(value); else arr.splice(idx, 1);
+
+      // Auto-sync Status Stage + Funnel Stage from the status chips — no
+      // need to pick the same thing three times. Only auto-fills when the
+      // chips resolve to exactly ONE status with a known mapping; with zero
+      // or multiple statuses selected there's no single answer, so leave
+      // whatever was already chosen (manual override still available).
+      if (path === "statuses") {
+        if (next.trigger.statuses.length === 1 && STATUS_TO_STAGE[next.trigger.statuses[0]]) {
+          const st = next.trigger.statuses[0];
+          next.action.whatsapp.statusStage = st;
+          next.action.whatsapp.funnelStage = STATUS_TO_STAGE[st];
+        } else {
+          next.action.whatsapp.statusStage = "";
+        }
+      }
       return next;
     });
   };
@@ -705,19 +720,30 @@ export default function NurtureSequenceBuilder() {
             {draft.action.whatsapp.enabled && (
               <div className="mt-2 space-y-2">
 
-                {/* ── Status Stage ─────────────────────────────────────────── */}
+                {/* ── Status Stage — auto-synced from "Only fire for these
+                    statuses" above when exactly one is picked. Manual
+                    dropdown only shows up when there's no single answer
+                    (zero or multiple statuses selected), so you're not
+                    picking the same status three times for one rule. ────── */}
                 <div>
                   <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
                     Status Stage — which CRM status triggers this rule
                   </p>
-                  <select
-                    value={draft.action.whatsapp.statusStage}
-                    onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, statusStage: e.target.value } } })}
-                    className="w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
-                  >
-                    <option value="">— Any status (no stage gate) —</option>
-                    {NURTURE_STATUSES.map(s => <option key={s} value={s}>{s} → {s === "New" ? "Awareness" : s === "In Progress" ? "Interest" : s === "Interest" ? "Desire" : "Action"}</option>)}
-                  </select>
+                  {draft.trigger.statuses.length === 1 && STATUS_TO_STAGE[draft.trigger.statuses[0]] ? (
+                    <p className="text-[13px] px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
+                      <b>{draft.trigger.statuses[0]}</b> → {STATUS_TO_STAGE[draft.trigger.statuses[0]].replace(/^./, (c) => c.toUpperCase())}
+                      <span className="text-[#8B92A9] ml-1">(auto-set from the status chips above)</span>
+                    </p>
+                  ) : (
+                    <select
+                      value={draft.action.whatsapp.statusStage}
+                      onChange={(e) => setDraft({ ...draft, action: { ...draft.action, whatsapp: { ...draft.action.whatsapp, statusStage: e.target.value } } })}
+                      className="w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
+                    >
+                      <option value="">— Any status (no stage gate) —</option>
+                      {NURTURE_STATUSES.map(s => <option key={s} value={s}>{s} → {STATUS_TO_STAGE[s]?.replace(/^./, (c) => c.toUpperCase())}</option>)}
+                    </select>
+                  )}
                   <p className="text-[10px] text-[#8B92A9] mt-1">
                     Rule only fires when lead's status matches this. Variation index resets to V1 when status changes stage.
                   </p>
@@ -781,6 +807,9 @@ export default function NurtureSequenceBuilder() {
                   <div className="mt-3">
                       <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
                         Funnel stage (required)
+                        {draft.trigger.statuses.length === 1 && STATUS_TO_STAGE[draft.trigger.statuses[0]] && (
+                          <span className="text-[#38D39F] font-normal ml-1">— auto-set, change below if needed</span>
+                        )}
                       </p>
                       <select
                         value={draft.action.whatsapp.funnelStage || ""}
