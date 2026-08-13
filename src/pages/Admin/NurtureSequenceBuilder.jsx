@@ -41,6 +41,21 @@ const FUNNEL_STAGES = [
   { value: "action",    label: "Action — Day 8–9, one clear next step" },
 ];
 
+// Shared slug + naming pattern — MUST stay identical to the one used inside
+// TemplatePreview and to utils/templateNameResolver.js on the backend.
+const slug = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
+const tplNameFor = (industry, service, stage, variation1Based) =>
+  `${slug(industry)}_${slug(service)}_${stage}_v${variation1Based}`;
+
+// Same status → funnel-stage mapping shown next to the Status Stage <select>
+// (New→awareness, In Progress→interest, Interested→desire, Converted→action).
+const STATUS_TO_STAGE = {
+  "New": "awareness",
+  "In Progress": "interest",
+  "Interested": "desire",
+  "Converted": "action",
+};
+
 // ── Template preview data (from the approved MSG91 sequence generator) ────────
 const SITE = "https://skyupdigitalsolutions.com/";
 const FOOT = `\n\n🌐 ${SITE}\n— *Skyup Digital Solutions*`;
@@ -204,8 +219,7 @@ function MultiChip({ options, selected, onToggle }) {
 // ── TemplatePreview — shows the actual WhatsApp message + MSG91 status ────────
 // A proper component (not an IIFE) so variables are always in scope.
 function TemplatePreview({ industry, service, stage, variation, templates, onVariationChange }) {
-  const slug = (x) => x.toLowerCase().replace(/[^a-z0-9]+/g, "_");
-  const tplName = `${slug(industry)}_${slug(service)}_${stage}_v${variation + 1}`;
+  const tplName = tplNameFor(industry, service, stage, variation + 1);
 
   // Look up this template in the synced MSG91 cache
   const cached = templates.find((t) => t.name === tplName);
@@ -356,6 +370,15 @@ export default function NurtureSequenceBuilder() {
   const [previewService,  setPreviewService]  = useState("");
   const [previewVariation, setPreviewVariation] = useState(0);
 
+  // ── Template Name Generator — fills the manual fallback (V1–V5) and the
+  // per-status pool from the exact same industry_service_stage_vN pattern
+  // that autoResolveTemplate uses per-lead, so nobody has to type 20+ names
+  // by hand for a single-industry/service-scoped rule. Purely a client-side
+  // convenience — still free-text after generation, so any name can be
+  // tweaked or cleared afterwards.
+  const [genIndustry, setGenIndustry] = useState("");
+  const [genService,  setGenService]  = useState("");
+
   // Load whatever templates are already cached locally (fast, no MSG91 call).
   const loadTemplates = useCallback(async () => {
     try {
@@ -411,6 +434,42 @@ export default function NurtureSequenceBuilder() {
       if (idx === -1) arr.push(value); else arr.splice(idx, 1);
       return next;
     });
+  };
+
+  // Fill the manual V1–V5 fallback list from genIndustry/genService + the
+  // rule's funnelStage (falls back to "awareness" if that hasn't been set,
+  // since the fallback box has no stage selector of its own).
+  const generateFallbackFromPattern = () => {
+    if (!genIndustry || !genService) return;
+    const stage = draft.action.whatsapp.funnelStage || "awareness";
+    const next = [1, 2, 3, 4, 5].map((n) => tplNameFor(genIndustry, genService, stage, n));
+    setDraft((d) => ({ ...d, action: { ...d.action, whatsapp: { ...d.action.whatsapp, templateVariations: next } } }));
+  };
+
+  // Fill the per-status 6-slot pool for ONE status from genIndustry/genService
+  // using that status's mapped funnel stage (New→awareness, etc.). Generates
+  // 5 names (v1–v5) — matching the 5 variants the template library actually
+  // has per stage — leaving slot 6 blank for a manual extra if needed.
+  const generatePoolFromPattern = (status) => {
+    if (!genIndustry || !genService) return;
+    const stage = STATUS_TO_STAGE[status] || "awareness";
+    const next = [1, 2, 3, 4, 5].map((n) => tplNameFor(genIndustry, genService, stage, n));
+    setDraft((d) => ({
+      ...d,
+      action: {
+        ...d.action,
+        whatsapp: {
+          ...d.action.whatsapp,
+          templatesByStatus: { ...d.action.whatsapp.templatesByStatus, [status]: next },
+        },
+      },
+    }));
+  };
+
+  // Fill every currently-selected status's pool in one click.
+  const generateAllPoolsFromPattern = () => {
+    if (!genIndustry || !genService) return;
+    draft.trigger.statuses.forEach((st) => generatePoolFromPattern(st));
   };
 
   const startEdit = (rule) => {
@@ -746,6 +805,61 @@ export default function NurtureSequenceBuilder() {
                   )}
                 </div>
 
+                {/* ── Template Name Generator — fills V1–V5 below AND the
+                    per-status pool further down, from the same
+                    industry_service_stage_vN pattern autoResolve uses.
+                    Pick industry+service once, click Generate. ──────────── */}
+                <div className="rounded-lg border border-dashed border-[#2563EB]/40 bg-[#2563EB]/5 p-3">
+                  <p className="text-[11px] font-semibold text-[#2563EB] mb-2">
+                    ⚡ Template Name Generator — pattern-fill instead of typing each name
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    <select
+                      value={genIndustry}
+                      onChange={(e) => setGenIndustry(e.target.value)}
+                      className="text-[12px] px-2 py-1.5 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
+                    >
+                      <option value="">— Industry —</option>
+                      {INDUSTRIES.map((ind) => <option key={ind} value={ind}>{ind}</option>)}
+                    </select>
+                    <select
+                      value={genService}
+                      onChange={(e) => setGenService(e.target.value)}
+                      className="text-[12px] px-2 py-1.5 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
+                    >
+                      <option value="">— Service —</option>
+                      {SERVICES.map((svc) => <option key={svc} value={svc}>{svc}</option>)}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!genIndustry || !genService}
+                      onClick={generateFallbackFromPattern}
+                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[#2563EB] text-white disabled:opacity-40"
+                      title="Fills the V1–V5 fallback boxes below"
+                    >
+                      Fill V1–V5 fallback
+                    </button>
+                    {draft.trigger.statuses.length > 0 && (
+                      <button
+                        type="button"
+                        disabled={!genIndustry || !genService}
+                        onClick={generateAllPoolsFromPattern}
+                        className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[#059669] text-white disabled:opacity-40"
+                        title="Fills the per-status pool for every selected status further down"
+                      >
+                        Fill all status pools
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-[#8B92A9] mt-2">
+                    Fill uses <code>{genIndustry ? slug(genIndustry) : "industry"}_{genService ? slug(genService) : "service"}_stage_v1…v5</code> — the
+                    fallback box uses this rule's Funnel stage (or "awareness" if unset); the status
+                    pool uses each status's mapped stage (New→awareness, In Progress→interest,
+                    Interested→desire, Converted→action). Still plain text after filling — edit or
+                    clear any name manually.
+                  </p>
+                </div>
+
                 {/* ── Template Variations V1–V5 (manual / fallback) ─────────── */}
                 <div className={draft.action.whatsapp.autoResolveTemplate ? "opacity-60" : ""}>
                   <p className="text-[10px] font-semibold text-[#8B92A9] uppercase mb-1">
@@ -855,8 +969,21 @@ export default function NurtureSequenceBuilder() {
                       return (
                         <div key={st}>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">{st}</span>
-                            <span className="text-[10px] text-[#8B92A9]">{pool.filter((t) => t && t.trim()).length}/6</span>
+                            <span className="text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
+                              {st} <span className="text-[#8B92A9] font-normal">({STATUS_TO_STAGE[st] || "—"})</span>
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={!genIndustry || !genService}
+                                onClick={() => generatePoolFromPattern(st)}
+                                className="text-[10px] font-semibold text-[#2563EB] disabled:opacity-40"
+                                title="Fill this status's pool from the generator above"
+                              >
+                                Fill from pattern
+                              </button>
+                              <span className="text-[10px] text-[#8B92A9]">{pool.filter((t) => t && t.trim()).length}/6</span>
+                            </div>
                           </div>
                           <div className="space-y-1.5">
                             {pool.map((tmpl, idx) => (
