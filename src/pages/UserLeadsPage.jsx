@@ -66,6 +66,8 @@ phone:          l.primaryPhone   || l.mobile || l.phone || "",
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
     adSetName:      l.adSetName      || "",   
+    industry:       l.industry       || "",
+    service:        l.service        || "",
     status:         l.status         || "New",
     temperature:    l.temperature    || l.Quality || null,
     // ── Qualification scoring (Meta ad-set leads) ──────────────────────────
@@ -810,6 +812,8 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             { label: "Date",     value: lead.date },
             { label: "Source",   value: lead.source },
             { label: "Calls",    value: lead.callHistory.length || 0 },
+            ...(lead.industry ? [{ label: "Industry", value: lead.industry }] : []),
+            ...(lead.service  ? [{ label: "Service",  value: lead.service  }] : []),
           ].map(({ label, value }) => (
             <div key={label}>
               <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest">{label}</p>
