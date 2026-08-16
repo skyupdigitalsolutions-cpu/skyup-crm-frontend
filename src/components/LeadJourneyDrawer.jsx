@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { X, Flame, Sun, Snowflake, CheckCircle2, AlertTriangle, Clock, Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays, Paperclip, Mic, User, RefreshCw, ClipboardList, Inbox, Map as MapIcon, Users, BarChart3, PartyPopper, XCircle, Zap, Sparkles } from "lucide-react";
 import QualificationScore from "./QualificationScore";
 import api from "../data/axiosConfig";
+import useEntitlements from "../hooks/useEntitlements";
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -341,12 +342,19 @@ function defaultMaskEmail(email, isSuperAdmin) {
 }
 
 // ── Main drawer ───────────────────────────────────────────────────────────────
-export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false, maskPhone, maskEmail }) {
+export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false, maskPhone, maskEmail, onLeadUpdated, onToast, showNurtureFields: showNurtureFieldsProp }) {
   // Hooks below must run unconditionally — keep the null check AFTER them.
   const safeLead = lead || {};
 
   const masker      = maskPhone  || defaultMaskPhone;
   const emailMasker = maskEmail  || defaultMaskEmail;
+
+  // ── Feature gate — show Industry/Service only when leadNurtureSequence is enabled
+  // Accepts prop from parent (AdminLeadsPage) or computes internally (UserLeadsPage)
+  const { hasFeature } = useEntitlements();
+  const showNurtureFields = showNurtureFieldsProp !== undefined
+    ? showNurtureFieldsProp
+    : hasFeature('leadNurtureSequence');
 
   // ── AI Action Summary ─────────────────────────────────────────────────────
   const [aiSummary,        setAiSummary]        = useState(null);
@@ -659,8 +667,10 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
               {[
                 { label: "Source",           value: lead.source || "—" },
                 { label: "Campaign",         value: lead.campaign && lead.campaign !== "—" ? lead.campaign : "—" },
-                { label: "Industry",         value: lead.industry || "—" },
-                { label: "Service",          value: lead.service  || "—" },
+                ...(showNurtureFields ? [
+                  { label: "Industry",       value: lead.industry || "—" },
+                  { label: "Service",        value: lead.service  || "—" },
+                ] : []),
                 { label: "Ad Set",           value: lead.adSetName || "—" },
                 { label: "Primary Number",   value: displayPhone },
                 ...(displaySecondaryPhone ? [{ label: "Secondary Number", value: displaySecondaryPhone }] : []),
