@@ -659,6 +659,8 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
               {[
                 { label: "Source",           value: lead.source || "—" },
                 { label: "Campaign",         value: lead.campaign && lead.campaign !== "—" ? lead.campaign : "—" },
+                { label: "Industry",         value: lead.industry || "—" },
+                { label: "Service",          value: lead.service  || "—" },
                 { label: "Ad Set",           value: lead.adSetName || "—" },
                 { label: "Primary Number",   value: displayPhone },
                 ...(displaySecondaryPhone ? [{ label: "Secondary Number", value: displaySecondaryPhone }] : []),
