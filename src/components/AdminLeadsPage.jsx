@@ -5,6 +5,7 @@ import ClientMeetingTab from "./ClientMeetingTab";
 import QualificationScore from "./QualificationScore";
 import CRMEncryption from "../utils/CRMEncryption";
 import { getRole } from "../data/dataService";
+import useEntitlements from "../hooks/useEntitlements";
 import { normalizePhone } from "../utils/normalizePhone";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
 import { LanguageFilter, LeadLanguageBadge } from "./LanguageControls";
@@ -1805,6 +1806,10 @@ export default function AdminLeadsPage() {
 
   const [recordingsLead, setRecordingsLead] = useState(null);
 
+  // ── Feature gate — show Industry/Service only when leadNurtureSequence is enabled
+  const { hasFeature } = useEntitlements();
+  const showNurtureFields = hasFeature('leadNurtureSequence');
+
   const [toast, setToast] = useState(null);
   const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
@@ -2595,6 +2600,7 @@ export default function AdminLeadsPage() {
           maskEmail={maskEmail}
           onLeadUpdated={handleLeadUpdated}
           onToast={showToast}
+          showNurtureFields={showNurtureFields}
         />
       )}
 
