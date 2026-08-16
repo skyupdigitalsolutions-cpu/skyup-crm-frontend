@@ -4,7 +4,7 @@ import LeadJourneyDrawer from "./LeadJourneyDrawer";
 import ClientMeetingTab from "./ClientMeetingTab";
 import QualificationScore from "./QualificationScore";
 import CRMEncryption from "../utils/CRMEncryption";
-import { getRole, getStoredUser } from "../data/dataService";
+import { getRole } from "../data/dataService";
 import { normalizePhone } from "../utils/normalizePhone";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
 import { LanguageFilter, LeadLanguageBadge } from "./LanguageControls";
@@ -33,20 +33,6 @@ import {
 } from "lucide-react";
 
 const crm = new CRMEncryption();
-
-// ── Lead Nurture — industry/service dropdowns ─────────────────────────────────
-// Only shown for this specific company. Values must match templateNameResolver.js
-// exactly — they become part of the MSG91 template name slug.
-const NURTURE_COMPANY_ID = "6a22662b7aea6e4034f44aae";
-const NURTURE_INDUSTRIES = [
-  "Healthcare", "Education", "Real Estate", "Logistics", "Finance",
-  "IT Solutions", "Digital Marketing", "Construction", "Local Business",
-  "Interior Designers", "Professional Services",
-];
-const NURTURE_SERVICES = [
-  "SEO", "Paid Ads", "Website Design & Development", "AI Automation",
-  "CRM", "Video Editing", "Graphic Design", "Social Media Marketing",
-];
 
 const BACKEND_ROOT = import.meta.env.VITE_API_URL.replace(/\/api$/, "")
    
@@ -1131,16 +1117,14 @@ const [merging,    setMerging]      = useState(false);
 }
 
 // ── Add Lead Modal ────────────────────────────────────────────────────────────
-function AddLeadModal({ onClose, onAdd, isSuperAdmin, companyId }) {
+function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
   const [users,   setUsers]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [customSource, setCustomSource] = useState("");
   const [form, setForm] = useState({
     name: "", mobile: "", secondaryPhone: "", email: "", source: "Manual", campaign: "",
-    userId: "", status: "New", remark: "", industry: "", service: "",
+    userId: "", status: "New", remark: "",
   });
-  // Show nurture fields only for the specific company
-  const showNurtureFields = companyId === NURTURE_COMPANY_ID;
   const [errors,     setErrors]     = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [dupCheck,   setDupCheck]   = useState({ state: "idle", lead: null });
@@ -1254,8 +1238,6 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin, companyId }) {
       remark:   form.remark.trim() || "Manually added",
       user:     form.userId,
       date:     new Date(),
-      ...(showNurtureFields && form.industry ? { industry: form.industry } : {}),
-      ...(showNurtureFields && form.service  ? { service:  form.service  } : {}),
     };
     let payload = basePayload;
     const keyString = crm.getLocalKey();
@@ -1544,26 +1526,6 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin, companyId }) {
               </select>
             </div>
           </div>
-          {showNurtureFields && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Industry</label>
-                <select value={form.industry} onChange={e => set("industry", e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]">
-                  <option value="">— Select industry —</option>
-                  {NURTURE_INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Service</label>
-                <select value={form.service} onChange={e => set("service", e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]">
-                  <option value="">— Select service —</option>
-                  {NURTURE_SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            </div>
-          )}
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Email</label>
@@ -1793,6 +1755,8 @@ function mapLead(l) {
     source:         l.source         || "—",
     campaign:       l.campaign       || "—",
     adSetName:      l.adSetName      || "",
+    industry:       l.industry       || "",
+    service:        l.service        || "",
     agent:          l.user?.name || l.assignedTo?.name || l.agent || "Unassigned",
     language:       l.language       || "",
     status:         l.status         || "New",
@@ -2117,7 +2081,7 @@ export default function AdminLeadsPage() {
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-3 py-4 md:px-6 md:py-8 overflow-x-hidden">
 
-      {showAdd    && <AddLeadModal   onClose={() => setShowAdd(false)}    onAdd={handleAdd}    isSuperAdmin={isSuperAdmin} companyId={getStoredUser()?.company} />}
+      {showAdd    && <AddLeadModal   onClose={() => setShowAdd(false)}    onAdd={handleAdd}    isSuperAdmin={isSuperAdmin} />}
       {showImport && <ImportCSVModal onClose={() => setShowImport(false)} onImported={fetchLeads} existingLeads={allLeads} />}
 
       {/* Header */}
