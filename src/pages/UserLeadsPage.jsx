@@ -6,6 +6,7 @@ import QualificationScore from "../components/QualificationScore";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
 import { maskPhone as _maskPhone } from "../utils/maskPhone";
 import { Check, AlertTriangle, X } from "lucide-react";
+import useEntitlements from "../hooks/useEntitlements";
 
 const BACKEND_ROOT = import.meta.env.VITE_API_URL.replace(/\/api$/, "")
  
@@ -812,8 +813,8 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             { label: "Date",     value: lead.date },
             { label: "Source",   value: lead.source },
             { label: "Calls",    value: lead.callHistory.length || 0 },
-            ...(lead.industry ? [{ label: "Industry", value: lead.industry }] : []),
-            ...(lead.service  ? [{ label: "Service",  value: lead.service  }] : []),
+            ...(showNurtureFields && lead.industry ? [{ label: "Industry", value: lead.industry }] : []),
+            ...(showNurtureFields && lead.service  ? [{ label: "Service",  value: lead.service  }] : []),
           ].map(({ label, value }) => (
             <div key={label}>
               <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest">{label}</p>
@@ -1097,6 +1098,10 @@ export default function UserLeadsPage() {
   const [filterSt,   setFilterSt]   = useState("All");
   const [filterTemp, setFilterTemp] = useState("All");
   const [filterSrc,  setFilterSrc]  = useState("All");
+
+  // ── Feature gate — show Industry/Service only when leadNurtureSequence is enabled
+  const { hasFeature } = useEntitlements();
+  const showNurtureFields = hasFeature('leadNurtureSequence');
   const [filterProject, setFilterProject] = useState("All");
   const [projects,      setProjects]      = useState([]);
   const [sortBy,     setSortBy]     = useState("date_desc");
