@@ -10,6 +10,7 @@ import { getRole } from "../data/dataService";
 import CRMEncryption from "../utils/CRMEncryption";
 // FIX (clock/timezone bug): see getGreeting() below.
 import { toIST } from "../utils/dateUtils";
+import IdleRemarkModal from "../components/IdleRemarkModal";
 
 const crm = new CRMEncryption();
 const ALL_SOURCES  = ["Manual", "Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral"];
@@ -110,7 +111,8 @@ const sharedSocket = { current: null };
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Attendance Mini Widget
 // ─────────────────────────────────────────────────────────────────────────────
-const IDLE_MS = 5 * 60 * 1000;
+const IDLE_MS        = 5 * 60 * 1000;
+const IDLE_PROMPT_MS = 5 * 60 * 1000; // re-prompt every 5 min while still idle
 
 function fmtMins(totalMins) {
   if (!Number.isFinite(totalMins) || totalMins < 0) return "0h 00m";
@@ -188,6 +190,12 @@ function AttendanceMiniWidget() {
   const pingTimerRef = useRef(null);
   const tickTimerRef = useRef(null);
 
+  // ── Idle-remark popup state ─────────────────────────────────────────────
+  const [showIdleModal, setShowIdleModal] = useState(false);
+  const [idleModalMode,  setIdleModalMode]  = useState("recurring"); // "recurring" | "resume"
+  const idlePromptTimerRef = useRef(null);
+  const pendingResumeRef   = useRef(false);
+
   const userId = useMemo(() => {
     try {
       const u = JSON.parse(localStorage.getItem("user") || "null");
@@ -252,7 +260,16 @@ function AttendanceMiniWidget() {
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime) return;
     pingTimerRef.current = setInterval(async () => {
-      try { await api.post("/attendance/ping"); } catch {}
+      // FIX: applying the response directly here too (not just relying on the
+      // attendance:updated socket listener above) — the socket can be
+      // mid-reconnect at the exact moment this fires, and this is the same
+      // defense-in-depth the mobile app's manual Resume handler already uses.
+      try {
+        const res = await api.post("/attendance/ping");
+        if (res.data?.status && res.data.status !== "idle") {
+          setRecord((prev) => (prev ? { ...prev, status: res.data.status, activeBreakIndex: null } : prev));
+        }
+      } catch {}
     }, 60000);
     return () => clearInterval(pingTimerRef.current);
   }, [record?.loginTime, record?.logoutTime]);
@@ -284,6 +301,96 @@ function AttendanceMiniWidget() {
       clearTimeout(idleTimerRef.current);
     };
   }, [record?.loginTime, record?.logoutTime, record?.status]);
+
+  // ── Idle-remark: re-prompt every 5 min while still idle ────────────────────
+  useEffect(() => {
+    clearInterval(idlePromptTimerRef.current);
+    if (record?.status !== "idle") return;
+
+    setIdleModalMode("recurring");
+    setShowIdleModal(true);
+    idlePromptTimerRef.current = setInterval(() => {
+      setIdleModalMode("recurring");
+      setShowIdleModal(true);
+    }, IDLE_PROMPT_MS);
+
+    return () => clearInterval(idlePromptTimerRef.current);
+  }, [record?.status]);
+
+  // ── Idle-remark: any movement while idle → prompt for remark, then resume ──
+  useEffect(() => {
+    if (record?.status !== "idle") { pendingResumeRef.current = false; return; }
+
+    const onMove = () => {
+      if (pendingResumeRef.current) return;
+      pendingResumeRef.current = true;
+      setIdleModalMode("resume");
+      setShowIdleModal(true);
+    };
+
+    const events = ["mousemove", "keydown", "mousedown", "touchstart", "scroll"];
+    events.forEach((e) => window.addEventListener(e, onMove, { passive: true }));
+    return () => events.forEach((e) => window.removeEventListener(e, onMove));
+  }, [record?.status]);
+
+  // ── Idle-remark: close the popup if idle ends through some OTHER path ──────
+  // Same gap as AttendancePanel.jsx — the existing "Resume" buttons here
+  // (idleWarning banner + regular action row) call endBreak() directly,
+  // bypassing this popup. Without this it could keep showing stale content
+  // after the employee already resumed through one of those buttons.
+  const prevIdleStatusRef = useRef(record?.status);
+  useEffect(() => {
+    const prev = prevIdleStatusRef.current;
+    prevIdleStatusRef.current = record?.status;
+    if (prev === "idle" && record?.status !== "idle" && showIdleModal) {
+      setShowIdleModal(false);
+      pendingResumeRef.current = false;
+    }
+  }, [record?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Idle-remark: derived data for the popup ─────────────────────────────────
+  const currentIdleBreak = (() => {
+    if (record?.status !== "idle" || record?.activeBreakIndex == null) return null;
+    const br = record.breaks?.[record.activeBreakIndex];
+    return br?.reason === "Auto Idle" ? { index: record.activeBreakIndex, ...br } : null;
+  })();
+
+  const pastPendingBreaks = (record?.breaks || [])
+    .map((b, index) => ({ ...b, index }))
+    .filter((b) => b.reason === "Auto Idle" && b.remarkStatus === "pending" && b.index !== record?.activeBreakIndex);
+
+  // ── Idle-remark: save/skip handlers ─────────────────────────────────────────
+  const closeIdleModal = async () => {
+    setShowIdleModal(false);
+    if (idleModalMode === "resume") {
+      pendingResumeRef.current = false;
+      try {
+        const r = await api.post("/attendance/break/end");
+        setRecord(r.data);
+        setIdleWarning(false);
+      } catch {}
+    }
+  };
+
+  const handleSaveIdleRemark = async (text) => {
+    try {
+      const r = await api.post("/attendance/idle-remark", { remark: text });
+      setRecord((prev) => (prev ? { ...prev, breaks: r.data?.breaks || prev.breaks } : prev));
+    } catch {}
+    closeIdleModal();
+  };
+
+  const handleSkipIdleRemark = async () => {
+    try { await api.post("/attendance/idle-remark", { remark: "" }); } catch {}
+    closeIdleModal();
+  };
+
+  const handleSavePendingRemark = async (breakIndex, text) => {
+    try {
+      const r = await api.post("/attendance/idle-remark", { remark: text, breakIndex });
+      setRecord((prev) => (prev ? { ...prev, breaks: r.data?.breaks || prev.breaks } : prev));
+    } catch {}
+  };
 
   const clockIn    = async () => { try { const r = await api.post("/attendance/clock-in");              setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
   const clockOut   = async () => { if (!confirm("Clock out for today?")) return; try { const r = await api.post("/attendance/clock-out"); setRecord(r.data); } catch (e) { alert(e.response?.data?.message || "Error"); } };
@@ -426,6 +533,16 @@ function AttendanceMiniWidget() {
           )}
         </div>
       )}
+
+      <IdleRemarkModal
+        open={showIdleModal}
+        mode={idleModalMode}
+        idleSince={currentIdleBreak?.startTime}
+        pendingBreaks={pastPendingBreaks}
+        onSave={handleSaveIdleRemark}
+        onSkip={handleSkipIdleRemark}
+        onSavePending={handleSavePendingRemark}
+      />
     </div>
   );
 }
