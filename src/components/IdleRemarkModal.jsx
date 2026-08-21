@@ -1,6 +1,17 @@
 import { useState, useEffect } from "react";
-import { Moon } from "lucide-react";
+import { Moon, X } from "lucide-react";
 import { formatTime } from "../utils/dateUtils";
+
+// ── Pre-filled quick-select remark chips ───────────────────────────────────────
+const QUICK_REMARKS = [
+  "Lunch break",
+  "On a call",
+  "Team meeting",
+  "Technical issue",
+  "Personal break",
+  "Power cut",
+  "Client meeting",
+];
 
 // ── Idle remark popup ─────────────────────────────────────────────────────────
 // Shown:
@@ -18,6 +29,7 @@ export default function IdleRemarkModal({
   pendingBreaks,      // [{ index, startTime, endTime }] — earlier skipped periods today
   onSave,             // (remark) => void — save remark for the current idle period
   onSkip,             // () => void — explicit skip, stays pending
+  onClose,            // () => void — X button: close without any action (same as skip for UX)
   onSavePending,      // (index, remark) => void — fill in an earlier pending one
 }) {
   const [text, setText]              = useState("");
@@ -30,26 +42,67 @@ export default function IdleRemarkModal({
 
   if (!open) return null;
 
+  // X closes without saving — behaves like skip
+  const handleClose = () => {
+    if (onClose) onClose();
+    else if (onSkip) onSkip();
+  };
+
+  const handleQuickSelect = (chip) => {
+    setText(chip);
+  };
+
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-sm bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-5 shadow-xl">
-        <div className="flex items-center gap-2 mb-1">
-          <Moon className="w-4 h-4 text-red-500" />
-          <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-            {mode === "resume" ? "Welcome back" : "Still idle"}
-          </h3>
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <Moon className="w-4 h-4 text-red-500" />
+            <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
+              {mode === "resume" ? "Welcome back" : "Still idle"}
+            </h3>
+          </div>
+          {/* X button — closes modal, treated as skip */}
+          <button
+            onClick={handleClose}
+            className="w-6 h-6 flex items-center justify-center rounded-lg text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-white hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition"
+            aria-label="Close"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
+
         <p className="text-[12px] text-[#8B92A9] mb-3">
           {mode === "resume"
             ? "You were idle — what were you doing?"
             : `Idle since ${idleSince ? formatTime(idleSince) : "—"}. What's going on?`}
         </p>
 
+        {/* ── Quick-select chips ── */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {QUICK_REMARKS.map((chip) => (
+            <button
+              key={chip}
+              onClick={() => handleQuickSelect(chip)}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition ${
+                text === chip
+                  ? "bg-[#2563EB] text-white border-[#2563EB]"
+                  : "bg-[#F8F9FC] dark:bg-[#13161E] text-[#4B5168] dark:text-[#9DA3BB] border-[#E4E7EF] dark:border-[#262A38] hover:border-[#2563EB] hover:text-[#2563EB] dark:hover:text-[#2563EB]"
+              }`}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Free-text area ── */}
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="e.g. On a call, lunch break, meeting…"
-          rows={3}
+          placeholder="Or type your own reason…"
+          rows={2}
           autoFocus
           className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] resize-none mb-3"
         />
