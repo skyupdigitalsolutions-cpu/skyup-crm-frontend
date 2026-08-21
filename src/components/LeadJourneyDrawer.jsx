@@ -373,13 +373,20 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
       setAiSummary(data);
     } catch (e) {
       const code = e?.response?.data?.code;
-      setAiSummaryError(
-        code === "GROK_NOT_CONFIGURED"
-          ? "AI summary is not configured on the server."
-          : code === "GROK_UNAVAILABLE"
-          ? "AI summary service is busy. Please try again."
-          : (e?.response?.data?.message || "Could not generate summary."),
-      );
+      // FIX: the backend now distinguishes WHY the AI call failed instead of
+      // lumping everything into "busy" — surface each one distinctly so the
+      // person actually knows whether retrying will help (rate limit/network)
+      // or won't (auth/config/model issue needs an admin to fix server-side).
+      const MESSAGES = {
+        GROK_NOT_CONFIGURED: "AI summary is not configured on the server.",
+        GROK_AUTH_FAILED: "AI provider rejected the server's API key. This needs an admin to check GROQ_API_KEY — retrying won't help.",
+        GROK_BAD_REQUEST: "AI provider rejected the request — the configured model may no longer be available. This needs an admin to check the server config — retrying won't help.",
+        GROK_RATE_LIMITED: "AI provider is rate-limiting right now. This is temporary — try again in a minute.",
+        GROK_NETWORK_ERROR: "Could not reach the AI provider — check the server's network connection.",
+        GROK_PAYLOAD_TOO_LARGE: "This lead's history is too large for the AI summary to process.",
+        GROK_UNAVAILABLE: "AI summary service is busy. Please try again.",
+      };
+      setAiSummaryError(MESSAGES[code] || e?.response?.data?.message || "Could not generate summary.");
     } finally {
       setAiSummaryLoading(false);
     }
