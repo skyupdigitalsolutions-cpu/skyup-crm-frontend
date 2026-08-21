@@ -721,7 +721,7 @@ function IntegrationsModal({ onClose }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ── TAB NAV ───────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
-function TabNav({ active, onChange }) {
+function TabNav({ active, onChange, showReports }) {
   const tabs = [
     {
       key: "whatsapp",
@@ -757,6 +757,17 @@ function TabNav({ active, onChange }) {
       activeColor: "text-[#EA580C] border-[#EA580C]",
       activeBg: "bg-[#fff7ed] dark:bg-[#1c0a00]",
     },
+    ...(showReports ? [{
+      key: "reports",
+      label: "Reports",
+      icon: (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V9m6 8V5M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+        </svg>
+      ),
+      activeColor: "text-[#2563EB] border-[#2563EB]",
+      activeBg: "bg-[#eff6ff] dark:bg-[#0a1a33]",
+    }] : []),
   ];
 
   return (
@@ -1599,59 +1610,27 @@ function WhatsAppPanel({ currentUser }) {
     }
 
     return () => socket.disconnect();
-  }, [currentUser]);
+    // Depend on stable primitives, not the whole currentUser object — App.jsx
+    // re-parses `user` from localStorage on every render and hands down a new
+    // object reference each time, which used to tear down and reopen this
+    // socket connection any time the parent re-rendered while this panel was
+    // mounted, even though nothing about the caller had actually changed.
+  }, [currentUser?._id, currentUser?.company]);
 
-  // ── Real-time fallback polling ─────────────────────────────────────────────
-  // Polls every 1.5s for new messages in the selected conversation.
-  // This is a safety net — the socket push (wa_message event) is the primary
-  // path. If the MSG91 inbound webhook is registered, messages arrive via
-  // socket in <2s. The poll below catches anything the socket misses.
-  // Also checks for messages that landed in a duplicate conversation
-  // (same waPhone, different _id) due to the XXX phone masking bug.
-  useEffect(() => {
-    if (!selected?._id) return;
-    const convId = selected._id;
-    const waPhone = selected.waPhone;
-    const interval = setInterval(async () => {
-      try {
-        // Primary: fetch messages for the selected conversation
-        const { data } = await axios.get(
-          `${API_URL}/whatsapp/conversations/${convId}/messages`,
-          authHeaders
-        );
-        const fresh = data.messages || [];
-        setMessages((prev) => {
-          // Build a map of existing messages by _id for quick lookup
-          const existingMap = new Map(prev.map((m) => [m._id, m]));
-          
-          let changed = false;
-          const merged = prev.map((m) => {
-            const freshVersion = existingMap.has(m._id)
-              ? fresh.find((f) => f._id === m._id)
-              : null;
-            // Update direction if it changed (e.g. outbound→inbound correction)
-            if (freshVersion && freshVersion.direction !== m.direction) {
-              changed = true;
-              return { ...m, ...freshVersion };
-            }
-            return m;
-          });
-
-          // Add brand new messages not yet in state
-          const freshIds = new Set(fresh.map((m) => m._id));
-          const newMsgs = fresh.filter((m) => !existingMap.has(m._id));
-          if (newMsgs.length > 0) changed = true;
-
-          if (!changed) return prev;
-          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-          return [...merged, ...newMsgs].sort((a, b) =>
-            new Date(a.waTimestamp || 0) - new Date(b.waTimestamp || 0)
-          );
-        });
-      } catch {}
-    }, 1500);
-    return () => clearInterval(interval);
-  }, [selected?._id]);
+  // ── Manual refresh — replaces the old 1.5s polling loop ────────────────────
+  // The socket (wa_message / wa_message_status) is now the real-time path for
+  // both inbound replies and delivery ticks — see the backend fix that made
+  // the webhook emit to the company-scoped room instead of only the dead
+  // "wa_admin" room. A 1.5s poll on top of that was pure redundant load (the
+  // messages endpoint re-fetching this conversation's full history on every
+  // tick, forever, for as long as a chat was open). Keeping a manual refresh
+  // as a one-tap fallback is enough for the rare case a socket event is missed.
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshSelected = async () => {
+    if (!selected?._id || refreshing) return;
+    setRefreshing(true);
+    try { await loadMessages(selected); } finally { setRefreshing(false); }
+  };
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
@@ -1914,7 +1893,14 @@ function WhatsAppPanel({ currentUser }) {
                 {isAdmin && selected.assignedAgent?.name ? ` · Employee: ${selected.assignedAgent.name}` : ""}
               </div>
             </div>
-          
+            <button
+              onClick={refreshSelected}
+              disabled={refreshing}
+              title="Refresh this chat"
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-[#262A38] text-[#8B92A9] shrink-0 transition disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            </button>
           </div>
 
           {session && (
@@ -3788,6 +3774,175 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── WHATSAPP SENT-TEMPLATE REPORT ─────────────────────────────────────────────
+// Reads GET /whatsapp/send-log — the persistent record every send path
+// (admin blast, CSV blast, employee blast, nurture) now writes to. Previously
+// this data only ever existed transiently in each modal's "Complete!" screen
+// or a console.log line from the nurture cron, so there was no way to answer
+// "what did we send today" after the fact.
+// ─────────────────────────────────────────────────────────────────────────────
+const CHANNEL_LABEL = {
+  blast: "Campaign / Single blast",
+  "blast-csv": "CSV blast",
+  "employee-blast": "Employee blast",
+  nurture: "Nurture automation",
+  manual: "Manual",
+};
+
+function SendLogStatusBadge({ status }) {
+  const cls =
+    status === "sent"   ? "bg-[#f0fdf4] dark:bg-[#052e1c] text-[#16A34A] border-[#bbf7d0] dark:border-[#166534]" :
+    status === "failed" ? "bg-[#FEF2F2] dark:bg-[#2D0A0A] text-[#DC2626] border-[#FECACA] dark:border-[#7F1D1D]" :
+                           "bg-[#F8F9FC] dark:bg-[#13161E] text-[#8B92A9] border-[#E4E7EF] dark:border-[#262A38]";
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${cls}`}>
+      {status}
+    </span>
+  );
+}
+
+function WhatsAppReportsPanel() {
+  const [rows, setRows] = useState([]);
+  const [summary, setSummary] = useState({ sent: 0, failed: 0, skipped: 0 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [channel, setChannel] = useState("");
+  const [status, setStatus] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [search, setSearch] = useState("");
+  const debounceRef = useRef(null);
+
+  const fetchLog = useCallback(async (page = 1) => {
+    setLoading(true); setError("");
+    try {
+      const params = new URLSearchParams({ page, limit: pagination.limit });
+      if (channel) params.set("channel", channel);
+      if (status)  params.set("status", status);
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo)   params.set("dateTo", dateTo);
+      if (search)   params.set("search", search);
+      const res = await api.get(`/whatsapp/send-log?${params}`);
+      setRows(res.data.rows || []);
+      setSummary(res.data.summary || { sent: 0, failed: 0, skipped: 0 });
+      setPagination((p) => ({ ...p, ...res.data.pagination, page }));
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to load report");
+    } finally { setLoading(false); }
+  }, [channel, status, dateFrom, dateTo, search, pagination.limit]);
+
+  useEffect(() => { fetchLog(1); }, [channel, status, dateFrom, dateTo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSearchChange = (val) => {
+    setSearch(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchLog(1), 400);
+  };
+
+  return (
+    <div className="h-full overflow-y-auto rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] p-4 sm:p-5">
+      {/* Summary cards */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="bg-[#f0fdf4] dark:bg-[#052e1c] rounded-xl p-3 text-center border border-[#bbf7d0] dark:border-[#166534]">
+          <div className="text-[22px] font-bold text-[#16A34A]">{summary.sent}</div>
+          <div className="text-[10px] text-[#166534] dark:text-[#4ADE80] uppercase mt-0.5 font-semibold">Sent</div>
+        </div>
+        <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] rounded-xl p-3 text-center border border-[#FECACA] dark:border-[#7F1D1D]">
+          <div className="text-[22px] font-bold text-[#DC2626]">{summary.failed}</div>
+          <div className="text-[10px] text-[#DC2626] uppercase mt-0.5 font-semibold">Failed</div>
+        </div>
+        <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3 text-center border border-[#E4E7EF] dark:border-[#262A38]">
+          <div className="text-[22px] font-bold text-[#8B92A9]">{summary.skipped}</div>
+          <div className="text-[10px] text-[#8B92A9] uppercase mt-0.5 font-semibold">Skipped</div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder="Search name, phone, or template…"
+          className={FIELD_CLS + " flex-1 min-w-[180px]"}
+        />
+        <select value={channel} onChange={(e) => setChannel(e.target.value)} className={FIELD_CLS + " w-auto"}>
+          <option value="">All channels</option>
+          {Object.entries(CHANNEL_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className={FIELD_CLS + " w-auto"}>
+          <option value="">All statuses</option>
+          <option value="sent">Sent</option>
+          <option value="failed">Failed</option>
+          <option value="skipped">Skipped</option>
+        </select>
+        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={FIELD_CLS + " w-auto"} />
+        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={FIELD_CLS + " w-auto"} />
+      </div>
+
+      {error && (
+        <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] mb-4">{error}</div>
+      )}
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-xl border border-[#E4E7EF] dark:border-[#262A38]">
+        <table className="w-full text-[12px]">
+          <thead>
+            <tr className="bg-[#F8F9FC] dark:bg-[#13161E] text-left text-[#8B92A9] uppercase text-[10px] font-bold tracking-wide">
+              <th className="px-3 py-2.5">When</th>
+              <th className="px-3 py-2.5">Contact</th>
+              <th className="px-3 py-2.5">Template</th>
+              <th className="px-3 py-2.5">Channel</th>
+              <th className="px-3 py-2.5">Status</th>
+              <th className="px-3 py-2.5">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={6} className="px-3 py-10 text-center text-[#8B92A9]">No sends match these filters yet.</td></tr>
+            ) : rows.map((r) => (
+              <tr key={r._id} className="border-t border-[#F0F2FA] dark:border-[#1E2130] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]/50">
+                <td className="px-3 py-2.5 whitespace-nowrap text-[#4B5168] dark:text-[#9DA3BB]">{fmtDate(r.createdAt)}</td>
+                <td className="px-3 py-2.5">
+                  <div className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{r.name || "—"}</div>
+                  <div className="text-[10px] text-[#8B92A9] font-mono">{maskPhone(r.phone)}</div>
+                </td>
+                <td className="px-3 py-2.5 font-mono text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">{r.templateName || "—"}</td>
+                <td className="px-3 py-2.5 text-[#4B5168] dark:text-[#9DA3BB]">{CHANNEL_LABEL[r.channel] || r.channel}{r.ruleName ? ` · ${r.ruleName}` : ""}</td>
+                <td className="px-3 py-2.5"><SendLogStatusBadge status={r.status} /></td>
+                <td className="px-3 py-2.5 text-[#8B92A9] max-w-[200px] truncate" title={r.reason}>{r.reason || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 text-[12px] text-[#8B92A9]">
+          <span>Page {pagination.page} of {pagination.totalPages} · {pagination.total} total</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => fetchLog(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+              className="px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] font-semibold disabled:opacity-40"
+            >Prev</button>
+            <button
+              onClick={() => fetchLog(pagination.page + 1)}
+              disabled={pagination.page >= pagination.totalPages}
+              className="px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] font-semibold disabled:opacity-40"
+            >Next</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── MAIN COMMUNICATIONS PAGE ──────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Communications({ currentUser }) {
@@ -3805,7 +3960,7 @@ export default function Communications({ currentUser }) {
           <p className="text-[12px] sm:text-[13px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">WhatsApp · Email · SMS — all in one place</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <TabNav active={tab} onChange={(t) => { setTab(t); setShowSettings(false); }} />
+          <TabNav active={tab} onChange={(t) => { setTab(t); setShowSettings(false); }} showReports={isAdmin} />
           {isAdmin && (
             <button
               onClick={() => setShowIntegrations(true)}
@@ -3867,6 +4022,11 @@ export default function Communications({ currentUser }) {
     <SmsPanel />
   </div>
 )}
+        {tab === "reports" && isAdmin && (
+          <div className="h-full">
+            <WhatsAppReportsPanel />
+          </div>
+        )}
       </div>
 
       {/* ── Integrations modal ── */}
