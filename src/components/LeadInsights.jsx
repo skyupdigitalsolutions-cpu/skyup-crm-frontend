@@ -177,18 +177,51 @@ export default function LeadInsights({ date, isSuperAdmin }) {
   const [toast, setToast] = useState(null);
   const showToast = useCallback((message, type = "success") => setToast({ message, type }), []);
 
-  const isoDate = useMemo(() => {
-    const d = date instanceof Date ? date : new Date(date || Date.now());
-    return d.toISOString().slice(0, 10);
-  }, [date]);
+  // ── Date range — independent of the parent Daily Report page's single
+  // day selector. "Lead Insights" needs to browse beyond just today: a
+  // custom range, or every lead the caller can see, not only ones touched
+  // on one specific day. ────────────────────────────────────────────────────
+  const toISODate = (d) => (d instanceof Date ? d : new Date(d)).toISOString().slice(0, 10);
+  const isoDaysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return toISODate(d); };
+  const startOfWeekISO = () => { const d = new Date(); const day = d.getDay(); d.setDate(d.getDate() - day); return toISODate(d); };
+  const startOfMonthISO = () => { const d = new Date(); d.setDate(1); return toISODate(d); };
+
+  const [rangeMode, setRangeMode]   = useState("day"); // "day" | "range" | "all"
+  const [singleDate, setSingleDate] = useState(() => toISODate(date || new Date()));
+  const [customFrom, setCustomFrom] = useState(() => isoDaysAgo(7));
+  const [customTo, setCustomTo]     = useState(() => toISODate(new Date()));
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
+
+  const applyPreset = (preset) => {
+    setShowCustomPicker(false);
+    if (preset === "today")      { setRangeMode("day");   setSingleDate(toISODate(new Date())); }
+    else if (preset === "yesterday") { setRangeMode("day"); setSingleDate(isoDaysAgo(1)); }
+    else if (preset === "week")  { setRangeMode("range"); setCustomFrom(startOfWeekISO());  setCustomTo(toISODate(new Date())); }
+    else if (preset === "month") { setRangeMode("range"); setCustomFrom(startOfMonthISO()); setCustomTo(toISODate(new Date())); }
+    else if (preset === "all")   { setRangeMode("all"); }
+    else if (preset === "custom") { setRangeMode("range"); setShowCustomPicker(true); }
+  };
+
+  const rangeLabel = rangeMode === "all"
+    ? "All Leads"
+    : rangeMode === "range"
+    ? `${customFrom} → ${customTo}`
+    : singleDate === toISODate(new Date())
+    ? "Today"
+    : singleDate;
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
+      const dateParams = rangeMode === "all"
+        ? { allTime: "true" }
+        : rangeMode === "range"
+        ? { dateFrom: customFrom, dateTo: customTo }
+        : { date: singleDate };
       const { data: res } = await api.get("/reports/lead-insights", {
         params: {
-          date: isoDate,
+          ...dateParams,
           status: tableTab || undefined,
           agentId: agentId || undefined,
           source: source || undefined,
@@ -204,7 +237,7 @@ export default function LeadInsights({ date, isSuperAdmin }) {
     } finally {
       setLoading(false);
     }
-  }, [isoDate, tableTab, agentId, source, temperature, search, page]);
+  }, [rangeMode, singleDate, customFrom, customTo, tableTab, agentId, source, temperature, search, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -215,12 +248,13 @@ export default function LeadInsights({ date, isSuperAdmin }) {
   }, [searchInput]);
 
   // Reset to page 1 whenever a filter (other than page itself) changes
-  useEffect(() => { setPage(1); }, [tableTab, agentId, source, temperature]);
+  useEffect(() => { setPage(1); }, [tableTab, agentId, source, temperature, rangeMode, singleDate, customFrom, customTo]);
 
   const summary = data?.summary || {};
   const leads = data?.leads || [];
   const followUps = data?.followUps || [];
   const timeline = data?.timeline || [];
+  const timelineTruncated = data?.timelineTruncated || false;
   const conversionAnalysis = data?.conversionAnalysis || {};
   const pagination = data?.pagination || { page: 1, totalPages: 1, total: 0 };
 
@@ -241,6 +275,52 @@ export default function LeadInsights({ date, isSuperAdmin }) {
 
   return (
     <div className="space-y-5">
+      {/* ── Date range ───────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {[
+          ["today", "Today"],
+          ["yesterday", "Yesterday"],
+          ["week", "This Week"],
+          ["month", "This Month"],
+          ["all", "All Leads"],
+        ].map(([k, label]) => {
+          const active =
+            (k === "today" && rangeMode === "day" && singleDate === toISODate(new Date())) ||
+            (k === "yesterday" && rangeMode === "day" && singleDate === isoDaysAgo(1)) ||
+            (k === "week" && rangeMode === "range" && customFrom === startOfWeekISO() && !showCustomPicker) ||
+            (k === "month" && rangeMode === "range" && customFrom === startOfMonthISO() && !showCustomPicker) ||
+            (k === "all" && rangeMode === "all");
+          return (
+            <button key={k} onClick={() => applyPreset(k)}
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition ${
+                active ? "bg-[#2563EB] text-white" : "bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB]"
+              }`}>
+              {label}
+            </button>
+          );
+        })}
+        <button onClick={() => applyPreset("custom")}
+          className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition ${
+            showCustomPicker ? "bg-[#2563EB] text-white" : "bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB]"
+          }`}>
+          Custom Range
+        </button>
+
+        {showCustomPicker && (
+          <div className="flex items-center gap-2">
+            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+              className="text-[12px] border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] rounded-lg px-2.5 py-1.5 text-[#4B5168] dark:text-[#9DA3BB]" />
+            <span className="text-[#8B92A9] text-[12px]">to</span>
+            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
+              className="text-[12px] border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] rounded-lg px-2.5 py-1.5 text-[#4B5168] dark:text-[#9DA3BB]" />
+          </div>
+        )}
+
+        <span className="ml-auto text-[11px] font-semibold text-[#8B92A9]">
+          Showing: <span className="text-[#0F1117] dark:text-[#F0F2FA]">{rangeLabel}</span>
+        </span>
+      </div>
+
       {/* ── Filters ──────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <select value={agentId} onChange={(e) => setAgentId(e.target.value)}
@@ -277,7 +357,7 @@ export default function LeadInsights({ date, isSuperAdmin }) {
 
       {/* ── Loading state ────────────────────────────────────────────────── */}
       {loading && !data ? (
-        <div className="py-20 text-center text-[13px] text-[#8B92A9]">Loading daily lead insights…</div>
+        <div className="py-20 text-center text-[13px] text-[#8B92A9]">Loading lead insights…</div>
       ) : (
         <>
           {/* ── KPI cards ────────────────────────────────────────────────── */}
@@ -295,7 +375,7 @@ export default function LeadInsights({ date, isSuperAdmin }) {
           {/* ── Leads & Follow-ups table ─────────────────────────────────── */}
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between flex-wrap gap-3">
-              <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Today's Leads & Follow-ups</h2>
+              <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Leads & Follow-ups</h2>
               <div className="flex items-center gap-1 bg-[#F8F9FC] dark:bg-[#13161E] rounded-lg p-1 overflow-x-auto">
                 {TABLE_TABS.map((t) => (
                   <button key={t.k} onClick={() => setTableTab(t.k)}
@@ -361,10 +441,10 @@ export default function LeadInsights({ date, isSuperAdmin }) {
             )}
           </div>
 
-          {/* ── Today's Follow-ups ───────────────────────────────────────── */}
+          {/* ── Follow-ups in range ──────────────────────────────────────── */}
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
-              <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Today's Follow-ups</h2>
+              <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Follow-ups {rangeMode === "day" ? "Today" : `— ${rangeLabel}`}</h2>
             </div>
             {followUps.length === 0 ? (
               <p className="text-[13px] text-[#8B92A9] py-10 text-center">No follow-ups scheduled for this day.</p>
@@ -387,10 +467,13 @@ export default function LeadInsights({ date, isSuperAdmin }) {
             )}
           </div>
 
-          {/* ── Daily Activity Timeline ───────────────────────────────────── */}
+          {/* ── Activity Timeline ────────────────────────────────────────── */}
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
-              <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Daily Activity</h2>
+            <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
+              <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{rangeMode === "day" ? "Daily Activity" : "Activity"}</h2>
+              {timelineTruncated && (
+                <span className="text-[10px] text-[#8B92A9] font-semibold">Showing most recent 300 events</span>
+              )}
             </div>
             {timeline.length === 0 ? (
               <p className="text-[13px] text-[#8B92A9] py-10 text-center">No activity recorded for this date.</p>
