@@ -9,8 +9,10 @@ import { Moon } from "lucide-react";
 // app. Using it here means this widget always matches the mobile app and
 // the rest of the website, regardless of the viewer's machine/browser TZ.
 import { formatTime } from "../utils/dateUtils";
+import IdleRemarkModal from "./IdleRemarkModal";
 
-const IDLE_MS = 5 * 60 * 1000;
+const IDLE_MS         = 5 * 60 * 1000;
+const IDLE_PROMPT_MS  = 5 * 60 * 1000; // re-prompt every 5 min while still idle
 
 function fmt(mins) {
   const h = Math.floor(mins / 60);
@@ -29,9 +31,15 @@ export default function AttendancePanel() {
   const [elapsed,     setElapsed]     = useState(0);
   const [idleWarning, setIdleWarning] = useState(false);
 
-  const idleTimerRef = useRef(null);
-  const pingTimerRef = useRef(null);
-  const tickTimerRef = useRef(null);
+  // ── Idle-remark popup state ─────────────────────────────────────────────
+  const [showIdleModal, setShowIdleModal] = useState(false);
+  const [idleModalMode,  setIdleModalMode]  = useState("recurring"); // "recurring" | "resume"
+
+  const idleTimerRef       = useRef(null);
+  const pingTimerRef       = useRef(null);
+  const tickTimerRef       = useRef(null);
+  const idlePromptTimerRef = useRef(null);
+  const pendingResumeRef   = useRef(false); // true once movement was detected while idle
 
   // ── Fetch today's record ──────────────────────────────────────────────────
   const fetchRecord = useCallback(async () => {
@@ -72,10 +80,25 @@ export default function AttendancePanel() {
   }, [record]);
 
   // ── Ping every 60 s ───────────────────────────────────────────────────────
+  // FIX: this used to fire-and-forget — the response (which tells us whether
+  // the backend just auto-resumed an idle session back to "active") was
+  // discarded entirely. So after 5 min idle → auto-break → then the employee
+  // resumes working without ever clicking "Resume" (the banner was already
+  // dismissed on their first mouse move), the backend correctly flips them
+  // back to active on the next ping, but this widget kept showing the red
+  // "Idle" badge indefinitely — no button left to fix it, only a full page
+  // reload would. This component has no socket connection (unlike
+  // UserDashboard.jsx / mobile, which pick this up via the backend's
+  // matching emitAttendanceUpdate fix), so it has to apply its own response.
   useEffect(() => {
     if (!record?.loginTime || record?.logoutTime) return;
     pingTimerRef.current = setInterval(async () => {
-      try { await api.post("/attendance/ping"); } catch {}
+      try {
+        const res = await api.post("/attendance/ping");
+        if (res.data?.status && res.data.status !== "idle") {
+          setRecord((prev) => (prev ? { ...prev, status: res.data.status, activeBreakIndex: null } : prev));
+        }
+      } catch {}
     }, 60_000);
     return () => clearInterval(pingTimerRef.current);
   }, [record?.loginTime, record?.logoutTime]);
@@ -115,6 +138,110 @@ export default function AttendancePanel() {
       clearTimeout(idleTimerRef.current);
     };
   }, [record?.loginTime, record?.logoutTime, record?.status]);
+
+  // ── Idle-remark: re-prompt every 5 min while still idle ────────────────────
+  useEffect(() => {
+    clearInterval(idlePromptTimerRef.current);
+    if (record?.status !== "idle") return;
+
+    // Show immediately on going idle, then every 5 min after.
+    setIdleModalMode("recurring");
+    setShowIdleModal(true);
+    idlePromptTimerRef.current = setInterval(() => {
+      setIdleModalMode("recurring");
+      setShowIdleModal(true);
+    }, IDLE_PROMPT_MS);
+
+    return () => clearInterval(idlePromptTimerRef.current);
+  }, [record?.status]);
+
+  // ── Idle-remark: any movement while idle → prompt for remark, then resume ──
+  // The regular idle-detection effect above only attaches its listeners while
+  // status is "active" (it's what WATCHES for going idle). This is the
+  // opposite case — the employee is currently idle and just moved the mouse /
+  // typed / tapped, which should immediately surface the remark prompt and
+  // resume the session right on dismissal, instead of silently waiting for
+  // the next 60s background ping to catch it.
+  useEffect(() => {
+    if (record?.status !== "idle") { pendingResumeRef.current = false; return; }
+
+    const onMove = () => {
+      if (pendingResumeRef.current) return; // already captured this resume
+      pendingResumeRef.current = true;
+      setIdleModalMode("resume");
+      setShowIdleModal(true);
+    };
+
+    const events = ["mousemove", "keydown", "mousedown", "touchstart", "scroll"];
+    events.forEach((e) => window.addEventListener(e, onMove, { passive: true }));
+    return () => events.forEach((e) => window.removeEventListener(e, onMove));
+  }, [record?.status]);
+
+  // ── Idle-remark: close the popup if idle ends through some OTHER path ──────
+  // The pre-existing "Resume" button (in the idleWarning banner and the
+  // regular action row) calls endBreak() directly, bypassing this popup
+  // entirely. Without this, a recurring/resume popup that happened to be
+  // open at that moment would keep showing stale content after the employee
+  // already resumed through the other button.
+  const prevIdleStatusRef = useRef(record?.status);
+  useEffect(() => {
+    const prev = prevIdleStatusRef.current;
+    prevIdleStatusRef.current = record?.status;
+    if (prev === "idle" && record?.status !== "idle" && showIdleModal) {
+      setShowIdleModal(false);
+      pendingResumeRef.current = false;
+    }
+  }, [record?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Idle-remark: derived data for the popup ─────────────────────────────────
+  const currentIdleBreak = (() => {
+    if (record?.status !== "idle" || record?.activeBreakIndex == null) return null;
+    const br = record.breaks?.[record.activeBreakIndex];
+    return br?.reason === "Auto Idle" ? { index: record.activeBreakIndex, ...br } : null;
+  })();
+
+  const pastPendingBreaks = (record?.breaks || [])
+    .map((b, index) => ({ ...b, index }))
+    .filter((b) => b.reason === "Auto Idle" && b.remarkStatus === "pending" && b.index !== record?.activeBreakIndex);
+
+  // ── Idle-remark: save/skip handlers ─────────────────────────────────────────
+  const resumeNow = async () => {
+    try {
+      const r = await api.post("/attendance/break/end");
+      setRecord(r.data);
+      setIdleWarning(false);
+    } catch {}
+  };
+
+  const closeIdleModal = async (didResume) => {
+    setShowIdleModal(false);
+    if (idleModalMode === "resume" || didResume) {
+      pendingResumeRef.current = false;
+      await resumeNow();
+    }
+  };
+
+  const handleSaveIdleRemark = async (text) => {
+    try {
+      const r = await api.post("/attendance/idle-remark", { remark: text });
+      setRecord((prev) => (prev ? { ...prev, breaks: r.data?.breaks || prev.breaks } : prev));
+    } catch {}
+    closeIdleModal();
+  };
+
+  const handleSkipIdleRemark = async () => {
+    try {
+      await api.post("/attendance/idle-remark", { remark: "" }); // explicit skip, stays pending
+    } catch {}
+    closeIdleModal();
+  };
+
+  const handleSavePendingRemark = async (breakIndex, text) => {
+    try {
+      const r = await api.post("/attendance/idle-remark", { remark: text, breakIndex });
+      setRecord((prev) => (prev ? { ...prev, breaks: r.data?.breaks || prev.breaks } : prev));
+    } catch {}
+  };
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const clockIn = async () => {
@@ -278,25 +405,44 @@ export default function AttendancePanel() {
       {record?.breaks?.length > 0 && (
         <div className="mt-4 border-t border-gray-100 dark:border-white/5 pt-4">
           <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Break Log</p>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {record.breaks.map((b, i) => (
-              <div key={i} className="flex items-center justify-between text-[11px]">
-                <span className={`px-2 py-0.5 rounded-full font-semibold ${
-                  b.reason === "Auto Idle"
-                    ? "bg-red-50 dark:bg-red-950/40 text-red-500"
-                    : "bg-amber-50 dark:bg-amber-950/40 text-amber-600"
-                }`}>
-                  {b.reason}
-                </span>
-                <span className="text-gray-400">
-                  {fmtTime(b.startTime)} → {b.endTime ? fmtTime(b.endTime) : "ongoing"}
-                  {b.durationMinutes != null ? ` (${b.durationMinutes}m)` : ""}
-                </span>
+              <div key={i} className="text-[11px]">
+                <div className="flex items-center justify-between">
+                  <span className={`px-2 py-0.5 rounded-full font-semibold ${
+                    b.reason === "Auto Idle"
+                      ? "bg-red-50 dark:bg-red-950/40 text-red-500"
+                      : "bg-amber-50 dark:bg-amber-950/40 text-amber-600"
+                  }`}>
+                    {b.reason}
+                  </span>
+                  <span className="text-gray-400">
+                    {fmtTime(b.startTime)} → {b.endTime ? fmtTime(b.endTime) : "ongoing"}
+                    {b.durationMinutes != null ? ` (${b.durationMinutes}m)` : ""}
+                  </span>
+                </div>
+                {b.reason === "Auto Idle" && (
+                  b.remarkStatus === "filled" ? (
+                    <p className="text-[10px] text-gray-500 italic mt-1">"{b.remark}"</p>
+                  ) : b.remarkStatus === "pending" ? (
+                    <p className="text-[10px] text-amber-500 font-semibold mt-1">Reason pending</p>
+                  ) : null
+                )}
               </div>
             ))}
           </div>
         </div>
       )}
+
+      <IdleRemarkModal
+        open={showIdleModal}
+        mode={idleModalMode}
+        idleSince={currentIdleBreak?.startTime}
+        pendingBreaks={pastPendingBreaks}
+        onSave={handleSaveIdleRemark}
+        onSkip={handleSkipIdleRemark}
+        onSavePending={handleSavePendingRemark}
+      />
     </div>
   );
 }
