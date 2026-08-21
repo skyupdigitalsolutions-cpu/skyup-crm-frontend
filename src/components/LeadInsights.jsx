@@ -15,7 +15,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../data/axiosConfig";
 import { maskPhone, maskEmail } from "../utils/maskPhone";
-import { formatTime } from "../utils/dateUtils";
+import { formatTime, formatMedium } from "../utils/dateUtils";
 import LeadJourneyDrawer from "./LeadJourneyDrawer";
 
 // ── Small local toast — same shape as AdminLeadsPage's, kept self-contained
@@ -66,6 +66,99 @@ function KpiCard({ label, value, active, onClick }) {
   );
 }
 
+// ── Lead Summary Modal ────────────────────────────────────────────────────────
+// This is the "complete information on click" view — status + WHY it's in
+// that status (converted/not-converted/in-progress reason), activity
+// counts, and the most recent remarks, all in one place without needing to
+// open the full call-by-call drawer first. "View Full Journey" still opens
+// LeadJourneyDrawer for the deep call history / AI action-summary / recordings.
+function LeadSummaryModal({ lead, isSuperAdmin, onClose, onViewFullJourney }) {
+  if (!lead) return null;
+  const badge = STATUS_BADGE[lead._bucket] || STATUS_BADGE.pending;
+  const displayPhone = isSuperAdmin ? (lead.mobile || lead.primaryPhone || "—") : maskPhone(lead.mobile || lead.primaryPhone);
+  const recentRemarks = [...(lead.callHistory || [])]
+    .filter((c) => c.remark)
+    .sort((a, b) => new Date(b.calledAt || 0) - new Date(a.calledAt || 0))
+    .slice(0, 5);
+
+  return (
+    <div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg max-h-[85vh] overflow-y-auto bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] shadow-xl"
+      >
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{lead.name}</h3>
+            <p className="text-[12px] text-[#8B92A9] mt-0.5">{displayPhone} · {lead.user?.name || "Unassigned"} · {lead.source || "—"}</p>
+          </div>
+          <button onClick={onClose} className="text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] text-[20px] leading-none shrink-0">×</button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Status + WHY — the headline answer to "why is this lead in this state" */}
+          <div>
+            <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${badge.bg} ${badge.text}`}>{badge.label}</span>
+            <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mt-2 leading-snug">{lead._statusReason}</p>
+          </div>
+
+          {/* Activity Summary */}
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">Activity Summary</p>
+            <div className="grid grid-cols-3 gap-2.5">
+              {[
+                ["Total Calls", lead._totalCalls],
+                ["Connected", lead._totalConnected],
+                ["Remarks", lead._totalRemarks],
+                ["Pending Follow-ups", lead._pendingFollowUps],
+                ["Completed", lead._completedFollowUps],
+                ["Status", lead.status || "—"],
+              ].map(([label, val]) => (
+                <div key={label} className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl p-3">
+                  <div className="text-[10px] text-[#8B92A9] uppercase font-semibold">{label}</div>
+                  <div className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mt-0.5 truncate">{val ?? "—"}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Key dates */}
+          <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-[12px]">
+            <span><span className="text-[#8B92A9]">Last Response: </span><span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{lead._lastResponse || "—"}</span></span>
+            <span><span className="text-[#8B92A9]">Last Activity: </span><span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{lead._lastActivity ? formatMedium(lead._lastActivity) : "—"}</span></span>
+            <span><span className="text-[#8B92A9]">Next Follow-up: </span><span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{lead._nextFollowUp ? formatMedium(lead._nextFollowUp) : "—"}</span></span>
+          </div>
+
+          {/* Recent remarks — quick read without opening the full drawer */}
+          {recentRemarks.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">Recent Remarks</p>
+              <div className="space-y-2">
+                {recentRemarks.map((r, i) => (
+                  <div key={i} className="text-[12px] border-l-2 border-[#E4E7EF] dark:border-[#262A38] pl-3">
+                    <span className="text-[#8B92A9]">{r.calledAt ? formatMedium(r.calledAt) : ""}{r.outcome ? ` — ${r.outcome}` : ""}</span>
+                    <p className="text-[#4B5168] dark:text-[#9DA3BB]">{r.remark}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-[#E4E7EF] dark:border-[#262A38] flex justify-end">
+          <button
+            onClick={onViewFullJourney}
+            className="px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white text-[12px] font-bold transition"
+          >
+            View Full Call History & AI Summary →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LeadInsights({ date, isSuperAdmin }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +172,8 @@ export default function LeadInsights({ date, isSuperAdmin }) {
   const [search, setSearch]     = useState("");
   const [searchInput, setSearchInput] = useState("");
 
-  const [selectedLead, setSelectedLead] = useState(null);
+  const [selectedLead, setSelectedLead] = useState(null); // full journey drawer (deep dive)
+  const [summaryLead, setSummaryLead] = useState(null);   // quick summary modal (default click target)
   const [toast, setToast] = useState(null);
   const showToast = useCallback((message, type = "success") => setToast({ message, type }), []);
 
@@ -221,7 +315,7 @@ export default function LeadInsights({ date, isSuperAdmin }) {
                 <table className="w-full">
                   <thead className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
                     <tr>
-                      {["Lead","Phone","Agent","Source","Temp","Calls","Connected","Remarks","Last Response","Last Activity","Next Follow-up","Status"].map((h) => (
+                      {["Lead","Phone","Agent","Source","Temp","Calls","Connected","Remarks","Status Reason","Last Activity","Next Follow-up","Status"].map((h) => (
                         <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-[#8B92A9] uppercase tracking-wide whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -230,7 +324,7 @@ export default function LeadInsights({ date, isSuperAdmin }) {
                     {leads.map((l) => {
                       const badge = STATUS_BADGE[l._bucket] || STATUS_BADGE.pending;
                       return (
-                        <tr key={l._id} onClick={() => setSelectedLead(l)}
+                        <tr key={l._id} onClick={() => setSummaryLead(l)}
                           className="border-t border-[#F0F2FA] dark:border-[#1E2130] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]/50 cursor-pointer text-[12px]">
                           <td className="px-3 py-2.5 font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">{l.name}</td>
                           <td className="px-3 py-2.5 text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap">{displayPhone(l)}</td>
@@ -240,7 +334,7 @@ export default function LeadInsights({ date, isSuperAdmin }) {
                           <td className="px-3 py-2.5 text-center">{l._callsToday}</td>
                           <td className="px-3 py-2.5 text-center">{l._connectedToday}</td>
                           <td className="px-3 py-2.5 text-center">{l._remarksToday}</td>
-                          <td className="px-3 py-2.5 text-[#4B5168] dark:text-[#9DA3BB] max-w-[140px] truncate" title={l._lastResponse}>{l._lastResponse || "—"}</td>
+                          <td className="px-3 py-2.5 text-[#4B5168] dark:text-[#9DA3BB] max-w-[220px] truncate" title={l._statusReason}>{l._statusReason || "—"}</td>
                           <td className="px-3 py-2.5 text-[#8B92A9] whitespace-nowrap">{l._lastActivity ? formatTime(l._lastActivity) : "—"}</td>
                           <td className="px-3 py-2.5 text-[#8B92A9] whitespace-nowrap">{l._nextFollowUp ? formatTime(l._nextFollowUp) : "—"}</td>
                           <td className="px-3 py-2.5">
@@ -278,7 +372,7 @@ export default function LeadInsights({ date, isSuperAdmin }) {
               <div className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
                 {followUps.map((f, i) => (
                   <div key={i}
-                    onClick={() => { const l = leads.find((x) => x._id === f.leadId); if (l) setSelectedLead(l); }}
+                    onClick={() => { const l = leads.find((x) => x._id === f.leadId); if (l) setSummaryLead(l); }}
                     className="flex items-center gap-3 px-5 py-3 hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]/50 cursor-pointer text-[12px]">
                     <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] flex-1 min-w-0 truncate">{f.leadName}</span>
                     <span className="text-[#8B92A9] w-28 shrink-0">{f.agent}</span>
@@ -320,9 +414,9 @@ export default function LeadInsights({ date, isSuperAdmin }) {
           <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between">
               <h2 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Conversion Analysis</h2>
-              <a href="#" onClick={(e) => { e.preventDefault(); showToast("Open the Conversions tab, or the full Non-Conversion Analysis report, for the AI-powered deep dive.", "success"); }}
+              <a href="#" onClick={(e) => { e.preventDefault(); showToast("Click any lead above for its own conversion/non-conversion reason. This section only summarizes the whole day.", "success"); }}
                 className="text-[11px] font-semibold text-[#2563EB] hover:underline">
-                View full AI analysis →
+                Where's my per-lead reason? →
               </a>
             </div>
             <div className="p-5 space-y-5">
@@ -355,6 +449,14 @@ export default function LeadInsights({ date, isSuperAdmin }) {
           </div>
         </>
       )}
+
+      {/* ── Lead Summary Modal — click any lead to see status + reason + activity ── */}
+      <LeadSummaryModal
+        lead={summaryLead}
+        isSuperAdmin={isSuperAdmin}
+        onClose={() => setSummaryLead(null)}
+        onViewFullJourney={() => { setSelectedLead(summaryLead); setSummaryLead(null); }}
+      />
 
       {/* ── Lead Detail Drawer — reused as-is, same props AdminLeadsPage passes ── */}
       {selectedLead && (
