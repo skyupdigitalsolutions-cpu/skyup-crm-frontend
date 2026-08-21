@@ -49,6 +49,23 @@ export default function AdminAttendanceView() {
   const [date, setDate]       = useState(new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(true);
 
+  // ── Company shift window (read-only) ────────────────────────────────────
+  // Replaces the old per-employee "Ideal Time" free-text field — see the
+  // matching change in AttendanceTable.jsx for why.
+  const [shiftCfg, setShiftCfg] = useState(null);
+  useEffect(() => {
+    api.get("/admin/company/attendance-config").then(r => setShiftCfg(r.data)).catch(() => {});
+  }, []);
+  const fmtShift = (h, m) => {
+    if (h == null) return "—";
+    const period = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m || 0).padStart(2, "0")} ${period}`;
+  };
+  const shiftLabel = shiftCfg
+    ? `${fmtShift(shiftCfg.shiftStartHour, shiftCfg.shiftStartMinute)} – ${fmtShift(shiftCfg.shiftEndHour, shiftCfg.shiftEndMinute)}`
+    : null;
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -77,7 +94,7 @@ export default function AdminAttendanceView() {
   return (
     <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-5">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
         <div>
           <h3 className="text-[15px] font-bold text-gray-800 dark:text-gray-100">Team Attendance</h3>
           <p className="text-[11px] text-gray-400">Auto-refreshes every 30s</p>
@@ -103,6 +120,12 @@ export default function AdminAttendanceView() {
           </button>
         </div>
       </div>
+
+      {shiftLabel && (
+        <p className="text-[11px] text-indigo-500 dark:text-indigo-400 font-semibold mb-4">
+          Company shift hours: {shiftLabel}
+        </p>
+      )}
 
       {/* Summary pills */}
       <div className="flex flex-wrap gap-2 mb-5">
@@ -157,14 +180,27 @@ export default function AdminAttendanceView() {
                     <span>Breaks: {fmt(breakMins)}</span>
                     {rec.breaks?.length > 0 && <span>{rec.breaks.length} break{rec.breaks.length > 1 ? "s" : ""}</span>}
                   </div>
-                  {(rec.idealTime || rec.idealRemark) && (
-                    <div className="flex items-start gap-1 mt-1 text-[10px]">
-                      <span className="font-semibold text-indigo-500 dark:text-indigo-400 shrink-0">Ideal:</span>
-                      <span className="text-gray-500 dark:text-gray-400 truncate" title={rec.idealRemark}>
-                        {rec.idealTime}{rec.idealTime && rec.idealRemark ? " — " : ""}{rec.idealRemark}
-                      </span>
-                    </div>
-                  )}
+                  {/* Idle remarks — pending count badge + most recent filled one */}
+                  {(() => {
+                    const idleBreaks = (rec.breaks || []).filter(b => b.reason === "Auto Idle");
+                    if (idleBreaks.length === 0) return null;
+                    const pendingCount = idleBreaks.filter(b => b.remarkStatus === "pending").length;
+                    const lastFilled   = [...idleBreaks].reverse().find(b => b.remarkStatus === "filled");
+                    return (
+                      <div className="flex items-center gap-1.5 mt-1 text-[10px] flex-wrap">
+                        {pendingCount > 0 && (
+                          <span className="inline-flex items-center gap-1 font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
+                            <AlertTriangle className="w-2.5 h-2.5" /> {pendingCount} idle remark{pendingCount > 1 ? "s" : ""} pending
+                          </span>
+                        )}
+                        {lastFilled && (
+                          <span className="text-gray-400 italic truncate max-w-[160px]" title={lastFilled.remark}>
+                            "{lastFilled.remark}"
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );
