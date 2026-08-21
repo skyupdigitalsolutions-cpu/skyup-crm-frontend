@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState, lazy, Suspense } from "react";
 import React from "react";
 import { Sidebar } from "./components/Sidebar";
@@ -196,20 +196,6 @@ function RootRedirect() {
   return <Navigate to="/dashboard" replace />;
 }
 
-// ── Protected Route ────────────────────────────────────────────────────────────
-function ProtectedRoute({ children }) {
-  const { token, user } = getStoredAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const { token: t, user: u } = getStoredAuth();
-    if (!t || !u) navigate("/login", { replace: true });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (!token || !user) return <Navigate to="/login" replace />;
-  return children;
-}
-
 // ── Admin-only Route ───────────────────────────────────────────────────────────
 function AdminRoute({ children }) {
   const { token, user } = getStoredAuth();
@@ -388,7 +374,7 @@ function CompanyHeader() {
 //     "expiring soon" warnings (not blocked yet).
 //  3. On plan_updated event: clears entitlement cache so sidebar and
 //     feature gates refresh automatically without a page reload.
-function AppLayout({ children }) {
+function AppLayout() {
   const goToPlans = () => { window.location.href = "/upgrade-plan"; };
 
   // Clear entitlement cache when plan changes (e.g. after developer update)
@@ -415,13 +401,41 @@ function AppLayout({ children }) {
                   or pick a plan after the trial (auto-charged). Owns all trial states. */}
               <TrialGate />
               <CompanyHeader />
-              <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+              {/* Outlet — this is the fix. AppLayout (Sidebar, TermsGate, ClockInGate,
+                  NotificationProvider, CompanyHeader, banners) now mounts ONCE for the
+                  whole authenticated session. Only the routed page below swaps on
+                  navigation — it no longer remounts the whole shell and re-fires every
+                  API call (attendance check, terms check, trial check, brand fetch,
+                  follow-up alerts, unread counts) on every click. */}
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <Suspense fallback={<PageLoader />}>
+                  <Outlet />
+                </Suspense>
+              </div>
             </main>
           </div>
         </ClockInGate>
       </TermsGate>
     </NotificationProvider>
   );
+}
+
+// ── Authenticated shell gate ───────────────────────────────────────────────────
+// Sits ONE level above AppLayout in the route tree. Confirms the user has a
+// token+user before mounting the shell at all, then renders AppLayout once;
+// every nested authenticated route below is just an <Outlet/> swap from here
+// on, not a fresh mount of Sidebar/Gates/Providers.
+function AuthenticatedLayout() {
+  const { token, user } = getStoredAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { token: t, user: u } = getStoredAuth();
+    if (!t || !u) navigate("/login", { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!token || !user) return null;
+  return <AppLayout />;
 }
 
 function UpgradePlanWithMembers(props) {
@@ -485,117 +499,86 @@ function AppInner() {
           <Route path="/admin/login"      element={<Navigate to="/login" replace />} />
           <Route path="/superadmin/login" element={<LoginGuard><SuperAdminLogin /></LoginGuard>} />
 
-          {/* ── Root redirect ── */}
-          <Route path="/" element={
-            <ProtectedRoute><RootRedirect /></ProtectedRoute>
-          }/>
+          {/* ── Authenticated shell — mounts ONCE. Every route below is just an
+              Outlet swap inside the same Sidebar/Gates/Providers instance. ── */}
+          <Route element={<AuthenticatedLayout />}>
 
-          {/* ── Admin Dashboard ── */}
-          <Route path="/dashboard" element={
-            <AdminRoute>
-              <AppLayout><Dashboard /></AppLayout>
-            </AdminRoute>
-          }/>
+            {/* ── Root redirect ── */}
+            <Route path="/" element={<RootRedirect />} />
 
-          {/* ── User Dashboard ── */}
-          <Route path="/user/dashboard" element={
-            <UserRoute>
-              <AppLayout><UserDashboard /></AppLayout>
-            </UserRoute>
-          }/>
+            {/* ── Admin Dashboard ── */}
+            <Route path="/dashboard" element={
+              <AdminRoute><Dashboard /></AdminRoute>
+            }/>
 
-          {/* ── User Communications (own leads only) ── */}
-          <Route path="/user/communications" element={
-            <UserRoute>
-              <AppLayout>
+            {/* ── User Dashboard ── */}
+            <Route path="/user/dashboard" element={
+              <UserRoute><UserDashboard /></UserRoute>
+            }/>
+
+            {/* ── User Communications (own leads only) ── */}
+            <Route path="/user/communications" element={
+              <UserRoute>
                 <FeatureGate anyOf={["sms-blast", "whatsapp-blast", "email-blast"]}>
                   <UserLeadCommunication />
                 </FeatureGate>
-              </AppLayout>
-            </UserRoute>
-          }/>
+              </UserRoute>
+            }/>
 
-          {/* ── User Excel / Google Sheet integration ── */}
-          <Route path="/user/sheet-integration" element={
-            <UserRoute>
-              <AppLayout>
+            {/* ── User Excel / Google Sheet integration ── */}
+            <Route path="/user/sheet-integration" element={
+              <UserRoute>
                 <FeatureGate featureKey="googleSheetIntegrationEnabled">
                   <UserSheetIntegration />
                 </FeatureGate>
-              </AppLayout>
-            </UserRoute>
-          }/>
+              </UserRoute>
+            }/>
 
-          {/* ── Developer pages ── */}
-          <Route path="/developer/dashboard" element={
-            <DeveloperRoute>
-              <AppLayout><DeveloperDashboard /></AppLayout>
-            </DeveloperRoute>
-          }/>
-          <Route path="/developer/companies" element={
-            <DeveloperRoute>
-              <AppLayout><DeveloperCompanies /></AppLayout>
-            </DeveloperRoute>
-          }/>
-          <Route path="/developer/companies/:id" element={
-            <DeveloperRoute>
-              <AppLayout><DeveloperCompanyDetails /></AppLayout>
-            </DeveloperRoute>
-          }/>
-          <Route path="/developer/subscriptions" element={
-            <DeveloperRoute>
-              <AppLayout><DeveloperSubscriptions /></AppLayout>
-            </DeveloperRoute>
-          }/>
-          <Route path="/developer/plan-customization" element={
-            <DeveloperRoute>
-              <AppLayout><DeveloperPlanCustomization /></AppLayout>
-            </DeveloperRoute>
-          }/>
-          <Route path="/developer/addons" element={
-            <DeveloperRoute>
-              <AppLayout><DeveloperAddonManager /></AppLayout>
-            </DeveloperRoute>
-          }/>
+            {/* ── Developer pages ── */}
+            <Route path="/developer/dashboard" element={
+              <DeveloperRoute><DeveloperDashboard /></DeveloperRoute>
+            }/>
+            <Route path="/developer/companies" element={
+              <DeveloperRoute><DeveloperCompanies /></DeveloperRoute>
+            }/>
+            <Route path="/developer/companies/:id" element={
+              <DeveloperRoute><DeveloperCompanyDetails /></DeveloperRoute>
+            }/>
+            <Route path="/developer/subscriptions" element={
+              <DeveloperRoute><DeveloperSubscriptions /></DeveloperRoute>
+            }/>
+            <Route path="/developer/plan-customization" element={
+              <DeveloperRoute><DeveloperPlanCustomization /></DeveloperRoute>
+            }/>
+            <Route path="/developer/addons" element={
+              <DeveloperRoute><DeveloperAddonManager /></DeveloperRoute>
+            }/>
 
-          {/* ── Admin-only pages ── */}
-          <Route path="/performance-marketing" element={
-              <AppLayout><PerfMarketing /></AppLayout>
-          } />
-          <Route path="/reportpage" element={
-            <AdminRoute>
-              <AppLayout><FeatureGate featureKey="basic-reports"><ReportPage /></FeatureGate></AppLayout>
-            </AdminRoute>
-          }/>
-          <Route path="/campaigns" element={
-            <AdminRoute>
-              <AppLayout><Campaigns /></AppLayout>
-            </AdminRoute>
-          }/>
-          <Route path="/attendance" element={
-            <AdminRoute>
-              <AppLayout><FeatureGate featureKey="attendance"><AttendancePage /></FeatureGate></AppLayout>
-            </AdminRoute>
-          }/>
+            {/* ── Admin-only pages ── */}
+            <Route path="/performance-marketing" element={<PerfMarketing />} />
+            <Route path="/reportpage" element={
+              <AdminRoute><FeatureGate featureKey="basic-reports"><ReportPage /></FeatureGate></AdminRoute>
+            }/>
+            <Route path="/campaigns" element={
+              <AdminRoute><Campaigns /></AdminRoute>
+            }/>
+            <Route path="/attendance" element={
+              <AdminRoute><FeatureGate featureKey="attendance"><AttendancePage /></FeatureGate></AdminRoute>
+            }/>
 
-          {/* ── Upgrade Plan — SuperAdmin only ── */}
-          <Route path="/upgrade-plan" element={
-            <SuperAdminRoute>
-              <AppLayout><UpgradePlanWithMembers /></AppLayout>
-            </SuperAdminRoute>
-          }/>
+            {/* ── Upgrade Plan — SuperAdmin only ── */}
+            <Route path="/upgrade-plan" element={
+              <SuperAdminRoute><UpgradePlanWithMembers /></SuperAdminRoute>
+            }/>
 
-          {/* ── Custom Reports — SuperAdmin only ── */}
-          <Route path="/custom-reports" element={
-            <SuperAdminRoute>
-              <AppLayout><CustomReports /></AppLayout>
-            </SuperAdminRoute>
-          }/>
+            {/* ── Custom Reports — SuperAdmin only ── */}
+            <Route path="/custom-reports" element={
+              <SuperAdminRoute><CustomReports /></SuperAdminRoute>
+            }/>
 
-          {/* ── Communications ── */}
-          <Route path="/communications" element={
-            <AdminRoute>
-              <AppLayout>
+            {/* ── Communications ── */}
+            <Route path="/communications" element={
+              <AdminRoute>
                 {/* Communications hosts WhatsApp, SMS, and Email blasts.
                     The whole page is hidden unless at least one blast feature
                     (sms-blast / whatsapp-blast / email-blast) is enabled for
@@ -604,9 +587,23 @@ function AppInner() {
                 <FeatureGate anyOf={["sms-blast", "whatsapp-blast", "email-blast"]}>
                   <Communications currentUser={user} />
                 </FeatureGate>
-              </AppLayout>
-            </AdminRoute>
-          }/>
+              </AdminRoute>
+            }/>
+
+            {/* ── Leads — role-aware ── */}
+            <Route path="/leads" element={<LeadsRoleSwitch />} />
+
+            {/* ── Daily report — role-aware ── */}
+            <Route path="/daily-report" element={
+              <FeatureGate featureKey="daily-report"><DailyReportRoleSwitch /></FeatureGate>
+            }/>
+
+            {/* ── Lead nurture sequence — admin only, single-company rollout ── */}
+            <Route path="/nurture-sequence" element={
+              <AdminRoute><FeatureGate featureKey="leadNurtureSequence"><NurtureSequenceBuilder /></FeatureGate></AdminRoute>
+            }/>
+
+          </Route>
 
           {/* ── Legacy redirects ── */}
           <Route path="/whatsapp"      element={<Navigate to="/communications" replace />} />
@@ -614,27 +611,6 @@ function AppInner() {
 
           {/* ── Call recordings redirect to dashboard (page removed) ── */}
           <Route path="/call-recordings" element={<Navigate to="/dashboard" replace />} />
-
-          {/* ── Leads — role-aware ── */}
-          <Route path="/leads" element={
-            <ProtectedRoute>
-              <AppLayout><LeadsRoleSwitch /></AppLayout>
-            </ProtectedRoute>
-          }/>
-
-          {/* ── Daily report — role-aware ── */}
-          <Route path="/daily-report" element={
-            <ProtectedRoute>
-              <AppLayout><FeatureGate featureKey="daily-report"><DailyReportRoleSwitch /></FeatureGate></AppLayout>
-            </ProtectedRoute>
-          }/>
-
-          {/* ── Lead nurture sequence — admin only, single-company rollout ── */}
-          <Route path="/nurture-sequence" element={
-            <AdminRoute>
-              <AppLayout><FeatureGate featureKey="leadNurtureSequence"><NurtureSequenceBuilder /></FeatureGate></AppLayout>
-            </AdminRoute>
-          }/>
 
           {/* ── Invoice receipt preview (TEMPORARY — remove when done testing) ── */}
           <Route path="/invoice-test" element={<InvoiceTest />} />
