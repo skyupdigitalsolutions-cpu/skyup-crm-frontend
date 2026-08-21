@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { CalendarDays, Users, Eye, EyeOff, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Voicemail, Ban, Phone, PhoneCall, Mic, Lock, AlertTriangle, ClipboardList, Smartphone, MapPin } from "lucide-react";
 import { updateAttendance, removeAttendance, upsertAttendance } from "../services/attendanceService";
+import api from "../data/axiosConfig";
 import { getRole } from "../data/dataService";
 import axios from "axios";
 import { maskPhone, maskEmail } from "../utils/maskPhone";
@@ -232,8 +233,6 @@ function EditModal({ rec, onClose, onRefresh }) {
     logoutTime: toInputTime(rec.logoutTime),
     crmStatus : rec.derivedCrmStatus || rec.crmStatus || "",
     remarks   : rec.remarks || "",
-    idealTime : rec.idealTime || "",
-    idealRemark: rec.idealRemark || "",
   });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
@@ -272,8 +271,6 @@ function EditModal({ rec, onClose, onRefresh }) {
         logoutTime: isNonWorking ? null : (combineDateTime(rec.date, form.logoutTime) || null),
         crmStatus : form.crmStatus || null,
         remarks   : form.remarks,
-        idealTime : form.idealTime,
-        idealRemark: form.idealRemark,
       };
       if (rec._id) {
         await updateAttendance(rec._id, payload);
@@ -405,28 +402,6 @@ function EditModal({ rec, onClose, onRefresh }) {
               onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))}
               className={INP}
             />
-          </div>
-
-          {/* Ideal Working Time (set by employee in mobile app; editable here) */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1.5">Ideal Time</label>
-              <input
-                type="text" value={form.idealTime}
-                placeholder="e.g. 11:00 AM - 7:00 PM"
-                onChange={e => setForm(f => ({ ...f, idealTime: e.target.value }))}
-                className={INP}
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1.5">Ideal Time Reason</label>
-              <input
-                type="text" value={form.idealRemark}
-                placeholder="Reason for ideal time…"
-                onChange={e => setForm(f => ({ ...f, idealRemark: e.target.value }))}
-                className={INP}
-              />
-            </div>
           </div>
         </div>
 
@@ -1032,11 +1007,37 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
   const [editRec, setEditRec] = useState(null);
   const [delId,   setDelId]   = useState(null);
 
+  // ── Company shift window (read-only here) ───────────────────────────────
+  // "Ideal Time" used to be a free-text field each employee typed in per day
+  // — which drifted into meaning "what I actually worked" instead of a fixed
+  // shift window. It's now one company-wide setting the admin configures on
+  // the Attendance Settings page (same backend config that already powers
+  // the "late" threshold), shown here for context rather than edited per row.
+  const [shiftCfg, setShiftCfg] = useState(null);
+  useEffect(() => {
+    api.get("/admin/company/attendance-config").then(r => setShiftCfg(r.data)).catch(() => {});
+  }, []);
+  const fmtShift = (h, m) => {
+    if (h == null) return "—";
+    const period = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m || 0).padStart(2, "0")} ${period}`;
+  };
+  const shiftLabel = shiftCfg
+    ? `${fmtShift(shiftCfg.shiftStartHour, shiftCfg.shiftStartMinute)} – ${fmtShift(shiftCfg.shiftEndHour, shiftCfg.shiftEndMinute)}`
+    : null;
+
   const thCls = "px-4 py-3 text-left text-[10px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest whitespace-nowrap";
   const tdCls = "px-4 py-3 text-[12px] text-[#4B5168] dark:text-[#9DA3BB] whitespace-nowrap";
 
   return (
     <>
+      {shiftLabel && (
+        <div className="flex items-center gap-2 mb-3 px-4 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900 text-[12px] text-indigo-700 dark:text-indigo-400 w-fit">
+          <CalendarDays className="w-3.5 h-3.5" />
+          <span className="font-semibold">Company shift hours:</span> {shiftLabel}
+        </div>
+      )}
       <div className="overflow-x-auto rounded-2xl border border-[#E4E7EF] dark:border-[#262A38]">
         <table className="w-full">
           <thead className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
@@ -1051,8 +1052,8 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
               <th className={thCls}>Last IP</th>
               <th className={thCls}>Last Login</th>
               <th className={thCls}>Remarks</th>
-              <th className={thCls}>Ideal Time</th>
               <th className={thCls}>Idle Time</th>
+              <th className={thCls}>Idle Remarks</th>
               <th className={thCls}>Actions</th>
             </tr>
           </thead>
@@ -1060,7 +1061,7 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 11 }).map((_, j) => (
+                  {Array.from({ length: 13 }).map((_, j) => (
                     <td key={j} className="px-4 py-3">
                       <div className="h-4 rounded bg-[#F1F4FF] dark:bg-[#262A38] animate-pulse w-20" />
                     </td>
@@ -1125,23 +1126,6 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
                     )}
                   </td>
                   <td className={tdCls}><span className="italic text-[#8B92A9]">{rec.remarks || "—"}</span></td>
-                  {/* Ideal Time — the planned shift window set by the employee
-                      on mobile (e.g. "10:00 AM – 7:00 PM"). Never mixed with
-                      idle/auto-idle data, which lives in its own column. */}
-                  <td className={tdCls}>
-                    {rec.idealTime || rec.idealRemark ? (
-                      <div className="max-w-[180px]">
-                        {rec.idealTime && (
-                          <p className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{rec.idealTime}</p>
-                        )}
-                        {rec.idealRemark && (
-                          <p className="text-[10px] text-[#8B92A9] truncate" title={rec.idealRemark}>{rec.idealRemark}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-[#8B92A9]">—</span>
-                    )}
-                  </td>
                   {/* Idle Time — auto-computed gaps where employee was inactive
                       (Auto Idle breaks only, excludes manual breaks). */}
                   <td className={tdCls}>
@@ -1152,6 +1136,39 @@ function AttendanceTab({ records, loading, onRefresh, onUserClick, isSuperAdmin 
                     ) : (
                       <span className="text-[#8B92A9]">—</span>
                     )}
+                  </td>
+                  {/* Idle Remarks — employee-entered reason for each Auto Idle
+                      gap (or "Pending" if skipped). Distinct from Idle Time,
+                      which is just the total duration. */}
+                  <td className={tdCls}>
+                    {(() => {
+                      const idleBreaks = (rec.breaks || []).filter(b => b.reason === "Auto Idle");
+                      if (idleBreaks.length === 0) return <span className="text-[#8B92A9]">—</span>;
+                      const pendingCount = idleBreaks.filter(b => b.remarkStatus === "pending").length;
+                      const filled       = idleBreaks.filter(b => b.remarkStatus === "filled");
+                      return (
+                        <div className="max-w-[220px]">
+                          {pendingCount > 0 && (
+                            <span className="inline-block mb-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
+                              {pendingCount} pending
+                            </span>
+                          )}
+                          {filled.length > 0 && (
+                            <div className="space-y-0.5">
+                              {filled.slice(0, 2).map((b, bi) => (
+                                <p key={bi} className="text-[10px] text-[#4B5168] dark:text-[#9DA3BB] truncate italic" title={b.remark}>
+                                  "{b.remark}"
+                                </p>
+                              ))}
+                              {filled.length > 2 && (
+                                <p className="text-[10px] text-[#8B92A9]">+{filled.length - 2} more</p>
+                              )}
+                            </div>
+                          )}
+                          {pendingCount === 0 && filled.length === 0 && <span className="text-[#8B92A9]">—</span>}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className={tdCls}>
                     <div className="flex items-center gap-1.5">
