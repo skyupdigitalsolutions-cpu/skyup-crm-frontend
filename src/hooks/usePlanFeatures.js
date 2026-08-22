@@ -5,38 +5,32 @@
 
 import { useState, useEffect } from "react";
 import api from "../data/axiosConfig";
+import { getUser } from "../data/sessionStore";
 
-const CACHE_KEY = "plan_entitlements";
+// SECURITY FIX: plan_entitlements cache is now in-memory (module variable)
+// Previously stored in localStorage — visible in DevTools and readable by any JS.
 const CACHE_TTL = 60 * 1000; // 1 minute
+let _memCache = null; // { data: { entitlements, remaining }, ts: number } | null
 
 function loadCache() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
-    if (raw && Date.now() - raw.ts < CACHE_TTL) return raw.data;
-  } catch {}
+  if (_memCache && Date.now() - _memCache.ts < CACHE_TTL) return _memCache.data;
   return null;
 }
 
 function saveCache(data) {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
-  } catch {}
+  _memCache = { data, ts: Date.now() };
+  try { localStorage.removeItem("plan_entitlements"); } catch (_) {}
+  try { localStorage.removeItem("plan_features"); } catch (_) {}
 }
 
 export function clearFeaturesCache() {
-  try {
-    localStorage.removeItem(CACHE_KEY);
-    localStorage.removeItem("plan_features");
-  } catch {}
+  _memCache = null;
+  try { localStorage.removeItem("plan_entitlements"); } catch (_) {}
+  try { localStorage.removeItem("plan_features"); } catch (_) {}
 }
 
 function getStoredRole() {
-  try {
-    const user = JSON.parse(localStorage.getItem("user") || "null");
-    return user?.role || null;
-  } catch {
-    return null;
-  }
+  return getUser()?.role || null;
 }
 
 // ── Feature key → entitlements boolean key map ────────────────────────────────
