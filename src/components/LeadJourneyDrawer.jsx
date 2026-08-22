@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { X, Flame, Sun, Snowflake, CheckCircle2, AlertTriangle, Clock, Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays, Paperclip, Mic, User, RefreshCw, ClipboardList, Inbox, Map as MapIcon, Users, BarChart3, PartyPopper, XCircle, Zap, Sparkles } from "lucide-react";
+import { X, Flame, Sun, Snowflake, CheckCircle2, AlertTriangle, Clock, Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays, Paperclip, Mic, User, RefreshCw, ClipboardList, Inbox, Map as MapIcon, Users, BarChart3, PartyPopper, XCircle, Zap, Sparkles, Save, ChevronDown } from "lucide-react";
 import QualificationScore from "./QualificationScore";
 import api from "../data/axiosConfig";
 import useEntitlements from "../hooks/useEntitlements";
@@ -356,6 +356,28 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
     ? showNurtureFieldsProp
     : hasFeature('leadNurtureSequence');
 
+  // ── Inline Industry / Service editor (admin/super_admin right panel) ──────────
+  const INDUSTRIES = [
+    "Healthcare", "Education", "Real Estate", "Logistics", "Finance",
+    "IT Solutions", "Digital Marketing", "Construction", "Local Business",
+    "Interior Designers", "Professional Services",
+  ];
+  const SERVICES = [
+    "SEO", "Paid Ads", "Website Design & Development", "AI Automation",
+    "CRM", "Video Editing", "Graphic Design", "Social Media Marketing",
+  ];
+  const [editingNurture,  setEditingNurture]  = useState(false);
+  const [nurtureIndustry, setNurtureIndustry] = useState(safeLead.industry || "");
+  const [nurtureService,  setNurtureService]  = useState(safeLead.service  || "");
+  const [nurtureSaving,   setNurtureSaving]   = useState(false);
+
+  // Reset inline editor whenever a different lead is opened
+  useEffect(() => {
+    setEditingNurture(false);
+    setNurtureIndustry(safeLead.industry || "");
+    setNurtureService(safeLead.service   || "");
+  }, [leadId]);
+
   // ── AI Action Summary ─────────────────────────────────────────────────────
   const [aiSummary,        setAiSummary]        = useState(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
@@ -389,6 +411,37 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
       setAiSummaryError(MESSAGES[code] || e?.response?.data?.message || "Could not generate summary.");
     } finally {
       setAiSummaryLoading(false);
+    }
+  };
+
+  // ── Save industry / service from the admin right panel ───────────────────────
+  // Uses the admin PUT endpoint so it bypasses the nurtureEnabled entitlement
+  // check in patchLead (which gates on feature flag for user-side saves).
+  // Admin/super_admin can always set these fields directly.
+  const saveNurtureFields = async () => {
+    if (!leadId) return;
+    setNurtureSaving(true);
+    try {
+      const endpoint = isSuperAdmin
+        ? `/lead/superadmin/${leadId}`
+        : `/lead/admin/${leadId}`;
+      await api.put(endpoint, {
+        industry: nurtureIndustry || "",
+        service:  nurtureService  || "",
+      });
+      setEditingNurture(false);
+      if (onLeadUpdated) {
+        onLeadUpdated({
+          ...safeLead,
+          industry: nurtureIndustry || "",
+          service:  nurtureService  || "",
+        });
+      }
+      if (onToast) onToast("Industry & Service saved", "success");
+    } catch (e) {
+      if (onToast) onToast(e?.response?.data?.message || "Save failed", "error");
+    } finally {
+      setNurtureSaving(false);
     }
   };
 
@@ -674,10 +727,6 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
               {[
                 { label: "Source",           value: lead.source || "—" },
                 { label: "Campaign",         value: lead.campaign && lead.campaign !== "—" ? lead.campaign : "—" },
-                ...(showNurtureFields ? [
-                  { label: "Industry",       value: lead.industry || "—" },
-                  { label: "Service",        value: lead.service  || "—" },
-                ] : []),
                 { label: "Ad Set",           value: lead.adSetName || "—" },
                 { label: "Primary Number",   value: displayPhone },
                 ...(displaySecondaryPhone ? [{ label: "Secondary Number", value: displaySecondaryPhone }] : []),
@@ -694,6 +743,73 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                   </span>
                 </div>
               ))}
+
+              {/* ── Industry & Service — inline editable ────────────────────── */}
+              {showNurtureFields && (
+                <>
+                  {!editingNurture ? (
+                    <>
+                      {[
+                        { label: "Industry", value: lead.industry || "—" },
+                        { label: "Service",  value: lead.service  || "—" },
+                      ].map((row) => (
+                        <div
+                          key={row.label}
+                          className="border-t border-[#F0F2FA] dark:border-[#1E2130] flex items-center justify-between px-4 py-2.5 group/row cursor-pointer hover:bg-white dark:hover:bg-[#1A1D27]"
+                          onClick={() => setEditingNurture(true)}
+                        >
+                          <span className="text-[11px] text-[#8B92A9]">{row.label}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{row.value}</span>
+                            <span className="text-[10px] font-semibold text-[#2563EB] opacity-0 group-hover/row:opacity-100 transition">Edit</span>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="border-t border-[#F0F2FA] dark:border-[#1E2130] px-4 py-3 space-y-2.5">
+                      <div>
+                        <label className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1">Industry</label>
+                        <select
+                          value={nurtureIndustry}
+                          onChange={e => setNurtureIndustry(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
+                        >
+                          <option value="">— Not set —</option>
+                          {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1">Service</label>
+                        <select
+                          value={nurtureService}
+                          onChange={e => setNurtureService(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
+                        >
+                          <option value="">— Not set —</option>
+                          {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => { setEditingNurture(false); setNurtureIndustry(lead.industry || ""); setNurtureService(lead.service || ""); }}
+                          className="flex-1 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[11px] font-semibold text-[#8B92A9] hover:text-[#4B5168] transition"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={saveNurtureFields}
+                          disabled={nurtureSaving}
+                          className="flex-1 py-1.5 rounded-lg bg-[#2563EB] hover:bg-blue-700 text-white text-[11px] font-bold disabled:opacity-50 transition flex items-center justify-center gap-1"
+                        >
+                          <Save className="w-3 h-3" />
+                          {nurtureSaving ? "Saving…" : "Save"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
 
               {lead.projects && lead.projects.length > 0 && (
                 <div className="border-t border-[#F0F2FA] dark:border-[#1E2130] px-4 py-2.5">
