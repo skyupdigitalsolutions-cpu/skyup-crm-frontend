@@ -4,6 +4,7 @@ import React from "react";
 import { Sidebar } from "./components/Sidebar";
 import ThemeToggle from "./components/ThemeToggle";
 import api from "./data/axiosConfig";
+import { getToken, getUser, getBrand, setBrand as _storeBrand } from "./data/sessionStore";
 import ExpiryBanner, { SuspensionScreen } from "./components/ExpiryBanner";
 import EntitlementStatusBanner from "./components/EntitlementStatusBanner";
 import TrialGate from "./components/TrialGate";
@@ -129,8 +130,8 @@ class ErrorBoundary extends React.Component {
 }
 
 function getStoredAuth() {
-  const token = localStorage.getItem("token");
-  const user  = JSON.parse(localStorage.getItem("user") || "null");
+  const token = getToken();
+  const user  = getUser();
   return { token, user };
 }
 
@@ -283,18 +284,18 @@ function CompanyHeader() {
   const role = (user?.role || "user").toLowerCase();
 
   const [brand, setBrand] = React.useState(() => {
-    try { return JSON.parse(localStorage.getItem("company_brand") || "null"); } catch { return null; }
+    return getBrand();
   });
 
   React.useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getToken();
     if (!token || role === "developer" || role === "user") return;
     api.get("/admin/company/brand")
       .then((res) => {
         if (res.data) {
           const b = { ...res.data, _ts: Date.now() };
           setBrand(b);
-          localStorage.setItem("company_brand", JSON.stringify(b));
+          _storeBrand(b);
         }
       })
       .catch(() => {});
@@ -302,7 +303,7 @@ function CompanyHeader() {
 
   React.useEffect(() => {
     const handler = () => {
-      try { setBrand(JSON.parse(localStorage.getItem("company_brand") || "null")); } catch {}
+      setBrand(getBrand());
     };
     window.addEventListener("company_brand_updated", handler);
     return () => window.removeEventListener("company_brand_updated", handler);
