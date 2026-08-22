@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import useEntitlements from "../hooks/useEntitlements";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import api, { clearAllCache } from "../data/axiosConfig";
+import { getToken, getUser, clearSession } from "../data/sessionStore";
 
 // ── Nav items for ADMIN ───────────────────────────────────────────────────────
 const ADMIN_NAV_ITEMS = [
@@ -280,7 +281,7 @@ export function Sidebar() {
   const location = useLocation();
   const navigate  = useNavigate();
 
-  const user        = JSON.parse(localStorage.getItem("user") || "null");
+  const user        = getUser();
   const rawRole     = user?.role?.toLowerCase() || "user";
 
   const role        = rawRole === "superadmin" ? "super_admin" : rawRole;
@@ -304,7 +305,7 @@ export function Sidebar() {
 
   // ── Poll follow-up alerts every 5 minutes (skip for developer) ────────────
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getToken();
     if (!token || isDeveloper) return;
     const isAdmin    = role === "admin" || role === "super_admin";
     const endpoint   = isAdmin ? "/lead/admin/follow-up-alerts" : "/lead/follow-up-alerts";
@@ -328,7 +329,7 @@ export function Sidebar() {
   // whenever the route changes (so it clears right after reading a chat), and
   // whenever a new WhatsApp message arrives via socket.
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getToken();
     if (!token || isDeveloper) return;
     const fetchUnread = async () => {
       try {
@@ -383,19 +384,10 @@ export function Sidebar() {
   });
 
   const handleLogout = () => {
-    // ── SECURITY FIX: clear ALL localStorage keys, not just token/user ────────
-    // Previously only token + user were removed, leaving crm_encryption_key,
-    // plan_entitlements, mkt_token, vf_api_key etc. readable on shared devices.
-    [
-      "token", "user", "company_brand", "company_branding",
-      "plan_entitlements", "plan_features", "crm_encryption_key",
-      "vf_api_key", "mkt_token", "mkt_user",
-    ].forEach((k) => localStorage.removeItem(k));
-    // Wipe the in-memory GET cache — otherwise the next admin who logs in on
-    // this same tab (no full page reload happens here) can be served this
-    // admin's cached dashboard/leads data for up to 30 seconds.
+    // SECURITY FIX: clearSession() wipes all in-memory auth state and
+    // purges any localStorage remnants from the old implementation.
+    clearSession();
     clearAllCache();
-    // Notify same-tab NotificationProvider so socket disconnects immediately
     window.dispatchEvent(new Event("user_changed"));
     navigate("/login", { replace: true });
   };
