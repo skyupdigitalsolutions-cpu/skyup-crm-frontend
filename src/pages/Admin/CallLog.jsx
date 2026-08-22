@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { getUser } from '../../data/sessionStore';
 import api from '../../data/axiosConfig';
 import { Phone, PhoneOutgoing, PhoneIncoming, PhoneMissed, Mic } from 'lucide-react';
 
@@ -99,7 +100,7 @@ export default function CallLogs() {
   const [error,      setError]      = useState('');
   const [filter,     setFilter]     = useState({ type: 'all', employee: '', date: '' });
   const [isSuperAdmin] = useState(() => {
-    const u = JSON.parse(localStorage.getItem('user') || 'null');
+    const u = getUser();
     return u?.role === 'superadmin' || u?.role === 'super_admin';
   });
 
