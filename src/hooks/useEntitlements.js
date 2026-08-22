@@ -39,12 +39,7 @@ export default function useEntitlements() {
         setEntitlements(ent);
         setRemaining(rem);
         // Save back to cache via usePlanFeatures
-        try {
-          localStorage.setItem(
-            "plan_entitlements",
-            JSON.stringify({ data: { entitlements: ent, remaining: rem }, ts: Date.now() })
-          );
-        } catch {}
+        // SECURITY FIX: plan cache is in usePlanFeatures _memCache, not localStorage
       }
       // Notify all usePlanFeatures consumers in the same tab
       window.dispatchEvent(new Event("plan_updated"));
