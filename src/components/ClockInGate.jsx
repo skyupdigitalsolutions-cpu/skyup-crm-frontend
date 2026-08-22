@@ -10,11 +10,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback } from "react";
 import api from "../data/axiosConfig";
+import { getUser } from "../data/sessionStore";
 
 // Read the stored user role without coupling to App.jsx's helper.
 function getStoredRole() {
   try {
-    const u = JSON.parse(localStorage.getItem("user") || "null");
+    const u = getUser();
     return (u?.role || "").toLowerCase();
   } catch {
     return "";
