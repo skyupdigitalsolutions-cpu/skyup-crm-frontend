@@ -6,6 +6,7 @@ import {
   Flame, Thermometer, Snowflake, ClipboardList, Inbox, Radio, CheckCircle2, AlertTriangle,
 } from "lucide-react";
 import api from "../data/axiosConfig";
+import { getUser } from "../data/sessionStore";
 import VoiceBotPanel from "./VoiceBotPanel";
 import GoogleAnalyticsConnect from "./GoogleAnalyticsConnect";
 import { io as socketIO } from "socket.io-client";
@@ -2280,7 +2281,7 @@ export default function Campaigns() {
   // ── Role detection ──────────────────────────────────────────────────────────
   const isSuperAdmin = (() => {
     try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const user = getUser() || {};
       const role = (user.role || "").toLowerCase();
       return role === "super_admin" || role === "superadmin";
     } catch { return false; }
