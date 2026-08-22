@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { CalendarDays, Users, Eye, EyeOff, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Voicemail, Ban, Phone, PhoneCall, Mic, Lock, AlertTriangle, ClipboardList, Smartphone, MapPin } from "lucide-react";
 import { updateAttendance, removeAttendance, upsertAttendance } from "../services/attendanceService";
 import api from "../data/axiosConfig";
+import { getToken } from "../data/sessionStore";
 import { getRole } from "../data/dataService";
 import axios from "axios";
 import { maskPhone, maskEmail } from "../utils/maskPhone";
@@ -107,7 +108,7 @@ function fmtDuration(seconds) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 function authHeaders() {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 const BASE = import.meta.env.VITE_API_URL || "";
