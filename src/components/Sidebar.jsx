@@ -383,8 +383,14 @@ export function Sidebar() {
   });
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    // ── SECURITY FIX: clear ALL localStorage keys, not just token/user ────────
+    // Previously only token + user were removed, leaving crm_encryption_key,
+    // plan_entitlements, mkt_token, vf_api_key etc. readable on shared devices.
+    [
+      "token", "user", "company_brand", "company_branding",
+      "plan_entitlements", "plan_features", "crm_encryption_key",
+      "vf_api_key", "mkt_token", "mkt_user",
+    ].forEach((k) => localStorage.removeItem(k));
     // Wipe the in-memory GET cache — otherwise the next admin who logs in on
     // this same tab (no full page reload happens here) can be served this
     // admin's cached dashboard/leads data for up to 30 seconds.
