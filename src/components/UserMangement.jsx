@@ -209,8 +209,11 @@ function CredentialsModal({ member, onClose, navigate }) {
     navigator.clipboard.writeText(text).then(() => { setCopied(key); setTimeout(() => setCopied(null), 1800); });
   };
   const handleLoginAsUser = () => {
-    sessionStorage.setItem("newUserEmail", member.email);
-    sessionStorage.setItem("newUserPassword", member.password);
+    // ── SECURITY FIX: passwords must never be stored in sessionStorage ────────
+    // sessionStorage is fully readable in DevTools and by any JS on the page.
+    // Removed: sessionStorage.setItem("newUserEmail", ...) and newUserPassword.
+    // The Login as User button now navigates to /login without pre-filling —
+    // for automated login, implement a one-time-token (OTT) on the backend.
     navigate("/login");
   };
   return (
@@ -1007,19 +1010,23 @@ export default function UserManagement({
       const res = await api.post("/admin/", { name, email, password });
       // One-time reveal only: backend echoes back the password the caller
       // just typed (never stored — see controllers/adminController.js).
-      const member = { ...res.data, phone, role: "admin", password: res.data.plainPassword || password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
+      // ── SECURITY FIX: use password from form state, not res.data.plainPassword
+      // (backend no longer returns plainPassword in the response).
+      const member = { ...res.data, phone, role: "admin", password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
       setAdmins(prev => [...prev, member]);
       setModal(null);
       setCredsFor(member);
     } else {
       const res = await api.post("/admin/user", { name, email, password, assignedTo, contactAccountEmail });
-      const member = { ...res.data, phone, role: "user", password: res.data.plainPassword || password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
+      // ── SECURITY FIX: password kept only in React state (credsFor), never
+      // written to sessionStorage. The CredentialsModal shows it once from
+      // state; after the modal closes the value is gone from the browser.
+      // plainPassword is no longer read from the API response (backend removed it).
+      const member = { ...res.data, phone, role: "user", password, addedOn: new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) };
       setUsers(prev => [...prev, member]);
       setTotalCompanyUsers(prev => prev + 1);
       setModal(null);
       setCredsFor(member);
-      sessionStorage.setItem("newUserEmail", res.data.email);
-      sessionStorage.setItem("newUserPassword", password);
     }
   };
 
