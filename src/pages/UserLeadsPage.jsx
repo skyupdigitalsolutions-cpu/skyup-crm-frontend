@@ -38,6 +38,17 @@ const STATUS_OPTIONS  = ["New", "In Progress", "Converted", "Not Interested"];
 // outcomes.
 const OUTCOME_OPTIONS = ["Answered", "Not Answered", "Busy", "Switch Off", "Call Back Later", "Interested", "Not Interested", "Invalid", "Client Meeting"];
 
+// ── Nurture: industry & service options (kept in sync with NurtureSequenceBuilder) ──
+const INDUSTRIES = [
+  "Healthcare", "Education", "Real Estate", "Logistics", "Finance",
+  "IT Solutions", "Digital Marketing", "Construction", "Local Business",
+  "Interior Designers", "Professional Services",
+];
+const SERVICES = [
+  "SEO", "Paid Ads", "Website Design & Development", "AI Automation",
+  "CRM", "Video Editing", "Graphic Design", "Social Media Marketing",
+];
+
 function fmtDate(iso) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -698,6 +709,12 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
   const [activeTab,     setActiveTab]    = useState("update");
   const [showColdModal, setShowColdModal] = useState(false);
 
+  // ── Industry / Service (Nurture Sequence feature-gated) ──────────────────────
+  const [industry, setIndustry] = useState(lead.industry || "");
+  const [service,  setService]  = useState(lead.service  || "");
+  const { hasFeature } = useEntitlements();
+  const showNurtureFields = hasFeature('leadNurtureSequence');
+
   const isNI = status === "Not Interested";
 
   // Already marked Interested? Hide the "Interested" outcome so it can't be repeated.
@@ -722,6 +739,11 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
         if (temperature)  body.temperature  = temperature;
         // Match mobile: send the follow-up as a full ISO timestamp (date + time).
         if (followUpDate) body.followUpDate = new Date(followUpDate).toISOString();
+        // ── Nurture fields: only sent when feature is enabled ──────────────────
+        if (showNurtureFields) {
+          if (industry) body.industry = industry;
+          if (service)  body.service  = service;
+        }
         const res = await api.patch(`/lead/${lead.id}`, body);
         updatedLead = res.data?.lead || res.data;
       }
@@ -743,6 +765,10 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
         status:         isNI ? (updatedLead?.status || "Not Interested") : status,
         remark:         remark.trim(),
         temperature:    temperature || lead.temperature,
+        // Persist nurture selections into local lead state so they survive
+        // without a full refresh (backend is the source of truth on next load).
+        industry:       (showNurtureFields && industry) ? industry : (updatedLead?.industry ?? lead.industry),
+        service:        (showNurtureFields && service)  ? service  : (updatedLead?.service  ?? lead.service),
         callHistory:    mergedCallHistory,
         scheduledCalls: mergedScheduled,
       });
@@ -979,6 +1005,38 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                     })}
                   </div>
                 </div>
+                {/* ── Industry & Service (Nurture Sequence) ────────────────── */}
+                {showNurtureFields && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
+                        Industry
+                      </label>
+                      <select
+                        value={industry}
+                        onChange={e => setIndustry(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
+                      >
+                        <option value="">— Select —</option>
+                        {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
+                        Service
+                      </label>
+                      <select
+                        value={service}
+                        onChange={e => setService(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
+                      >
+                        <option value="">— Select —</option>
+                        {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
                 {!isNI && (
                   <div>
                     <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
