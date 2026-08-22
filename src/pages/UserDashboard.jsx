@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
+import { getToken, getUser } from "../data/sessionStore";
 import { maskPhone } from "../utils/maskPhone";
 import { io } from "socket.io-client";
 import { FlameIcon, UsersIcon, LoaderIcon, CheckIcon, AlertTriangle, CloudSun, Snowflake, MessageCircle, Flame, Sun, Check } from "lucide-react";
@@ -198,7 +199,7 @@ function AttendanceMiniWidget() {
 
   const userId = useMemo(() => {
     try {
-      const u = JSON.parse(localStorage.getItem("user") || "null");
+      const u = getUser();
       return u?._id || u?.id || null;
     } catch { return null; }
   }, []);
@@ -1671,7 +1672,7 @@ function UserChatWidget() {
   const [editingId, setEditingId]     = useState(null);
   const [editingText, setEditingText] = useState("");
   const bottomRef = useRef(null);
-  const user        = JSON.parse(localStorage.getItem("user") || "null");
+  const user        = getUser();
   const username    = (user && user.name) || "user";
   const companyId   = user?.companyId || user?.company?._id || user?.company || null;
   const adminId     = user?.createdBy || null;
@@ -2185,7 +2186,7 @@ function TelegramSetupWidget({ user }) {
 }
 
 export default function UserDashboard() {
-  const user     = JSON.parse(localStorage.getItem("user") || "null");
+  const user     = getUser();
   const greeting = getGreeting();
   const [leads,         setLeads]         = useState([]);
   const [loading,       setLoading]       = useState(true);
