@@ -17,14 +17,8 @@ export function ThemeProvider({ children }) {
     () => localStorage.getItem("theme") === "dark"
   );
 
-  const [branding, setBranding] = useState(() => {
-    // Rehydrate persisted branding so the UI never flashes defaults on refresh
-    try {
-      return JSON.parse(localStorage.getItem("company_branding") || "null") || DEFAULT_BRANDING;
-    } catch {
-      return DEFAULT_BRANDING;
-    }
-  });
+  // SECURITY FIX: branding removed from localStorage — kept in React state only.
+  const [branding, setBranding] = useState(DEFAULT_BRANDING);
 
   // ── Apply dark/light class ─────────────────────────────────────────────────
   useEffect(() => {
@@ -54,7 +48,7 @@ export function ThemeProvider({ children }) {
       const res = await api.get(`/api/company/${companyId}/branding`);
       const data = { ...DEFAULT_BRANDING, ...res.data };
       setBranding(data);
-      localStorage.setItem("company_branding", JSON.stringify(data));
+      // SECURITY FIX: branding in React state only, not localStorage
     } catch (e) {
       console.warn("Branding load failed, using defaults");
     }
@@ -63,7 +57,7 @@ export function ThemeProvider({ children }) {
   // ── Reset to defaults (e.g. on logout) ────────────────────────────────────
   const resetBranding = () => {
     setBranding(DEFAULT_BRANDING);
-    localStorage.removeItem("company_branding");
+    try { localStorage.removeItem("company_branding"); } catch (_) {}
   };
 
   const toggle = () => setDark((prev) => !prev);
