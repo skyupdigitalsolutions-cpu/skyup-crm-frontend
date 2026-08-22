@@ -342,6 +342,17 @@ function defaultMaskEmail(email, isSuperAdmin) {
 }
 
 // ── Main drawer ───────────────────────────────────────────────────────────────
+// ── Nurture: industry & service options (module-level — not inside component) ─
+const INDUSTRIES = [
+  "Healthcare", "Education", "Real Estate", "Logistics", "Finance",
+  "IT Solutions", "Digital Marketing", "Construction", "Local Business",
+  "Interior Designers", "Professional Services",
+];
+const SERVICES = [
+  "SEO", "Paid Ads", "Website Design & Development", "AI Automation",
+  "CRM", "Video Editing", "Graphic Design", "Social Media Marketing",
+];
+
 export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false, maskPhone, maskEmail, onLeadUpdated, onToast, showNurtureFields: showNurtureFieldsProp }) {
   // Hooks below must run unconditionally — keep the null check AFTER them.
   const safeLead = lead || {};
@@ -356,16 +367,9 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
     ? showNurtureFieldsProp
     : hasFeature('leadNurtureSequence');
 
+  const leadId = safeLead._id || safeLead.id || null;
+
   // ── Inline Industry / Service editor (admin/super_admin right panel) ──────────
-  const INDUSTRIES = [
-    "Healthcare", "Education", "Real Estate", "Logistics", "Finance",
-    "IT Solutions", "Digital Marketing", "Construction", "Local Business",
-    "Interior Designers", "Professional Services",
-  ];
-  const SERVICES = [
-    "SEO", "Paid Ads", "Website Design & Development", "AI Automation",
-    "CRM", "Video Editing", "Graphic Design", "Social Media Marketing",
-  ];
   const [editingNurture,  setEditingNurture]  = useState(false);
   const [nurtureIndustry, setNurtureIndustry] = useState(safeLead.industry || "");
   const [nurtureService,  setNurtureService]  = useState(safeLead.service  || "");
@@ -382,8 +386,6 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
   const [aiSummary,        setAiSummary]        = useState(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [aiSummaryError,   setAiSummaryError]   = useState("");
-
-  const leadId = safeLead._id || safeLead.id || null;
 
   const fetchActionSummary = async (refresh = false) => {
     if (!leadId) return;
