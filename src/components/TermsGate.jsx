@@ -18,10 +18,11 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { FileText, ChevronDown, CheckCircle2, Loader2 } from "lucide-react";
 import api from "../data/axiosConfig";
+import { getUser } from "../data/sessionStore";
 
 function getRole() {
   try {
-    const u = JSON.parse(localStorage.getItem("user") || "null");
+    const u = getUser();
     return u?.role || null;
   } catch {
     return null;
