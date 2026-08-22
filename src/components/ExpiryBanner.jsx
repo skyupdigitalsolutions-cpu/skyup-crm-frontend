@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from "react";
 import api from "../data/axiosConfig";
+import { getUser } from "../data/sessionStore";
 
 function AlertIcon() {
   return (
@@ -113,7 +114,7 @@ export default function ExpiryBanner({ onGoToPlans }) {
 
   useEffect(() => {
     let r = null;
-    try { r = JSON.parse(localStorage.getItem("user") || "null")?.role || null; } catch {}
+    try { r = getUser()?.role || null; } catch {}
     setRole(r);
     if (r === "developer" || r === "user") return;
 
