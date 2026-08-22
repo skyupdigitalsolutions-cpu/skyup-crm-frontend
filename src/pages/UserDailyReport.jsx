@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { getUser } from '../data/sessionStore';
 import { useDailyReport } from '../hooks/useDailyReport';
 import {
   addDays, formatLong, formatMedium, isToday as isTodayFn,
@@ -108,7 +109,7 @@ function Skeleton() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function UserDailyReport() {
-  const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
+  const storedUser = getUser();
   const userId     = storedUser?._id || storedUser?.id || null;
 
   const [viewDate,  setViewDate]  = useState(new Date());
