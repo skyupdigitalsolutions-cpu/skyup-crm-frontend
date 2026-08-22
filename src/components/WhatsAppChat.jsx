@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import axios from 'axios';
+import { getToken } from '../data/sessionStore';
 import { Users, MessageCircle, AlertTriangle, Image as ImageIcon, FileText, Music, Video, MapPin, ClipboardList, Send } from 'lucide-react';
 
 const API_URL    = import.meta.env.VITE_API_URL;   // e.g. http://localhost:5000/api
@@ -87,7 +88,7 @@ export default function WhatsAppChat({ currentUser }) {
   const [starting,     setStarting]     = useState(false);
 
   const isAdmin     = currentUser?.role === 'admin';
-  const token       = localStorage.getItem('token');
+  const token       = getToken();
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
   // ── Load conversations ────────────────────────────────────────────────────
