@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getToken, getUser, clearSession } from "./sessionStore";
 
 // ── Base URL resolution ───────────────────────────────────────────────────────
 // • Local dev  → Vite proxy handles /api → localhost:5000.
@@ -56,7 +57,7 @@ export function clearAllCache() {
 
 // ── Request interceptor — inject token + serve from cache ────────────────────
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
   // ── Explicit tenant context for super admins (ISO A.8.3) ───────────────────
@@ -70,9 +71,8 @@ api.interceptors.request.use((config) => {
   // nothing, and the server falls back to its existing behaviour (and logs a
   // [TENANT-WARN]) rather than failing.
   try {
-    const raw = localStorage.getItem("user");
-    if (raw) {
-      const u = JSON.parse(raw);
+    const u = getUser();
+    if (u) {
       const role = String(u?.role || "").toLowerCase();
       if (role === "super_admin" || role === "superadmin") {
         const companyId = u.companyId || u.company?._id || u.company;
@@ -108,7 +108,7 @@ api.interceptors.response.use(
   (response) => {
     if (response.config.method === "get" && isCacheable(response.config.url)) {
       const key = response.config.__cacheKey ||
-        ((localStorage.getItem("token") || "anon") + "|" + (response.config.url || "") + JSON.stringify(response.config.params || {}));
+        ((getToken() || "anon") + "|" + (response.config.url || "") + JSON.stringify(response.config.params || {}));
       _cache.set(key, { ts: Date.now(), response });
     }
     return response;
@@ -130,14 +130,8 @@ api.interceptors.response.use(
       message.toLowerCase().includes("no token");
 
     if (status === 401 && (isAuthEndpoint || isInvalidToken)) {
-      // ── SECURITY FIX: clear ALL managed localStorage keys on auto-logout ──
-      // Previously only 3 keys were removed; crm_encryption_key, mkt_token,
-      // plan_entitlements, vf_api_key were left behind for the next user.
-      [
-        "token", "user", "company_brand", "company_branding",
-        "plan_entitlements", "plan_features", "crm_encryption_key",
-        "vf_api_key", "mkt_token", "mkt_user",
-      ].forEach((k) => localStorage.removeItem(k));
+      // SECURITY FIX: clear all in-memory session state + any localStorage remnants
+      clearSession();
       clearAllCache();
       window.dispatchEvent(new Event("user_changed"));
       window.location.href = "/login";
