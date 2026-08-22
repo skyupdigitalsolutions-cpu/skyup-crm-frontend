@@ -130,9 +130,14 @@ api.interceptors.response.use(
       message.toLowerCase().includes("no token");
 
     if (status === 401 && (isAuthEndpoint || isInvalidToken)) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      localStorage.removeItem("company_brand");
+      // ── SECURITY FIX: clear ALL managed localStorage keys on auto-logout ──
+      // Previously only 3 keys were removed; crm_encryption_key, mkt_token,
+      // plan_entitlements, vf_api_key were left behind for the next user.
+      [
+        "token", "user", "company_brand", "company_branding",
+        "plan_entitlements", "plan_features", "crm_encryption_key",
+        "vf_api_key", "mkt_token", "mkt_user",
+      ].forEach((k) => localStorage.removeItem(k));
       clearAllCache();
       window.dispatchEvent(new Event("user_changed"));
       window.location.href = "/login";
