@@ -17,6 +17,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Loader2, ShieldCheck, CreditCard, AlertTriangle, Check, Rocket } from "lucide-react";
 import api from "../data/axiosConfig";
+import { getUser } from "../data/sessionStore";
 
 // Plan catalog — prices/ids mirror the backend (controllers/trialController PLANS).
 const PLANS = [
@@ -51,7 +52,7 @@ export default function TrialGate() {
   const fetchStatus = useCallback(async () => {
     // Only admins / super_admins manage billing. Skip for developers + employees.
     let role = null;
-    try { role = JSON.parse(localStorage.getItem("user") || "null")?.role || null; } catch {}
+    try { role = getUser()?.role || null; } catch {}
     if (role === "developer" || role === "user") { setLoading(false); return; }
 
     try {
