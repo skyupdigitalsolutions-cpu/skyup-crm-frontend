@@ -541,6 +541,7 @@ function AttendanceMiniWidget() {
         pendingBreaks={pastPendingBreaks}
         onSave={handleSaveIdleRemark}
         onSkip={handleSkipIdleRemark}
+        onClose={() => setShowIdleModal(false)}
         onSavePending={handleSavePendingRemark}
       />
     </div>
