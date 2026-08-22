@@ -39,6 +39,7 @@ import {
   ShoppingCart,
 } from "lucide-react";
 import api from "../data/axiosConfig";
+import { getUser } from "../data/sessionStore";
 import InvoiceReceipt from "./InvoiceReceipt";
 import UpdatePaymentModal from "./UpdatePaymentModal";
 import DowngradeWarningModal from "./DowngradeWarningModal";
@@ -1093,7 +1094,7 @@ export default function UpgradePlan({
   }, [loadPlanConfig]);
 
   useEffect(() => {
-    const role = localStorage.getItem("role");
+    const role = getUser()?.role || null;
     if (role === "user") return;
     api.get("/subscription/my/status").then(({ data }) => {
       if (data?.resolvedFeatures?.features) setMyFeatures(data.resolvedFeatures.features);
@@ -1102,7 +1103,7 @@ export default function UpgradePlan({
   }, []);
 
   useEffect(() => {
-    const role = localStorage.getItem("role");
+    const role = getUser()?.role || null;
     if (role === "user") return;
     api.get("/subscription/my/entitlements").then(({ data }) => {
       if (data?.plan)              setPlanSummary(data.plan);
@@ -1170,7 +1171,7 @@ export default function UpgradePlan({
 
   const CUSTOMER = (() => {
     try {
-      const u = JSON.parse(localStorage.getItem("user") || "{}");
+      const u = getUser() || {};
       const gstin = u.gstin || "";
       return {
         name:    u.companyName || u.name  || "—",
