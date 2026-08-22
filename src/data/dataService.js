@@ -1,15 +1,12 @@
 import api from "./axiosConfig";
+import { getUser } from "./sessionStore";
 import CRMEncryption from "../utils/CRMEncryption";
 
 const crm = new CRMEncryption();
 
-// ── Get logged in user info from localStorage ──────────────────────────────
+// ── Get logged in user info from in-memory sessionStore (SECURITY FIX) ────────
 export function getStoredUser() {
-  try {
-    return JSON.parse(localStorage.getItem("user")) || null;
-  } catch {
-    return null;
-  }
+  return getUser() || null;
 }
 
 export function getRole() {
