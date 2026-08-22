@@ -64,7 +64,15 @@ async function mnemonicToSeedSync(mnemonic) {
 
 class CRMEncryption {
   constructor() {
-    this.KEY_STORAGE = "crm_encryption_key";
+    // ── SECURITY FIX: AES key is stored IN MEMORY ONLY ───────────────────────
+    // Previously the 32-byte hex key was written to localStorage under
+    // 'crm_encryption_key', making it readable by any JS on the page (XSS,
+    // extensions, DevTools). Moved to a private instance variable — the key
+    // lives only for the tab's lifetime. If the tab is closed the user re-enters
+    // their 12-word mnemonic to restore it. This preserves the zero-knowledge
+    // guarantee: the key never touches any persistent browser storage.
+    this._memKey    = null;          // in-memory key (hex string)
+    this.KEY_STORAGE = "crm_encryption_key"; // kept for legacy cleanup only
     this.encoder = new TextEncoder();
     this.decoder = new TextDecoder();
   }
@@ -100,9 +108,14 @@ class CRMEncryption {
     return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
   }
 
-  saveKeyLocally(hexKey) { localStorage.setItem(this.KEY_STORAGE, hexKey); }
-  getLocalKey()          { return localStorage.getItem(this.KEY_STORAGE); }
-  clearLocalKey()        { localStorage.removeItem(this.KEY_STORAGE); }
+  // ── In-memory key storage (SECURITY FIX — was localStorage) ───────────────
+  saveKeyLocally(hexKey) {
+    this._memKey = hexKey;
+    // Also clear any old localStorage remnant from the previous implementation
+    try { localStorage.removeItem(this.KEY_STORAGE); } catch (_) {}
+  }
+  getLocalKey()   { return this._memKey; }
+  clearLocalKey() { this._memKey = null; }
 
   async encrypt(data, hexKey) {
     const cryptoKey = await this.importHexKey(hexKey);
