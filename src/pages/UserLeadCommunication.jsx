@@ -13,6 +13,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import axios from "axios";
 import api from "../data/axiosConfig";
+import { getToken, getUser } from "../data/sessionStore";
 import { maskPhone } from "../utils/maskPhone";
 import FeatureGate from "../components/FeatureGate";
 import { Image as ImageIcon, FileText, Music, Video, ClipboardList, AlertTriangle, Target, Users, Smartphone } from "lucide-react";
@@ -1268,8 +1269,8 @@ function SmsChatTab({ leads, loadingLeads }) {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 export default function UserLeadCommunication() {
-  const user        = JSON.parse(localStorage.getItem("user") || "null");
-  const token       = localStorage.getItem("token");
+  const user        = getUser();
+  const token       = getToken();
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
   // ── Tab state ────────────────────────────────────────────────────────────
