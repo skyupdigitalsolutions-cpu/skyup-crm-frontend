@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api, { clearAllCache } from "../data/axiosConfig";
+import { setSession } from "../data/sessionStore";
 import toast from "react-hot-toast";
 
 // ── 6-box OTP input ────────────────────────────────────────────────────────────
@@ -120,7 +121,7 @@ export default function SuperAdminLogin() {
       // whatever company's data was cached from the previous session.
       clearAllCache();
 
-      localStorage.setItem("token", res.data.token);
+      const _tok = res.data.token; // held in local var, written to store below
 
       // FIX: backend may return either flat companyId/companyName fields
       // (preferred) or only a populated `company` object ({ _id, name, ... }).
@@ -140,15 +141,16 @@ export default function SuperAdminLogin() {
         (companyObj && typeof companyObj === "object" ? companyObj.name : "") ||
         "";
 
-      localStorage.setItem("user", JSON.stringify({
+      // SECURITY FIX: token+user in memory only — not visible in DevTools Storage
+      setSession(_tok, {
         _id:         res.data._id,
         name:        res.data.name,
         email:       res.data.email,
         role:        "super_admin",
         companyId,
         companyName,
-        company:     companyId, // keep for legacy reads (matches AdminLogin.jsx convention)
-      }));
+        company:     companyId,
+      });
       // Notify same-tab listeners (window 'storage' event doesn't fire in the same tab)
       window.dispatchEvent(new Event("user_changed"));
       toast.success("Super Admin login successful! Welcome back.");
