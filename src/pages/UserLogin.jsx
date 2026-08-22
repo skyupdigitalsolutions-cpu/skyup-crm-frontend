@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api, { clearAllCache } from "../data/axiosConfig";
+import { setSession } from "../data/sessionStore";
 import CRMEncryption from "../utils/CRMEncryption";
 import toast from "react-hot-toast";
 import { ShieldCheck, ArrowRight, CheckCircle2 } from "lucide-react";
@@ -49,16 +50,16 @@ export default function UserLogin() {
       // previous user's/admin's cached dashboard data.
       clearAllCache();
 
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify({
-        _id:         res.data._id,
-        name:        res.data.name,
-        email:       res.data.email,
-        companyId:   res.data.companyId,
-        company:     res.data.companyId,
-        createdBy:   res.data.createdBy,
+      // SECURITY FIX: token+user in memory only — not visible in DevTools Storage
+      setSession(token, {
+        _id:       res.data._id,
+        name:      res.data.name,
+        email:     res.data.email,
+        companyId: res.data.companyId,
+        company:   res.data.companyId,
+        createdBy: res.data.createdBy,
         role,
-      }));
+      });
       // Notify same-tab listeners (window 'storage' event doesn't fire in the same tab)
       window.dispatchEvent(new Event("user_changed"));
 
