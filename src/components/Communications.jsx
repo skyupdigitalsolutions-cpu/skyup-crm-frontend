@@ -1497,7 +1497,7 @@ function WhatsAppPanel({ currentUser }) {
   }, []);
 
   useEffect(() => {
-    const socket = io(SOCKET_URL, { auth: { token } });
+    const socket = io(SOCKET_URL, { auth: { token: getToken() } });
     socketRef.current = socket;
     // NOTE: previously admins joined a global "wa_admin" room here. That room is
     // NOT scoped by company on the backend — every company's WhatsApp traffic on
