@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mktAuthApi } from "./mktApi";
+import { setMktSession } from "./mktSessionStore";
 import { Loader2, Eye, EyeOff, BarChart3, AlertCircle } from "lucide-react";
 
 export default function MarketingLogin() {
@@ -19,11 +20,12 @@ export default function MarketingLogin() {
     try {
       // Uses dedicated /api/marketing-panel/login — only accepts marketingAccess users
       const { data } = await mktAuthApi.post("/login", { email: email.trim().toLowerCase(), password });
-      localStorage.setItem("mkt_token", data.token);
-      localStorage.setItem("mkt_user", JSON.stringify({
+      // SECURITY FIX: mkt_token/mkt_user stored in memory via mktSessionStore,
+      // not localStorage — no longer visible in DevTools Storage.
+      setMktSession(data.token, {
         name: data.name, email: data.email, role: data.role,
         companyName: data.companyName || data.companyId,
-      }));
+      });
       nav("/marketing");
     } catch (err) {
       const d = err?.response?.data;
