@@ -3,7 +3,6 @@
 // Sidebar label: "Communications"  |  Icon suggestion: ChatBubbleLeftRightIcon
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getToken, getEntitlements } from '../data/sessionStore';
 import { maskPhone, maskEmail } from "../utils/maskPhone";
 import { io } from "socket.io-client";
 import axios from "axios";
@@ -26,9 +25,7 @@ const BLAST_FEATURE_MAP = {
 };
 function isFeatureEnabled(featureKey) {
   try {
-    // SECURITY FIX: entitlements from in-memory sessionStore
-    const cached = getEntitlements();
-    const raw = cached ? { data: cached } : null;
+    const raw = JSON.parse(localStorage.getItem("plan_entitlements") || "null");
     const ent = raw?.data?.entitlements;
     if (!ent) return true; // unknown → fail open (backend still enforces)
     const k = BLAST_FEATURE_MAP[featureKey] || featureKey;
@@ -1418,8 +1415,7 @@ function WhatsAppPanel({ currentUser }) {
 
   const isAdmin       = currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
   const isSuperAdmin  = currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
-  // SECURITY FIX: token from sessionStore
-  const token       = getToken();
+  const token       = localStorage.getItem("token");
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
 
@@ -1561,7 +1557,7 @@ function WhatsAppPanel({ currentUser }) {
         ) {
           console.warn(`Admin viewing conv ${sel._id} but inbound arrived for conv ${conversationId} (same phone ${inboundWaPhone}) — reloading messages`);
           // Re-fetch the correct conversation's messages so the UI is consistent
-          axios.get(`${API_URL}/whatsapp/conversations/${conversationId}/messages`, { headers: { Authorization: `Bearer ${getToken()}` } })
+          axios.get(`${API_URL}/whatsapp/conversations/${conversationId}/messages`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
             .then(({ data }) => {
               setMessages(data.messages || []);
               if (data.conversation) {
@@ -1603,8 +1599,7 @@ function WhatsAppPanel({ currentUser }) {
     // arrive via push (<1s) instead of the polling fallback (30-50s delay).
     // Only runs for admins; fails silently if already registered or config missing.
     if (isAdmin) {
-      // SECURITY FIX: token from sessionStore
-      const adminToken = getToken() || "";
+      const adminToken = localStorage.getItem("adminToken") || localStorage.getItem("token") || "";
       fetch(`${API_URL}/admin/company/msg91-register-webhook`, {
         method: "POST",
         headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
@@ -3780,25 +3775,40 @@ function AutoTemplateSettingsPanel({ activeTab, onClose }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ── WHATSAPP SENT-TEMPLATE REPORT ─────────────────────────────────────────────
-// Reads GET /whatsapp/send-log — the persistent record every send path
-// (admin blast, CSV blast, employee blast, nurture) now writes to. Previously
-// this data only ever existed transiently in each modal's "Complete!" screen
-// or a console.log line from the nurture cron, so there was no way to answer
-// "what did we send today" after the fact.
-// ─────────────────────────────────────────────────────────────────────────────
 const CHANNEL_LABEL = {
   blast: "Campaign / Single blast",
   "blast-csv": "CSV blast",
   "employee-blast": "Employee blast",
   nurture: "Nurture automation",
-  manual: "Manual",
+  manual: "Auto-template / Manual",
 };
+
+const CATEGORY_BADGE = {
+  UTILITY:        { bg: "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",  label: "Utility" },
+  MARKETING:      { bg: "bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800", label: "Marketing" },
+  AUTHENTICATION: { bg: "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800", label: "Auth" },
+};
+
+const HARDCODED_UTILITY = new Set([
+  "crm_followup_leads", "crm_call_back_later", "crm_followup_reminder",
+  "crm_lead_not_interested", "crm_lead_invalid",
+]);
+
+function CategoryBadge({ name, category }) {
+  const cat = category || (HARDCODED_UTILITY.has(name) ? "UTILITY" : "MARKETING");
+  const cfg = CATEGORY_BADGE[cat] || CATEGORY_BADGE.MARKETING;
+  return (
+    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border ${cfg.bg}`}>
+      {cfg.label}
+    </span>
+  );
+}
 
 function SendLogStatusBadge({ status }) {
   const cls =
     status === "sent"   ? "bg-[#f0fdf4] dark:bg-[#052e1c] text-[#16A34A] border-[#bbf7d0] dark:border-[#166534]" :
     status === "failed" ? "bg-[#FEF2F2] dark:bg-[#2D0A0A] text-[#DC2626] border-[#FECACA] dark:border-[#7F1D1D]" :
-                           "bg-[#F8F9FC] dark:bg-[#13161E] text-[#8B92A9] border-[#E4E7EF] dark:border-[#262A38]";
+                          "bg-[#F8F9FC] dark:bg-[#13161E] text-[#8B92A9] border-[#E4E7EF] dark:border-[#262A38]";
   return (
     <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${cls}`}>
       {status}
@@ -3806,32 +3816,56 @@ function SendLogStatusBadge({ status }) {
   );
 }
 
+// Returns today's date as YYYY-MM-DD in IST
+function todayIST() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
+
 function WhatsAppReportsPanel() {
-  const [rows, setRows] = useState([]);
-  const [summary, setSummary] = useState({ sent: 0, failed: 0, skipped: 0 });
+  const [rows, setRows]           = useState([]);
+  const [summary, setSummary]     = useState({ sent: 0, failed: 0, skipped: 0 });
+  const [templateSummary, setTemplateSummary] = useState([]); // per-template breakdown
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [channel, setChannel] = useState("");
-  const [status, setStatus] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [search, setSearch] = useState("");
-  const debounceRef = useRef(null);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState("");
+  const [channel, setChannel]     = useState("");
+  const [status, setStatus]       = useState("");
+  // Default to today so report loads with data immediately
+  const [dateFrom, setDateFrom]   = useState(todayIST);
+  const [dateTo, setDateTo]       = useState(todayIST);
+  const [search, setSearch]       = useState("");
+  const debounceRef               = useRef(null);
 
   const fetchLog = useCallback(async (page = 1) => {
     setLoading(true); setError("");
     try {
       const params = new URLSearchParams({ page, limit: pagination.limit });
-      if (channel) params.set("channel", channel);
-      if (status)  params.set("status", status);
+      if (channel)  params.set("channel",  channel);
+      if (status)   params.set("status",   status);
       if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo)   params.set("dateTo", dateTo);
-      if (search)   params.set("search", search);
+      if (dateTo)   params.set("dateTo",   dateTo);
+      if (search)   params.set("search",   search);
       const res = await api.get(`/whatsapp/send-log?${params}`);
-      setRows(res.data.rows || []);
+      const fetchedRows = res.data.rows || [];
+      setRows(fetchedRows);
       setSummary(res.data.summary || { sent: 0, failed: 0, skipped: 0 });
       setPagination((p) => ({ ...p, ...res.data.pagination, page }));
+
+      // Build per-template summary from the fetched rows (sent only)
+      const tplMap = new Map();
+      for (const r of fetchedRows) {
+        if (r.status !== "sent" || !r.templateName) continue;
+        if (!tplMap.has(r.templateName)) {
+          tplMap.set(r.templateName, { name: r.templateName, count: 0, channels: {} });
+        }
+        const entry = tplMap.get(r.templateName);
+        entry.count++;
+        entry.channels[r.channel] = (entry.channels[r.channel] || 0) + 1;
+      }
+      setTemplateSummary([...tplMap.values()].sort((a, b) => b.count - a.count));
     } catch (err) {
       setError(err.response?.data?.error || "Failed to load report");
     } finally { setLoading(false); }
@@ -3847,8 +3881,9 @@ function WhatsAppReportsPanel() {
 
   return (
     <div className="h-full overflow-y-auto rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] p-4 sm:p-5">
+
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
+      <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-[#f0fdf4] dark:bg-[#052e1c] rounded-xl p-3 text-center border border-[#bbf7d0] dark:border-[#166534]">
           <div className="text-[22px] font-bold text-[#16A34A]">{summary.sent}</div>
           <div className="text-[10px] text-[#166534] dark:text-[#4ADE80] uppercase mt-0.5 font-semibold">Sent</div>
@@ -3862,6 +3897,36 @@ function WhatsAppReportsPanel() {
           <div className="text-[10px] text-[#8B92A9] uppercase mt-0.5 font-semibold">Skipped</div>
         </div>
       </div>
+
+      {/* Per-template summary */}
+      {templateSummary.length > 0 && (
+        <div className="mb-4 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+          <div className="bg-[#F8F9FC] dark:bg-[#13161E] px-3 py-2 text-[10px] font-bold text-[#8B92A9] uppercase tracking-wide">
+            Templates Sent Today
+          </div>
+          <div className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
+            {templateSummary.map((t) => {
+              const isUtility = HARDCODED_UTILITY.has(t.name);
+              return (
+                <div key={t.name} className="flex items-center justify-between px-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <CategoryBadge name={t.name} />
+                    <span className="font-mono text-[11px] text-[#4B5168] dark:text-[#9DA3BB] truncate">{t.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {Object.entries(t.channels).map(([ch, n]) => (
+                      <span key={ch} className="text-[10px] text-[#8B92A9] bg-[#F0F2FA] dark:bg-[#1E2130] px-1.5 py-0.5 rounded">
+                        {CHANNEL_LABEL[ch] || ch}: {n}
+                      </span>
+                    ))}
+                    <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{t.count}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -3883,7 +3948,7 @@ function WhatsAppReportsPanel() {
           <option value="skipped">Skipped</option>
         </select>
         <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={FIELD_CLS + " w-auto"} />
-        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={FIELD_CLS + " w-auto"} />
+        <input type="date" value={dateTo}   onChange={(e) => setDateTo(e.target.value)}   className={FIELD_CLS + " w-auto"} />
       </div>
 
       {error && (
@@ -3898,6 +3963,7 @@ function WhatsAppReportsPanel() {
               <th className="px-3 py-2.5">When</th>
               <th className="px-3 py-2.5">Contact</th>
               <th className="px-3 py-2.5">Template</th>
+              <th className="px-3 py-2.5">Category</th>
               <th className="px-3 py-2.5">Channel</th>
               <th className="px-3 py-2.5">Status</th>
               <th className="px-3 py-2.5">Reason</th>
@@ -3907,7 +3973,7 @@ function WhatsAppReportsPanel() {
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
             ) : rows.length === 0 ? (
-              <tr><td colSpan={6} className="px-3 py-10 text-center text-[#8B92A9]">No sends match these filters yet.</td></tr>
+              <tr><td colSpan={7} className="px-3 py-10 text-center text-[#8B92A9]">No sends match these filters yet.</td></tr>
             ) : rows.map((r) => (
               <tr key={r._id} className="border-t border-[#F0F2FA] dark:border-[#1E2130] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]/50">
                 <td className="px-3 py-2.5 whitespace-nowrap text-[#4B5168] dark:text-[#9DA3BB]">{fmtDate(r.createdAt)}</td>
@@ -3916,6 +3982,7 @@ function WhatsAppReportsPanel() {
                   <div className="text-[10px] text-[#8B92A9] font-mono">{maskPhone(r.phone)}</div>
                 </td>
                 <td className="px-3 py-2.5 font-mono text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">{r.templateName || "—"}</td>
+                <td className="px-3 py-2.5">{r.templateName ? <CategoryBadge name={r.templateName} category={r.templateCategory} /> : "—"}</td>
                 <td className="px-3 py-2.5 text-[#4B5168] dark:text-[#9DA3BB]">{CHANNEL_LABEL[r.channel] || r.channel}{r.ruleName ? ` · ${r.ruleName}` : ""}</td>
                 <td className="px-3 py-2.5"><SendLogStatusBadge status={r.status} /></td>
                 <td className="px-3 py-2.5 text-[#8B92A9] max-w-[200px] truncate" title={r.reason}>{r.reason || "—"}</td>
@@ -3930,16 +3997,10 @@ function WhatsAppReportsPanel() {
         <div className="flex items-center justify-between mt-4 text-[12px] text-[#8B92A9]">
           <span>Page {pagination.page} of {pagination.totalPages} · {pagination.total} total</span>
           <div className="flex gap-2">
-            <button
-              onClick={() => fetchLog(pagination.page - 1)}
-              disabled={pagination.page <= 1}
-              className="px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] font-semibold disabled:opacity-40"
-            >Prev</button>
-            <button
-              onClick={() => fetchLog(pagination.page + 1)}
-              disabled={pagination.page >= pagination.totalPages}
-              className="px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] font-semibold disabled:opacity-40"
-            >Next</button>
+            <button onClick={() => fetchLog(pagination.page - 1)} disabled={pagination.page <= 1}
+              className="px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] font-semibold disabled:opacity-40">Prev</button>
+            <button onClick={() => fetchLog(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages}
+              className="px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] font-semibold disabled:opacity-40">Next</button>
           </div>
         </div>
       )}
