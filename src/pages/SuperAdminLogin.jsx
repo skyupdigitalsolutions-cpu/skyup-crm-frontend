@@ -121,7 +121,7 @@ export default function SuperAdminLogin() {
       // whatever company's data was cached from the previous session.
       clearAllCache();
 
-      const _tok = res.data.token; // held in local var, written to store below
+      const _tok = res.data.token;
 
       // FIX: backend may return either flat companyId/companyName fields
       // (preferred) or only a populated `company` object ({ _id, name, ... }).
@@ -141,7 +141,7 @@ export default function SuperAdminLogin() {
         (companyObj && typeof companyObj === "object" ? companyObj.name : "") ||
         "";
 
-      // SECURITY FIX: token+user in memory only — not visible in DevTools Storage
+      // SECURITY FIX: token+user written to sessionStorage via setSession()
       setSession(_tok, {
         _id:         res.data._id,
         name:        res.data.name,
