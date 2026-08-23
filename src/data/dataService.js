@@ -4,7 +4,7 @@ import CRMEncryption from "../utils/CRMEncryption";
 
 const crm = new CRMEncryption();
 
-// ── Get logged in user info from in-memory sessionStore (SECURITY FIX) ────────
+// ── Get logged in user info from sessionStore ─────────────────────────────
 export function getStoredUser() {
   return getUser() || null;
 }
