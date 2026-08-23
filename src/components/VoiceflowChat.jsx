@@ -9,7 +9,7 @@
  *   3. Enter your Voiceflow API Key and Project ID.
  *   4. Click "Save & Connect" — the bot connects immediately.
  *
- * These settings are saved to localStorage so you only do this once.
+ * These settings are held in memory for the current session (not stored in localStorage).
  *
  * WHERE TO GET YOUR KEYS:
  *   • API Key    → Voiceflow Dashboard → Settings → API Keys
@@ -21,10 +21,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Settings, AlertTriangle, Lightbulb } from 'lucide-react';
 
-// ── localStorage keys ─────────────────────────────────────────────────────────
-const LS_API_KEY    = 'vf_api_key';
-const LS_PROJECT_ID = 'vf_project_id';
-const LS_VERSION_ID = 'vf_version_id';   // optional, defaults to 'production'
+// ── SECURITY FIX: In-memory config store (was localStorage) ──────────────────
+// Previously vf_api_key, vf_project_id, vf_version_id were stored in localStorage,
+// making the Voiceflow API key visible in DevTools and to any JS on the page.
+// Replaced with module-level variables — same behaviour (persist across re-renders),
+// but invisible to DevTools and extensions. Users re-enter on page refresh, which
+// matches the security posture of the rest of the CRM session.
+let _vfApiKey    = '';
+let _vfProjectId = '';
+let _vfVersionId = 'production';
 
 // ── Voiceflow Runtime base URL ─────────────────────────────────────────────────
 const VF_BASE = 'https://general-runtime.voiceflow.com';
@@ -39,10 +44,10 @@ export default function VoiceflowChat() {
   // Settings panel open/close
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Config state (loaded from localStorage)
-  const [apiKey,    setApiKey]    = useState(() => localStorage.getItem(LS_API_KEY)    || '');
-  const [projectId, setProjectId] = useState(() => localStorage.getItem(LS_PROJECT_ID) || '');
-  const [versionId, setVersionId] = useState(() => localStorage.getItem(LS_VERSION_ID) || 'production');
+  // Config state (loaded from in-memory module variables)
+  const [apiKey,    setApiKey]    = useState(() => _vfApiKey);
+  const [projectId, setProjectId] = useState(() => _vfProjectId);
+  const [versionId, setVersionId] = useState(() => _vfVersionId || 'production');
 
   // Temp form state (inside settings panel)
   const [formKey,     setFormKey]     = useState('');
@@ -128,9 +133,14 @@ export default function VoiceflowChat() {
     const trimPid = formProject.trim();
     const trimVid = formVersion.trim() || 'production';
 
-    localStorage.setItem(LS_API_KEY,    trimKey);
-    localStorage.setItem(LS_PROJECT_ID, trimPid);
-    localStorage.setItem(LS_VERSION_ID, trimVid);
+    // SECURITY FIX: write to in-memory module vars, not localStorage
+    _vfApiKey    = trimKey;
+    _vfProjectId = trimPid;
+    _vfVersionId = trimVid;
+    // Clear any old localStorage remnants from the previous implementation
+    try { localStorage.removeItem('vf_api_key');    } catch (_) {}
+    try { localStorage.removeItem('vf_project_id'); } catch (_) {}
+    try { localStorage.removeItem('vf_version_id'); } catch (_) {}
 
     setApiKey(trimKey);
     setProjectId(trimPid);
@@ -309,7 +319,7 @@ export default function VoiceflowChat() {
                   Voiceflow Configuration
                 </h3>
                 <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] leading-relaxed">
-                  Enter your Voiceflow credentials below. These are saved locally in your browser.
+                  Enter your Voiceflow credentials below. These are held in memory for this session.
                 </p>
               </div>
 
