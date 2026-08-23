@@ -50,7 +50,7 @@ export default function UserLogin() {
       // previous user's/admin's cached dashboard data.
       clearAllCache();
 
-      // SECURITY FIX: token+user in memory only — not visible in DevTools Storage
+      // SECURITY FIX: token+user written to sessionStorage via setSession()
       setSession(token, {
         _id:       res.data._id,
         name:      res.data.name,
