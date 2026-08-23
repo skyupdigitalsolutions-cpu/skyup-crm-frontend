@@ -1,10 +1,10 @@
 import { BrowserRouter, Route, Routes, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { getToken, getUser, getBrand, setBrand as _storeBrand } from "./data/sessionStore";
 import { useEffect, useState, lazy, Suspense } from "react";
 import React from "react";
 import { Sidebar } from "./components/Sidebar";
 import ThemeToggle from "./components/ThemeToggle";
 import api from "./data/axiosConfig";
-import { getToken, getUser, getBrand, setBrand as _storeBrand } from "./data/sessionStore";
 import ExpiryBanner, { SuspensionScreen } from "./components/ExpiryBanner";
 import EntitlementStatusBanner from "./components/EntitlementStatusBanner";
 import TrialGate from "./components/TrialGate";
@@ -130,9 +130,9 @@ class ErrorBoundary extends React.Component {
 }
 
 function getStoredAuth() {
-  const token = getToken();
-  const user  = getUser();
-  return { token, user };
+  // SECURITY FIX: reads from sessionStorage via sessionStore (survives F5,
+  // not visible under localStorage in DevTools)
+  return { token: getToken(), user: getUser() };
 }
 
 // ── Auth Navigation Guard ─────────────────────────────────────────────────────
