@@ -74,7 +74,8 @@ function normalizeRole(raw) {
   return s;
 }
 
-// ── Resolve companyId from localStorage user object ───────────────────────────
+import { getToken, getUser } from '../data/sessionStore';
+// ── Resolve companyId from sessionStore ──────────────────────────────────────
 function resolveCompanyId(user) {
   if (!user) return '';
   if (user.companyId && typeof user.companyId === 'string') return user.companyId;
@@ -123,7 +124,7 @@ export function NotificationProvider({ children }) {
   const socketRef = useRef(null);
 
   const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
+    try { return getUser(); } catch { return null; }
   });
 
   useEffect(() => {
@@ -133,7 +134,7 @@ export function NotificationProvider({ children }) {
       }
     };
     const onUserChanged = () => {
-      try { setUser(JSON.parse(localStorage.getItem('user'))); } catch { setUser(null); }
+      try { setUser(getUser()); } catch { setUser(null); }
     };
     window.addEventListener('storage', onStorage);
     window.addEventListener('user_changed', onUserChanged);
@@ -256,7 +257,7 @@ export function NotificationProvider({ children }) {
         });
     }
 
-    const token  = localStorage.getItem('token');
+    const token  = getToken();
 
     if (socketRef.current) {
       socketRef.current.off();
@@ -597,7 +598,7 @@ export function NotificationBell() {
   const openNotif = useCallback((notif) => {
     if (!notif) return;
     let role = '';
-    try { role = (JSON.parse(localStorage.getItem('user'))?.role || '').toLowerCase(); } catch { role = ''; }
+    try { role = (getUser()?.role || '').toLowerCase(); } catch { role = ''; }
     const base = role === 'user' ? '/user/communications' : '/communications';
     const isLeadNotif =
       notif.type === 'whatsapp_message' || notif.type === 'new_lead' ||
