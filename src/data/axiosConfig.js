@@ -79,7 +79,7 @@ api.interceptors.request.use((config) => {
         if (companyId) config.headers["x-company-id"] = String(companyId);
       }
     }
-  } catch (_) { /* malformed user object — fall through without the header */ }
+  } catch (_) { /* fall through without the header */ }
 
   if (config.method === "get" && isCacheable(config.url)) {
     // IMPORTANT: the cache key includes the current token. Two different
@@ -130,8 +130,7 @@ api.interceptors.response.use(
       message.toLowerCase().includes("no token");
 
     if (status === 401 && (isAuthEndpoint || isInvalidToken)) {
-      // SECURITY FIX: clear all in-memory session state + any localStorage remnants
-      clearSession();
+      clearSession();    // wipes sessionStorage token/user + any localStorage remnants
       clearAllCache();
       window.dispatchEvent(new Event("user_changed"));
       window.location.href = "/login";
