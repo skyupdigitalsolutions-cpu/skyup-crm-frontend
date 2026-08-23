@@ -4,7 +4,7 @@
 // Updated: Added "Leads" tab showing all leads with real-time new-lead alerts
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { maskPhone } from '../utils/maskPhone';
+import { getToken } from '../data/sessionStore';
 import { io } from 'socket.io-client';
 import axios from 'axios';
 import { Users, MessageCircle, AlertTriangle, Image as ImageIcon, FileText, Music, Video, MapPin, ClipboardList, Send } from 'lucide-react';
@@ -88,7 +88,8 @@ export default function WhatsAppChat({ currentUser }) {
   const [starting,     setStarting]     = useState(false);
 
   const isAdmin     = currentUser?.role === 'admin';
-  const token       = localStorage.getItem('token');
+  // SECURITY FIX: token is now in sessionStorage via sessionStore, not localStorage
+  const token       = getToken();
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
   // ── Load conversations ────────────────────────────────────────────────────
@@ -460,7 +461,7 @@ export default function WhatsAppChat({ currentUser }) {
                         </span>
                         {isNew && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 6, background: '#25D366', color: '#fff', flexShrink: 0 }}>NEW</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 2 }}>{maskPhone(lead.mobile)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 2 }}>{lead.mobile}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 4, background: `${statusColor(lead.status)}18`, color: statusColor(lead.status) }}>{lead.status}</span>
                         <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>{lead.source}</span>
@@ -637,7 +638,7 @@ export default function WhatsAppChat({ currentUser }) {
               </div>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)' }}>Start WhatsApp Chat</div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{startModal.lead.name} · {maskPhone(startModal.lead.mobile)}</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{startModal.lead.name} · {startModal.lead.mobile}</div>
               </div>
             </div>
 
