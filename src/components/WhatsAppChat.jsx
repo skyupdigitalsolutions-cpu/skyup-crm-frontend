@@ -87,15 +87,19 @@ export default function WhatsAppChat({ currentUser }) {
   const [startError,   setStartError]   = useState('');
   const [starting,     setStarting]     = useState(false);
 
-  const isAdmin     = currentUser?.role === 'admin';
-  // SECURITY FIX: token is now in sessionStorage via sessionStore, not localStorage
-  const token       = getToken();
-  const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+  const isAdmin = currentUser?.role === 'admin';
+  // SECURITY FIX: token is in sessionStorage via sessionStore — not localStorage.
+  // Use a function so every API call gets a fresh token instead of a stale
+  // render-time snapshot (which was always null after the security migration).
+  const getAuthHeaders = () => {
+    const tok = getToken();
+    return { headers: { Authorization: `Bearer ${tok}` } };
+  };
 
   // ── Load conversations ────────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/whatsapp/conversations`, authHeaders);
+      const { data } = await axios.get(`${API_URL}/whatsapp/conversations`, getAuthHeaders());
       setConversations(data.conversations || []);
     } catch (err) {
       console.error('loadConversations:', err.message);
@@ -106,7 +110,7 @@ export default function WhatsAppChat({ currentUser }) {
   const loadLeads = useCallback(async () => {
     setLeadsLoading(true);
     try {
-      const { data } = await axios.get(`${API_URL}/whatsapp/leads`, authHeaders);
+      const { data } = await axios.get(`${API_URL}/whatsapp/leads`, getAuthHeaders());
       setLeads(data.leads || []);
     } catch (err) {
       console.error('loadLeads:', err.message);
@@ -122,7 +126,7 @@ export default function WhatsAppChat({ currentUser }) {
     try {
       const { data } = await axios.get(
         `${API_URL}/whatsapp/conversations/${conv._id}/messages`,
-        authHeaders
+        getAuthHeaders()
       );
       setMessages(data.messages || []);
       setConversations(prev =>
@@ -137,7 +141,7 @@ export default function WhatsAppChat({ currentUser }) {
 
   // ── Socket setup ──────────────────────────────────────────────────────────
   useEffect(() => {
-    const socket = io(SOCKET_URL, { auth: { token } });
+    const socket = io(SOCKET_URL, { auth: { token: getToken() } });
     socketRef.current = socket;
 
     if (isAdmin) {
@@ -246,7 +250,7 @@ export default function WhatsAppChat({ currentUser }) {
     };
     setMessages(prev => [...prev, optimistic]);
     try {
-      const { data } = await axios.post(`${API_URL}/whatsapp/send`, { conversationId: selected._id, text: msgText }, authHeaders);
+      const { data } = await axios.post(`${API_URL}/whatsapp/send`, { conversationId: selected._id, text: msgText }, getAuthHeaders());
       setMessages(prev => prev.map(m => m._id === optimistic._id ? { ...optimistic, ...data.message } : m));
     } catch (err) {
       setMessages(prev => prev.filter(m => m._id !== optimistic._id));
@@ -263,7 +267,7 @@ export default function WhatsAppChat({ currentUser }) {
   const closeConversation = async () => {
     if (!selected) return;
     try {
-      await axios.patch(`${API_URL}/whatsapp/conversations/${selected._id}/close`, {}, authHeaders);
+      await axios.patch(`${API_URL}/whatsapp/conversations/${selected._id}/close`, {}, getAuthHeaders());
       setConversations(prev => prev.map(c => c._id === selected._id ? { ...c, status: 'closed' } : c));
       setSelected(prev => ({ ...prev, status: 'closed' }));
     } catch (err) { console.error(err.message); }
@@ -292,7 +296,7 @@ export default function WhatsAppChat({ currentUser }) {
     try {
       const { data } = await axios.post(`${API_URL}/whatsapp/start-conversation`, {
         phone: cleanPhone, contactName: lead.name, templateName: templateName.trim(), languageCode: langCode,
-      }, authHeaders);
+      }, getAuthHeaders());
       setLeads(prev => prev.map(l =>
         l._id?.toString() === lead._id?.toString()
           ? { ...l, existingConversationId: data.conversation._id, existingConversationStatus: data.conversation.status }
