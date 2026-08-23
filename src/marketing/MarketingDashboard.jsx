@@ -1,5 +1,6 @@
 // src/marketing/MarketingDashboard.jsx  — full rebuild with PRD features
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { getMktToken, getMktUser, clearMktSession } from './mktSessionStore';
 import { useNavigate } from "react-router-dom";
 import mktApi from "./mktApi";
 import {
@@ -1485,7 +1486,8 @@ function MetaAdLevelTab({ from, to, refreshKey }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function MarketingDashboard() {
   const nav=useNavigate();
-  const user=JSON.parse(localStorage.getItem("mkt_user")||"{}");
+  // SECURITY FIX: user from in-memory mktSessionStore, not localStorage
+  const user = getMktUser() || {};
   const [dark,setDark]=useState(()=>localStorage.getItem("mkt_dark")==="true");
   const [activeTab,setActiveTab]=useState("overview");
   const [from,setFrom]=useState(isoDaysAgo(30));
@@ -1497,7 +1499,8 @@ export default function MarketingDashboard() {
   const [globalLoading,setGlobalLoading]=useState(false);
 
   useEffect(()=>{
-    if(!localStorage.getItem("mkt_token")){nav("/marketing/login");return;}
+    // SECURITY FIX: check in-memory token, not localStorage
+    if(!getMktToken()){nav("/marketing/login");return;}
     document.documentElement.classList.toggle("dark",dark);
     localStorage.setItem("mkt_dark",String(dark));
   },[dark,nav]);
@@ -1513,7 +1516,8 @@ export default function MarketingDashboard() {
     return()=>clearInterval(t);
   },[autoMin,handleRefresh]);
 
-  const logout=()=>{localStorage.removeItem("mkt_token");localStorage.removeItem("mkt_user");nav("/marketing/login");};
+  // SECURITY FIX: clearMktSession() wipes in-memory state + any localStorage remnants
+  const logout=()=>{clearMktSession();nav("/marketing/login");};
 
   const TABS=[
     ["overview","Overview",BarChart3],
