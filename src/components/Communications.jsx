@@ -25,7 +25,9 @@ const BLAST_FEATURE_MAP = {
 };
 function isFeatureEnabled(featureKey) {
   try {
-    const raw = JSON.parse(localStorage.getItem("plan_entitlements") || "null");
+    // SECURITY FIX: entitlements from in-memory sessionStore
+    const cached = getEntitlements();
+    const raw = cached ? { data: cached } : null;
     const ent = raw?.data?.entitlements;
     if (!ent) return true; // unknown → fail open (backend still enforces)
     const k = BLAST_FEATURE_MAP[featureKey] || featureKey;
@@ -1415,8 +1417,13 @@ function WhatsAppPanel({ currentUser }) {
 
   const isAdmin       = currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
   const isSuperAdmin  = currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
-  const token       = localStorage.getItem("token");
-  const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+  // SECURITY FIX: token is now in sessionStorage — use getToken() so every
+  // API call gets a live token instead of a null render-time snapshot.
+  const getAuthHeaders = () => {
+    const tok = getToken();
+    return { headers: { Authorization: `Bearer ${tok}` } };
+  };
+  const authHeaders = getAuthHeaders(); // for props passed to child modals
 
 
   const handleNewConversation = (conv) => {
@@ -1557,7 +1564,7 @@ function WhatsAppPanel({ currentUser }) {
         ) {
           console.warn(`Admin viewing conv ${sel._id} but inbound arrived for conv ${conversationId} (same phone ${inboundWaPhone}) — reloading messages`);
           // Re-fetch the correct conversation's messages so the UI is consistent
-          axios.get(`${API_URL}/whatsapp/conversations/${conversationId}/messages`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+          axios.get(`${API_URL}/whatsapp/conversations/${conversationId}/messages`, getAuthHeaders())
             .then(({ data }) => {
               setMessages(data.messages || []);
               if (data.conversation) {
@@ -1599,7 +1606,7 @@ function WhatsAppPanel({ currentUser }) {
     // arrive via push (<1s) instead of the polling fallback (30-50s delay).
     // Only runs for admins; fails silently if already registered or config missing.
     if (isAdmin) {
-      const adminToken = localStorage.getItem("adminToken") || localStorage.getItem("token") || "";
+      const adminToken = getToken() || "";
       fetch(`${API_URL}/admin/company/msg91-register-webhook`, {
         method: "POST",
         headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
