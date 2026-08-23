@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { maskPhone } from '../utils/maskPhone';
 import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
 
@@ -137,7 +138,7 @@ export default function NotInterestedModal({ lead, onClose, onSuccess }) {
             </span>
             <div>
               <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Mark as Not Interested</h2>
-              <p className="text-[12px] text-[#8B92A9]">{lead.name} · {lead.mobile || lead.phone || ""}</p>
+              <p className="text-[12px] text-[#8B92A9]">{lead.name} · {maskPhone(lead.mobile || lead.phone)}</p>
             </div>
           </div>
           <button
