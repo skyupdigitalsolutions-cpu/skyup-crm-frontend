@@ -7,10 +7,9 @@ import { useState, useEffect } from "react";
 import api from "../data/axiosConfig";
 import { getUser } from "../data/sessionStore";
 
-// SECURITY FIX: plan_entitlements cache is now in-memory (module variable)
-// Previously stored in localStorage — visible in DevTools and readable by any JS.
-const CACHE_TTL = 60 * 1000; // 1 minute
-let _memCache = null; // { data: { entitlements, remaining }, ts: number } | null
+// SECURITY FIX: in-memory cache instead of localStorage for plan_entitlements
+const CACHE_TTL = 60 * 1000;
+let _memCache = null;
 
 function loadCache() {
   if (_memCache && Date.now() - _memCache.ts < CACHE_TTL) return _memCache.data;
