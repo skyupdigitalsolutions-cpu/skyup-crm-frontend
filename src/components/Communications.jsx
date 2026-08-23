@@ -7,6 +7,7 @@ import { maskPhone, maskEmail } from "../utils/maskPhone";
 import { io } from "socket.io-client";
 import axios from "axios";
 import api from "../data/axiosConfig";
+import { getToken, getEntitlements } from "../data/sessionStore";
 import { sanitizeHtml } from "../utils/sanitizeHtml";
 import { AlertOctagon, Lightbulb, ClipboardList, BarChart3, RefreshCw, MessageCircle, Inbox, Smartphone, Target, FileText, Image as ImageIcon, Music, Video, MapPin, AlertTriangle, Zap, X, Check } from "lucide-react";
 
