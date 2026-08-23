@@ -384,8 +384,6 @@ export function Sidebar() {
   });
 
   const handleLogout = () => {
-    // SECURITY FIX: clearSession() wipes all in-memory auth state and
-    // purges any localStorage remnants from the old implementation.
     clearSession();
     clearAllCache();
     window.dispatchEvent(new Event("user_changed"));
