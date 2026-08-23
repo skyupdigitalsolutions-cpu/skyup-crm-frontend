@@ -48,7 +48,9 @@ export default function AdminLogin() {
       // previous admin's cached dashboard/leads data.
       clearAllCache();
 
-      // SECURITY FIX: token+user in memory only — not visible in DevTools Storage
+      // SECURITY FIX: token+user written to sessionStorage via setSession()
+      // sessionStorage survives F5 but is tab-isolated and NOT visible under
+      // localStorage in DevTools. No more sign-out on page refresh.
       setSession(token, {
         _id:       res.data._id,
         name:      res.data.name,
