@@ -1,6 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
-import { X, Flame, Sun, Snowflake, CheckCircle2, AlertTriangle, Clock, Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays, Paperclip, Mic, User, RefreshCw, ClipboardList, Inbox, Map as MapIcon, Users, BarChart3, PartyPopper, XCircle, Zap, Sparkles, Save, ChevronDown } from "lucide-react";
+import { X, Flame, Sun, Snowflake, CheckCircle2, AlertTriangle, Clock, Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays, Paperclip, Mic, User, RefreshCw, ClipboardList, Inbox, Map as MapIcon, Users, BarChart3, PartyPopper, XCircle, Zap, Sparkles, Save, ChevronDown, Image as ImageIcon, Brain } from "lucide-react";
 import QualificationScore from "./QualificationScore";
+import WhatsAppScreenshotUploader from "./WhatsAppScreenshotUploader";
+import LeadAIIntelligence from "./lead-ai/LeadAIIntelligence";
 import api from "../data/axiosConfig";
 import useEntitlements from "../hooks/useEntitlements";
 
@@ -477,6 +479,9 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
 
   const sc = STATUS_COLOR[safeLead.status] || STATUS_COLOR["New"];
   const name = safeLead.name || "Unknown";
+  const [showScreenshot, setShowScreenshot] = useState(false);
+  const [screenshotImported, setScreenshotImported] = useState(false);
+
   const callHistory    = safeLead.callHistory    || [];
   const scheduledCalls = safeLead.scheduledCalls || [];
   const previousAgents = safeLead.previousAgents || [];
@@ -890,6 +895,70 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
               </div>
             </div>
           )}
+
+          {/* ── AI Lead Intelligence ── */}
+          <div>
+            <SectionLabel icon={<Brain className="w-3.5 h-3.5" />} label="AI Lead Intelligence" />
+            <LeadAIIntelligence
+              leadId={String(lead._id)}
+              isAdmin={!!(lead.assignedAdmin)}
+            />
+          </div>
+
+          {/* ── WhatsApp Screenshot Import ── */}
+          <div>
+            <SectionLabel icon={<ImageIcon className="w-3.5 h-3.5" />} label="Import WhatsApp Chat" />
+            <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+              {!showScreenshot ? (
+                <button
+                  onClick={() => setShowScreenshot(true)}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-[#F8F9FC] dark:bg-[#13161E] hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540] transition text-left"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-[#EEF3FF] dark:bg-[#1A2540] flex items-center justify-center shrink-0">
+                    <ImageIcon className="w-4 h-4 text-[#2563EB]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+                      Upload WhatsApp Screenshot
+                    </p>
+                    <p className="text-[11px] text-[#8B92A9]">
+                      Extract chats from a different number · feeds into AI analysis
+                    </p>
+                  </div>
+                  {screenshotImported && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] text-[#059669]">
+                      ✓ Imported
+                    </span>
+                  )}
+                  <ChevronDown className="w-4 h-4 text-[#8B92A9] shrink-0" />
+                </button>
+              ) : (
+                <div className="p-4 bg-[#F8F9FC] dark:bg-[#13161E]">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest">
+                      Import WhatsApp Screenshot
+                    </p>
+                    <button
+                      onClick={() => setShowScreenshot(false)}
+                      className="text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <WhatsAppScreenshotUploader
+                    leadId={String(lead._id)}
+                    leadName={lead.name || ""}
+                    mode="panel"
+                    onImported={({ imported }) => {
+                      setScreenshotImported(true);
+                      setShowScreenshot(false);
+                      if (onToast) onToast(`${imported} message${imported !== 1 ? "s" : ""} imported — click Re-analyze on AI Intelligence to include them`);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* ── Current Status Summary ── */}
           <div>
