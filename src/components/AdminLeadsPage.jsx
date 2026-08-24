@@ -1941,12 +1941,32 @@ export default function AdminLeadsPage() {
     setLoading(true);
     setError("");
     try {
+      const PAGE_LIMIT = 500;
+
+      // ── Step 1: fetch first page + users in parallel ─────────────────────
       const [leadsRes, usersRes] = await Promise.all([
-        api.get("/lead/admin/all?page=1&limit=500"),
+        api.get(`/lead/admin/all?page=1&limit=${PAGE_LIMIT}`),
         api.get("/admin/company/users"),
       ]);
-      const raw = leadsRes.data?.leads || (Array.isArray(leadsRes.data) ? leadsRes.data : []);
-      setAllLeads(raw.map(mapLead));
+
+      const firstLeads = leadsRes.data?.leads || (Array.isArray(leadsRes.data) ? leadsRes.data : []);
+      const totalPages = leadsRes.data?.pages ?? 1;
+
+      // ── Step 2: fetch remaining pages in parallel if more exist ──────────
+      let allRaw = firstLeads;
+      if (totalPages > 1) {
+        const rest = await Promise.all(
+          Array.from({ length: totalPages - 1 }, (_, i) =>
+            api
+              .get(`/lead/admin/all?page=${i + 2}&limit=${PAGE_LIMIT}`)
+              .then(r => r.data?.leads || (Array.isArray(r.data) ? r.data : []))
+          )
+        );
+        allRaw = [firstLeads, ...rest].flat();
+      }
+
+      setAllLeads(allRaw.map(mapLead));
+
       const userList = Array.isArray(usersRes.data)
         ? usersRes.data
         : (usersRes.data?.users || []);
