@@ -2223,7 +2223,11 @@ export default function UserDashboard() {
         const firstLeads = Array.isArray(res.data)
           ? res.data
           : (res.data?.leads || res.data?.data || []);
-        const pages = res.data?.pages ?? 1;
+
+        // Backend now returns 'pages' (total pages count) AND 'hasMore'.
+        // Use pages if present; fall back to hasMore for backward compat.
+        const pages   = res.data?.pages ?? (res.data?.hasMore ? 2 : 1);
+        const total   = res.data?.total ?? firstLeads.length;
 
         let raw = firstLeads;
         if (pages > 1) {
@@ -2232,7 +2236,7 @@ export default function UserDashboard() {
               api
                 .get(`/lead/my-leads?page=${i + 2}&limit=${PAGE_LIMIT}`)
                 .then(r => (Array.isArray(r.data) ? r.data : (r.data?.leads || r.data?.data || []))),
-            ),
+          ),
           );
           raw = [firstLeads, ...rest].flat();
         }
