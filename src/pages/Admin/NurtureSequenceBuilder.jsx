@@ -7,7 +7,7 @@
 // that hasn't been explicitly enabled from Developer > Company Details.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../../data/axiosConfig";
 // Statuses relevant to nurture — deliberately NOT the same as the app-wide
 // ALL_STATUSES constant. "Not Interested", "Merged", and "Closed" leads are
@@ -183,6 +183,8 @@ const emptyDraft = {
     sources: [],
     industries: [],
     includeManualOrImported: false,
+    campaigns: [],
+    adSets: [],
   },
   action: {
     whatsapp: {
@@ -351,6 +353,30 @@ function TemplatePreview({ industry, service, stage, variation, templates, onVar
   );
 }
 
+function CampaignTagInput({ values = [], onChange, placeholder = "" }) {
+  const [input, setInput] = React.useState("");
+  const add = (v) => {
+    const t = v.trim();
+    if (!t || values.map(x => x.toLowerCase()).includes(t.toLowerCase())) return;
+    onChange([...values, t]); setInput("");
+  };
+  const del = (i) => onChange(values.filter((_, j) => j !== i));
+  return (
+    <div className="flex flex-wrap gap-1.5 p-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] min-h-[42px] cursor-text">
+      {values.map((v, i) => (
+        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] text-[12px] font-semibold">
+          {v}<button type="button" onClick={() => del(i)} className="text-[#8B92A9] hover:text-red-500 leading-none ml-0.5">×</button>
+        </span>
+      ))}
+      <input value={input} onChange={e => setInput(e.target.value)}
+        onKeyDown={e => { if (["Enter",","].includes(e.key)){e.preventDefault();add(input);} if(e.key==="Backspace"&&!input&&values.length)del(values.length-1); }}
+        onBlur={() => input.trim() && add(input)}
+        placeholder={values.length ? "" : placeholder}
+        className="flex-1 min-w-[160px] bg-transparent text-[13px] text-[#0F1117] dark:text-white outline-none placeholder-[#C4C9D9] dark:placeholder-[#3E4257]" />
+    </div>
+  );
+}
+
 export default function NurtureSequenceBuilder() {
   const [rules,   setRules]   = useState([]);
   const [loading, setLoading] = useState(true);
@@ -452,6 +478,8 @@ export default function NurtureSequenceBuilder() {
       const arr = path === "statuses" ? next.trigger.statuses
                 : path === "temperatures" ? next.trigger.temperatures
                 : path === "industries" ? next.trigger.industries
+                : path === "campaigns" ? next.trigger.campaigns
+                : path === "adSets" ? next.trigger.adSets
                 : next.trigger.sources;
       const idx = arr.indexOf(value);
       if (idx === -1) arr.push(value); else arr.splice(idx, 1);
@@ -654,6 +682,8 @@ export default function NurtureSequenceBuilder() {
                       Fires after {r.trigger?.minDaysSinceLastTouch ?? "?"} day(s) idle
                       {r.trigger?.statuses?.length ? ` · status: ${r.trigger.statuses.join(", ")}` : ""}
                       {r.trigger?.temperatures?.length ? ` · temp: ${r.trigger.temperatures.join(", ")}` : ""}
+                      {r.trigger?.campaigns?.length ? ` · campaigns: ${r.trigger.campaigns.join(", ")}` : ""}
+                      {r.trigger?.adSets?.length ? ` · ad sets: ${r.trigger.adSets.join(", ")}` : ""}
 
                       {(() => {
                         const tbs = r.action?.whatsapp?.templatesByStatus || {};
@@ -733,6 +763,33 @@ export default function NurtureSequenceBuilder() {
             onChange={(v) => setDraft({ ...draft, trigger: { ...draft.trigger, includeManualOrImported: v } })}
             label="Also include manually added / CSV-imported leads (off by default)"
           />
+
+          {/* ── Campaign / Ad-Set filter ───────────────────────────────── */}
+          <div className="space-y-3 pt-1">
+            <div>
+              <p className="text-[12px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-1">
+                Campaign names <span className="font-normal normal-case text-[#8B92A9]">— empty = all campaigns</span>
+              </p>
+              <p className="text-[11px] text-[#8B92A9] mb-1.5">
+                Only leads from these campaigns get this rule. Must match exactly as shown in your leads.
+              </p>
+              <CampaignTagInput
+                values={draft.trigger.campaigns || []}
+                onChange={(vals) => setDraft({ ...draft, trigger: { ...draft.trigger, campaigns: vals } })}
+                placeholder="Type campaign name, press Enter…"
+              />
+            </div>
+            <div>
+              <p className="text-[12px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-1">
+                Ad-set names <span className="font-normal normal-case text-[#8B92A9]">— empty = all ad sets</span>
+              </p>
+              <CampaignTagInput
+                values={draft.trigger.adSets || []}
+                onChange={(vals) => setDraft({ ...draft, trigger: { ...draft.trigger, adSets: vals } })}
+                placeholder="Type ad-set name, press Enter…"
+              />
+            </div>
+          </div>
 
           <hr className="border-[#E4E7EF] dark:border-[#262A38]" />
 
