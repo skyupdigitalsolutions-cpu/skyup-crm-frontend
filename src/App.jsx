@@ -22,7 +22,8 @@ const Dashboard      = lazy(() => import("./components/Dashboard"));
 const Campaigns      = lazy(() => import("./components/Campaigns"));
 const Dailyreport    = lazy(() => import("./components/DailyReport"));
 const NurtureSequenceBuilder = lazy(() => import("./pages/Admin/NurtureSequenceBuilder"));
-const ReportPage     = lazy(() => import("./components/ReportPage"));
+const ReportPage          = lazy(() => import("./components/ReportPage"));
+const LeadIntelligencePage = lazy(() => import("./components/LeadIntelligencePage"));
 const PerfMarketing  = lazy(() => import("./components/PerformanceMarketingDashboard"));
 const MktLogin       = lazy(() => import("./marketing/MarketingLogin"));
 const MktDashboard   = lazy(() => import("./marketing/MarketingDashboard"));
@@ -559,6 +560,13 @@ function AppInner() {
             <Route path="/performance-marketing" element={<PerfMarketing />} />
             <Route path="/reportpage" element={
               <AdminRoute><FeatureGate featureKey="basic-reports"><ReportPage /></FeatureGate></AdminRoute>
+            }/>
+            <Route path="/lead-intelligence" element={
+              <AdminRoute>
+                <FeatureGate featureKey="leadIntelligence">
+                  <LeadIntelligencePage />
+                </FeatureGate>
+              </AdminRoute>
             }/>
             <Route path="/campaigns" element={
               <AdminRoute><Campaigns /></AdminRoute>
