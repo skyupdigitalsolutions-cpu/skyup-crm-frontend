@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import LeadIntelligencePage from "./LeadIntelligencePage";
 import { fetchAll, getRole } from "../data/dataService";
 import api from "../data/axiosConfig";
 import { useDateFilter } from "../components/dataFilter";
@@ -2104,6 +2105,7 @@ export default function ReportPage() {
   const TABS = [
     { id: "leads",          label: "Lead Report" },
     { id: "nonConversion",  label: "Non-Conversion" },
+    { id: "intelligence",   label: "🧠 Lead Intelligence" },
     { id: "meta",           label: "Meta Performance" },
     { id: "metaAds",        label: "Meta Ad Level" },
     { id: "google",         label: "Google Ads Performance" },
@@ -2135,6 +2137,7 @@ export default function ReportPage() {
       {/* Active sub-page */}
       {subTab === "leads"         && <LeadReportPage />}
       {subTab === "nonConversion" && <NonConversionReport />}
+      {subTab === "intelligence"   && <div className="max-w-7xl mx-auto px-4 md:px-8 py-6"><LeadIntelligencePage /></div>}
       {subTab === "meta"          && <MetaInsightsReport />}
       {subTab === "metaAds"       && <div className="max-w-6xl mx-auto px-4 md:px-8 py-6"><MetaAdLevelReport /></div>}
       {subTab === "google"        && <GoogleAdsDashboard />}
