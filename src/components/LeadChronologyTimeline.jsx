@@ -158,7 +158,10 @@ export default function LeadChronologyTimeline({ leadId, isAdmin = true }) {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState("");
   const [filter, setFilter]     = useState("");
-  const [oldestFirst, setOldestFirst] = useState(false);
+  // Default to oldest-first so the very first thing shown top-to-bottom is
+  // always "New Lead Arrived", reading down through the whole story in the
+  // order it actually happened.
+  const [oldestFirst, setOldestFirst] = useState(true);
 
   useEffect(() => {
     if (!leadId) return;
@@ -211,7 +214,7 @@ export default function LeadChronologyTimeline({ leadId, isAdmin = true }) {
           onClick={() => setOldestFirst((v) => !v)}
           className="text-[10.5px] font-semibold text-[#2563EB] hover:underline shrink-0"
         >
-          {oldestFirst ? "Newest first" : "Oldest first"}
+          {oldestFirst ? "Oldest first ↓" : "Newest first ↓"}
         </button>
       </div>
 
