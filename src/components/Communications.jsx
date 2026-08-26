@@ -3824,6 +3824,77 @@ function SendLogStatusBadge({ status }) {
   );
 }
 
+// ── Full-content modal for a send-log row ────────────────────────────────────
+// The table cell truncates long content for layout reasons; this shows the
+// complete, untruncated message. When the row's saved content is empty or
+// just the generic "Message sent to X (template: Y)" fallback (recorded when
+// the template body wasn't cached yet at send time), it fetches the
+// template's CURRENT cached body on demand — so re-syncing templates later
+// makes even old rows show the real approved wording, not a frozen fallback.
+function SendLogContentModal({ row, onClose }) {
+  const [liveBody, setLiveBody]   = useState(null);
+  const [loadingLive, setLoadingLive] = useState(false);
+
+  const looksLikeFallback = !row.content || /^Message sent to .+\(template: /.test(row.content);
+
+  useEffect(() => {
+    if (!looksLikeFallback || !row.templateName) return;
+    let cancelled = false;
+    setLoadingLive(true);
+    api.get("/whatsapp/template-body", { params: { name: row.templateName } })
+      .then(({ data }) => { if (!cancelled) setLiveBody(data?.body || ""); })
+      .catch(() => { if (!cancelled) setLiveBody(""); })
+      .finally(() => { if (!cancelled) setLoadingLive(false); });
+    return () => { cancelled = true; };
+  }, [looksLikeFallback, row.templateName]);
+
+  const preferLive = looksLikeFallback && liveBody;
+  const shown = preferLive ? liveBody : row.content;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1A1D27] shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
+          <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Message Content</p>
+          <button onClick={onClose} className="text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3 text-[11.5px]">
+            <div>
+              <p className="text-[#8B92A9] font-semibold uppercase tracking-wide text-[9.5px] mb-0.5">To</p>
+              <p className="text-[#0F1117] dark:text-[#F0F2FA]">{row.name || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[#8B92A9] font-semibold uppercase tracking-wide text-[9.5px] mb-0.5">Template</p>
+              <p className="font-mono text-[#0F1117] dark:text-[#F0F2FA]">{row.templateName || "—"}</p>
+            </div>
+          </div>
+          {loadingLive ? (
+            <div className="flex items-center gap-2 text-[#8B92A9] py-3">
+              <span className="text-[11px]">Looking up template body…</span>
+            </div>
+          ) : shown && shown !== "—" ? (
+            <div className="rounded-lg bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] px-3 py-2.5">
+              <p className="text-[12.5px] text-[#0F1117] dark:text-[#DDE1F5] leading-relaxed whitespace-pre-wrap">{shown}</p>
+              {preferLive && (
+                <p className="text-[10px] text-[#8B92A9] mt-1.5 italic">
+                  Generic template text (fetched from your synced templates) — the exact message sent wasn't recorded for this send.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-[11.5px] text-[#8B92A9] italic py-2">
+              Content isn't available for this send. Sync your WhatsApp templates to view the message body.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Returns today's date as YYYY-MM-DD in IST
 function todayIST() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -3838,6 +3909,7 @@ function WhatsAppReportsPanel() {
   const [templateSummary, setTemplateSummary] = useState([]); // per-template breakdown
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
   const [loading, setLoading]     = useState(true);
+  const [viewRow, setViewRow]     = useState(null); // send-log row currently shown in the content modal
   const [error, setError]         = useState("");
   const [channel, setChannel]     = useState("");
   const [status, setStatus]       = useState("");
@@ -3991,8 +4063,18 @@ function WhatsAppReportsPanel() {
                   <div className="text-[10px] text-[#8B92A9] font-mono">{maskPhone(r.phone)}</div>
                 </td>
                 <td className="px-3 py-2.5 font-mono text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">{r.templateName || "—"}</td>
-                <td className="px-3 py-2.5 text-[#4B5168] dark:text-[#9DA3BB] max-w-[240px] truncate" title={r.content || ""}>
-                  {r.content ? `"${r.content}"` : <span className="text-[#C4C9D9]">—</span>}
+                <td className="px-3 py-2.5 text-[#4B5168] dark:text-[#9DA3BB] max-w-[240px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate" title={r.content || ""}>
+                      {r.content ? `"${r.content}"` : <span className="text-[#C4C9D9]">—</span>}
+                    </span>
+                    <button
+                      onClick={() => setViewRow(r)}
+                      className="shrink-0 text-[10px] font-semibold text-[#2563EB] hover:underline"
+                    >
+                      View
+                    </button>
+                  </div>
                 </td>
                 <td className="px-3 py-2.5">{r.templateName ? <CategoryBadge name={r.templateName} category={r.templateCategory} /> : "—"}</td>
                 <td className="px-3 py-2.5 text-[#4B5168] dark:text-[#9DA3BB]">{CHANNEL_LABEL[r.channel] || r.channel}{r.ruleName ? ` · ${r.ruleName}` : ""}</td>
@@ -4016,6 +4098,8 @@ function WhatsAppReportsPanel() {
           </div>
         </div>
       )}
+
+      {viewRow && <SendLogContentModal row={viewRow} onClose={() => setViewRow(null)} />}
     </div>
   );
 }
