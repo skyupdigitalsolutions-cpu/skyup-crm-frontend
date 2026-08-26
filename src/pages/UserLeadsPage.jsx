@@ -931,6 +931,9 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                           {t.status === "failed" && (
                             <p className="text-[#DC2626] italic truncate">failed to send</p>
                           )}
+                          {t.content && (
+                            <p className="text-[#4B5168] dark:text-[#9DA3BB] text-[12px] italic mt-0.5 whitespace-pre-wrap">"{t.content}"</p>
+                          )}
                         </div>
                       </div>
                     ))}
