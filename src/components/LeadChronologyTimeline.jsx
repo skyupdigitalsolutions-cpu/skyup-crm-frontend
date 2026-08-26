@@ -15,7 +15,7 @@
 import { useEffect, useState } from "react";
 import {
   Sparkles, Phone, CalendarClock, MessageSquare, Send, Bell,
-  RefreshCw, Handshake, ChevronDown, ChevronUp, AlertTriangle,
+  RefreshCw, Handshake, ChevronDown, ChevronUp, AlertTriangle, Eye, X,
 } from "lucide-react";
 import api from "../data/axiosConfig";
 
@@ -92,8 +92,95 @@ const EVENT_META = {
   },
 };
 
+// ── Full-detail modal for a template-sent event ──────────────────────────────
+// Shows the complete, untruncated message. If this record predates content
+// tracking (content is blank), falls back to fetching the template's cached
+// generic body on demand — so even old sends show what was generally said,
+// not just the internal template name.
+function TemplateViewModal({ ev, onClose }) {
+  const [fallbackBody, setFallbackBody] = useState(null);
+  const [loadingFallback, setLoadingFallback] = useState(false);
+
+  useEffect(() => {
+    if (ev.content || !ev.templateName) return;
+    let cancelled = false;
+    setLoadingFallback(true);
+    api.get("/whatsapp/template-body", { params: { name: ev.templateName } })
+      .then(({ data }) => { if (!cancelled) setFallbackBody(data?.body || ""); })
+      .catch(() => { if (!cancelled) setFallbackBody(""); })
+      .finally(() => { if (!cancelled) setLoadingFallback(false); });
+    return () => { cancelled = true; };
+  }, [ev.content, ev.templateName]);
+
+  const shownContent = ev.content || fallbackBody;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 bg-black/40" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1A1D27] shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
+          <div className="flex items-center gap-2">
+            <Send className="w-4 h-4 text-[#7C3AED]" />
+            <p className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Template Sent</p>
+          </div>
+          <button onClick={onClose} className="text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3 text-[11.5px]">
+            <div>
+              <p className="text-[#8B92A9] font-semibold uppercase tracking-wide text-[9.5px] mb-0.5">Template</p>
+              <p className="font-mono text-[#0F1117] dark:text-[#F0F2FA]">{ev.templateName || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[#8B92A9] font-semibold uppercase tracking-wide text-[9.5px] mb-0.5">Channel</p>
+              <p className="text-[#0F1117] dark:text-[#F0F2FA] capitalize">{ev.channel || "whatsapp"}</p>
+            </div>
+            <div>
+              <p className="text-[#8B92A9] font-semibold uppercase tracking-wide text-[9.5px] mb-0.5">Status</p>
+              <p className={`font-semibold capitalize ${ev.status === "failed" ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}>{ev.status || "sent"}</p>
+            </div>
+            <div>
+              <p className="text-[#8B92A9] font-semibold uppercase tracking-wide text-[9.5px] mb-0.5">Sent At</p>
+              <p className="text-[#0F1117] dark:text-[#F0F2FA]">{fmtDateTime(ev.date)}</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[#8B92A9] font-semibold uppercase tracking-wide text-[9.5px] mb-1">Message Content</p>
+            {loadingFallback ? (
+              <div className="flex items-center gap-2 text-[#8B92A9] py-3">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span className="text-[11px]">Looking up template body…</span>
+              </div>
+            ) : shownContent ? (
+              <div className="rounded-lg bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] px-3 py-2.5">
+                <p className="text-[12.5px] text-[#0F1117] dark:text-[#DDE1F5] leading-relaxed whitespace-pre-wrap">{shownContent}</p>
+                {!ev.content && (
+                  <p className="text-[10px] text-[#8B92A9] mt-1.5 italic">
+                    Generic template text — this send was recorded before per-lead content tracking was added.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-[11.5px] text-[#8B92A9] italic py-2">
+                Content isn't available for this send. Sync your WhatsApp templates to view the message body.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TimelineEvent({ ev }) {
   const [expanded, setExpanded] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const meta = EVENT_META[ev.type] || {
     icon: AlertTriangle, color: "#8B92A9", title: () => ev.type, subtitle: () => "", body: () => "",
   };
@@ -102,6 +189,7 @@ function TimelineEvent({ ev }) {
   const subtitle = meta.subtitle(ev);
   const body = meta.body(ev);
   const isLong = body && body.length > 160;
+  const isTemplate = ev.type === "TEMPLATE_SENT";
 
   return (
     <div className="relative flex gap-3 pb-5 last:pb-0">
@@ -115,7 +203,18 @@ function TimelineEvent({ ev }) {
       <div className="flex-1 min-w-0 pt-0.5">
         <div className="flex items-start justify-between gap-2 flex-wrap">
           <p className="text-[12.5px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{title}</p>
-          <span className="text-[10.5px] text-[#8B92A9] shrink-0 whitespace-nowrap">{fmtDateTime(ev.date)}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            {isTemplate && (
+              <button
+                onClick={() => setViewOpen(true)}
+                className="flex items-center gap-1 text-[10px] font-semibold text-[#7C3AED] hover:underline"
+                title="View full template details"
+              >
+                <Eye className="w-3 h-3" /> View
+              </button>
+            )}
+            <span className="text-[10.5px] text-[#8B92A9] whitespace-nowrap">{fmtDateTime(ev.date)}</span>
+          </div>
         </div>
         {subtitle && <p className="text-[11px] text-[#8B92A9] mt-0.5">{subtitle}</p>}
         {body && (
@@ -133,8 +232,18 @@ function TimelineEvent({ ev }) {
             )}
           </div>
         )}
+        {isTemplate && !body && (
+          <button
+            onClick={() => setViewOpen(true)}
+            className="mt-1.5 text-[10.5px] font-semibold text-[#7C3AED] flex items-center gap-1"
+          >
+            <Eye className="w-3 h-3" /> View template
+          </button>
+        )}
       </div>
+      {viewOpen && <TemplateViewModal ev={ev} onClose={() => setViewOpen(false)} />}
     </div>
+
   );
 }
 
