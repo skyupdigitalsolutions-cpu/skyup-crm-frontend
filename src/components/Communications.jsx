@@ -3971,6 +3971,7 @@ function WhatsAppReportsPanel() {
               <th className="px-3 py-2.5">When</th>
               <th className="px-3 py-2.5">Contact</th>
               <th className="px-3 py-2.5">Template</th>
+              <th className="px-3 py-2.5">Content</th>
               <th className="px-3 py-2.5">Category</th>
               <th className="px-3 py-2.5">Channel</th>
               <th className="px-3 py-2.5">Status</th>
@@ -3981,7 +3982,7 @@ function WhatsAppReportsPanel() {
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
             ) : rows.length === 0 ? (
-              <tr><td colSpan={7} className="px-3 py-10 text-center text-[#8B92A9]">No sends match these filters yet.</td></tr>
+              <tr><td colSpan={8} className="px-3 py-10 text-center text-[#8B92A9]">No sends match these filters yet.</td></tr>
             ) : rows.map((r) => (
               <tr key={r._id} className="border-t border-[#F0F2FA] dark:border-[#1E2130] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]/50">
                 <td className="px-3 py-2.5 whitespace-nowrap text-[#4B5168] dark:text-[#9DA3BB]">{fmtDate(r.createdAt)}</td>
@@ -3990,6 +3991,9 @@ function WhatsAppReportsPanel() {
                   <div className="text-[10px] text-[#8B92A9] font-mono">{maskPhone(r.phone)}</div>
                 </td>
                 <td className="px-3 py-2.5 font-mono text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">{r.templateName || "—"}</td>
+                <td className="px-3 py-2.5 text-[#4B5168] dark:text-[#9DA3BB] max-w-[240px] truncate" title={r.content || ""}>
+                  {r.content ? `"${r.content}"` : <span className="text-[#C4C9D9]">—</span>}
+                </td>
                 <td className="px-3 py-2.5">{r.templateName ? <CategoryBadge name={r.templateName} category={r.templateCategory} /> : "—"}</td>
                 <td className="px-3 py-2.5 text-[#4B5168] dark:text-[#9DA3BB]">{CHANNEL_LABEL[r.channel] || r.channel}{r.ruleName ? ` · ${r.ruleName}` : ""}</td>
                 <td className="px-3 py-2.5"><SendLogStatusBadge status={r.status} /></td>
