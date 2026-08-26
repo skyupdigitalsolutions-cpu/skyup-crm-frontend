@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { getUser } from "../data/sessionStore";
 import { X, Flame, Sun, Snowflake, CheckCircle2, AlertTriangle, Clock, Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays, Paperclip, Mic, User, RefreshCw, ClipboardList, Inbox, Map as MapIcon, Users, BarChart3, PartyPopper, XCircle, Zap, Sparkles, Save, ChevronDown, Image as ImageIcon, Brain } from "lucide-react";
 import QualificationScore from "./QualificationScore";
 import WhatsAppScreenshotUploader from "./WhatsAppScreenshotUploader";
@@ -901,7 +902,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
             <SectionLabel icon={<Brain className="w-3.5 h-3.5" />} label="AI Lead Intelligence" />
             <LeadAIIntelligence
               leadId={String(lead._id)}
-              isAdmin={!!(lead.assignedAdmin)}
+              isAdmin={['admin','super_admin','superadmin'].includes((getUser()?.role || '').toLowerCase())}
             />
           </div>
 
