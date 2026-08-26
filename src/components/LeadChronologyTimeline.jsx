@@ -99,17 +99,31 @@ const EVENT_META = {
 // not just the internal template name.
 function TemplateViewModal({ ev, onClose }) {
   const [fallbackBody, setFallbackBody] = useState(null);
+  const [fallbackSource, setFallbackSource] = useState(""); // "cache" | "msg91-live" | ""
   const [loadingFallback, setLoadingFallback] = useState(false);
+  const [fetchError, setFetchError] = useState("");
 
-  useEffect(() => {
-    if (ev.content || !ev.templateName) return;
-    let cancelled = false;
+  const loadFallback = () => {
+    if (!ev.templateName) return;
+    setFetchError("");
     setLoadingFallback(true);
     api.get("/whatsapp/template-body", { params: { name: ev.templateName } })
-      .then(({ data }) => { if (!cancelled) setFallbackBody(data?.body || ""); })
-      .catch(() => { if (!cancelled) setFallbackBody(""); })
-      .finally(() => { if (!cancelled) setLoadingFallback(false); });
-    return () => { cancelled = true; };
+      .then(({ data }) => {
+        setFallbackBody(data?.body || "");
+        setFallbackSource(data?.source || "");
+        if (!data?.body) setFetchError("MSG91 has no BODY text cached for this template name.");
+      })
+      .catch((e) => {
+        setFallbackBody("");
+        setFetchError(e?.response?.data?.message || "Could not reach MSG91 to fetch this template.");
+      })
+      .finally(() => setLoadingFallback(false));
+  };
+
+  useEffect(() => {
+    if (ev.content) return; // already have the real sent text, no need to fetch
+    loadFallback();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ev.content, ev.templateName]);
 
   const shownContent = ev.content || fallbackBody;
@@ -155,21 +169,31 @@ function TemplateViewModal({ ev, onClose }) {
             {loadingFallback ? (
               <div className="flex items-center gap-2 text-[#8B92A9] py-3">
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span className="text-[11px]">Looking up template body…</span>
+                <span className="text-[11px]">Fetching from MSG91…</span>
               </div>
             ) : shownContent ? (
               <div className="rounded-lg bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] px-3 py-2.5">
                 <p className="text-[12.5px] text-[#0F1117] dark:text-[#DDE1F5] leading-relaxed whitespace-pre-wrap">{shownContent}</p>
                 {!ev.content && (
                   <p className="text-[10px] text-[#8B92A9] mt-1.5 italic">
-                    Generic template text — this send was recorded before per-lead content tracking was added.
+                    {fallbackSource === "msg91-live"
+                      ? "Fetched live from MSG91 — generic approved template text (this send's per-lead content wasn't recorded)."
+                      : "From your synced template cache — generic approved text, not the personalized message."}
                   </p>
                 )}
               </div>
             ) : (
-              <p className="text-[11.5px] text-[#8B92A9] italic py-2">
-                Content isn't available for this send. Sync your WhatsApp templates to view the message body.
-              </p>
+              <div className="py-2">
+                <p className="text-[11.5px] text-[#8B92A9] italic">
+                  {fetchError || "Content isn't available for this send."}
+                </p>
+                <button
+                  onClick={loadFallback}
+                  className="mt-2 text-[10.5px] font-semibold text-[#2563EB] hover:underline"
+                >
+                  Retry fetching from MSG91
+                </button>
+              </div>
             )}
           </div>
         </div>
