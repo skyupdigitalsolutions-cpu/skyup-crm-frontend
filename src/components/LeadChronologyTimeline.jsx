@@ -103,6 +103,12 @@ function TemplateViewModal({ ev, onClose }) {
   const [loadingFallback, setLoadingFallback] = useState(false);
   const [fetchError, setFetchError] = useState("");
 
+  // A saved "content" that's actually just the old generic fallback sentence
+  // (recorded before the resolver could find the real body) isn't the real
+  // sent text — treat it the same as having no content at all and fetch the
+  // real thing.
+  const looksLikeFallback = !ev.content || /^Message sent to .+\(template: /.test(ev.content);
+
   const loadFallback = () => {
     if (!ev.templateName) return;
     setFetchError("");
@@ -121,12 +127,13 @@ function TemplateViewModal({ ev, onClose }) {
   };
 
   useEffect(() => {
-    if (ev.content) return; // already have the real sent text, no need to fetch
+    if (!looksLikeFallback) return; // already have the real sent text, no need to fetch
     loadFallback();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ev.content, ev.templateName]);
+  }, [looksLikeFallback, ev.templateName]);
 
-  const shownContent = ev.content || fallbackBody;
+  const preferLive = looksLikeFallback && fallbackBody;
+  const shownContent = preferLive ? fallbackBody : ev.content;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 bg-black/40" onClick={onClose}>
@@ -174,7 +181,7 @@ function TemplateViewModal({ ev, onClose }) {
             ) : shownContent ? (
               <div className="rounded-lg bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] px-3 py-2.5">
                 <p className="text-[12.5px] text-[#0F1117] dark:text-[#DDE1F5] leading-relaxed whitespace-pre-wrap">{shownContent}</p>
-                {!ev.content && (
+                {preferLive && (
                   <p className="text-[10px] text-[#8B92A9] mt-1.5 italic">
                     {fallbackSource === "msg91-live"
                       ? "Fetched live from MSG91 — generic approved template text (this send's per-lead content wasn't recorded)."
