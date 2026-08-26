@@ -3833,19 +3833,33 @@ function SendLogStatusBadge({ status }) {
 // makes even old rows show the real approved wording, not a frozen fallback.
 function SendLogContentModal({ row, onClose }) {
   const [liveBody, setLiveBody]   = useState(null);
+  const [liveSource, setLiveSource] = useState("");
   const [loadingLive, setLoadingLive] = useState(false);
+  const [fetchError, setFetchError] = useState("");
 
   const looksLikeFallback = !row.content || /^Message sent to .+\(template: /.test(row.content);
 
-  useEffect(() => {
-    if (!looksLikeFallback || !row.templateName) return;
-    let cancelled = false;
+  const loadLive = () => {
+    if (!row.templateName) return;
+    setFetchError("");
     setLoadingLive(true);
     api.get("/whatsapp/template-body", { params: { name: row.templateName } })
-      .then(({ data }) => { if (!cancelled) setLiveBody(data?.body || ""); })
-      .catch(() => { if (!cancelled) setLiveBody(""); })
-      .finally(() => { if (!cancelled) setLoadingLive(false); });
-    return () => { cancelled = true; };
+      .then(({ data }) => {
+        setLiveBody(data?.body || "");
+        setLiveSource(data?.source || "");
+        if (!data?.body) setFetchError("MSG91 has no BODY text cached for this template name.");
+      })
+      .catch((e) => {
+        setLiveBody("");
+        setFetchError(e?.response?.data?.message || "Could not reach MSG91 to fetch this template.");
+      })
+      .finally(() => setLoadingLive(false));
+  };
+
+  useEffect(() => {
+    if (!looksLikeFallback) return;
+    loadLive();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [looksLikeFallback, row.templateName]);
 
   const preferLive = looksLikeFallback && liveBody;
@@ -3873,21 +3887,30 @@ function SendLogContentModal({ row, onClose }) {
           </div>
           {loadingLive ? (
             <div className="flex items-center gap-2 text-[#8B92A9] py-3">
-              <span className="text-[11px]">Looking up template body…</span>
+              <span className="text-[11px]">Fetching from MSG91…</span>
             </div>
           ) : shown && shown !== "—" ? (
             <div className="rounded-lg bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] px-3 py-2.5">
               <p className="text-[12.5px] text-[#0F1117] dark:text-[#DDE1F5] leading-relaxed whitespace-pre-wrap">{shown}</p>
               {preferLive && (
                 <p className="text-[10px] text-[#8B92A9] mt-1.5 italic">
-                  Generic template text (fetched from your synced templates) — the exact message sent wasn't recorded for this send.
+                  {liveSource === "msg91-live"
+                    ? "Fetched live from MSG91 — generic approved template text (the exact per-lead message wasn't recorded for this send)."
+                    : "From your synced template cache — generic approved text, not the personalized message."}
                 </p>
               )}
             </div>
           ) : (
-            <p className="text-[11.5px] text-[#8B92A9] italic py-2">
-              Content isn't available for this send. Sync your WhatsApp templates to view the message body.
-            </p>
+            <div className="py-2">
+              <p className="text-[11.5px] text-[#8B92A9] italic">
+                {fetchError || "Content isn't available for this send."}
+              </p>
+              {looksLikeFallback && (
+                <button onClick={loadLive} className="mt-2 text-[10.5px] font-semibold text-[#2563EB] hover:underline">
+                  Retry fetching from MSG91
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
