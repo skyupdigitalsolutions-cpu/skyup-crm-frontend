@@ -44,9 +44,11 @@ const EVENT_META = {
       ? "Telegram Notification Failed"
       : ev.notificationType === "employee_assigned"
         ? "Telegram Notification Sent to Employee"
-        : "Telegram Notification Sent",
+        : ev.notificationType === "employee_followup"
+          ? "Follow-up Ping Sent to Employee"
+          : "Telegram Notification Sent",
     subtitle: (ev) => ev.recipientName ? `To: ${ev.recipientName}${ev.recipientRole ? ` (${ev.recipientRole})` : ""}` : (ev.recipientRole || ""),
-    body: (ev) => ev.status === "failed" ? ev.detail : "",
+    body: (ev) => ev.status === "failed" ? ev.detail : (ev.notificationType === "employee_followup" ? ev.detail : ""),
   },
   TEMPLATE_SENT: {
     icon: Send, color: "#7C3AED",
