@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import api from "../data/axiosConfig";
 import ColdReassignModal from "../components/ColdReassignModal";
 import ClientMeetingTab from "../components/ClientMeetingTab";
+import ScheduledCallsBadge from "../components/Scheduledcallsbadge";
 import QualificationScore from "../components/QualificationScore";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
 import { maskPhone as _maskPhone } from "../utils/maskPhone";
@@ -94,6 +95,7 @@ phone:          l.primaryPhone   || l.mobile || l.phone || "",
     callHistory:    Array.isArray(l.callHistory)    ? l.callHistory    : [],
     templateHistory: Array.isArray(l.templateHistory) ? l.templateHistory : [],
     meetingRemarks: Array.isArray(l.meetingRemarks) ? l.meetingRemarks : [],
+    whatsappScreenshots: Array.isArray(l.whatsappScreenshots) ? l.whatsappScreenshots : [],
     initialRemark:  l.initialRemark  || "",
     scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
     previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
@@ -881,6 +883,12 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                   <p className="text-[14px] text-[#4B5168] dark:text-white italic">"{lead.remark}"</p>
                 </div>
               )}
+              {lead.scheduledCalls?.some((c) => !c.done) && (
+                <div className="px-6 py-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
+                  <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Follow-up Status</p>
+                  <ScheduledCallsBadge scheduledCalls={lead.scheduledCalls} />
+                </div>
+              )}
               {lead.callHistory.length > 0 && (
                 <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38]">
                   <p className="text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">
@@ -1101,7 +1109,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
         {/* ── Tab: Client Meeting ───────────────────────────── */}
         {activeTab === "meeting" && (
           <div className="flex-1 overflow-y-auto">
-            <ClientMeetingTab lead={lead} />
+            <ClientMeetingTab lead={lead} isAdmin={false} onSaved={onSaved} />
           </div>
         )}
       </div>
