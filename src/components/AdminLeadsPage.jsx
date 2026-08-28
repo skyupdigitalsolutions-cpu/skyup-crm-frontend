@@ -727,7 +727,7 @@ function RecordingsDrawer({ lead, onClose, isSuperAdmin, onLeadUpdated, onToast 
               <RecordingsTab lead={lead} />
             </>
           ) : (
-            <ClientMeetingTab lead={lead} />
+            <ClientMeetingTab lead={lead} isAdmin={true} onSaved={onLeadUpdated} />
           )}
         </div>
       </div>
@@ -1776,6 +1776,7 @@ function mapLead(l) {
     _raw_date:      l.date           || l.createdAt || null,
     callHistory,
     meetingRemarks: Array.isArray(l.meetingRemarks) ? l.meetingRemarks : [],
+    whatsappScreenshots: Array.isArray(l.whatsappScreenshots) ? l.whatsappScreenshots : [],
     initialRemark:  l.initialRemark || "",
     scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
     previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
