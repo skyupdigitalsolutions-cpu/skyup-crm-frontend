@@ -56,6 +56,7 @@ const FEATURE_GROUPS = [
     { key: "metaConversionSync",  label: "Meta Conversions API Send-Back (status → CAPI event)" },
     { key: "googleSheetIntegration", label: "Excel / Google Sheet Integration (Employee) — makes it available; company admin still has to enable it" },
     { key: "leadIntelligence",   label: "Lead Intelligence — AI-powered lead outcome analysis page" },
+    { key: "linkedInAds",        label: "LinkedIn Campaigns — requires LinkedIn Marketing Developer Platform approval first" },
   ]},
 ];
 const ALL_FEATURE_KEYS = FEATURE_GROUPS.flatMap(g => g.items.map(i => i.key));
