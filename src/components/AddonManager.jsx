@@ -5,8 +5,7 @@
 // Addon types MUST match CompanyAddon.ADDON_TYPES on the backend exactly —
 // this dropdown posts addonType straight to POST /addons/:companyId/grant,
 // which is validated against that enum. (Previously this file used a
-// "admin_seat"/"user_seat"/etc. naming scheme that doesn't exist on the
-// backend, so every grant attempt for those types silently failed.)
+
 
 import { useState } from "react";
 import api from "../data/axiosConfig";
