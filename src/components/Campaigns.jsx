@@ -20,6 +20,7 @@ const CHANNEL_STYLE = {
   Meta: { bg: "bg-[#FFF0F3] dark:bg-[#2D0A14]", text: "text-[#E1306C] dark:text-[#F77FAD]" },
   Google: { bg: "bg-[#FFF8F0] dark:bg-[#2D1A00]", text: "text-[#EA4335] dark:text-[#FF6B5B]" },
   Website: { bg: "bg-[#F0FDF4] dark:bg-[#052E1C]", text: "text-[#16A34A] dark:text-[#4ADE80]" },
+  LinkedIn: { bg: "bg-[#EEF6FD] dark:bg-[#0A2540]", text: "text-[#0A66C2] dark:text-[#5CA9E9]" },
 };
 
 const STATUS_STYLE = {
@@ -45,6 +46,7 @@ const LEAD_TEMP_STYLE = {
 const META_COLORS = ["#E1306C", "#2563EB", "#7C3AED", "#059669", "#D97706", "#0891B2"];
 const GOOGLE_COLORS = ["#EA4335", "#FBBC05", "#34A853", "#4285F4", "#FF6D00", "#46BDC6"];
 const WEBSITE_COLORS = ["#16A34A", "#0891B2", "#7C3AED", "#D97706", "#059669", "#2563EB"];
+const LINKEDIN_COLORS = ["#0A66C2", "#2563EB", "#059669", "#7C3AED", "#D97706", "#0891B2"];
 
 const FIELD_CLS =
   "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition";
@@ -247,7 +249,7 @@ function LeadDrawer({ campaign, onClose }) {
   const fetchLeads = () => {
     if (!campaign) return;
     setLoading(true);
-    if (campaign._isMeta || campaign._isGoogle || campaign._isWebsite) {
+    if (campaign._isMeta || campaign._isGoogle || campaign._isWebsite || campaign._isLinkedIn) {
       // When this is a Meta ad set (has adSetName), scope the query to that
       // specific ad set so only its leads are shown, not all campaign leads.
       // Prefer the exact metaConfigId so sibling ad sets sharing a campaign
@@ -313,7 +315,7 @@ function LeadDrawer({ campaign, onClose }) {
               </p>
             )}
             <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">
-              Created {campaign._isMeta || campaign._isGoogle || campaign._isWebsite ? fmtDate(campaign.createdAt) : campaign.date}
+              Created {campaign._isMeta || campaign._isGoogle || campaign._isWebsite || campaign._isLinkedIn ? fmtDate(campaign.createdAt) : campaign.date}
             </p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
@@ -1266,6 +1268,187 @@ window.dataLayer.push({
         <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
           <button onClick={handleSubmit} disabled={!isValid || loading} className="flex-1 py-2.5 rounded-xl bg-[#16A34A] text-white text-[13px] font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+            {loading ? (<><Loader2 className="w-4 h-4 animate-spin" />Connecting…</>) : "Connect & Start Receiving Leads"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Connect LinkedIn Campaign modal ─────────────────────────────────────────
+function CreateLinkedInModal({ onClose, onCreated }) {
+  const empty = {
+    campaignName: "", organizationUrn: "", accessToken: "", webhookSecret: "",
+    refreshToken: "", leadType: "SPONSORED", formUrns: "",
+    defaultStatus: "New", campaignGroupName: "", adCampaignName: "", category: "",
+  };
+  const [form, setForm] = useState(empty);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+
+  const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+  const required = ["campaignName", "organizationUrn", "accessToken", "webhookSecret"];
+  const isValid = required.every((k) => form[k].trim() !== "");
+
+  const handleSubmit = async () => {
+    if (!isValid) return;
+    setLoading(true); setError("");
+    try {
+      const res = await api.post("/linkedin-config", {
+        campaignName: form.campaignName.trim(),
+        organizationUrn: form.organizationUrn.trim(),
+        accessToken: form.accessToken.trim(),
+        webhookSecret: form.webhookSecret.trim(),
+        refreshToken: form.refreshToken.trim() || "",
+        leadType: form.leadType || "SPONSORED",
+        formUrns: form.formUrns ? form.formUrns.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        defaultStatus: form.defaultStatus || "New",
+        campaignGroupName: form.campaignGroupName.trim() || "",
+        adCampaignName: form.adCampaignName.trim() || "",
+        category: form.category.trim() || "",
+      });
+      setSuccess(true); onCreated && onCreated(res.data.data);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Failed to connect campaign");
+    } finally { setLoading(false); }
+  };
+
+  if (success) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+        <div className="w-full max-w-md bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] p-8 text-center" onClick={(e) => e.stopPropagation()}>
+          <div className="w-14 h-14 rounded-full bg-[#ECFDF5] dark:bg-[#052E1C] flex items-center justify-center mx-auto mb-4"><Check className="w-7 h-7 text-[#059669]" /></div>
+          <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">LinkedIn campaign connected!</h2>
+          <p className="text-[12px] text-[#8B92A9] dark:text-[#565C75] mb-2">
+            LinkedIn leads from <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{form.campaignName}</span> will now flow into your CRM automatically.
+          </p>
+          <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mb-6">
+            Last step: register this webhook URL in LinkedIn's Lead Sync API setup — <code className="bg-[#EEF3FF] dark:bg-[#1A2540] text-[#0A66C2] px-1 rounded">{`${import.meta.env.VITE_API_URL.replace(/\/api$/, '')}/linkedin/webhook`}</code>
+          </p>
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#0A66C2] text-white text-[13px] font-semibold hover:bg-[#004182] transition">Done</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white dark:bg-[#1A1D27] rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#EEF6FD] dark:bg-[#0A2540] flex items-center justify-center">
+              <svg className="w-4 h-4 text-[#0A66C2]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.446-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 1 1 0-4.124 2.062 2.062 0 0 1 0 4.124zM7.114 20.452H3.558V9h3.556v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-none">Connect LinkedIn Campaign</h2>
+              <p className="text-[11px] text-[#8B92A9] dark:text-[#565C75] mt-0.5">Auto-import leads · Round-robin assigned to your team</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] flex items-center justify-center text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA] transition">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-6 py-5 space-y-5">
+          <div className="bg-[#EEF6FD] dark:bg-[#0A2540] border border-[#0A66C2]/20 rounded-xl px-4 py-3">
+            <p className="text-[11px] text-[#0A66C2] dark:text-[#5CA9E9] leading-relaxed">
+              Requires LinkedIn's Marketing Developer Platform approval and an OAuth access token generated externally — this form doesn't run the LinkedIn login flow itself. Paste the credentials you already have from LinkedIn's developer console below.
+            </p>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Campaign Info</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label>
+                <input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Q1 Lead Gen — Decision Makers" className={FIELD_CLS} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label>
+                  <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option></select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Lead Type</label>
+                  <select value={form.leadType} onChange={set("leadType")} className={FIELD_CLS}>
+                    <option value="SPONSORED">Sponsored (ad-driven)</option>
+                    <option value="COMPANY">Company page (organic)</option>
+                    <option value="EVENT">Event</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Campaign Group <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span>
+                </label>
+                <input type="text" value={form.campaignGroupName} onChange={set("campaignGroupName")} placeholder="e.g. 2026 Enterprise Push" className={FIELD_CLS} />
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Category <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span>
+                </label>
+                <input type="text" value={form.category} onChange={set("category")} placeholder="e.g. Enterprise, SaaS, Recruiting" className={FIELD_CLS} />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">LinkedIn Config</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Organization URN <span className="text-[#DC2626]">*</span></label>
+                <input type="text" value={form.organizationUrn} onChange={set("organizationUrn")} placeholder="urn:li:organization:12345678" className={FIELD_CLS} />
+                <p className="text-[10px] text-[#8B92A9] mt-1">Found on your LinkedIn Company Page admin settings</p>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Access Token <span className="text-[#DC2626]">*</span></label>
+                <div className="relative">
+                  <input type={showToken ? "text" : "password"} value={form.accessToken} onChange={set("accessToken")} placeholder="OAuth token with r_marketing_leadgen_automation" className={FIELD_CLS + " pr-10"} />
+                  <button type="button" onClick={() => setShowToken((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168]">{showToken ? <EyeOff /> : <EyeOn />}</button>
+                </div>
+                <p className="text-[10px] text-[#8B92A9] mt-1">Generated via LinkedIn's OAuth flow after Marketing Developer Platform approval</p>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Refresh Token <span className="text-[10px] font-normal text-[#8B92A9]">(optional, recommended)</span>
+                </label>
+                <input type="password" value={form.refreshToken} onChange={set("refreshToken")} placeholder="For automatic token renewal" className={FIELD_CLS} />
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Webhook Secret <span className="text-[#DC2626]">*</span></label>
+                <div className="relative">
+                  <input type={showSecret ? "text" : "password"} value={form.webhookSecret} onChange={set("webhookSecret")} placeholder="The secret you registered with LinkedIn's webhook" className={FIELD_CLS + " pr-10"} />
+                  <button type="button" onClick={() => setShowSecret((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168]">{showSecret ? <EyeOff /> : <EyeOn />}</button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Lead Gen Form URNs <span className="text-[10px] font-normal text-[#8B92A9]">(optional, comma-separated)</span>
+                </label>
+                <input type="text" value={form.formUrns} onChange={set("formUrns")} placeholder="urn:li:leadGenForm:1234567, urn:li:leadGenForm:7654321" className={FIELD_CLS} />
+                <p className="text-[10px] text-[#8B92A9] mt-1">Leave blank to accept leads from every form on this organization</p>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
+                  Ad Campaign Name <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span>
+                </label>
+                <input type="text" value={form.adCampaignName} onChange={set("adCampaignName")} placeholder="The specific LinkedIn ad campaign name" className={FIELD_CLS} />
+              </div>
+            </div>
+          </div>
+
+          {error && <div className="bg-[#FEF2F2] dark:bg-[#2D0A0A] border border-[#FECACA] dark:border-[#7F1D1D] rounded-xl px-4 py-3 text-[12px] text-[#DC2626] dark:text-[#F87171]">{error}</div>}
+        </div>
+
+        <div className="px-6 pb-5 pt-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex items-center gap-3 shrink-0">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">Cancel</button>
+          <button onClick={handleSubmit} disabled={!isValid || loading} className="flex-1 py-2.5 rounded-xl bg-[#0A66C2] text-white text-[13px] font-semibold hover:bg-[#004182] disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
             {loading ? (<><Loader2 className="w-4 h-4 animate-spin" />Connecting…</>) : "Connect & Start Receiving Leads"}
           </button>
         </div>
@@ -2257,7 +2440,12 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification
           <button onClick={() => onSelect(c)} className="flex-1 py-2 rounded-xl bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] text-[12px] font-semibold hover:bg-[#dce7ff] dark:hover:bg-[#1e2d52] transition">
             View leads ({c.leads})
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onEdit(c); }} className={`px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] transition ${editHoverCls}`} title="Edit campaign"><EditIcon /></button>
+          {/* No dedicated Edit modal exists for LinkedIn yet (delete + reconnect
+              is the interim path) — hide the button rather than leave a
+              dead click that opens nothing. */}
+          {!c._isLinkedIn && (
+            <button onClick={(e) => { e.stopPropagation(); onEdit(c); }} className={`px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] transition ${editHoverCls}`} title="Edit campaign"><EditIcon /></button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); onQualification && onQualification(c); }}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#8B92A9] hover:border-[#E1306C] hover:text-[#E1306C] transition"
@@ -2296,6 +2484,7 @@ export default function Campaigns() {
   const canMeta    = hasFeature("meta-ads");
   const canGoogle  = hasFeature("google-ads");
   const canWebsite = hasFeature("website-tracking");
+  const canLinkedIn = hasFeature("linkedin-ads");
 
   const [campaigns, setCampaigns] = useState([]);
   const [pageLoading, setPageLoading] = useState(true);
@@ -2303,6 +2492,7 @@ export default function Campaigns() {
   const [showCreate, setShowCreate] = useState(false);
   const [showCreateGoogle, setShowCreateGoogle] = useState(false);
   const [showCreateWebsite, setShowCreateWebsite] = useState(false);
+  const [showCreateLinkedIn, setShowCreateLinkedIn] = useState(false);
   const [editCampaign, setEditCampaign] = useState(null);
   const [showEmailCampaign, setShowEmailCampaign] = useState(false);
   const [syncTarget, setSyncTarget] = useState(null);
@@ -2333,15 +2523,17 @@ export default function Campaigns() {
   const fetchCampaigns = useCallback(async () => {
     setPageLoading(true);
     try {
-      const [metaRes, googleRes, websiteRes] = await Promise.allSettled([
+      const [metaRes, googleRes, websiteRes, linkedinRes] = await Promise.allSettled([
         api.get("/meta-config"),
         api.get("/google-ads-config"),
         api.get("/website-config"),
+        api.get("/linkedin-config"),
       ]);
 
       const metaList = metaRes.status === "fulfilled" ? (Array.isArray(metaRes.value.data) ? metaRes.value.data : metaRes.value.data?.data || []) : [];
       const googleList = googleRes.status === "fulfilled" ? (Array.isArray(googleRes.value.data) ? googleRes.value.data : googleRes.value.data?.data || []) : [];
       const websiteList = websiteRes.status === "fulfilled" ? (websiteRes.value?.data?.data || []) : [];
+      const linkedinList = linkedinRes.status === "fulfilled" ? (linkedinRes.value?.data?.data || []) : [];
 
       // PERF FIX: this used to fire one extra GET /lead/by-campaign — a FULL
       // Lead.find() + 2 populates — PER campaign card, for Meta, Google AND
@@ -2450,7 +2642,35 @@ export default function Campaigns() {
         _configType: "website",
       }));
 
-      setCampaigns([...shapedMeta, ...shapedGoogleFixed, ...shapedWebsite]);
+      const shapedLinkedIn = linkedinList.map((cfg, idx) => ({
+        _id: cfg._id,
+        _isLinkedIn: true,
+        id: cfg._id,
+        name: cfg.campaignName,
+        channel: "LinkedIn",
+        status: cfg.isActive ? "Active" : "Paused",
+        sent: 0,
+        leads: cfg.leads ?? 0,
+        converted: cfg.converted ?? 0,
+        cost: 0,
+        date: fmtDate(cfg.createdAt),
+        createdAt: cfg.createdAt,
+        color: LINKEDIN_COLORS[idx % LINKEDIN_COLORS.length],
+        organizationUrn: cfg.organizationUrn,
+        leadType: cfg.leadType || "SPONSORED",
+        formUrns: cfg.formUrns || [],
+        company: cfg.company,
+        isActive: cfg.isActive,
+        defaultStatus: cfg.defaultStatus || "New",
+        campaignGroupName: cfg.campaignGroupName || "",
+        adCampaignName: cfg.adCampaignName || "",
+        tokenExpiresAt: cfg.tokenExpiresAt || null,
+        createdBy: cfg.createdBy ? (cfg.createdBy._id || cfg.createdBy) : null,
+        createdByName: (cfg.createdBy && cfg.createdBy.name) ? cfg.createdBy.name : "",
+        _configType: "linkedin",
+      }));
+
+      setCampaigns([...shapedMeta, ...shapedGoogleFixed, ...shapedWebsite, ...shapedLinkedIn]);
     } catch (err) {
       console.error("Failed to load campaigns:", err);
       setCampaigns([]);
@@ -2471,7 +2691,7 @@ export default function Campaigns() {
   const handleToggle = async (e, campaign) => {
     e.stopPropagation();
     try {
-      const endpoint = campaign._isGoogle ? `/google-ads-config/${campaign._id}/toggle` : campaign._isWebsite ? `/website-config/${campaign._id}/toggle` : `/meta-config/${campaign._id}/toggle`;
+      const endpoint = campaign._isGoogle ? `/google-ads-config/${campaign._id}/toggle` : campaign._isWebsite ? `/website-config/${campaign._id}/toggle` : campaign._isLinkedIn ? `/linkedin-config/${campaign._id}/toggle` : `/meta-config/${campaign._id}/toggle`;
       await api.patch(endpoint); fetchCampaigns();
     } catch (err) { console.error("Toggle failed:", err); }
   };
@@ -2480,7 +2700,7 @@ export default function Campaigns() {
     e.stopPropagation();
     if (!window.confirm(`Disconnect "${campaign.name}"? This cannot be undone.`)) return;
     try {
-      const endpoint = campaign._isGoogle ? `/google-ads-config/${campaign._id}` : campaign._isWebsite ? `/website-config/${campaign._id}` : `/meta-config/${campaign._id}`;
+      const endpoint = campaign._isGoogle ? `/google-ads-config/${campaign._id}` : campaign._isWebsite ? `/website-config/${campaign._id}` : campaign._isLinkedIn ? `/linkedin-config/${campaign._id}` : `/meta-config/${campaign._id}`;
       await api.delete(endpoint); fetchCampaigns();
     } catch (err) { console.error("Delete failed:", err); }
   };
@@ -2513,6 +2733,7 @@ export default function Campaigns() {
   const metaCount = campaigns.filter((c) => c._isMeta).length;
   const googleCount = campaigns.filter((c) => c._isGoogle).length;
   const websiteCount = campaigns.filter((c) => c._isWebsite).length;
+  const linkedinCount = campaigns.filter((c) => c._isLinkedIn).length;
 
   const cardProps = (c) => ({
     c,
@@ -2647,7 +2868,7 @@ export default function Campaigns() {
               ? `Ads · ${selectedAdSet.leads ?? 0} lead${(selectedAdSet.leads ?? 0) !== 1 ? "s" : ""}`
               : selectedParent
               ? `${(groupedMeta[selectedParent] || []).length} ad set${(groupedMeta[selectedParent] || []).length !== 1 ? "s" : ""}`
-              : `${metaCount} Meta · ${googleCount} Google Ads · ${websiteCount} Website`}
+              : `${metaCount} Meta · ${googleCount} Google Ads · ${websiteCount} Website · ${linkedinCount} LinkedIn`}
           </p>
         </div>
 
@@ -2717,6 +2938,24 @@ export default function Campaigns() {
               <div title="Website Tracking not enabled on your plan" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F1F4FF] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#C4C9D9] dark:text-[#3E4257] text-[13px] font-semibold cursor-not-allowed select-none">
                 <Lock className="w-3.5 h-3.5" />
                 Website Tracking — Plan upgrade required
+              </div>
+            )}
+
+            {/* Connect LinkedIn */}
+            {canLinkedIn ? (
+              <button
+                onClick={() => setShowCreateLinkedIn(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0A66C2] text-white text-[13px] font-semibold hover:bg-[#004182] transition"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.446-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 1 1 0-4.124 2.062 2.062 0 0 1 0 4.124zM7.114 20.452H3.558V9h3.556v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                </svg>
+                Connect LinkedIn
+              </button>
+            ) : (
+              <div title="LinkedIn Campaigns not enabled on your plan" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F1F4FF] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#C4C9D9] dark:text-[#3E4257] text-[13px] font-semibold cursor-not-allowed select-none">
+                <Lock className="w-3.5 h-3.5" />
+                LinkedIn Campaigns — Plan upgrade required
               </div>
             )}
           </div>
@@ -3026,6 +3265,7 @@ export default function Campaigns() {
       {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={fetchCampaigns} />}
       {showCreateGoogle && <CreateGoogleModal onClose={() => setShowCreateGoogle(false)} onCreated={fetchCampaigns} />}
       {showCreateWebsite && <CreateWebsiteModal onClose={() => setShowCreateWebsite(false)} onCreated={fetchCampaigns} />}
+      {showCreateLinkedIn && <CreateLinkedInModal onClose={() => setShowCreateLinkedIn(false)} onCreated={fetchCampaigns} />}
       {showEmailCampaign && <EmailCampaignModal campaigns={campaigns} onClose={() => setShowEmailCampaign(false)} />}
       {editCampaign && editCampaign._isMeta && <EditMetaModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
       {editCampaign && editCampaign._isGoogle && <EditGoogleModal campaign={editCampaign} onClose={() => setEditCampaign(null)} onUpdated={() => { setEditCampaign(null); fetchCampaigns(); }} />}
