@@ -1,6 +1,5 @@
 // components/CallRecording.jsx
 // Admin dashboard — shows all call recordings uploaded from the mobile app.
-// Includes AI transcription + summary via OpenAI Whisper (backend route).
 
 import React, { useEffect, useState } from 'react';
 import api from '../data/axiosConfig';
