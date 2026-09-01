@@ -47,6 +47,7 @@ const FEATURE_KEY_MAP = {
   "campaigns":           "campaigns",
   "google-ads":          "googleAds",
   "meta-ads":            "metaAds",
+  "linkedin-ads":        "linkedInAds",
   "call-recording":      "callRecording",
   "api-access":          "apiAccess",
   "custom-reports":      "customReports",
