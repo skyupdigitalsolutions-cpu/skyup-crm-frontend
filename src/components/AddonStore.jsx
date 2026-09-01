@@ -1,7 +1,6 @@
 // src/components/AddonStore.jsx
 // Customer-facing add-on store — now uses the global cart instead of
 // triggering individual Razorpay checkouts per item.
-// Users add addons to cart, then check out everything (plan + addons) together.
 
 import { useState, useEffect, useCallback } from "react";
 import {
