@@ -94,6 +94,53 @@ const EyeOff = () => (
   <EyeOffIcon className="w-4 h-4" />
 );
 
+// ── Lead Nurture — canonical industry + service lists (must match templateNameResolver.js) ──
+const NURTURE_INDUSTRIES = [
+  "", "Healthcare", "Education", "Real Estate", "Logistics", "Finance",
+  "IT Solutions", "Digital Marketing", "Construction", "Local Business",
+  "Interior Designers", "Professional Services",
+];
+const NURTURE_SERVICES = [
+  "", "SEO", "Paid Ads", "Website Design & Development", "AI Automation",
+  "CRM", "Video Editing", "Graphic Design", "Social Media Marketing",
+  "AI Voice Agent",
+];
+
+// Auto-detect industry + service from a campaign name so dropdowns pre-select
+// on open. Checks for keywords case-insensitively; first match wins per field.
+// Only fills a field when the campaign name already has nothing saved for it.
+function inferNurtureFromName(name) {
+  const n = String(name || "").toLowerCase();
+
+  // ── Service detection ────────────────────────────────────────────────────
+  let service = "";
+  if (/crm/.test(n))                                                   service = "CRM";
+  else if (/voice.agent|saanvi|voiceagent/.test(n))                   service = "AI Voice Agent";
+  else if (/ai.auto|ai.agent|chatbot/.test(n))                        service = "AI Automation";
+  else if (/web|ecom|e.com|website/.test(n))                          service = "Website Design & Development";
+  else if (/seo/.test(n))                                             service = "SEO";
+  else if (/paid.ad|meta.ad|google.ad|ppc|ads/.test(n))               service = "Paid Ads";
+  else if (/social|smm/.test(n))                                      service = "Social Media Marketing";
+  else if (/video|edit/.test(n))                                      service = "Video Editing";
+  else if (/graphic|design/.test(n))                                  service = "Graphic Design";
+
+  // ── Industry detection ───────────────────────────────────────────────────
+  let industry = "";
+  if (/real.estate|property|realty/.test(n))                 industry = "Real Estate";
+  else if (/logistic|transport|fleet|cargo|supply/.test(n))  industry = "Logistics";
+  else if (/health|clinic|hospital|pharma|medic/.test(n))    industry = "Healthcare";
+  else if (/educat|school|college|academy|tutor/.test(n))    industry = "Education";
+  else if (/finance|fintech|loan|invest|bank|insur/.test(n)) industry = "Finance";
+  else if (/interior|decor|architect/.test(n))               industry = "Interior Designers";
+  else if (/construct|builder|infra/.test(n))                industry = "Construction";
+  else if (/it.solut|software|saas|tech/.test(n))            industry = "IT Solutions";
+  else if (/digital.market|agency|marketing/.test(n))        industry = "Digital Marketing";
+  else if (/restaurant|salon|retail|shop|local/.test(n))     industry = "Local Business";
+  else if (/consult|legal|ca |chartered|audit/.test(n))      industry = "Professional Services";
+
+  return { industry, service };
+}
+
 // ── Edit icon ─────────────────────────────────────────────────────────────────
 const EditIcon = () => (
   <PencilIcon className="w-3.5 h-3.5" />
@@ -470,6 +517,8 @@ function CreateModal({ onClose, onCreated }) {
     campaignName: "", pageId: "", pageAccessToken: "", appSecret: "", verifyToken: "",
     graphApiVersion: "v25.0", formIds: "", formId: "", defaultStatus: "New",
     adSetName: "", parentCampaignName: "", category: "",
+    // Lead Nurture tags — auto-tag every lead from this campaign
+    industry: "", service: "",
     // Ad performance (Insights API) — optional
     adAccountId: "", adsToken: "",
     // Conversions API send-back — optional
@@ -482,7 +531,25 @@ function CreateModal({ onClose, onCreated }) {
   const [showToken, setShowToken] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
 
-  const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+  const set = (k) => (e) => {
+    const val = e.target.value;
+    setForm((p) => {
+      const next = { ...p, [k]: val };
+      // When the campaign name changes, auto-fill industry+service if they
+      // haven't been manually chosen yet (still at their inferred or empty value).
+      if (k === "campaignName") {
+        const inferred = inferNurtureFromName(val);
+        const prevInferred = inferNurtureFromName(p.campaignName);
+        // Only overwrite if the current value is still the auto-inferred one
+        // (user hasn't manually picked something different).
+        if (!p.industry || p.industry === prevInferred.industry)
+          next.industry = inferred.industry;
+        if (!p.service || p.service === prevInferred.service)
+          next.service = inferred.service;
+      }
+      return next;
+    });
+  };
   const required = ["campaignName", "pageId", "pageAccessToken", "appSecret", "verifyToken"];
   const isValid = required.every((k) => form[k].trim() !== "");
 
@@ -500,6 +567,9 @@ function CreateModal({ onClose, onCreated }) {
         adSetName: form.adSetName.trim() || undefined,
         parentCampaignName: form.parentCampaignName.trim() || undefined,
         category: form.category ? form.category.trim() : undefined,
+        // Lead Nurture tags — auto-applied to every lead from this campaign
+        industry: form.industry || "",
+        service: form.service || "",
         // Ad performance (Insights API) credentials — optional.
         adAccountId: form.adAccountId.trim() || "",
         adsToken: form.adsToken.trim() || "",
@@ -603,6 +673,39 @@ function CreateModal({ onClose, onCreated }) {
                 <p className="text-[10px] text-[#8B92A9] mt-1">Groups campaigns by category in the Performance Marketing Dashboard</p>
               </div>
             </div>
+          </div>
+
+          {/* ── Lead Nurture Tags ─────────────────────────────────────────── */}
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-1">Lead Nurture</p>
+            <p className="text-[10px] text-[#8B92A9] mb-3">
+              Every lead from this campaign will be auto-tagged with these values so the nurture sequence picks the right WhatsApp template automatically.
+              Leave both blank if leads from this campaign should not receive nurture messages.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Industry</label>
+                <select value={form.industry || ""} onChange={set("industry")} className={FIELD_CLS}>
+                  {NURTURE_INDUSTRIES.map((ind) => <option key={ind} value={ind}>{ind || "— none —"}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Service</label>
+                <select value={form.service || ""} onChange={set("service")} className={FIELD_CLS}>
+                  {NURTURE_SERVICES.map((svc) => <option key={svc} value={svc}>{svc || "— none —"}</option>)}
+                </select>
+              </div>
+            </div>
+            {form.service && !form.industry && (
+              <p className="text-[10px] text-[#D97706] mt-2">
+                ⚡ Service-only — nurture will use the <strong>{form.service}</strong> niche fallback templates (industry-specific templates need both fields set).
+              </p>
+            )}
+            {form.industry && form.service && (
+              <p className="text-[10px] text-[#059669] mt-2">
+                ✓ Full match — nurture will resolve industry-specific templates for <strong>{form.industry} × {form.service}</strong>.
+              </p>
+            )}
           </div>
 
           <div>
@@ -738,6 +841,8 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
     defaultStatus: campaign.defaultStatus || "New",
     adSetName: campaign.adSetName || "",
     parentCampaignName: campaign.parentCampaignName || "",
+    industry: campaign.industry || inferNurtureFromName(campaign.name).industry,
+    service: campaign.service || inferNurtureFromName(campaign.name).service,
     adAccountId: campaign.adAccountId || "",
     adsToken: "",
     pixelId: campaign.pixelId || "",
@@ -763,6 +868,8 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
         graphApiVersion: form.graphApiVersion.trim() || "v25.0",
         adSetName: form.adSetName.trim() || undefined,
         parentCampaignName: form.parentCampaignName.trim() || undefined,
+        industry: form.industry || "",
+        service: form.service || "",
       };
       if (form.pageAccessToken.trim()) payload.pageAccessToken = form.pageAccessToken.trim();
       if (form.appSecret.trim()) payload.appSecret = form.appSecret.trim();
@@ -822,6 +929,40 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
               </div>
             </div>
           </div>
+
+          {/* ── Lead Nurture Tags ─────────────────────────────────────────── */}
+          <div>
+            <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-1">Lead Nurture</p>
+            <p className="text-[10px] text-[#8B92A9] mb-3">
+              Every lead from this campaign will be auto-tagged with these values so the nurture sequence picks the right WhatsApp template automatically.
+              Leave both blank to disable nurture for this campaign.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Industry</label>
+                <select value={form.industry || ""} onChange={set("industry")} className={FIELD_CLS}>
+                  {NURTURE_INDUSTRIES.map((ind) => <option key={ind} value={ind}>{ind || "— none —"}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Service</label>
+                <select value={form.service || ""} onChange={set("service")} className={FIELD_CLS}>
+                  {NURTURE_SERVICES.map((svc) => <option key={svc} value={svc}>{svc || "— none —"}</option>)}
+                </select>
+              </div>
+            </div>
+            {form.service && !form.industry && (
+              <p className="text-[10px] text-[#D97706] mt-2">
+                ⚡ Service-only — nurture will use the <strong>{form.service}</strong> niche fallback templates (industry-specific templates need both fields set).
+              </p>
+            )}
+            {form.industry && form.service && (
+              <p className="text-[10px] text-[#059669] mt-2">
+                ✓ Full match — nurture will resolve industry-specific templates for <strong>{form.industry} × {form.service}</strong>.
+              </p>
+            )}
+          </div>
+
           <div>
             <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-widest mb-3">Meta / Facebook Config</p>
             <div className="space-y-3">
