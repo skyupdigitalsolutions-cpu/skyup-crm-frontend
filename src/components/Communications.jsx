@@ -9,7 +9,8 @@ import axios from "axios";
 import api from "../data/axiosConfig";
 import { getToken, getEntitlements } from "../data/sessionStore";
 import { sanitizeHtml } from "../utils/sanitizeHtml";
-import { AlertOctagon, Lightbulb, ClipboardList, BarChart3, RefreshCw, MessageCircle, Inbox, Smartphone, Target, FileText, Image as ImageIcon, Music, Video, MapPin, AlertTriangle, Zap, X, Check } from "lucide-react";
+import { AlertOctagon, Lightbulb, ClipboardList, BarChart3, RefreshCw, MessageCircle, Inbox, Smartphone, Target, FileText, Image as ImageIcon, Music, Video, MapPin, AlertTriangle, Zap, X, Check, Sparkles } from "lucide-react";
+import FestivalCampaignsModal from "./FestivalCampaigns";
 
 const API_URL    = import.meta.env.VITE_API_URL;
 const SOCKET_URL = API_URL.replace("/api", "");
@@ -4134,6 +4135,7 @@ export default function Communications({ currentUser }) {
   const [tab,               setTab]               = useState("whatsapp");
   const [showSettings,      setShowSettings]      = useState(false);
   const [showIntegrations,  setShowIntegrations]  = useState(false);
+  const [showFestival,      setShowFestival]      = useState(false);
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
 
   return (
@@ -4146,6 +4148,16 @@ export default function Communications({ currentUser }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <TabNav active={tab} onChange={(t) => { setTab(t); setShowSettings(false); }} showReports={isAdmin} />
+          {isAdmin && (
+            <button
+              onClick={() => setShowFestival(true)}
+              title="Festival Campaigns — schedule festive WhatsApp/Email templates for a specific date"
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] sm:text-[13px] font-semibold text-[#8B92A9] hover:text-[#EA580C] hover:border-[#EA580C] transition"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span className="hidden sm:inline">Festival Campaigns</span>
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setShowIntegrations(true)}
@@ -4216,6 +4228,9 @@ export default function Communications({ currentUser }) {
 
       {/* ── Integrations modal ── */}
       {showIntegrations && <IntegrationsModal onClose={() => setShowIntegrations(false)} />}
+
+      {/* ── Festival Campaigns modal ── */}
+      {showFestival && <FestivalCampaignsModal onClose={() => setShowFestival(false)} />}
     </div>
   );
 }
