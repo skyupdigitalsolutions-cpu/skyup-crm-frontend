@@ -1606,8 +1606,12 @@ function WhatsAppPanel({ currentUser }) {
     // ── Auto-register MSG91 inbound webhook on mount ──────────────────────────
     // This silently attempts to register the webhook with MSG91 so lead replies
     // arrive via push (<1s) instead of the polling fallback (30-50s delay).
-    // Only runs for admins; fails silently if already registered or config missing.
-    if (isAdmin) {
+    // FIX: was gated on isAdmin (any admin), but the backend route requires
+    // requireCompanySuperAdmin — a regular "admin" role got a guaranteed 403
+    // on every single page load (harmless, but pure console noise). Gate this
+    // the same way the backend does.
+    const isSuperAdmin = currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
+    if (isSuperAdmin) {
       const adminToken = getToken() || "";
       fetch(`${API_URL}/admin/company/msg91-register-webhook`, {
         method: "POST",
