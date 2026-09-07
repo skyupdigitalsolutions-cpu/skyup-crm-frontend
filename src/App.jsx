@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { getToken, getUser, getBrand, setBrand as _storeBrand } from "./data/sessionStore";
+import { setNavigate } from "./data/navigationService";
 import { useEffect, useState, lazy, Suspense } from "react";
 import React from "react";
 import { Sidebar } from "./components/Sidebar";
@@ -377,7 +378,8 @@ function CompanyHeader() {
 //  3. On plan_updated event: clears entitlement cache so sidebar and
 //     feature gates refresh automatically without a page reload.
 function AppLayout() {
-  const goToPlans = () => { window.location.href = "/upgrade-plan"; };
+  const navigate = useNavigate();
+  const goToPlans = () => navigate("/upgrade-plan");
 
   // Clear entitlement cache when plan changes (e.g. after developer update)
   // so usePlanFeatures / useEntitlements pick up fresh data on next render.
@@ -481,9 +483,17 @@ function UpgradePlanWithMembers(props) {
 // ── Inner app — rendered inside BrowserRouter so hooks work ───────────────────
 function AppInner() {
   const { user } = getStoredAuth();
+  const navigate = useNavigate();
 
   // Trap logged-in users inside the app — back/forward buttons won't leave.
   useAuthNavGuard();
+
+  // Give axiosConfig.js (and anything else outside the React tree) a way to
+  // do a real SPA navigation on 401/SUBSCRIPTION_EXPIRED instead of a hard
+  // window.location.href reload. See src/data/navigationService.js.
+  useEffect(() => {
+    setNavigate(navigate);
+  }, [navigate]);
 
   return (
     <ErrorBoundary>
