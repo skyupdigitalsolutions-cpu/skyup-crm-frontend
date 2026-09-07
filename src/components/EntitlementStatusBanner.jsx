@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import useEntitlements from "../hooks/useEntitlements";
+import { redirectTo } from "../data/navigationService";
 import { Lock, PauseCircle, AlertTriangle, Ban } from "lucide-react";
 
 const STATUS_CONFIG = {
@@ -59,7 +60,7 @@ export default function EntitlementStatusBanner({ onGoToPlans }) {
   if (subscriptionStatus === "trial_pending") return null;
 
   const config = STATUS_CONFIG[subscriptionStatus] || STATUS_CONFIG.expired;
-  const handleGoToPlans = onGoToPlans || (() => { window.location.href = "/upgrade-plan"; });
+  const handleGoToPlans = onGoToPlans || (() => redirectTo("/upgrade-plan"));
 
   return (
     <div
