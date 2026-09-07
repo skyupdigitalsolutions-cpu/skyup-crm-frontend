@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "../data/axiosConfig";
+import { sanitizeHtml } from "../utils/sanitizeHtml";
 import {
   KeyRound, Loader2, Eye, EyeOff, Copy, Check, ChevronDown, ChevronUp,
   ExternalLink, ShieldCheck,
@@ -150,7 +151,7 @@ export default function GoogleOAuthSetupForm({ onSaved, compact = false, onCance
         {showGuide && (
           <div className="px-3 py-3 text-[11px] leading-relaxed text-[#4B5168] dark:text-[#9DA3BB] space-y-1.5">
             <p>1. Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-emerald-600 font-semibold inline-flex items-center gap-0.5">Google Cloud Console → Credentials <ExternalLink className="w-3 h-3" /></a></p>
-            {cfg.guide.map((g) => (<p key={g.n}>{g.n}. <span dangerouslySetInnerHTML={{ __html: g.html }} /></p>))}
+            {cfg.guide.map((g) => (<p key={g.n}>{g.n}. <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(g.html) }} /></p>))}
             <p>4. Create an <span className="font-semibold">OAuth client ID → Web application</span>.</p>
             <p>5. Under <span className="font-semibold">Authorized redirect URIs</span>, add the exact URI below.</p>
             <p>6. Copy the <span className="font-semibold">Client ID</span> &amp; <span className="font-semibold">Client Secret</span> into the fields here.</p>
