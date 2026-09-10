@@ -8,6 +8,7 @@ import { getRole } from "../data/dataService";
 import useEntitlements from "../hooks/useEntitlements";
 import { normalizePhone } from "../utils/normalizePhone";
 import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
+import { fetchAllPages } from "../utils/fetchAllPages";
 import { LanguageFilter, LeadLanguageBadge } from "./LanguageControls";
 import {
   RefreshCw,
@@ -1613,6 +1614,16 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
         const rawName      = row.name || row["full name"] || row["fullname"] || "";
         const rawMobile    = row["primary number"] || row.mobile || row.phone || row["phone number"] || row["mobile number"] || "";
         const rawSecondary = row["secondary number"] || row["secondaryphone"] || row["secondary phone"] || "";
+        // FIX (audit): status/source previously only recognized a column
+        // literally named "status"/"source" — a very common alternative
+        // naming ("Lead Status", "Stage", "Lead Source") silently fell
+        // through to the hardcoded default ("New" / "Excel Import"),
+        // discarding the sheet's real value with no visible error. Widened
+        // to match the same aliases the Google Sheet integration already
+        // recognizes (sheetIntegrationController.js's CRM_FIELDS list),
+        // so both import paths behave consistently.
+        const rawStatus = row.status || row["lead status"] || row.stage || "";
+        const rawSource = row.source || row["lead source"] || "";
         const normalized   = normalizeMobile(rawMobile);
         if (!normalized) { clientErrors.push({ index: i, row: rawName || i, message: "Missing mobile number — row skipped." }); continue; }
         const normSecondary = rawSecondary ? normalizeMobile(rawSecondary) : null;
@@ -1627,10 +1638,10 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
           primaryPhone:   normalized,
           secondaryPhone: normSecondary || null,
           email:          row.email || "",
-          source:         row.source || "Excel Import",
+          source:         rawSource || "Excel Import",
           campaign:       row.campaign || "",
-          status:         row.status || "New",
-          remark:         row.remark || row.notes || "Imported via CSV",
+          status:         rawStatus || "New",
+          remark:         row.remark || row.remarks || row.notes || row.note || row.comment || row.comments || "Imported via CSV",
         });
       }
       if (!leadsToImport.length && clientErrors.length > 0) {
@@ -1944,27 +1955,13 @@ export default function AdminLeadsPage() {
     try {
       const PAGE_LIMIT = 500;
 
-      // ── Step 1: fetch first page + users in parallel ─────────────────────
-      const [leadsRes, usersRes] = await Promise.all([
-        api.get(`/lead/admin/all?page=1&limit=${PAGE_LIMIT}`),
+      // Fetch every lead page (in parallel once the total is known, via the
+      // shared fetchAllPages helper — see src/utils/fetchAllPages.js) at the
+      // same time as the users list, rather than sequencing them.
+      const [allRaw, usersRes] = await Promise.all([
+        fetchAllPages((page) => api.get(`/lead/admin/all?page=${page}&limit=${PAGE_LIMIT}`)),
         api.get("/admin/company/users"),
       ]);
-
-      const firstLeads = leadsRes.data?.leads || (Array.isArray(leadsRes.data) ? leadsRes.data : []);
-      const totalPages = leadsRes.data?.pages ?? 1;
-
-      // ── Step 2: fetch remaining pages in parallel if more exist ──────────
-      let allRaw = firstLeads;
-      if (totalPages > 1) {
-        const rest = await Promise.all(
-          Array.from({ length: totalPages - 1 }, (_, i) =>
-            api
-              .get(`/lead/admin/all?page=${i + 2}&limit=${PAGE_LIMIT}`)
-              .then(r => r.data?.leads || (Array.isArray(r.data) ? r.data : []))
-          )
-        );
-        allRaw = [firstLeads, ...rest].flat();
-      }
 
       setAllLeads(allRaw.map(mapLead));
 
