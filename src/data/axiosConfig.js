@@ -1,6 +1,7 @@
 import axios from "axios";
 import { getToken, getUser, clearSession } from "./sessionStore";
 import { redirectTo } from "./navigationService";
+import { recordServerDate } from "../utils/serverTime";
 
 // ── Base URL resolution ───────────────────────────────────────────────────────
 // • Local dev  → Vite proxy handles /api → localhost:5000.
@@ -107,6 +108,11 @@ api.interceptors.request.use((config) => {
 // ── Response interceptor — cache GETs + handle auth errors ───────────────────
 api.interceptors.response.use(
   (response) => {
+    // Keep the server-time offset fresh — see src/utils/serverTime.js for why
+    // this matters (attendance live-timer clock-skew fix). Costs nothing:
+    // the Date header is already present on every response.
+    try { recordServerDate(response.headers?.date); } catch (_) { /* never break a response */ }
+
     if (response.config.method === "get" && isCacheable(response.config.url)) {
       const key = response.config.__cacheKey ||
         ((getToken() || "anon") + "|" + (response.config.url || "") + JSON.stringify(response.config.params || {}));
