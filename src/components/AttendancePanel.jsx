@@ -9,6 +9,7 @@ import { Moon } from "lucide-react";
 // app. Using it here means this widget always matches the mobile app and
 // the rest of the website, regardless of the viewer's machine/browser TZ.
 import { formatTime } from "../utils/dateUtils";
+import { serverNow } from "../utils/serverTime";
 import IdleRemarkModal from "./IdleRemarkModal";
 
 const IDLE_MS         = 5 * 60 * 1000;
@@ -60,16 +61,17 @@ export default function AttendancePanel() {
     }
 
     const tick = () => {
+      // FIX (clock-skew audit): was Date.now() — see src/utils/serverTime.js.
       const ongoingBreakMins =
         record.activeBreakIndex !== null && record.activeBreakIndex !== undefined
           ? Math.round(
-              (Date.now() - new Date(record.breaks?.[record.activeBreakIndex]?.startTime || Date.now())) / 60000
+              (serverNow() - new Date(record.breaks?.[record.activeBreakIndex]?.startTime || serverNow())) / 60000
             )
           : 0;
       const breakMins = (record.totalBreakMinutes || 0) + ongoingBreakMins;
       const secs = Math.max(
         0,
-        Math.round((Date.now() - new Date(record.loginTime)) / 1000) - breakMins * 60
+        Math.round((serverNow() - new Date(record.loginTime)) / 1000) - breakMins * 60
       );
       setElapsed(secs);
     };
