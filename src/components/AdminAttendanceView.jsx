@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "../data/axiosConfig";
 import { AlertTriangle } from "lucide-react";
+import { serverNow } from "../utils/serverTime";
 
 function fmt(mins) {
   if (!mins) return "0h 00m";
@@ -30,7 +31,11 @@ function getLiveBreakMinutes(rec) {
   if (rec.liveBreakMinutes != null) return rec.liveBreakMinutes;
 
   const breaks = rec.breaks || [];
-  const now = Date.now();
+  // FIX (clock-skew audit): was Date.now() — see src/utils/serverTime.js.
+  // This is the admin's own live company-wide dashboard, so it's exactly
+  // the view most likely to be compared side-by-side against an employee's
+  // phone — a skewed admin PC clock made this look like a sync bug.
+  const now = serverNow();
 
   const total = breaks.reduce((sum, b) => {
     const start = b.startTime ? new Date(b.startTime).getTime() : null;
