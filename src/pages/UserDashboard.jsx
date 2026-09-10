@@ -8,6 +8,8 @@ import { FlameIcon, UsersIcon, LoaderIcon, CheckIcon, AlertTriangle, CloudSun, S
 import NotInterestedModal from "../components/Notinterestedmodal";
 import { normalizePhone } from "../utils/normalizePhone";
 import { getRole } from "../data/dataService";
+import { fetchAllPages } from "../utils/fetchAllPages";
+import { serverNow } from "../utils/serverTime";
 import CRMEncryption from "../utils/CRMEncryption";
 // FIX (clock/timezone bug): see getGreeting() below.
 import { toIST } from "../utils/dateUtils";
@@ -139,9 +141,12 @@ function computeTotalBreakMins(record) {
     const dur = Number(b.durationMinutes ?? b.duration ?? b.durationMins);
     if (Number.isFinite(dur) && dur > 0) { total += dur; continue; }
     const start = b.startTime ? new Date(b.startTime) : null;
+    // FIX (clock-skew audit): was Date.now() — mixes the browser's raw clock
+    // with a server-generated timestamp. Use serverNow() so an admin with a
+    // skewed PC clock sees the same number the employee's phone shows.
     const end   = b.endTime   ? new Date(b.endTime)   : null;
     if (start && !isNaN(start.getTime())) {
-      const endMs = (end && !isNaN(end.getTime())) ? end.getTime() : Date.now();
+      const endMs = (end && !isNaN(end.getTime())) ? end.getTime() : serverNow();
       total += Math.max(0, Math.round((endMs - start.getTime()) / 60000));
     }
   }
@@ -155,7 +160,7 @@ function breakEntryDurMins(b) {
   const start = b.startTime ? new Date(b.startTime) : null;
   const end   = b.endTime   ? new Date(b.endTime)   : null;
   if (start && !isNaN(start.getTime())) {
-    const endMs = (end && !isNaN(end.getTime())) ? end.getTime() : Date.now();
+    const endMs = (end && !isNaN(end.getTime())) ? end.getTime() : serverNow();
     return Math.max(0, Math.round((endMs - start.getTime()) / 60000));
   }
   return 0;
@@ -164,7 +169,9 @@ function breakEntryDurMins(b) {
 function computeWorkedSecsFixed(record) {
   if (!record?.loginTime) return 0;
   const loginMs = new Date(record.loginTime).getTime();
-  const endMs   = record.logoutTime ? new Date(record.logoutTime).getTime() : Date.now();
+  // FIX (clock-skew audit): was Date.now() when logoutTime is absent (i.e.
+  // still clocked in — the live-ticking case this bug actually affected).
+  const endMs   = record.logoutTime ? new Date(record.logoutTime).getTime() : serverNow();
   if (isNaN(loginMs) || isNaN(endMs)) return 0;
   const elapsedMs = Math.max(0, endMs - loginMs);
   const completedBreakMs = computeTotalBreakMins(record) * 60 * 1000;
@@ -173,7 +180,7 @@ function computeWorkedSecsFixed(record) {
     const ab = (record.breaks || [])[record.activeBreakIndex];
     if (ab?.startTime && !ab?.endTime) {
       const bStart = new Date(ab.startTime).getTime();
-      if (!isNaN(bStart)) ongoingBreakMs = Math.max(0, Date.now() - bStart);
+      if (!isNaN(bStart)) ongoingBreakMs = Math.max(0, serverNow() - bStart);
     }
   }
   return Math.max(0, Math.round((elapsedMs - completedBreakMs - ongoingBreakMs) / 1000));
@@ -2214,33 +2221,13 @@ export default function UserDashboard() {
   const fetchLeads = useCallback(() => {
     setLoading(true);
     // Backend /lead/my-leads returns { leads[], total, page, pages } and caps
-    // each page at a limit (default 200). FIX: fetch every page and combine so
-    // dashboard KPIs are accurate for users with more than one page of leads
-    // (previously only the first 200 were counted).
+    // each page at a limit (default 200). Uses the shared fetchAllPages
+    // helper (see src/utils/fetchAllPages.js) so dashboard KPIs are accurate
+    // for users with more than one page of leads, and so this logic isn't a
+    // third independently-drifting copy of the same pattern.
     const PAGE_LIMIT = 200;
-    api.get(`/lead/my-leads?page=1&limit=${PAGE_LIMIT}`)
-      .then(async res => {
-        const firstLeads = Array.isArray(res.data)
-          ? res.data
-          : (res.data?.leads || res.data?.data || []);
-
-        // Backend now returns 'pages' (total pages count) AND 'hasMore'.
-        // Use pages if present; fall back to hasMore for backward compat.
-        const pages   = res.data?.pages ?? (res.data?.hasMore ? 2 : 1);
-        const total   = res.data?.total ?? firstLeads.length;
-
-        let raw = firstLeads;
-        if (pages > 1) {
-          const rest = await Promise.all(
-            Array.from({ length: pages - 1 }, (_, i) =>
-              api
-                .get(`/lead/my-leads?page=${i + 2}&limit=${PAGE_LIMIT}`)
-                .then(r => (Array.isArray(r.data) ? r.data : (r.data?.leads || r.data?.data || []))),
-          ),
-          );
-          raw = [firstLeads, ...rest].flat();
-        }
-
+    fetchAllPages((page) => api.get(`/lead/my-leads?page=${page}&limit=${PAGE_LIMIT}`))
+      .then((raw) => {
         setLeads(raw.map(mapLead));
         setError("");
       })
@@ -2401,11 +2388,13 @@ export default function UserDashboard() {
           name:     rawName || "Unknown",
           mobile:   cleanMobile,
           email:    row.email    || "",
-          source:   row.source   || "CSV Import",
+          // FIX (audit): widened status/source header recognition — see the
+          // matching fix + comment in AdminLeadsPage.jsx's CSV import for why.
+          source:   row.source || row["lead source"] || "CSV Import",
           campaign: row.campaign || "",
-          status:   row.status   || "New",
+          status:   row.status || row["lead status"] || row.stage || "New",
           date:     row.date     || null,
-          remark:   row.remark   || row.notes || "Imported via CSV",
+          remark:   row.remark || row.remarks || row.notes || row.note || row.comment || row.comments || "Imported via CSV",
         });
       }
 
