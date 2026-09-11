@@ -66,6 +66,24 @@ function timeAgo(dateStr) {
   return d.toLocaleDateString();
 }
 
+// FIX (admin Communications page media): small helper for the "tap to load
+// attachment" retry affordance on an inbound message whose media hasn't been
+// mirrored to a public URL yet. Own local state per-message, so one message's
+// retry spinner doesn't affect any other.
+function RetryMediaButton({ msg, onRetry }) {
+  const [state, setState] = useState(null); // null | 'loading' | 'failed'
+  return (
+    <button
+      type="button"
+      onClick={() => onRetry(msg, setState)}
+      disabled={state === "loading"}
+      className="block mt-1 text-[11px] underline opacity-70 hover:opacity-100 disabled:opacity-40"
+    >
+      {state === "loading" ? "Loading…" : state === "failed" ? "Couldn't load — tap to retry" : "Tap to load attachment"}
+    </button>
+  );
+}
+
 function formatTime(dateStr) {
   if (!dateStr) return "";
   return new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -1395,6 +1413,11 @@ function WhatsAppPanel({ currentUser }) {
   const socketRef  = useRef(null);
   const bottomRef  = useRef(null);
   const inputRef   = useRef(null);
+  // FIX (admin Communications page media): file-picker refs for sending
+  // images/video and documents — same pattern as the employee per-lead
+  // WhatsApp chat page (src/pages/UserLeadCommunication.jsx).
+  const imageInputRef = useRef(null);
+  const docInputRef   = useRef(null);
 
   const [conversations, setConversations] = useState([]);
   const [selected,      setSelected]      = useState(null);
@@ -1402,6 +1425,7 @@ function WhatsAppPanel({ currentUser }) {
   const [text,          setText]          = useState("");
   const [loading,       setLoading]       = useState(false);
   const [sending,       setSending]       = useState(false);
+  const [uploading,     setUploading]     = useState(false);
   const [search,        setSearch]        = useState("");
   const [filter,        setFilter]        = useState("all");
   const [error,         setError]         = useState("");
@@ -1600,6 +1624,18 @@ function WhatsAppPanel({ currentUser }) {
       setMessages((prev) => prev.map((m) => m.waMessageId === waMessageId ? { ...m, status } : m));
     });
     socket.on("wa_assigned", () => loadConversations());
+    // FIX (admin Communications page media): WhatsApp/Meta hands the server a
+    // private media link that expires and 401s in a browser. The server
+    // downloads and re-hosts it, then emits this event with the usable URL —
+    // wire it in exactly like the employee per-lead chat page already does,
+    // so images/documents/video/audio actually render here instead of being
+    // stuck as an icon + caption forever.
+    socket.on("wa_media_ready", ({ messageId, mediaUrl }) => {
+      if (!messageId || !mediaUrl) return;
+      setMessages((prev) =>
+        prev.map((m) => (String(m._id) === String(messageId) ? { ...m, mediaUrl } : m))
+      );
+    });
     loadConversations();
     loadLeads();
 
@@ -1677,6 +1713,86 @@ function WhatsAppPanel({ currentUser }) {
       setError(reason);
     } finally { setSending(false); }
   };
+
+  // FIX (admin Communications page media): this page could only send plain
+  // text — there was no attach button and no way to send an image/video/
+  // document at all from here (the employee per-lead chat page already had
+  // this; this page didn't). Ported the same pattern: multipart upload to
+  // /whatsapp/send-media, optimistic bubble while it uploads, current text
+  // used as the caption.
+  const sendMedia = useCallback(async (file) => {
+    if (!file || !selected?._id) return;
+
+    const MAX_MB = 16; // WhatsApp's media ceiling (documents can go higher, but keep this safe)
+    if (file.size > MAX_MB * 1024 * 1024) {
+      setError(`File is too large (${(file.size / 1048576).toFixed(1)}MB). WhatsApp allows up to ${MAX_MB}MB.`);
+      return;
+    }
+
+    setUploading(true);
+    setError("");
+    const caption = text.trim();
+    const isImg   = file.type.startsWith("image/") && file.type !== "image/gif";
+    const optimistic = {
+      _id: `opt_${Date.now()}`,
+      direction: "outbound",
+      body: caption || file.name,
+      messageType: isImg ? "image" : file.type.startsWith("video/") || file.type === "image/gif" ? "video"
+                   : file.type.startsWith("audio/") ? "audio" : "document",
+      mediaUrl: isImg ? URL.createObjectURL(file) : null,
+      waTimestamp: new Date(),
+      status: "pending",
+      sentBy: { name: currentUser?.name },
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setText("");
+
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("conversationId", selected._id);
+      if (caption) fd.append("caption", caption);
+      const { data } = await axios.post(`${API_URL}/whatsapp/send-media`, fd, authHeaders);
+      const sentMsg = data?.message || data;
+      setMessages((prev) => prev.map((m) => (m._id === optimistic._id ? { ...optimistic, ...sentMsg } : m)));
+    } catch (err) {
+      setMessages((prev) => prev.map((m) => (m._id === optimistic._id ? { ...m, status: "failed" } : m)));
+      const code = err.response?.data?.code;
+      setError(
+        code === "SESSION_EXPIRED"
+          ? "24-hour session expired — send a template to re-engage before sending files."
+          : err.response?.data?.error || "Failed to send attachment"
+      );
+    } finally {
+      setUploading(false);
+    }
+  }, [selected, text, currentUser, authHeaders]);
+
+  const handleFilePicked = useCallback((e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (file) sendMedia(file);
+  }, [sendMedia]);
+
+  // FIX (admin Communications page media): a message the LEAD sent (inbound
+  // image/video/audio/document) arrives with a private Meta link the browser
+  // can't open — this retries the server-side mirror-to-public-URL step.
+  // Same pattern as the employee per-lead chat page's retryMedia().
+  const retryMedia = useCallback(async (msg, setRetryState) => {
+    if (!msg?._id) return;
+    setRetryState("loading");
+    try {
+      const { data } = await axios.post(`${API_URL}/whatsapp/messages/${msg._id}/refresh-media`, {}, authHeaders);
+      if (data?.mediaUrl) {
+        setMessages((prev) => prev.map((m) => (String(m._id) === String(msg._id) ? { ...m, mediaUrl: data.mediaUrl } : m)));
+        setRetryState(null);
+      } else {
+        setRetryState("failed");
+      }
+    } catch {
+      setRetryState("failed");
+    }
+  }, [authHeaders]);
 
   const closeConversation = async () => {
     if (!selected) return;
@@ -1927,21 +2043,59 @@ function WhatsAppPanel({ currentUser }) {
             {loading && <div className="text-center text-[#8B92A9] text-[13px] py-8">Loading messages…</div>}
             {messages.map((msg) => {
               const isOut = msg.direction === "outbound";
+              // FIX (admin Communications page media): previously this only showed a
+              // small icon + msg.body — never rendered the actual image/video/audio/
+              // document. Same media-resolution + private-Meta-URL guard + retry
+              // pattern as the employee per-lead chat page's Bubble component.
+              const rawMediaId = msg.mediaId || msg.media_id || null;
+              const candidateUrl =
+                msg.mediaUrl || msg.media_url ||
+                (/^https?:\/\//i.test(String(rawMediaId || "")) ? rawMediaId : null);
+              const isPrivateMetaUrl = /lookaside\.fbsbx\.com|graph\.facebook\.com/i.test(String(candidateUrl || ""));
+              const mUrl = isPrivateMetaUrl ? null : candidateUrl;
+              const mType = msg.messageType;
+              const isMedia = mUrl && ["image", "video", "audio", "document"].includes(mType);
               return (
                 <div key={msg._id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[68%] px-3 py-2 rounded-2xl shadow-sm border ${isOut ? "bg-[#dcfce7] border-[#bbf7d0] rounded-br-sm" : "bg-white border-[#e5e7eb] rounded-bl-sm"}`}>
                     {isAdmin && isOut && msg.sentBy && (
                       <div className="text-[9px] text-[#166534] font-semibold mb-0.5">{msg.sentBy.name}</div>
                     )}
-                    <div className="text-[13px] text-[#111827] leading-[1.5] whitespace-pre-wrap break-words">
-                      {msg.messageType === "image" && <ImageIcon className="w-3.5 h-3.5 inline mr-1" />}
-                      {msg.messageType === "document" && <FileText className="w-3.5 h-3.5 inline mr-1" />}
-                      {msg.messageType === "audio" && <Music className="w-3.5 h-3.5 inline mr-1" />}
-                      {msg.messageType === "video" && <Video className="w-3.5 h-3.5 inline mr-1" />}
-                      {msg.messageType === "location" && <MapPin className="w-3.5 h-3.5 inline mr-1" />}
-                      {msg.messageType === "template" && <ClipboardList className="w-3.5 h-3.5 inline mr-1" />}
-                      {msg.body}
-                    </div>
+                    {isMedia ? (
+                      <div className="mb-1">
+                        {mType === "image" && (
+                          <a href={mUrl} target="_blank" rel="noreferrer">
+                            <img src={mUrl} alt={msg.body || "image"} className="rounded-lg max-h-60 w-auto object-cover cursor-pointer" />
+                          </a>
+                        )}
+                        {mType === "video" && <video src={mUrl} controls playsInline className="rounded-lg max-h-60 w-full" />}
+                        {mType === "audio" && <audio src={mUrl} controls className="w-56 max-w-full" />}
+                        {mType === "document" && (
+                          <a href={mUrl} target="_blank" rel="noreferrer"
+                             className="flex items-center gap-2 px-2 py-2 rounded-lg bg-black/5 hover:bg-black/10 transition">
+                            <FileText className="w-5 h-5 shrink-0" />
+                            <span className="truncate underline text-[13px]">{msg.body || "Document"}</span>
+                          </a>
+                        )}
+                        {msg.body && mType !== "document" && (
+                          <div className="text-[13px] text-[#111827] leading-[1.5] whitespace-pre-wrap break-words mt-1">{msg.body}</div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-[13px] text-[#111827] leading-[1.5] whitespace-pre-wrap break-words">
+                        {msg.messageType === "image" && <ImageIcon className="w-3.5 h-3.5 inline mr-1" />}
+                        {msg.messageType === "document" && <FileText className="w-3.5 h-3.5 inline mr-1" />}
+                        {msg.messageType === "audio" && <Music className="w-3.5 h-3.5 inline mr-1" />}
+                        {msg.messageType === "video" && <Video className="w-3.5 h-3.5 inline mr-1" />}
+                        {msg.messageType === "location" && <MapPin className="w-3.5 h-3.5 inline mr-1" />}
+                        {msg.messageType === "template" && <ClipboardList className="w-3.5 h-3.5 inline mr-1" />}
+                        {msg.body}
+                        {/* Inbound attachment that hasn't been mirrored to a public URL yet */}
+                        {!isOut && ["image", "video", "audio", "document"].includes(mType) && !mUrl && (
+                          <RetryMediaButton msg={msg} onRetry={retryMedia} />
+                        )}
+                      </div>
+                    )}
                     <div className="flex justify-end items-center gap-1 mt-1">
                       <span className="text-[10px] text-[#6b7280]">{formatTime(msg.waTimestamp)}</span>
                       {isOut && (
@@ -1983,17 +2137,39 @@ function WhatsAppPanel({ currentUser }) {
             </div>
           ) : (
             <div className="px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-2 items-end bg-white dark:bg-[#1A1D27]">
+              {/* FIX (admin Communications page media): attach buttons — this
+                  page previously had no way to send anything but plain text. */}
+              <input ref={imageInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFilePicked} />
+              <input ref={docInputRef}   type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,application/*,text/*" className="hidden" onChange={handleFilePicked} />
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={uploading || selected.status === "closed"}
+                title="Send image or video"
+                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-[#8B92A9] hover:bg-gray-100 dark:hover:bg-[#262A38] disabled:opacity-40"
+              >
+                <ImageIcon className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => docInputRef.current?.click()}
+                disabled={uploading || selected.status === "closed"}
+                title="Send document"
+                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-[#8B92A9] hover:bg-gray-100 dark:hover:bg-[#262A38] disabled:opacity-40"
+              >
+                <FileText className="w-4 h-4" />
+              </button>
               <textarea
                 ref={inputRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                placeholder={selected.status === "closed" ? "Conversation is closed" : "Type a message… (Enter to send)"}
-                disabled={selected.status === "closed" || sending}
+                placeholder={selected.status === "closed" ? "Conversation is closed" : uploading ? "Sending attachment…" : "Type a message… (Enter to send)"}
+                disabled={selected.status === "closed" || sending || uploading}
                 rows={1}
                 className="flex-1 resize-none text-[13px] px-3 py-2.5 rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366] transition leading-[1.5] max-h-[120px] overflow-y-auto"
               />
-              <button onClick={sendMessage} disabled={!text.trim() || sending || selected.status === "closed"} className={`w-9 h-9 rounded-full flex items-center justify-center transition shrink-0 ${text.trim() && !sending ? "bg-[#25D366] hover:bg-[#1da851]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}>
+              <button onClick={sendMessage} disabled={!text.trim() || sending || uploading || selected.status === "closed"} className={`w-9 h-9 rounded-full flex items-center justify-center transition shrink-0 ${text.trim() && !sending ? "bg-[#25D366] hover:bg-[#1da851]" : "bg-[#E4E7EF] dark:bg-[#262A38]"}`}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill={text.trim() && !sending ? "white" : "#9ca3af"}>
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
                 </svg>
