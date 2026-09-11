@@ -34,6 +34,60 @@ const SOCKET_URL =
     : "https://skyupcrm-backend.duckdns.org");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+// FIX (UX gap): every template-sending widget on this page (re-engage, start-
+// conversation, bulk-to-my-leads) previously made you TYPE the exact approved
+// template name into a blank text box — no way to see what you actually have,
+// easy to typo, guaranteed failure if you got it wrong. This shared hook
+// fetches the real synced template list once and hands back a ready-to-render
+// dropdown, falling back gracefully (never blocking sending) if the fetch
+// fails for any reason.
+function useApprovedTemplates(authHeaders) {
+  const [templates, setTemplates] = useState(null); // null = loading/unavailable, [] = loaded-but-empty
+  const [error, setErr] = useState("");
+  useEffect(() => {
+    axios.get(`${API_URL}/whatsapp/templates`, authHeaders)
+      .then(({ data }) => setTemplates((data.templates || []).filter(t => t.status === "APPROVED")))
+      .catch(() => {
+        setTemplates(null);
+        setErr("Couldn't load your template list — enter the template name manually.");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return { templates, error };
+}
+
+function TemplateNameField({ templates, templatesError, templateName, setTemplateName, setLanguageCode, inputClassName }) {
+  if (templates && templates.length > 0) {
+    return (
+      <select
+        value={templateName}
+        onChange={(e) => {
+          setTemplateName(e.target.value);
+          const t = templates.find(t => t.name === e.target.value);
+          if (t?.language && setLanguageCode) setLanguageCode(t.language);
+        }}
+        className={inputClassName}
+      >
+        {templates.map((t) => <option key={t.name} value={t.name}>{t.name} ({t.language})</option>)}
+      </select>
+    );
+  }
+  return (
+    <>
+      <input
+        type="text"
+        value={templateName}
+        onChange={(e) => setTemplateName(e.target.value)}
+        placeholder="crm_followup_leads"
+        className={inputClassName}
+      />
+      <p className="text-[10px] text-[#8B92A9] mt-1">
+        {templatesError || (templates === null ? "Loading your approved templates…" : "No approved templates found.")}
+      </p>
+    </>
+  );
+}
+
 function fmtTime(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
@@ -206,6 +260,14 @@ function Bubble({ msg, isOwn, onEdit, onRetryMedia }) {
             : "bg-white dark:bg-[#202C33] text-[#111B21] dark:text-[#E9EDEF] rounded-bl-none border border-[#E4E7EF] dark:border-transparent"
         }`}
       >
+        {/* FIX (audit): this page never showed WHO sent an outbound message —
+            every "sent" bubble looked identical whether it was you or a
+            teammate who'd been assigned the same lead before you. The data
+            (msg.sentBy) was already being fetched from the backend; it just
+            wasn't rendered here. */}
+        {isOwn && msg.sentBy?.name && (
+          <div className="text-[10px] font-semibold text-[#0B7A63] dark:text-[#7FD9C4] mb-0.5">{msg.sentBy.name}</div>
+        )}
         {isMedia ? (
           <div className="mb-1">
             {type === "image" && (
@@ -313,6 +375,7 @@ function ReEngageWidget({ conversationId, authHeaders, onSent }) {
   const [languageCode, setLanguageCode] = useState("en");
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState("");
+  const { templates, error: templatesError } = useApprovedTemplates(authHeaders);
 
   const handleSend = async () => {
     if (!templateName.trim()) return setError("Template name is required");
@@ -333,15 +396,16 @@ function ReEngageWidget({ conversationId, authHeaders, onSent }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex gap-2">
-        <input
-          type="text"
-          value={templateName}
-          onChange={(e) => setTemplateName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
-          placeholder="crm_followup_leads"
-          className="flex-1 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366] transition"
-          autoFocus
-        />
+        <div className="flex-1">
+          <TemplateNameField
+            templates={templates}
+            templatesError={templatesError}
+            templateName={templateName}
+            setTemplateName={setTemplateName}
+            setLanguageCode={setLanguageCode}
+            inputClassName="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366] transition"
+          />
+        </div>
         <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)}
           className="w-[110px] px-2 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#25D366] transition">
           <option value="en">en</option>
@@ -375,6 +439,7 @@ function BlastTab({ leads, authHeaders }) {
   const [loading, setLoading]            = useState(false);
   const [result,  setResult]             = useState(null);
   const [error,   setError]              = useState("");
+  const { templates, error: templatesError } = useApprovedTemplates(authHeaders);
 
   const handleBlast = async () => {
     if (!templateName.trim()) return setError("Template name is required");
@@ -464,13 +529,14 @@ function BlastTab({ leads, authHeaders }) {
             <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
               Template Name <span className="text-red-500">*</span>
             </label>
-            <input
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="e.g. crm_followup_leads"
-              className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366]"
+            <TemplateNameField
+              templates={templates}
+              templatesError={templatesError}
+              templateName={templateName}
+              setTemplateName={setTemplateName}
+              setLanguageCode={setLanguageCode}
+              inputClassName="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366]"
             />
-            <p className="text-[10px] text-[#8B92A9] mt-1">Must match exactly the approved template name in your MSG91 / Meta dashboard</p>
           </div>
 
           <div className="mb-5">
@@ -563,6 +629,7 @@ function StartConversationPane({ lead, authHeaders, apiUrl, onStarted }) {
   const [langCode,     setLangCode]     = useState("en");
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
+  const { templates, error: templatesError } = useApprovedTemplates(authHeaders);
 
   const handleStart = async () => {
     if (!templateName.trim()) return setError("Template name is required");
@@ -599,13 +666,14 @@ function StartConversationPane({ lead, authHeaders, apiUrl, onStarted }) {
           <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
             Template Name <span className="text-red-500">*</span>
           </label>
-          <input
-            value={templateName}
-            onChange={(e) => setTemplateName(e.target.value)}
-            placeholder="e.g. crm_followup_leads"
-            className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366] transition"
+          <TemplateNameField
+            templates={templates}
+            templatesError={templatesError}
+            templateName={templateName}
+            setTemplateName={setTemplateName}
+            setLanguageCode={setLangCode}
+            inputClassName="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#25D366] transition"
           />
-          <p className="text-[10px] text-[#8B92A9] mt-1">Must match exactly the approved template name in MSG91</p>
         </div>
 
         <div className="mb-4">
