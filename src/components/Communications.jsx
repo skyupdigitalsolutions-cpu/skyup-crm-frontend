@@ -827,6 +827,31 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
   const [languageCode, setLanguageCode] = useState("en"); // MSG91 template language — match exactly what's in MSG91 dashboard
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
+  // FIX (UX gap): this used to be a blank text box where you had to know and
+  // type the exact template name yourself — easy to typo, and gave no way to
+  // even see which templates you actually have approved. Now fetches your
+  // real synced template list and offers a dropdown; falls back to the old
+  // manual text field if the fetch fails (e.g. a non-admin caller — this
+  // endpoint is admin-only — or templates were never synced), so this never
+  // blocks starting a conversation, just makes it easier when it can.
+  const [templates,        setTemplates]        = useState(null); // null = loading/unavailable, [] = loaded-but-empty
+  const [templatesError,   setTemplatesError]   = useState("");
+
+  useEffect(() => {
+    api.get("/whatsapp/templates")
+      .then(({ data }) => {
+        const approved = (data.templates || []).filter(t => t.status === "APPROVED");
+        setTemplates(approved);
+        if (approved.length > 0) {
+          setTemplateName(approved[0].name);
+          setLanguageCode(approved[0].language || "en");
+        }
+      })
+      .catch(() => {
+        setTemplates(null); // keep the manual text-input fallback
+        setTemplatesError("Couldn't load your template list — enter the template name manually below.");
+      });
+  }, []);
 
   const handleStart = async () => {
     if (!phone.trim())        return setError("Phone number is required");
@@ -923,16 +948,35 @@ function NewConversationModal({ onClose, onSuccess, authHeaders }) {
             <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">
               Template Name <span className="text-[#DC2626]">*</span>
             </label>
-            <input
-              type="text"
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="crm_followup_leads"
-              className={FIELD_CLS}
-            />
-            <p className="text-[10px] text-[#8B92A9] mt-1">
-              Must match exactly the approved template name in your MSG91 / Meta dashboard
-            </p>
+            {templates && templates.length > 0 ? (
+              <select
+                value={templateName}
+                onChange={(e) => {
+                  setTemplateName(e.target.value);
+                  const t = templates.find(t => t.name === e.target.value);
+                  if (t?.language) setLanguageCode(t.language);
+                }}
+                className={FIELD_CLS}
+              >
+                {templates.map((t) => (
+                  <option key={t.name} value={t.name}>{t.name} ({t.language})</option>
+                ))}
+              </select>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="crm_followup_leads"
+                  className={FIELD_CLS}
+                />
+                <p className="text-[10px] text-[#8B92A9] mt-1">
+                  {templatesError || (templates === null ? "Loading your approved templates…" : "No approved templates found — check MSG91/Meta, then sync templates.")}
+                  {" "}Must match exactly the approved template name in your MSG91 / Meta dashboard.
+                </p>
+              </>
+            )}
           </div>
 
           {/* Language */}
