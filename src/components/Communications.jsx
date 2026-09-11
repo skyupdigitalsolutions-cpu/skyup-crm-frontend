@@ -1789,8 +1789,14 @@ function WhatsAppPanel({ currentUser }) {
       } else {
         setRetryState("failed");
       }
-    } catch {
+    } catch (err) {
       setRetryState("failed");
+      // FIX: was swallowing the backend's specific reason (e.g. "WhatsApp
+      // refused the download — Meta requires a WhatsApp access token...").
+      // Without this, every failure just looked like a generic, unexplained
+      // "couldn't load" with no way to tell a missing-config issue from an
+      // actually-expired media link.
+      setError(err.response?.data?.error || "Couldn't load this attachment");
     }
   }, [authHeaders]);
 
