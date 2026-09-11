@@ -5,7 +5,7 @@
 import axios from "axios";
 import { getMktToken, clearMktSession } from "./mktSessionStore";
 
-// e.g. https://skyup-crm-backend.onrender.com/api  (same as main axiosConfig)
+// e.g. https://skyupcrm-backend.duckdns.org/api  (same as main axiosConfig)
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
 const mktApi = axios.create({ baseURL: `${API_BASE}/marketing-panel` });
