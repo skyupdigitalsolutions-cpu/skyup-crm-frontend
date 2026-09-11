@@ -1939,7 +1939,17 @@ function WhatsAppPanel({ currentUser }) {
                       {isZombie ? <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Template failed — tap to delete</span> : conv.lastMessage || "No messages yet"}
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: conv.status === "waiting" ? "#f59e0b" : conv.status === "open" ? "#22c55e" : "#9ca3af" }} />
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: conv.status === "waiting" ? "#f59e0b" : conv.status === "open" ? "#22c55e" : "#9ca3af" }}
+                        title={
+                          conv.status === "waiting"
+                            ? "Customer replied — awaiting your response"
+                            : conv.status === "open"
+                              ? "You've responded — no action needed right now"
+                              : "Closed"
+                        }
+                      />
                       {hasUnread && <span className="bg-[#25D366] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center">{conv.unreadCount}</span>}
                     </div>
                   </div>
@@ -2108,7 +2118,11 @@ function WhatsAppPanel({ currentUser }) {
               return (
                 <div key={msg._id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[68%] px-3 py-2 rounded-2xl shadow-sm border ${isOut ? "bg-[#dcfce7] border-[#bbf7d0] rounded-br-sm" : "bg-white border-[#e5e7eb] rounded-bl-sm"}`}>
-                    {isAdmin && isOut && msg.sentBy && (
+                    {/* FIX: was gated to isAdmin only — in a shared/team
+                        inbox, ANY viewer (including another employee who
+                        picks up a reassigned lead) needs to see who actually
+                        sent each message, not just admins. */}
+                    {isOut && msg.sentBy && (
                       <div className="text-[9px] text-[#166534] font-semibold mb-0.5">{msg.sentBy.name}</div>
                     )}
                     {isMedia ? (
