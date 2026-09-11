@@ -23,7 +23,15 @@ const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   (import.meta.env.VITE_API_URL
     ? import.meta.env.VITE_API_URL.replace(/\/api$/, "")
-    : "https://skyup-crm-backend.onrender.com");
+    // FIX (Render → Hetzner migration): was hardcoded to the old
+    // onrender.com URL, which is now decommissioned. This fallback only
+    // ever fires if VITE_API_URL is ALSO missing — at which point API_URL
+    // above is already `undefined` and every API call in this file is
+    // already broken, so this doesn't actually rescue anything. Kept in
+    // sync with the current production domain for now; the real fix is
+    // making sure VITE_API_URL/VITE_SOCKET_URL are always set in every
+    // deploy environment so this fallback is never actually reached.
+    : "https://skyupcrm-backend.duckdns.org");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtTime(iso) {
