@@ -1668,6 +1668,16 @@ function WhatsAppPanel({ currentUser }) {
       setMessages((prev) => prev.map((m) => m.waMessageId === waMessageId ? { ...m, status } : m));
     });
     socket.on("wa_assigned", () => loadConversations());
+    // FIX (stale employee name after deletion): the backend now emits this
+    // when a deleted employee's conversations get their dangling
+    // assignedAgent reference cleared — without this listener, an already-
+    // open Communications tab had no way to know that happened and would
+    // keep showing the deleted employee's name until a manual page reload.
+    socket.on("wa_conversation_reassigned", ({ conversationId, assignedAgent }) => {
+      setConversations((prev) =>
+        prev.map((c) => (String(c._id) === String(conversationId) ? { ...c, assignedAgent } : c))
+      );
+    });
     // FIX (admin Communications page media): WhatsApp/Meta hands the server a
     // private media link that expires and 401s in a browser. The server
     // downloads and re-hosts it, then emits this event with the usable URL —
