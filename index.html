@@ -2,7 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="skyup_logo1.svg" />
+    <!-- FIX (stale favicon after updates): browsers cache favicons unusually
+         aggressively, keyed on the exact URL — often ignoring even a hard
+         refresh. Overwriting the same filename's content, as before, meant
+         updates could go unnoticed for a long time. Appending a version
+         query string means the URL itself changes whenever this is bumped,
+         which forces browsers to fetch fresh — no user action needed. Bump
+         this number (?v=2 → ?v=3 etc.) any time the favicon file changes. -->
+    <link rel="icon" type="image/svg+xml" href="/skyup_logo1.svg?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- Poppins — referenced via Tailwind's font-poppins / fontFamily.poppins.
