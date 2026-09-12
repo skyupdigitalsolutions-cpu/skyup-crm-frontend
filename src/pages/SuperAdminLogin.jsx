@@ -208,9 +208,7 @@ export default function SuperAdminLogin() {
         {/* Badge + step dots */}
         <div className="flex items-center gap-2 mb-6">
           <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-            <svg className="w-6 h-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
+            <img src="/skyup_logo1.svg?v=2" alt="SkyUp" className="w-7 h-7" />
           </div>
           <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-amber-500/10 border border-amber-500/20 text-amber-400">
             Super Admin
@@ -224,6 +222,7 @@ export default function SuperAdminLogin() {
         {/* ── Step 1: Credentials ─────────────────────────────────────────── */}
         {step === 1 && (
           <div className="slide-in">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#565C75] mb-1">SkyUp CRM</p>
             <h1 className="login-title text-[26px] font-bold text-[#F0F2FA] mb-1">Master Control</h1>
             <p className="text-[13px] text-[#565C75] mb-7">Restricted access — SuperAdmin only</p>
 
