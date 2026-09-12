@@ -45,6 +45,7 @@ export default function MarketingLogin() {
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-indigo-500/30">
             <BarChart3 className="w-8 h-8 text-white" />
           </div>
+          <p className="text-indigo-300 text-[11px] font-semibold uppercase tracking-widest mb-1">SkyUp CRM</p>
           <h1 className="text-[26px] font-extrabold text-white leading-tight">Performance Marketing</h1>
           <p className="text-indigo-300 text-[13px] mt-1">Analytics &amp; Campaign Intelligence Panel</p>
         </div>
