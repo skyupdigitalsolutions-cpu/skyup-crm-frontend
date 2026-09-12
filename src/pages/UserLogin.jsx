@@ -175,13 +175,14 @@ export default function UserLogin() {
 
       <div className="login-card fade-in relative w-full max-w-md bg-white dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#1E2130] rounded-3xl shadow-2xl shadow-blue-100/50 dark:shadow-none p-8">
 
-        <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center mb-6">
-          <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-          </svg>
+        <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center mb-4">
+          <img src="/skyup_logo1.svg" alt="SkyUp" className="w-7 h-7" />
         </div>
 
-        <h1 className="login-title text-[26px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Welcome back</h1>
+        <h1 className="login-title text-[26px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">
+          SkyUp CRM
+        </h1>
+        <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mb-1">Welcome back</p>
         <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mb-7">Sign in to your account</p>
 
         {error && (
