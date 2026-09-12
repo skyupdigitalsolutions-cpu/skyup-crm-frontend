@@ -162,13 +162,12 @@ export default function AdminLogin() {
       <div className="login-card fade-in relative w-full max-w-md bg-white dark:bg-[#13161E] border border-[#EDE9FE] dark:border-[#1E2130] rounded-3xl shadow-2xl shadow-purple-100/50 dark:shadow-none p-8">
 
         {/* Icon */}
-        <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center mb-6">
-          <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-          </svg>
+        <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center mb-4">
+          <img src="/skyup_logo1.svg?v=2" alt="SkyUp" className="w-7 h-7" />
         </div>
 
-        <h1 className="login-title text-[26px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Admin Portal</h1>
+        <h1 className="login-title text-[26px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-1">SkyUp CRM</h1>
+        <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mb-1">Admin Portal</p>
         <p className="text-[13px] text-[#8B92A9] dark:text-[#565C75] mb-7">Sign in to manage your company</p>
 
         {/* Error */}
