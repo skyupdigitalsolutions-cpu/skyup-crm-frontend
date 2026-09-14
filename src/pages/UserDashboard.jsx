@@ -1863,6 +1863,12 @@ function mapLead(l) {
     remark:         l.remark         || "",
     date:           l.date ? new Date(l.date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—",
     _raw_date:      l.date           || l.createdAt || null,
+    // BUG FIX: followUpDate was never mapped through at all — every
+    // computation elsewhere in this file that needed "is this lead due for
+    // follow-up" silently had undefined to work with, no matter what the
+    // backend actually stored. This is why no "today's follow-ups" view
+    // could ever have worked correctly here.
+    followUpDate:   l.followUpDate   || null,
     callHistory:    Array.isArray(l.callHistory)    ? l.callHistory    : [],
     scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
     previousAgents: Array.isArray(l.previousAgents) ? l.previousAgents : [],
@@ -2237,12 +2243,62 @@ export default function UserDashboard() {
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
+  // BUG FIX: the backend emits follow_up_alert / no_followup_alert straight
+  // to this employee's own socket room (services/fcmService.js) — the
+  // notification bell (NotificationProvider.jsx) already listens for these
+  // and shows a toast, but the dashboard's OWN data never refreshed because
+  // of it. Combined with mapLead() previously dropping followUpDate
+  // entirely, the "today's follow-ups" list above had no way to ever be
+  // correct OR live — it would only reflect whatever was true at the last
+  // page load/manual refresh. Reuses the same shared socket connection the
+  // attendance widget below already waits for, rather than opening a
+  // second connection.
+  useEffect(() => {
+    let attempts = 0;
+    let offFns = [];
+    const tryAttach = () => {
+      const socket = sharedSocket.current;
+      if (!socket || !socket.connected) {
+        if (++attempts < 8) { setTimeout(tryAttach, 400); }
+        return;
+      }
+      const onFollowUpEvent = () => fetchLeads();
+      socket.on("follow_up_alert", onFollowUpEvent);
+      socket.on("no_followup_alert", onFollowUpEvent);
+      offFns = [
+        () => socket.off("follow_up_alert", onFollowUpEvent),
+        () => socket.off("no_followup_alert", onFollowUpEvent),
+      ];
+    };
+    tryAttach();
+    return () => offFns.forEach((fn) => fn());
+  }, [fetchLeads]);
+
   // Fetch admin-created projects (global ones visible to users)
   useEffect(() => {
     api.get("/project")
       .then(res => setProjects(Array.isArray(res.data) ? res.data : []))
       .catch(() => setProjects([]));
   }, []);
+
+  // FEATURE: "Today's Follow-ups" — previously there was no dashboard-wide
+  // view of which of the employee's own leads are due for follow-up; only a
+  // per-lead scheduled-calls list visible when a card was expanded. Built
+  // from the same already-loaded `leads` array (no extra API call needed),
+  // now that mapLead() actually carries followUpDate through (see the bug
+  // fix above it).
+  const todaysFollowUps = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return leads
+      .filter((l) => {
+        if (!l.followUpDate) return false;
+        if (l.status === "Converted" || l.status === "Not Interested") return false;
+        const fu = new Date(l.followUpDate);
+        fu.setHours(0, 0, 0, 0);
+        return fu <= today; // due today OR overdue
+      })
+      .sort((a, b) => new Date(a.followUpDate) - new Date(b.followUpDate));
+  }, [leads]);
 
   const kpi = useMemo(() => {
     const total        = leads.length;
@@ -2542,6 +2598,44 @@ export default function UserDashboard() {
           <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon={<LoaderIcon className="w-5 h-5"/>} />
           <KpiCard label="Hot Leads"      value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon={<FlameIcon className="w-5 h-5"/>} />
         </div>
+
+        {/* Today's Follow-ups — NEW: previously no dashboard-wide view of
+            which leads are due for follow-up existed; only a per-lead
+            scheduled-calls list visible when a card was expanded. Live-
+            updates via the follow_up_alert / no_followup_alert socket
+            listener above, and via the normal fetchLeads() polling. */}
+        {todaysFollowUps.length > 0 && (
+          <div className="bg-white dark:bg-[#161B22] border border-[#E5E7EB] dark:border-[#30363D] rounded-xl p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-bold text-[#8B92A9] dark:text-[#D1D5DB] uppercase tracking-wide">
+                📅 Today's Follow-ups ({todaysFollowUps.length})
+              </p>
+            </div>
+            <div className="space-y-2">
+              {todaysFollowUps.slice(0, 10).map((l) => {
+                const fu = new Date(l.followUpDate);
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const fuDay = new Date(fu); fuDay.setHours(0, 0, 0, 0);
+                const overdue = fuDay < today;
+                return (
+                  <button
+                    key={l.id}
+                    onClick={() => setSelected(l)}
+                    className="w-full flex items-center justify-between gap-3 p-2.5 rounded-lg border border-[#E5E7EB] dark:border-[#30363D] hover:bg-[#F9FAFB] dark:hover:bg-[#1C2129] transition text-left"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={"w-2 h-2 rounded-full shrink-0 " + (overdue ? "bg-red-500" : "bg-blue-500")} />
+                      <span className="text-[13px] font-semibold text-[#111827] dark:text-[#E5E7EB] truncate">{l.name}</span>
+                    </div>
+                    <span className={"text-[10px] font-bold shrink-0 " + (overdue ? "text-red-500" : "text-blue-500")}>
+                      {overdue ? "OVERDUE" : "TODAY"} · {fu.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Targets + Quality + Projects — 3-column grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
