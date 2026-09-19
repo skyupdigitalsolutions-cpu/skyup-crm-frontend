@@ -100,18 +100,18 @@ function Feedback({ msg }) {
 
 // ── WhatsApp Notifications Tab ────────────────────────────────────────────────
 function WhatsAppTab({ isSuperAdmin }) {
-  const [loading,      setLoading]      = React.useState(true);
-  const [hasToken,     setHasToken]     = React.useState(false);
-  const [draftChat,    setDraftChat]    = React.useState("");
-  const [draftToken,   setDraftToken]   = React.useState("");
-  const [draftEnabled, setDraftEnabled] = React.useState(false);
-  const [showToken,    setShowToken]    = React.useState(false);
-  const [saving,       setSaving]       = React.useState(false);
-  const [testing,      setTesting]      = React.useState(false);
-  const [msg,          setMsg]          = React.useState({ type: "", text: "" });
+  const [loading,      setLoading]      = useState(true);
+  const [hasToken,     setHasToken]     = useState(false);
+  const [draftChat,    setDraftChat]    = useState("");
+  const [draftToken,   setDraftToken]   = useState("");
+  const [draftEnabled, setDraftEnabled] = useState(false);
+  const [showToken,    setShowToken]    = useState(false);
+  const [saving,       setSaving]       = useState(false);
+  const [testing,      setTesting]      = useState(false);
+  const [msg,          setMsg]          = useState({ type: "", text: "" });
   const flash = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: "", text: "" }), 4000); };
 
-  React.useEffect(() => {
+  useEffect(() => {
     setLoading(true);
     api.get("/admin/company/telegram/whatsapp")
       .then((res) => {
