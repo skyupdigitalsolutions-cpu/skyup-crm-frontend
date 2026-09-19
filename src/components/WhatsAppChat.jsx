@@ -276,7 +276,7 @@ export default function WhatsAppChat({ currentUser }) {
   // ── Open start modal ──────────────────────────────────────────────────────
   // Can be called with a lead object OR a conversation object (for re-engagement)
   // ── Promote unknown inbox contact to Lead ────────────────────────────────
-  const [creatingLead, setCreatingLead] = React.useState(false);
+  const [creatingLead, setCreatingLead] = useState(false);
   const createLeadFromConversation = async () => {
     if (!selected || creatingLead) return;
     setCreatingLead(true);
