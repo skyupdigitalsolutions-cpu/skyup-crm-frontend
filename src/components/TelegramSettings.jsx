@@ -98,7 +98,96 @@ function Feedback({ msg }) {
   );
 }
 
-// ── Company Group Tab ─────────────────────────────────────────────────────────
+// ── WhatsApp Notifications Tab ────────────────────────────────────────────────
+function WhatsAppTab({ isSuperAdmin }) {
+  const [loading,      setLoading]      = React.useState(true);
+  const [hasToken,     setHasToken]     = React.useState(false);
+  const [draftChat,    setDraftChat]    = React.useState("");
+  const [draftToken,   setDraftToken]   = React.useState("");
+  const [draftEnabled, setDraftEnabled] = React.useState(false);
+  const [showToken,    setShowToken]    = React.useState(false);
+  const [saving,       setSaving]       = React.useState(false);
+  const [testing,      setTesting]      = React.useState(false);
+  const [msg,          setMsg]          = React.useState({ type: "", text: "" });
+  const flash = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: "", text: "" }), 4000); };
+
+  React.useEffect(() => {
+    setLoading(true);
+    api.get("/admin/company/telegram/whatsapp")
+      .then((res) => {
+        const d = res.data || {};
+        setHasToken(d.hasToken || false);
+        setDraftEnabled(d.waTelegramEnabled || false);
+        setDraftChat(d.waTelegramChatId || "");
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const payload = { waTelegramChatId: draftChat.trim(), waTelegramEnabled: draftEnabled };
+      if (draftToken.trim()) payload.waTelegramBotToken = draftToken.trim();
+      await api.put("/admin/company/telegram/whatsapp", payload);
+      setHasToken(hasToken || !!draftToken.trim());
+      setDraftToken("");
+      flash("ok", "WhatsApp Telegram settings saved.");
+    } catch { flash("err", "Save failed. Please try again."); }
+    finally { setSaving(false); }
+  };
+
+  const test = async () => {
+    setTesting(true);
+    try {
+      await api.post("/admin/company/telegram/whatsapp/test");
+      flash("ok", "Test sent! Check your WhatsApp Telegram chat.");
+    } catch (e) { flash("err", e?.response?.data?.message || "Test failed."); }
+    finally { setTesting(false); }
+  };
+
+  if (loading) return <div className="py-6 text-center text-[11px] text-[#8B92A9]">Loading…</div>;
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] p-3 space-y-2.5">
+        <p className="text-[11px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">WhatsApp Telegram channel</p>
+        <p className="text-[10px] text-[#8B92A9] leading-relaxed">Separate from campaign lead notifications. Fires for: new WA lead · lead replies · STOP opt-out · lead created from inbox.</p>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div className="relative">
+            <input type="checkbox" className="sr-only peer" checked={draftEnabled} onChange={e => setDraftEnabled(e.target.checked)} disabled={!isSuperAdmin} />
+            <div className="w-8 h-4 rounded-full bg-[#D1D5DB] dark:bg-[#3E4257] peer-checked:bg-sky-500 transition-colors" />
+            <div className="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform peer-checked:translate-x-4 shadow" />
+          </div>
+          <span className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">{draftEnabled ? "WhatsApp Telegram ON" : "Off"}</span>
+        </label>
+        {isSuperAdmin && (
+          <div>
+            <label className="block text-[10px] text-[#8B92A9] mb-1">Bot Token {hasToken && <span className="text-emerald-500 font-semibold ml-1">✓ saved</span>}</label>
+            <div className="relative">
+              <input type={showToken ? "text" : "password"} value={draftToken} onChange={e => setDraftToken(e.target.value)} placeholder={hasToken ? "Enter new token to replace" : "123456:ABC-DEF…"}
+                className="w-full text-[11px] px-2.5 py-2 pr-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#C4C9D9] focus:outline-none focus:border-sky-400" />
+              <button type="button" onClick={() => setShowToken(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8B92A9]">{showToken ? "🙈" : "👁"}</button>
+            </div>
+          </div>
+        )}
+        <div>
+          <label className="block text-[10px] text-[#8B92A9] mb-1">Chat ID / Channel ID</label>
+          <input type="text" value={draftChat} onChange={e => setDraftChat(e.target.value)} placeholder="-100123456789 or @yourchannel" disabled={!isSuperAdmin}
+            className="w-full text-[11px] px-2.5 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#C4C9D9] focus:outline-none focus:border-sky-400 disabled:opacity-60" />
+        </div>
+        {msg?.text && <div className={`text-[11px] px-2.5 py-2 rounded-lg ${msg.type === "ok" ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"}`}>{msg.text}</div>}
+        {isSuperAdmin && (
+          <div className="flex gap-2 pt-0.5">
+            <button onClick={save} disabled={saving} className="flex-1 text-[11px] font-semibold px-3 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white transition disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
+            <button onClick={test} disabled={testing || !hasToken || !draftChat} className="flex-1 text-[11px] font-semibold px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] transition disabled:opacity-50">{testing ? "Sending…" : "Test"}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CompanyGroupTab({ isSuperAdmin }) {
   const [loading,      setLoading]      = useState(true);
   const [chatId,       setChatId]       = useState("");
@@ -577,7 +666,8 @@ export default function TelegramSettings() {
   }, [open]);
 
   const TABS = [
-    { id: "company", label: "Company Group", icon: Building2 },
+    { id: "company", label: "Campaign Leads", icon: Building2 },
+    { id: "whatsapp", label: "WhatsApp", icon: Send },
     ...(isSuperAdmin ? [{ id: "admins", label: "Admin Alerts", icon: Users }] : []),
   ];
 
@@ -612,8 +702,7 @@ export default function TelegramSettings() {
       </div>
 
       {/* Tab bar — only rendered for super_admin (has 2 tabs) */}
-      {isSuperAdmin && (
-        <div className="flex gap-1 px-4 pt-3 pb-0">
+      <div className="flex gap-1 px-4 pt-3 pb-0">
           {TABS.map(tab => {
             const Icon   = tab.icon;
             const active = activeTab === tab.id;
@@ -632,13 +721,13 @@ export default function TelegramSettings() {
               </button>
             );
           })}
-        </div>
-      )}
+      </div>
 
       {/* Tab content */}
       <div className="px-4 py-3">
         {activeTab === "company" && <CompanyGroupTab isSuperAdmin={isSuperAdmin} />}
         {activeTab === "admins"  && <AdminAlertsTab />}
+        {activeTab === "whatsapp" && <WhatsAppTab isSuperAdmin={isSuperAdmin} />}
       </div>
     </div>
   ) : null;
