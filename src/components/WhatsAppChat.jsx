@@ -275,6 +275,26 @@ export default function WhatsAppChat({ currentUser }) {
 
   // ── Open start modal ──────────────────────────────────────────────────────
   // Can be called with a lead object OR a conversation object (for re-engagement)
+  // ── Promote unknown inbox contact to Lead ────────────────────────────────
+  const [creatingLead, setCreatingLead] = React.useState(false);
+  const createLeadFromConversation = async () => {
+    if (!selected || creatingLead) return;
+    setCreatingLead(true);
+    try {
+      const { data } = await axios.post(
+        `${API_URL}/whatsapp/conversations/${selected._id}/create-lead`,
+        {},
+        getAuthHeaders()
+      );
+      setSelected(prev => ({ ...prev, lead: data.lead }));
+      setConversations(prev => prev.map(c => c._id === selected._id ? { ...c, lead: data.lead } : c));
+    } catch (err) {
+      console.error('createLeadFromConversation:', err.message);
+    } finally {
+      setCreatingLead(false);
+    }
+  };
+
   const openStartModal = (leadOrConv) => {
     // Normalize: if passed a conversation, build a lead-like object from it
     const lead = leadOrConv?.waPhone
@@ -545,6 +565,13 @@ export default function WhatsAppChat({ currentUser }) {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {isAdmin && (
                 <button onClick={() => setActiveTab('leads')} style={{ fontSize: 12, padding: '6px 10px', color: 'var(--color-text-secondary)', borderColor: 'var(--color-border-tertiary)' }}>← Leads</button>
+              )}
+              {!selected.lead && isAdmin && (
+                <button
+                  onClick={createLeadFromConversation}
+                  disabled={creatingLead}
+                  style={{ fontSize: 12, padding: '6px 12px', color: '#166534', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 6, cursor: creatingLead ? 'not-allowed' : 'pointer', opacity: creatingLead ? 0.6 : 1 }}
+                >{creatingLead ? 'Creating…' : '+ Create Lead'}</button>
               )}
               {selected.status !== 'closed' && (
                 <button onClick={closeConversation} style={{ fontSize: 12, padding: '6px 12px', color: 'var(--color-text-danger)', borderColor: 'var(--color-border-danger)' }}>Mark resolved</button>
