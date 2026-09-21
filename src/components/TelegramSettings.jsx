@@ -150,40 +150,113 @@ function WhatsAppTab({ isSuperAdmin }) {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] p-3 space-y-2.5">
-        <p className="text-[11px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">WhatsApp Telegram channel</p>
-        <p className="text-[10px] text-[#8B92A9] leading-relaxed">Separate from campaign lead notifications. Fires for: new WA lead · lead replies · STOP opt-out · lead created from inbox.</p>
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <div className="relative">
-            <input type="checkbox" className="sr-only peer" checked={draftEnabled} onChange={e => setDraftEnabled(e.target.checked)} disabled={!isSuperAdmin} />
-            <div className="w-8 h-4 rounded-full bg-[#D1D5DB] dark:bg-[#3E4257] peer-checked:bg-sky-500 transition-colors" />
-            <div className="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform peer-checked:translate-x-4 shadow" />
-          </div>
-          <span className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">{draftEnabled ? "WhatsApp Telegram ON" : "Off"}</span>
-        </label>
-        {isSuperAdmin && (
-          <div>
-            <label className="block text-[10px] text-[#8B92A9] mb-1">Bot Token {hasToken && <span className="text-emerald-500 font-semibold ml-1">✓ saved</span>}</label>
-            <div className="relative">
-              <input type={showToken ? "text" : "password"} value={draftToken} onChange={e => setDraftToken(e.target.value)} placeholder={hasToken ? "Enter new token to replace" : "123456:ABC-DEF…"}
-                className="w-full text-[11px] px-2.5 py-2 pr-8 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#C4C9D9] focus:outline-none focus:border-sky-400" />
-              <button type="button" onClick={() => setShowToken(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8B92A9]">{showToken ? "🙈" : "👁"}</button>
-            </div>
-          </div>
-        )}
-        <div>
-          <label className="block text-[10px] text-[#8B92A9] mb-1">Chat ID / Channel ID</label>
-          <input type="text" value={draftChat} onChange={e => setDraftChat(e.target.value)} placeholder="-100123456789 or @yourchannel" disabled={!isSuperAdmin}
-            className="w-full text-[11px] px-2.5 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#C4C9D9] focus:outline-none focus:border-sky-400 disabled:opacity-60" />
+
+      {/* Toggle */}
+      <button
+        type="button"
+        onClick={() => setDraftEnabled(v => !v)}
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-colors
+          ${draftEnabled
+            ? "border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10"
+            : "border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]"
+          }`}
+      >
+        <div className="text-left">
+          <p className={`text-[12px] font-semibold ${draftEnabled ? "text-emerald-700 dark:text-emerald-400" : "text-[#0F1117] dark:text-[#F0F2FA]"}`}>
+            {draftEnabled ? "WhatsApp notifications enabled" : "WhatsApp notifications off"}
+          </p>
+          <p className="text-[10px] text-[#8B92A9]">
+            {draftEnabled ? "New leads · replies · STOP · inbox lead" : "No WhatsApp Telegram messages will be sent"}
+          </p>
         </div>
-        {msg?.text && <div className={`text-[11px] px-2.5 py-2 rounded-lg ${msg.type === "ok" ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"}`}>{msg.text}</div>}
-        {isSuperAdmin && (
-          <div className="flex gap-2 pt-0.5">
-            <button onClick={save} disabled={saving} className="flex-1 text-[11px] font-semibold px-3 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white transition disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
-            <button onClick={test} disabled={testing || !hasToken || !draftChat} className="flex-1 text-[11px] font-semibold px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] transition disabled:opacity-50">{testing ? "Sending…" : "Test"}</button>
+        {draftEnabled
+          ? <ToggleRight className="w-5 h-5 text-emerald-500 shrink-0" />
+          : <ToggleLeft  className="w-5 h-5 text-[#C4C9D9] dark:text-[#3E4257] shrink-0" />
+        }
+      </button>
+
+      {/* Bot Token — super_admin only */}
+      {isSuperAdmin && (
+        <div>
+          <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
+            Bot Token
+            {hasToken
+              ? <span className="ml-1.5 text-[10px] font-normal text-emerald-500">● set — leave blank to keep</span>
+              : <span className="ml-1.5 text-[10px] font-normal text-amber-500">● not set</span>
+            }
+          </label>
+          <div className="relative">
+            <input
+              type={showToken ? "text" : "password"}
+              value={draftToken}
+              onChange={e => setDraftToken(e.target.value)}
+              placeholder={hasToken ? "Enter new token to replace…" : "7123456789:AAHxxxxxxxx"}
+              className="w-full px-3 py-2 pr-8 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
+                bg-[#F8F9FC] dark:bg-[#13161E] text-[11px] text-[#0F1117] dark:text-[#F0F2FA]
+                placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] font-mono transition"
+            />
+            <button
+              type="button"
+              onClick={() => setShowToken(v => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#2563EB] transition"
+            >
+              {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
           </div>
-        )}
+          <p className="text-[10px] text-[#8B92A9] mt-1">
+            Create via <span className="font-mono font-semibold">@BotFather</span> on Telegram.
+          </p>
+        </div>
+      )}
+
+      {/* Chat ID */}
+      <div>
+        <label className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
+          Chat ID / Channel ID
+        </label>
+        <input
+          type="text"
+          value={draftChat}
+          onChange={e => setDraftChat(e.target.value)}
+          placeholder="-100123456789 or @yourchannel"
+          className="w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
+            bg-[#F8F9FC] dark:bg-[#13161E] text-[11px] text-[#0F1117] dark:text-[#F0F2FA]
+            placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] font-mono transition"
+        />
+        <p className="text-[10px] text-[#8B92A9] mt-1">
+          The group, channel, or personal chat that receives WhatsApp alerts.
+        </p>
       </div>
+
+      {/* Feedback */}
+      {msg?.text && (
+        <div className={`text-[11px] px-3 py-2 rounded-xl ${msg.type === "ok" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* Save + Test */}
+      <div className="flex gap-2">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="flex-1 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50
+            text-[11px] font-semibold text-white transition"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button
+          onClick={test}
+          disabled={testing || !hasToken || !draftChat}
+          className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38]
+            text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]
+            hover:bg-[#F8F9FC] dark:hover:bg-[#1A1D27]
+            disabled:opacity-40 disabled:cursor-not-allowed transition"
+        >
+          {testing ? "Sending…" : "Send test"}
+        </button>
+      </div>
+
     </div>
   );
 }
