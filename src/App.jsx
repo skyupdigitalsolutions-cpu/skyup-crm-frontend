@@ -17,6 +17,7 @@ import { clearFeaturesCache } from "./hooks/usePlanFeatures";
 import TelegramSettings from "./components/TelegramSettings";
 import DailyReportTelegramSettings from "./components/DailyReportTelegramSettings";
 import SheetIntegrationAdminSettings from "./components/SheetIntegrationAdminSettings";
+import { isChunkLoadError, reloadOnceForChunkError } from "./utils/chunkReload";
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
 const Dashboard      = lazy(() => import("./components/Dashboard"));
@@ -84,17 +85,11 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error) {
-    const isChunkError =
-      error?.name === "ChunkLoadError" ||
-      error?.message?.includes("Loading chunk") ||
-      error?.message?.includes("dynamically imported module") ||
-      error?.message?.includes("Failed to fetch dynamically");
-
-    if (isChunkError && !this.state.retrying) {
+    // A failed lazy import is cached by React.lazy, so re-rendering would fail
+    // forever (the old "Retrying…" loop). A stale-deploy chunk error needs a
+    // full reload to pick up the new index.html — done once, with a loop guard.
+    if (isChunkLoadError(error) && reloadOnceForChunkError()) {
       this.setState({ retrying: true });
-      setTimeout(() => {
-        this.setState({ hasError: false, retrying: false });
-      }, 800);
     }
   }
 
@@ -109,12 +104,12 @@ class ErrorBoundary extends React.Component {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                 </svg>
-                <p className="text-[13px] text-[#8B92A9] font-medium">Retrying…</p>
+                <p className="text-[13px] text-[#8B92A9] font-medium">Updating to the latest version…</p>
               </>
             ) : (
               <>
                 <p className="text-[14px] text-[#4B5168] dark:text-[#9DA3BB] font-medium">
-                  Something went wrong loading this page.
+                  This page couldn't load. Reload to get the latest version of SKYUP CRM.
                 </p>
                 <button
                   onClick={() => window.location.reload()}
