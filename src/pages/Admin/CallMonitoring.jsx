@@ -110,6 +110,20 @@ function CallTypeBadge({ type }) {
 }
 
 // ── Data hooks ────────────────────────────────────────────────────────────────
+// Turns an axios error into a message that says what to do about it.
+function apiErrorMessage(err) {
+  const status = err?.response?.status;
+  const serverMsg = err?.response?.data?.message;
+  if (serverMsg) return serverMsg;
+  if (status === 404) {
+    return "The server doesn't have this report yet. Deploy the latest backend (callMonitoringController.js and routes/mobileCallLog.js) and restart it.";
+  }
+  if (status === 401 || status === 403) return "Your session doesn't have access to this report. Sign in again as an admin.";
+  if (status >= 500) return `The server hit an error (${status}). Try again, and check the backend logs if it keeps happening.`;
+  if (!err?.response) return "Couldn't reach the server. Check your connection and try again.";
+  return `Couldn't load this data (error ${status}). Try again.`;
+}
+
 // Fetches `url` whenever it (or refreshKey) changes. Responses for an older
 // url are dropped, so fast filter changes can't paint stale data. The last
 // good data stays on screen while the next request is in flight.
@@ -125,10 +139,7 @@ function useApi(url, refreshKey = 0) {
     api.get(url)
       .then((r) => { if (alive) setRes({ key: fullKey, data: r.data, error: "" }); })
       .catch((err) => {
-        if (alive) setRes((prev) => ({
-          key: fullKey, data: prev.data,
-          error: err?.response?.data?.message || "Couldn't load this data. Check your connection and try again.",
-        }));
+        if (alive) setRes((prev) => ({ key: fullKey, data: prev.data, error: apiErrorMessage(err) }));
       });
     return () => { alive = false; };
   }, [url, fullKey]);
