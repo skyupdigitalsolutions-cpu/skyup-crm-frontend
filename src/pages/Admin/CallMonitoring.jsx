@@ -5,12 +5,16 @@
 //
 // Tabs:
 //   Summary        call-type totals, incoming/outgoing split, per-employee report
+//   Clients        one row per unique phone number (the "Unique clients" figure)
 //   Analysis       daily trend, hour-of-day activity, call length mix, top numbers
 //   Never Attended missed callers nobody has connected with since
 //   Call History   searchable, filterable list with inline recording playback
 //   Recordings     calls that have an uploaded recording (plan: call-recording)
 //
-// Backend: GET /api/call-logs/monitoring/{summary,history,never-attended}
+// Every number is a drill-down: clicking it opens the matching calls (or
+// clients) through a single onDrill({ tab, callType, userId, phone, sort, date }).
+//
+// Backend: GET /api/call-logs/monitoring/{summary,history,never-attended,clients}
 // Phone numbers are masked for admins (eye toggle to reveal), shown in full for
 // super admins — same convention as AttendanceTable.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -20,7 +24,7 @@ import {
   PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Phone, PhoneCall,
   RefreshCw, Download, Search, Eye, EyeOff, Users, Clock, UserCheck,
   BarChart3, History, Mic, AlertCircle, ChevronLeft, ChevronRight,
-  ArrowUpDown, ArrowUp, ArrowDown, X, PhoneForwarded, Smartphone,
+  ArrowUpDown, ArrowUp, ArrowDown, X, PhoneForwarded, Smartphone, Contact, ChevronRight as Chevron,
 } from "lucide-react";
 import api, { clearCache } from "../../data/axiosConfig";
 import { getUser } from "../../data/sessionStore";
@@ -168,6 +172,18 @@ function PhoneText({ phone, isSuperAdmin, className = "" }) {
   );
 }
 
+// A number that opens the calls behind it. Zero / no handler → plain text.
+function DrillNum({ value, onClick, title, className = "" }) {
+  const n = typeof value === "number" ? value : null;
+  if (!onClick || n === 0) return <span className={className}>{value}</span>;
+  return (
+    <button type="button" onClick={onClick} title={title}
+      className={`${className} tabular-nums rounded underline decoration-dotted decoration-[#C5CAD8] dark:decoration-[#3E4257] underline-offset-4 hover:text-indigo-600 dark:hover:text-indigo-400 hover:decoration-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500`}>
+      {value}
+    </button>
+  );
+}
+
 function EmptyState({ icon = PhoneCall, title, hint }) {
   const Icon = icon;
   return (
@@ -228,7 +244,7 @@ function downloadCSV(filename, header, rows) {
 // SUMMARY TAB
 // ═════════════════════════════════════════════════════════════════════════════
 
-function CallTypeTable({ types, totalCalls, totalDuration }) {
+function CallTypeTable({ types, totalCalls, totalDuration, onDrill }) {
   const rows = ["incoming", "outgoing", "missed", "rejected"];
   const other = (types.voicemail?.count || 0) + (types.blocked?.count || 0) + (types.unknown?.count || 0);
   return (
@@ -263,7 +279,9 @@ function CallTypeTable({ types, totalCalls, totalDuration }) {
             return (
               <tr key={t}>
                 <td className={td}><span className={`inline-flex items-center gap-2 font-semibold ${m.text}`}><Icon className="w-3.5 h-3.5" />{m.label}</span></td>
-                <td className={`${td} text-right tabular-nums font-semibold`}>{types[t]?.count || 0}</td>
+                <td className={`${td} text-right tabular-nums font-semibold`}>
+                  <DrillNum value={types[t]?.count || 0} title={`Show ${m.label.toLowerCase()} calls`} onClick={() => onDrill({ tab: "history", callType: t })} />
+                </td>
                 <td className={`${td} text-right tabular-nums text-[#8B92A9]`}>{pct(types[t]?.count, totalCalls)}%</td>
                 <td className={`${td} text-right tabular-nums font-mono`}>{hasDuration ? fmtHMS(types[t]?.duration) : "—"}</td>
               </tr>
@@ -279,7 +297,9 @@ function CallTypeTable({ types, totalCalls, totalDuration }) {
           )}
           <tr className="bg-[#F8F9FC] dark:bg-[#13161E]">
             <td className={`${td} font-bold`}>Total</td>
-            <td className={`${td} text-right tabular-nums font-bold`}>{totalCalls}</td>
+            <td className={`${td} text-right tabular-nums font-bold`}>
+              <DrillNum value={totalCalls} title="Show all calls" onClick={() => onDrill({ tab: "history" })} />
+            </td>
             <td className={`${td} text-right`} />
             <td className={`${td} text-right tabular-nums font-mono font-bold`}>{fmtHMS(totalDuration)}</td>
           </tr>
@@ -289,7 +309,7 @@ function CallTypeTable({ types, totalCalls, totalDuration }) {
   );
 }
 
-function DirectionSplit({ employees }) {
+function DirectionSplit({ employees, onDrill }) {
   // Team-level incoming vs outgoing detail, one row per employee (top 6).
   const top = employees.filter((e) => e.incoming + e.outgoing > 0).slice(0, 6);
   return (
@@ -325,10 +345,16 @@ function DirectionSplit({ employees }) {
               {top.map((e) => (
                 <tr key={e.userId}>
                   <td className={`${td} max-w-[140px] truncate font-medium`} title={e.name}>{e.name}</td>
-                  <td className={`${td} text-right tabular-nums border-l border-[#F0F2FA] dark:border-[#262A38]`}>{e.incoming}</td>
+                  <td className={`${td} text-right tabular-nums border-l border-[#F0F2FA] dark:border-[#262A38]`}>
+                    <DrillNum value={e.incoming} title={`${e.name}: incoming calls`} onClick={() => onDrill({ tab: "history", userId: e.userId, callType: "incoming" })} />
+                  </td>
                   <td className={`${td} text-right tabular-nums font-mono`}>{fmtHMS(e.incomingDuration)}</td>
-                  <td className={`${td} text-right tabular-nums border-l border-[#F0F2FA] dark:border-[#262A38]`}>{e.outgoing}</td>
-                  <td className={`${td} text-right tabular-nums`}>{e.outgoingConnected}</td>
+                  <td className={`${td} text-right tabular-nums border-l border-[#F0F2FA] dark:border-[#262A38]`}>
+                    <DrillNum value={e.outgoing} title={`${e.name}: outgoing calls`} onClick={() => onDrill({ tab: "history", userId: e.userId, callType: "outgoing" })} />
+                  </td>
+                  <td className={`${td} text-right tabular-nums`}>
+                    <DrillNum value={e.outgoingConnected} title={`${e.name}: outgoing calls that connected`} onClick={() => onDrill({ tab: "history", userId: e.userId, callType: "outgoing_connected" })} />
+                  </td>
                   <td className={`${td} text-right tabular-nums font-mono`}>{fmtHMS(e.outgoingDuration)}</td>
                 </tr>
               ))}
@@ -340,7 +366,7 @@ function DirectionSplit({ employees }) {
   );
 }
 
-function StatTile({ icon, label, value, hint, tone = "indigo" }) {
+function StatTile({ icon, label, value, hint, tone = "indigo", onClick, action }) {
   const Icon = icon;
   const tones = {
     indigo:  "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10",
@@ -349,15 +375,23 @@ function StatTile({ icon, label, value, hint, tone = "indigo" }) {
     red:     "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10",
     blue:    "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
   };
-  return (
-    <div className={`${card} px-4 py-3.5 flex items-start gap-3`}>
+  const body = (
+    <>
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${tones[tone]}`}><Icon className="w-4 h-4" /></div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-[11px] text-[#8B92A9]">{label}</p>
         <p className="text-[20px] font-bold text-[#0F1117] dark:text-[#F0F2FA] leading-tight tabular-nums">{value}</p>
         {hint && <p className="text-[11px] text-[#8B92A9] mt-0.5 truncate">{hint}</p>}
       </div>
-    </div>
+      {onClick && <Chevron className="w-4 h-4 text-[#C5CAD8] dark:text-[#3E4257] group-hover:text-indigo-500 shrink-0 self-center transition" />}
+    </>
+  );
+  if (!onClick) return <div className={`${card} px-4 py-3.5 flex items-start gap-3`}>{body}</div>;
+  return (
+    <button type="button" onClick={onClick} title={action}
+      className={`${card} group px-4 py-3.5 flex items-start gap-3 text-left w-full transition hover:border-indigo-300 dark:hover:border-indigo-500/50 hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500`}>
+      {body}
+    </button>
   );
 }
 
@@ -376,7 +410,7 @@ const EMP_COLUMNS = [
   { key: "lastCallAt",     label: "Last call" },
 ];
 
-function EmployeeReport({ employees, onViewCalls, onExport, isSingle }) {
+function EmployeeReport({ employees, onViewCalls, onDrill, onExport, isSingle }) {
   const [sort, setSort] = useState({ key: "totalCalls", dir: "desc" });
 
   const sorted = useMemo(() => {
@@ -415,10 +449,14 @@ function EmployeeReport({ employees, onViewCalls, onExport, isSingle }) {
       case "totalDuration":  return <span className="font-mono">{fmtHMS(e.totalDuration)}</span>;
       case "workingSeconds": return <span className="font-mono">{fmtHMS(e.workingSeconds)}</span>;
       case "clockedMinutes": return e.clockedMinutes ? fmtMinutes(e.clockedMinutes) : <span className="text-[#8B92A9]">—</span>;
-      case "avgDuration":    return fmtShortDur(e.avgDuration);
       case "lastCallAt":     return e.lastCallAt ? fmtDateTime(e.lastCallAt) : <span className="text-[#8B92A9]">No calls</span>;
-      case "missed":         return <span className={e.missed ? "text-red-600 dark:text-red-400 font-semibold" : ""}>{e.missed}</span>;
-      case "notPickedUp":    return <span className={e.notPickedUp ? "text-amber-600 dark:text-amber-400" : ""}>{e.notPickedUp}</span>;
+      case "totalCalls":     return <DrillNum value={e.totalCalls} title={`${e.name}: all calls`} onClick={() => onDrill({ tab: "history", userId: e.userId })} />;
+      case "uniqueClients":  return <DrillNum value={e.uniqueClients} title={`${e.name}: clients`} onClick={() => onDrill({ tab: "clients", userId: e.userId })} />;
+      case "connected":      return <DrillNum value={e.connected} title={`${e.name}: connected calls`} onClick={() => onDrill({ tab: "history", userId: e.userId, callType: "connected" })} />;
+      case "missed":         return <DrillNum value={e.missed} className={e.missed ? "text-red-600 dark:text-red-400 font-semibold" : ""} title={`${e.name}: missed calls`} onClick={() => onDrill({ tab: "history", userId: e.userId, callType: "missed" })} />;
+      case "rejected":       return <DrillNum value={e.rejected} title={`${e.name}: rejected calls`} onClick={() => onDrill({ tab: "history", userId: e.userId, callType: "rejected" })} />;
+      case "notPickedUp":    return <DrillNum value={e.notPickedUp} className={e.notPickedUp ? "text-amber-600 dark:text-amber-400" : ""} title={`${e.name}: calls not picked up`} onClick={() => onDrill({ tab: "history", userId: e.userId, callType: "not_picked" })} />;
+      case "avgDuration":    return <DrillNum value={fmtShortDur(e.avgDuration)} title={`${e.name}: longest calls first`} onClick={e.connected ? () => onDrill({ tab: "history", userId: e.userId, callType: "connected", sort: "duration" }) : undefined} />;
       default:               return e[key];
     }
   };
@@ -428,7 +466,7 @@ function EmployeeReport({ employees, onViewCalls, onExport, isSingle }) {
       <div className="px-4 pt-4 pb-3 flex items-center justify-between gap-3 flex-wrap">
         <div>
           <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Employee report</p>
-          <p className="text-[11px] text-[#8B92A9] mt-0.5">Click a column to sort. Click a name to see that employee's calls.</p>
+          <p className="text-[11px] text-[#8B92A9] mt-0.5">Click a column heading to sort. Click any underlined number to see the calls behind it.</p>
         </div>
         <button onClick={onExport} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]">
           <Download className="w-3.5 h-3.5" />Export report
@@ -468,15 +506,15 @@ function EmployeeReport({ employees, onViewCalls, onExport, isSingle }) {
               <tfoot className="bg-[#F8F9FC] dark:bg-[#13161E] border-t border-[#E4E7EF] dark:border-[#262A38]">
                 <tr>
                   <td className={`${td} font-bold`}>Team total</td>
-                  <td className={`${td} text-right tabular-nums font-bold`}>{totals.totalCalls}</td>
+                  <td className={`${td} text-right tabular-nums font-bold`}><DrillNum value={totals.totalCalls} title="All calls" onClick={() => onDrill({ tab: "history" })} /></td>
                   <td className={`${td} text-right font-mono font-bold`}>{fmtHMS(totals.totalDuration)}</td>
                   <td className={`${td} text-right font-mono font-bold`}>{fmtHMS(totals.workingSeconds)}</td>
                   <td className={`${td} text-right font-bold`}>{fmtMinutes(totals.clockedMinutes)}</td>
                   <td className={`${td} text-right text-[#8B92A9]`}>—</td>
-                  <td className={`${td} text-right tabular-nums font-bold`}>{totals.connected}</td>
-                  <td className={`${td} text-right tabular-nums font-bold`}>{totals.notPickedUp}</td>
-                  <td className={`${td} text-right tabular-nums font-bold`}>{totals.missed}</td>
-                  <td className={`${td} text-right tabular-nums font-bold`}>{totals.rejected}</td>
+                  <td className={`${td} text-right tabular-nums font-bold`}><DrillNum value={totals.connected} title="All connected calls" onClick={() => onDrill({ tab: "history", callType: "connected" })} /></td>
+                  <td className={`${td} text-right tabular-nums font-bold`}><DrillNum value={totals.notPickedUp} title="All calls not picked up" onClick={() => onDrill({ tab: "history", callType: "not_picked" })} /></td>
+                  <td className={`${td} text-right tabular-nums font-bold`}><DrillNum value={totals.missed} title="All missed calls" onClick={() => onDrill({ tab: "history", callType: "missed" })} /></td>
+                  <td className={`${td} text-right tabular-nums font-bold`}><DrillNum value={totals.rejected} title="All rejected calls" onClick={() => onDrill({ tab: "history", callType: "rejected" })} /></td>
                   <td className={td} /><td className={td} />
                 </tr>
               </tfoot>
@@ -488,24 +526,32 @@ function EmployeeReport({ employees, onViewCalls, onExport, isSingle }) {
   );
 }
 
-function SummaryTab({ data, onViewCalls, onExportEmployees, isSingle }) {
+function SummaryTab({ data, onViewCalls, onDrill, onExportEmployees, isSingle }) {
   const s = data.summary;
+  const scrollToReport = () => document.getElementById("cm-employee-report")?.scrollIntoView({ behavior: "smooth", block: "start" });
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <StatTile icon={PhoneCall} label="Connected calls" value={s.connected} hint={`${pct(s.connected, s.totalCalls)}% of all calls`} tone="emerald" />
-        <StatTile icon={PhoneForwarded} label="Not picked up" value={s.notPickedUp} hint="Outgoing, client didn't answer" tone="amber" />
-        <StatTile icon={Users} label="Unique clients" value={s.uniqueClients} hint="Distinct phone numbers" tone="blue" />
-        <StatTile icon={Clock} label="Average call" value={fmtShortDur(s.avgDuration)} hint="Across connected calls" />
-        <StatTile icon={UserCheck} label="Active employees" value={`${s.activeEmployees}/${s.totalEmployees}`} hint="Made or received a call" tone="indigo" />
+        <StatTile icon={PhoneCall} label="Connected calls" value={s.connected} hint={`${pct(s.connected, s.totalCalls)}% of all calls`} tone="emerald"
+          onClick={s.connected ? () => onDrill({ tab: "history", callType: "connected" }) : undefined} action="Show connected calls" />
+        <StatTile icon={PhoneForwarded} label="Not picked up" value={s.notPickedUp} hint="Client didn't answer" tone="amber"
+          onClick={s.notPickedUp ? () => onDrill({ tab: "history", callType: "not_picked" }) : undefined} action="Show calls not picked up" />
+        <StatTile icon={Users} label="Unique clients" value={s.uniqueClients} hint="Distinct phone numbers" tone="blue"
+          onClick={s.uniqueClients ? () => onDrill({ tab: "clients" }) : undefined} action="Show every client" />
+        <StatTile icon={Clock} label="Average call" value={fmtShortDur(s.avgDuration)} hint="Across connected calls"
+          onClick={s.connected ? () => onDrill({ tab: "history", callType: "connected", sort: "duration" }) : undefined} action="Show connected calls, longest first" />
+        <StatTile icon={UserCheck} label="Active employees" value={`${s.activeEmployees}/${s.totalEmployees}`} hint="Made or received a call" tone="indigo"
+          onClick={s.totalEmployees ? scrollToReport : undefined} action="Jump to the employee report" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-        <div className="xl:col-span-2"><CallTypeTable types={s.types} totalCalls={s.totalCalls} totalDuration={s.totalDuration} /></div>
-        <div className="xl:col-span-3"><DirectionSplit employees={data.employees} /></div>
+        <div className="xl:col-span-2"><CallTypeTable types={s.types} totalCalls={s.totalCalls} totalDuration={s.totalDuration} onDrill={onDrill} /></div>
+        <div className="xl:col-span-3"><DirectionSplit employees={data.employees} onDrill={onDrill} /></div>
       </div>
 
-      <EmployeeReport employees={data.employees} onViewCalls={onViewCalls} onExport={onExportEmployees} isSingle={isSingle} />
+      <div id="cm-employee-report" className="scroll-mt-4">
+        <EmployeeReport employees={data.employees} onViewCalls={onViewCalls} onDrill={onDrill} onExport={onExportEmployees} isSingle={isSingle} />
+      </div>
     </div>
   );
 }
@@ -514,13 +560,16 @@ function SummaryTab({ data, onViewCalls, onExportEmployees, isSingle }) {
 // ANALYSIS TAB
 // ═════════════════════════════════════════════════════════════════════════════
 
-function DailyTrend({ daily }) {
+function DailyTrend({ daily, onDrill }) {
   const max = Math.max(1, ...daily.map((d) => d.total));
   const showEvery = daily.length > 14 ? Math.ceil(daily.length / 10) : 1;
   return (
     <div className={`${card} p-4`}>
       <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
-        <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Calls per day</p>
+        <div>
+          <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Calls per day</p>
+          <p className="text-[11px] text-[#8B92A9] mt-0.5">Click a day to see its calls</p>
+        </div>
         <div className="flex gap-3 text-[11px] text-[#8B92A9]">
           <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500" />Incoming</span>
           <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-blue-500" />Outgoing</span>
@@ -530,7 +579,9 @@ function DailyTrend({ daily }) {
       <div className="overflow-x-auto">
         <div className="flex items-end gap-1 h-44" style={{ minWidth: `${daily.length * 18}px` }}>
           {daily.map((d, i) => (
-            <div key={d.date} className="flex-1 min-w-[12px] h-full flex flex-col items-center justify-end group relative">
+            <button type="button" key={d.date} disabled={!d.total} onClick={() => onDrill({ tab: "history", date: d.date })}
+              aria-label={`${d.date}: ${d.total} calls — show them`}
+              className="flex-1 min-w-[12px] h-full flex flex-col items-center justify-end group relative rounded hover:bg-[#F1F4FF] dark:hover:bg-[#13161E] disabled:cursor-default disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500">
               <div className="w-full max-w-[28px] flex flex-col-reverse rounded-t overflow-hidden" style={{ height: `${(d.total / max) * 100}%` }}>
                 {d.incoming > 0 && <div className="bg-emerald-500" style={{ flex: d.incoming }} />}
                 {d.outgoing > 0 && <div className="bg-blue-500" style={{ flex: d.outgoing }} />}
@@ -542,7 +593,7 @@ function DailyTrend({ daily }) {
               <span className={`mt-1 text-[10px] text-[#8B92A9] tabular-nums ${i % showEvery ? "invisible" : ""}`}>
                 {parseKey(d.date).toLocaleDateString("en-IN", { day: "2-digit", month: daily.length > 7 ? undefined : "short" })}
               </span>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -600,7 +651,7 @@ function DurationMix({ buckets }) {
   );
 }
 
-function TopNumbers({ rows, isSuperAdmin }) {
+function TopNumbers({ rows, isSuperAdmin, onDrill }) {
   return (
     <div className={`${card} overflow-hidden`}>
       <div className="px-4 pt-4 pb-3">
@@ -625,7 +676,9 @@ function TopNumbers({ rows, isSuperAdmin }) {
                     <PhoneText phone={r.phoneNumber} isSuperAdmin={isSuperAdmin} className="text-[13px] font-semibold" />
                     <p className="text-[11px] text-[#8B92A9]">{r.lead ? `Lead: ${r.lead.name}` : r.name || "Not in CRM"}</p>
                   </td>
-                  <td className={`${td} text-right tabular-nums font-semibold`}>{r.calls}</td>
+                  <td className={`${td} text-right tabular-nums font-semibold`}>
+                    <DrillNum value={r.calls} title="Show calls with this number" onClick={() => onDrill({ tab: "history", phone: r._id, phoneLabel: r.phoneNumber })} />
+                  </td>
                   <td className={`${td} text-right tabular-nums`}>{r.connected}</td>
                   <td className={`${td} text-right font-mono`}>{fmtHMS(r.duration)}</td>
                   <td className={`${td} text-right text-[#8B92A9]`}>{fmtDateTime(r.lastCallAt)}</td>
@@ -639,15 +692,15 @@ function TopNumbers({ rows, isSuperAdmin }) {
   );
 }
 
-function AnalysisTab({ data, isSuperAdmin }) {
+function AnalysisTab({ data, isSuperAdmin, onDrill }) {
   return (
     <div className="space-y-4">
-      <DailyTrend daily={data.daily} />
+      <DailyTrend daily={data.daily} onDrill={onDrill} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <HourlyHeat hourly={data.hourly} />
         <DurationMix buckets={data.durationBuckets} />
       </div>
-      <TopNumbers rows={data.topNumbers} isSuperAdmin={isSuperAdmin} />
+      <TopNumbers rows={data.topNumbers} isSuperAdmin={isSuperAdmin} onDrill={onDrill} />
     </div>
   );
 }
@@ -656,7 +709,7 @@ function AnalysisTab({ data, isSuperAdmin }) {
 // NEVER ATTENDED TAB
 // ═════════════════════════════════════════════════════════════════════════════
 
-function NeverAttendedTab({ query, refreshKey, isSuperAdmin }) {
+function NeverAttendedTab({ query, refreshKey, isSuperAdmin, onDrill }) {
   const [status, setStatus] = useState("");
   const baseParams = new URLSearchParams(query);
   if (status) baseParams.set("status", status);
@@ -717,7 +770,9 @@ function NeverAttendedTab({ query, refreshKey, isSuperAdmin }) {
                         <PhoneText phone={r.phoneNumber} isSuperAdmin={isSuperAdmin} className="text-[13px] font-semibold" />
                         <p className="text-[11px] text-[#8B92A9]">{r.lead ? `Lead: ${r.lead.name}` : r.name || "Not in CRM"}</p>
                       </td>
-                      <td className={`${td} text-right tabular-nums font-semibold text-red-600 dark:text-red-400`}>{r.missedCount}</td>
+                      <td className={`${td} text-right tabular-nums font-semibold text-red-600 dark:text-red-400`}>
+                        <DrillNum value={r.missedCount} title="Show every call with this number" onClick={() => onDrill({ tab: "history", phone: r.phoneKey, phoneLabel: r.phoneNumber })} />
+                      </td>
                       <td className={td}>{fmtDateTime(r.lastMissedAt)}</td>
                       <td className={td}>
                         {r.status === "not_called_back" ? (
@@ -751,6 +806,7 @@ const HISTORY_FILTERS = [
   { key: "missed",     label: "Missed" },
   { key: "rejected",   label: "Rejected" },
   { key: "connected",  label: "Connected" },
+  { key: "outgoing_connected", label: "Outgoing connected" },
   { key: "not_picked", label: "Not picked up" },
 ];
 
@@ -762,8 +818,13 @@ function TableSkeleton({ rows = 6 }) {
   );
 }
 
-function HistoryTab({ query, refreshKey, isSuperAdmin, recordingsOnly = false }) {
-  const [callType, setCallType] = useState("");
+// `initial` comes from a drill-down click ({ callType, phone, phoneLabel, sort }).
+// The page remounts this tab (via key) for each new drill, so these are just
+// starting values the user can change afterwards.
+function HistoryTab({ query, refreshKey, isSuperAdmin, recordingsOnly = false, initial = {} }) {
+  const [callType, setCallType] = useState(initial.callType || "");
+  const [phone, setPhone] = useState(initial.phone ? { key: initial.phone, label: initial.phoneLabel || initial.phone } : null);
+  const [sort, setSort] = useState(initial.sort || "recent");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -775,9 +836,11 @@ function HistoryTab({ query, refreshKey, isSuperAdmin, recordingsOnly = false })
     const params = new URLSearchParams({ ...query, page: p, limit });
     if (callType) params.set("callType", callType);
     if (search) params.set("search", search);
+    if (phone) params.set("phone", phone.key);
+    if (sort !== "recent") params.set("sort", sort);
     if (recordingsOnly) params.set("hasRecording", "true");
     return params;
-  }, [query, callType, search, recordingsOnly]);
+  }, [query, callType, search, phone, sort, recordingsOnly]);
 
   const [page, setPage] = usePage(buildParams(1, 25).toString());
   const state = useApi(`/call-logs/monitoring/history?${buildParams(page, 25)}`, refreshKey);
@@ -793,7 +856,7 @@ function HistoryTab({ query, refreshKey, isSuperAdmin, recordingsOnly = false })
       );
       const logs = [first, ...rest].flatMap((r) => r.data.logs || []);
       downloadCSV(
-        `call-history_${query.startDate}_to_${query.endDate}.csv`,
+        `call-history_${query.startDate}_to_${query.endDate}${callType ? "_" + callType : ""}.csv`,
         ["Date & time", "Employee", "Phone", "Contact name", "Lead", "Call type", "Duration (s)", "Duration", "Recordings"],
         logs.map((l) => [
           new Date(l.timestamp).toLocaleString("en-IN"),
@@ -829,11 +892,30 @@ function HistoryTab({ query, refreshKey, isSuperAdmin, recordingsOnly = false })
               </button>
             )}
           </div>
+          {phone && (
+            <span className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 text-[12px] font-semibold text-indigo-700 dark:text-indigo-300">
+              Number: <span className="font-mono">{isSuperAdmin ? phone.label : maskPhone(phone.label)}</span>
+              <button onClick={() => setPhone(null)} aria-label="Show all numbers" className="p-0.5 rounded hover:bg-indigo-100 dark:hover:bg-indigo-500/20">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          )}
+          <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort calls"
+            className="px-2.5 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] bg-[#F8F9FC] dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA]">
+            <option value="recent">Newest first</option>
+            <option value="duration">Longest first</option>
+          </select>
           <button onClick={exportCSV} disabled={exporting || !logs.length}
             className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] disabled:opacity-50">
             <Download className="w-3.5 h-3.5" />{exporting ? "Exporting…" : "Export CSV"}
           </button>
         </div>
+        {state.data && (
+          <p className="text-[12px] text-[#8B92A9]" aria-live="polite">
+            <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] tabular-nums">{state.data.total.toLocaleString("en-IN")}</span> {state.data.total === 1 ? "call" : "calls"}
+            {callType && <> · {HISTORY_FILTERS.find((f) => f.key === callType)?.label.toLowerCase()}</>}
+          </p>
+        )}
         {!recordingsOnly && (
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by call type">
             {HISTORY_FILTERS.map((f) => (
@@ -914,6 +996,152 @@ function HistoryTab({ query, refreshKey, isSuperAdmin, recordingsOnly = false })
 // PAGE
 // ═════════════════════════════════════════════════════════════════════════════
 
+// ═════════════════════════════════════════════════════════════════════════════
+// CLIENTS TAB — one row per unique phone number
+// ═════════════════════════════════════════════════════════════════════════════
+
+const CLIENT_SORTS = [
+  { key: "calls",    label: "Most calls" },
+  { key: "duration", label: "Most talk time" },
+  { key: "missed",   label: "Most missed" },
+  { key: "recent",   label: "Most recent" },
+];
+
+function ClientsTab({ query, refreshKey, isSuperAdmin, onDrill }) {
+  const [sort, setSort] = useState("calls");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [exporting, setExporting] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSearch(searchInput.trim()), 350); return () => clearTimeout(t); }, [searchInput]);
+
+  const buildParams = useCallback((p, limit) => {
+    const params = new URLSearchParams({ ...query, page: p, limit, sort });
+    if (search) params.set("search", search);
+    return params;
+  }, [query, sort, search]);
+
+  const [page, setPage] = usePage(buildParams(1, 25).toString());
+  const state = useApi(`/call-logs/monitoring/clients?${buildParams(page, 25)}`, refreshKey);
+  const rows = state.data?.rows || [];
+  const openClient = (r) => onDrill({ tab: "history", phone: r.phoneKey, phoneLabel: r.phoneNumber });
+
+  const exportCSV = async () => {
+    setExporting(true);
+    try {
+      const first = await api.get(`/call-logs/monitoring/clients?${buildParams(1, 200)}`);
+      const pages = Math.min(first.data.totalPages || 1, 50);
+      const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => api.get(`/call-logs/monitoring/clients?${buildParams(i + 2, 200)}`)));
+      const all = [first, ...rest].flatMap((r) => r.data.rows || []);
+      downloadCSV(
+        `clients_${query.startDate}_to_${query.endDate}.csv`,
+        ["Phone", "Contact name", "Lead", "Calls", "Incoming", "Outgoing", "Connected", "Not picked up", "Missed/rejected", "Talk time", "First call", "Last call", "Handled by"],
+        all.map((r) => [
+          isSuperAdmin ? r.phoneNumber : maskPhone(r.phoneNumber), r.name || "", r.lead?.name || "", r.calls, r.incoming, r.outgoing,
+          r.connected, r.notPickedUp, r.missed, fmtHMS(r.duration),
+          new Date(r.firstCallAt).toLocaleString("en-IN"), new Date(r.lastCallAt).toLocaleString("en-IN"), r.employees.join(" / "),
+        ]),
+      );
+    } catch {
+      alert("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className={`${card} overflow-hidden`}>
+      <div className="px-4 pt-4 pb-3 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Clients</p>
+            <p className="text-[11px] text-[#8B92A9] mt-0.5">
+              {state.data ? <><span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] tabular-nums">{state.data.total.toLocaleString("en-IN")}</span> unique phone numbers. </> : null}
+              Click a client to see every call with them.
+            </p>
+          </div>
+          <button onClick={exportCSV} disabled={exporting || !rows.length}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] disabled:opacity-50">
+            <Download className="w-3.5 h-3.5" />{exporting ? "Exporting…" : "Export CSV"}
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="w-4 h-4 text-[#8B92A9] absolute left-3 top-1/2 -translate-y-1/2" />
+            <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Search number or contact name" aria-label="Search clients"
+              className="w-full pl-9 pr-8 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:ring-2 focus:ring-indigo-500/40" />
+            {searchInput && (
+              <button onClick={() => setSearchInput("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort clients"
+            className="px-2.5 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] bg-[#F8F9FC] dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA]">
+            {CLIENT_SORTS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {state.error ? <div className="p-4"><ErrorBanner message={state.error} onRetry={state.retry} /></div>
+        : state.loading && !state.data ? <TableSkeleton />
+        : rows.length === 0 ? (
+          <EmptyState icon={Contact} title={search ? "No clients match this search" : "No clients in this range"}
+            hint={search ? "Check the number or try part of it." : "Try a wider date range."} />
+        ) : (
+          <>
+            <div className={`overflow-x-auto ${state.loading ? "opacity-60" : ""}`}>
+              <table className="w-full">
+                <thead className="bg-[#F8F9FC] dark:bg-[#13161E]">
+                  <tr>
+                    <th className={`${th} text-left`}>Client</th>
+                    <th className={`${th} text-right`}>Calls</th>
+                    <th className={`${th} text-right`}>Incoming</th>
+                    <th className={`${th} text-right`}>Outgoing</th>
+                    <th className={`${th} text-right`}>Connected</th>
+                    <th className={`${th} text-right`}>Not picked up</th>
+                    <th className={`${th} text-right`}>Missed</th>
+                    <th className={`${th} text-right`}>Talk time</th>
+                    <th className={`${th} text-right`}>Last call</th>
+                    <th className={`${th} text-left`}>Handled by</th>
+                    <th className={th}><span className="sr-only">Open</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F0F2FA] dark:divide-[#262A38]">
+                  {rows.map((r) => (
+                    <tr key={r.phoneKey} onClick={() => openClient(r)} className="cursor-pointer hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]">
+                      <td className={td}>
+                        <PhoneText phone={r.phoneNumber} isSuperAdmin={isSuperAdmin} className="text-[13px] font-semibold" />
+                        <p className="text-[11px] text-[#8B92A9] max-w-[200px] truncate">
+                          {r.lead ? <span className="text-indigo-600 dark:text-indigo-400">Lead: {r.lead.name}</span> : r.name || "Not in CRM"}
+                        </p>
+                      </td>
+                      <td className={`${td} text-right tabular-nums font-semibold`}>{r.calls}</td>
+                      <td className={`${td} text-right tabular-nums`}>{r.incoming}</td>
+                      <td className={`${td} text-right tabular-nums`}>{r.outgoing}</td>
+                      <td className={`${td} text-right tabular-nums`}>{r.connected}</td>
+                      <td className={`${td} text-right tabular-nums ${r.notPickedUp ? "text-amber-600 dark:text-amber-400" : ""}`}>{r.notPickedUp}</td>
+                      <td className={`${td} text-right tabular-nums ${r.missed ? "text-red-600 dark:text-red-400 font-semibold" : ""}`}>{r.missed}</td>
+                      <td className={`${td} text-right font-mono`}>{fmtHMS(r.duration)}</td>
+                      <td className={`${td} text-right text-[#8B92A9]`}>{fmtDateTime(r.lastCallAt)}</td>
+                      <td className={`${td} max-w-[180px] truncate text-[#8B92A9]`} title={r.employees.join(", ")}>{r.employees.join(", ") || "—"}</td>
+                      <td className={`${td} text-right`}>
+                        <button onClick={(e) => { e.stopPropagation(); openClient(r); }} aria-label={`Show calls with ${r.name || "this client"}`}
+                          className="p-1 rounded-lg text-[#8B92A9] hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500">
+                          <Chevron className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pager page={state.data.page} totalPages={state.data.totalPages} total={state.data.total} onChange={setPage} />
+          </>
+        )}
+    </div>
+  );
+}
+
 function PageSkeleton() {
   return (
     <div className="space-y-4 animate-pulse" aria-hidden="true">
@@ -961,7 +1189,19 @@ export default function CallMonitoring() {
     setRange((r) => { const n = [...r]; n[idx] = val; if (n[0] > n[1]) n[idx === 0 ? 1 : 0] = val; return n; });
   };
 
-  const viewCalls = (userId) => { setEmployee(userId); setTab("history"); };
+  // Drill-down: every clickable number calls this. `n` changes on each drill so
+  // the target tab remounts with the new starting filter.
+  const [drill, setDrill] = useState({ n: 0 });
+  const onDrill = ({ tab: target, userId, date, ...filters }) => {
+    if (userId !== undefined) setEmployee(userId);
+    if (date) { setPreset("custom"); setRange([date, date]); }
+    setDrill((d) => ({ n: d.n + 1, ...filters }));
+    setTab(target);
+    document.getElementById("cm-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  // Choosing a tab by hand starts it unfiltered.
+  const openTab = (key) => { setDrill((d) => ({ n: d.n + 1 })); setTab(key); };
+  const viewCalls = (userId) => onDrill({ tab: "history", userId });
 
   const exportEmployees = () => {
     const rows = state.data?.employees || [];
@@ -979,6 +1219,7 @@ export default function CallMonitoring() {
 
   const TABS = [
     { key: "summary",   label: "Summary",        icon: BarChart3 },
+    { key: "clients",   label: "Clients",        icon: Contact },
     { key: "analysis",  label: "Analysis",       icon: Clock },
     { key: "never",     label: "Never attended", icon: PhoneMissed },
     { key: "history",   label: "Call history",   icon: History },
@@ -1041,17 +1282,18 @@ export default function CallMonitoring() {
       </div>
 
       {/* ── Tabs ── */}
-      <div className="flex gap-1 mb-4 overflow-x-auto border-b border-[#E4E7EF] dark:border-[#262A38]" role="tablist">
+      <div id="cm-tabs" className="flex gap-1 mb-4 overflow-x-auto border-b border-[#E4E7EF] dark:border-[#262A38] scroll-mt-4" role="tablist">
         {TABS.map((t) => {
           const { key, label } = t;
           const TabIcon = t.icon;
           return (
-          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+          <button key={key} role="tab" aria-selected={tab === key} onClick={() => openTab(key)}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 -mb-px transition ${tab === key
               ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400"
               : "border-transparent text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]"}`}>
             <TabIcon className="w-4 h-4" />{label}
             {key === "summary" && data && <span className="ml-0.5 text-[11px] tabular-nums px-1.5 rounded-full bg-[#F0F2FA] dark:bg-[#262A38] text-[#8B92A9]">{data.summary.totalCalls}</span>}
+            {key === "clients" && data && <span className="ml-0.5 text-[11px] tabular-nums px-1.5 rounded-full bg-[#F0F2FA] dark:bg-[#262A38] text-[#8B92A9]">{data.summary.uniqueClients}</span>}
           </button>
           );
         })}
@@ -1075,13 +1317,14 @@ export default function CallMonitoring() {
                 </div>
               )}
               {tab === "summary"
-                ? <SummaryTab data={data} onViewCalls={viewCalls} onExportEmployees={exportEmployees} isSingle={!!employee} />
-                : <AnalysisTab data={data} isSuperAdmin={isSuperAdmin} />}
+                ? <SummaryTab data={data} onViewCalls={viewCalls} onDrill={onDrill} onExportEmployees={exportEmployees} isSingle={!!employee} />
+                : <AnalysisTab data={data} isSuperAdmin={isSuperAdmin} onDrill={onDrill} />}
             </div>
           )
       )}
-      {tab === "never" && <NeverAttendedTab query={query} refreshKey={refreshKey} isSuperAdmin={isSuperAdmin} />}
-      {tab === "history" && <HistoryTab key="history" query={query} refreshKey={refreshKey} isSuperAdmin={isSuperAdmin} />}
+      {tab === "clients" && <ClientsTab key={`clients-${drill.n}`} query={query} refreshKey={refreshKey} isSuperAdmin={isSuperAdmin} onDrill={onDrill} />}
+      {tab === "never" && <NeverAttendedTab query={query} refreshKey={refreshKey} isSuperAdmin={isSuperAdmin} onDrill={onDrill} />}
+      {tab === "history" && <HistoryTab key={`history-${drill.n}`} query={query} refreshKey={refreshKey} isSuperAdmin={isSuperAdmin} initial={drill} />}
       {tab === "recordings" && canRecordings && <HistoryTab key="recordings" query={query} refreshKey={refreshKey} isSuperAdmin={isSuperAdmin} recordingsOnly />}
     </div>
   );
