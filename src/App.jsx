@@ -31,6 +31,7 @@ const MktDashboard   = lazy(() => import("./marketing/MarketingDashboard"));
 const AdminLeadsPage = lazy(() => import("./components/AdminLeadsPage"));
 const Communications = lazy(() => import("./components/Communications"));
 const AttendancePage = lazy(() => import("./pages/AttendancePage"));
+const CallMonitoring = lazy(() => import("./pages/Admin/CallMonitoring"));
 const UpgradePlan    = lazy(() => import("./components/UpgradePlan"));
 
 // User pages
@@ -583,6 +584,11 @@ function AppInner() {
             }/>
             <Route path="/attendance" element={
               <AdminRoute><FeatureGate featureKey="attendance"><AttendancePage /></FeatureGate></AdminRoute>
+            }/>
+
+            {/* ── Call Monitoring — admin/super_admin, data from the mobile app's SIM call-log sync ── */}
+            <Route path="/call-monitoring" element={
+              <AdminRoute><CallMonitoring /></AdminRoute>
             }/>
 
             {/* ── Upgrade Plan — SuperAdmin only ── */}
