@@ -599,14 +599,62 @@ export function NotificationBell() {
     if (!notif) return;
     let role = '';
     try { role = (getUser()?.role || '').toLowerCase(); } catch { role = ''; }
-    const base = role === 'user' ? '/user/communications' : '/communications';
-    const isLeadNotif =
-      notif.type === 'whatsapp_message' || notif.type === 'new_lead' ||
-      notif.type === 'reassignment'     || notif.type === 'follow_up' ||
-      notif.type === 'lead_closed'      || !!notif.leadId;
-    if (!isLeadNotif) return;
+
     setOpen(false);
-    navigate(notif.leadId ? `${base}?leadId=${notif.leadId}` : base);
+
+    // FIX: Route each notification type to the correct page.
+    // Previously ALL lead notifications went to /communications which is the
+    // WhatsApp chat page — correct only for whatsapp_message. Other types
+    // (new lead, follow-up, reassignment) should open the lead detail or
+    // the leads list.
+    const isEmployee   = role === 'user';
+    const leadsBase    = isEmployee ? '/user/leads'    : '/leads';
+    const commsBase    = isEmployee ? '/user/communications' : '/communications';
+
+    switch (notif.type) {
+      // WhatsApp message → communications page (chat view)
+      case 'whatsapp_message':
+        navigate(notif.leadId ? `${commsBase}?leadId=${notif.leadId}` : commsBase);
+        break;
+
+      // New lead, reassignment, follow-up, closed → lead detail or leads list
+      case 'new_lead':
+      case 'reassignment':
+      case 'follow_up':
+      case 'no_action':
+      case 'lead_closed':
+      case 'lead_invalid_rejected':
+        if (notif.leadId) {
+          // Go directly to that lead's detail
+          navigate(`${leadsBase}?leadId=${notif.leadId}`);
+        } else if (notif.leads?.length === 1) {
+          // Single lead in the payload — open it directly
+          navigate(`${leadsBase}?leadId=${notif.leads[0].leadId}`);
+        } else {
+          // Multiple leads or no leadId — open the leads list
+          navigate(leadsBase);
+        }
+        break;
+
+      // Subscription alerts → no navigation (super admin UI only)
+      case 'subscription_expiry':
+        break;
+
+      // Meeting permission → attendance or employee management
+      case 'meeting_permission':
+        navigate(isEmployee ? '/user/attendance' : '/attendance');
+        break;
+
+      // Attendance location → attendance panel
+      case 'attendance_location':
+        navigate('/attendance');
+        break;
+
+      default:
+        // Fallback: if there's a leadId, open leads; otherwise do nothing
+        if (notif.leadId) navigate(`${leadsBase}?leadId=${notif.leadId}`);
+        break;
+    }
   }, [navigate]);
 
   // Recompute position whenever panel opens or window resizes/scrolls
