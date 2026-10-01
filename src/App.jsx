@@ -18,6 +18,17 @@ import TelegramSettings from "./components/TelegramSettings";
 import DailyReportTelegramSettings from "./components/DailyReportTelegramSettings";
 import SheetIntegrationAdminSettings from "./components/SheetIntegrationAdminSettings";
 import { isChunkLoadError, reloadOnceForChunkError } from "./utils/chunkReload";
+import useCustomization from "./hooks/useCustomization";
+
+// ── Module route — sends the user elsewhere when the company has switched a
+//    page's module off (Customize CRM → Modules), e.g. the Dashboard. ────────
+function ModuleRoute({ moduleKey, fallbackTo, children }) {
+  const { moduleVisibleFor, loaded } = useCustomization();
+  const role = String(getUser()?.role || "user").toLowerCase();
+  const asRole = role === "user" || role === "employee" ? "employee" : "admin";
+  if (loaded && !moduleVisibleFor(moduleKey, asRole)) return <Navigate to={fallbackTo} replace />;
+  return children;
+}
 
 // ── Lazy-loaded pages — each becomes its own chunk ────────────────────────────
 const Dashboard      = lazy(() => import("./components/Dashboard"));
@@ -280,6 +291,7 @@ function DeveloperRoute({ children }) {
 function CompanyHeader() {
   const { user } = getStoredAuth();
   const role = (user?.role || "user").toLowerCase();
+  const { c: _cust } = useCustomization();
 
   const [brand, setBrand] = React.useState(() => {
     return getBrand();
@@ -310,12 +322,13 @@ function CompanyHeader() {
   // Render gate AFTER hooks so hook order stays stable across renders.
   if (role === "developer") return null;
 
-  const headerName = brand?.name || brand?.headerName || "SKYUP";
+  const headerName = _cust?.general?.appName || brand?.name || brand?.headerName || "SKYUP";
   const headerLogo = brand?.logoUrl || brand?.headerLogoUrl || "/skyup_logo1.svg";
 
+  const _t = _cust?.general?.terminology || {};
   const roleLabel =
-    role === "super_admin" || role === "superadmin" ? "Super Admin" :
-    role === "admin" ? "Admin" : "Employee";
+    role === "super_admin" || role === "superadmin" ? `Super ${_t.admin || "Admin"}` :
+    role === "admin" ? (_t.admin || "Admin") : (_t.employee || "Employee");
 
   const roleColor =
     role === "super_admin" || role === "superadmin"
@@ -516,19 +529,21 @@ function AppInner() {
 
             {/* ── Admin Dashboard ── */}
             <Route path="/dashboard" element={
-              <AdminRoute><Dashboard /></AdminRoute>
+              <AdminRoute><ModuleRoute moduleKey="dashboard" fallbackTo="/leads"><Dashboard /></ModuleRoute></AdminRoute>
             }/>
 
             {/* ── User Dashboard ── */}
             <Route path="/user/dashboard" element={
-              <UserRoute><UserDashboard /></UserRoute>
+              <UserRoute><ModuleRoute moduleKey="dashboard" fallbackTo="/leads"><UserDashboard /></ModuleRoute></UserRoute>
             }/>
 
             {/* ── User Communications (own leads only) ── */}
             <Route path="/user/communications" element={
               <UserRoute>
-                <FeatureGate anyOf={["sms-blast", "whatsapp-blast", "email-blast"]}>
-                  <UserLeadCommunication />
+                <FeatureGate featureKey="communications">
+                  <FeatureGate anyOf={["sms-blast", "whatsapp-blast", "email-blast"]}>
+                    <UserLeadCommunication />
+                  </FeatureGate>
                 </FeatureGate>
               </UserRoute>
             }/>
@@ -575,7 +590,7 @@ function AppInner() {
               </AdminRoute>
             }/>
             <Route path="/campaigns" element={
-              <AdminRoute><Campaigns /></AdminRoute>
+              <AdminRoute><FeatureGate featureKey="campaigns"><Campaigns /></FeatureGate></AdminRoute>
             }/>
             <Route path="/attendance" element={
               <AdminRoute><FeatureGate featureKey="attendance"><AttendancePage /></FeatureGate></AdminRoute>
@@ -583,7 +598,7 @@ function AppInner() {
 
             {/* ── Call Monitoring — admin/super_admin, data from the mobile app's SIM call-log sync ── */}
             <Route path="/call-monitoring" element={
-              <AdminRoute><CallMonitoring /></AdminRoute>
+              <AdminRoute><FeatureGate featureKey="callMonitoring"><CallMonitoring /></FeatureGate></AdminRoute>
             }/>
 
             {/* ── Upgrade Plan — SuperAdmin only ── */}
@@ -593,7 +608,7 @@ function AppInner() {
 
             {/* ── Custom Reports — SuperAdmin only ── */}
             <Route path="/custom-reports" element={
-              <SuperAdminRoute><CustomReports /></SuperAdminRoute>
+              <SuperAdminRoute><FeatureGate featureKey="customReports"><CustomReports /></FeatureGate></SuperAdminRoute>
             }/>
 
             {/* ── Communications ── */}
@@ -604,14 +619,16 @@ function AppInner() {
                     (sms-blast / whatsapp-blast / email-blast) is enabled for
                     this company's plan. Individual send actions are still
                     gated per-tab on the backend (403 if that blast is off). */}
-                <FeatureGate anyOf={["sms-blast", "whatsapp-blast", "email-blast"]}>
-                  <Communications currentUser={user} />
+                <FeatureGate featureKey="communications">
+                  <FeatureGate anyOf={["sms-blast", "whatsapp-blast", "email-blast"]}>
+                    <Communications currentUser={user} />
+                  </FeatureGate>
                 </FeatureGate>
               </AdminRoute>
             }/>
 
             {/* ── Leads — role-aware ── */}
-            <Route path="/leads" element={<LeadsRoleSwitch />} />
+            <Route path="/leads" element={<FeatureGate featureKey="leads"><LeadsRoleSwitch /></FeatureGate>} />
 
             {/* ── Daily report — role-aware ── */}
             <Route path="/daily-report" element={
