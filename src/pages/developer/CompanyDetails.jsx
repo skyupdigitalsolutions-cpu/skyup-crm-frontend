@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import api from "../../data/axiosConfig";
 import AddonManager from "../../components/AddonManager";
+import CustomizeCRM from "./CustomizeCRM";
 
 // ── Feature catalogue: entitlement (camelCase) key → label + group ────────────
 // Keys MUST match the entitlements object the backend returns. Each feature is
@@ -49,6 +50,21 @@ const FEATURE_GROUPS = [
     { key: "callRecording",     label: "Call Recording" },
     { key: "callTranscription", label: "Call Transcription" },
     { key: "aiSummary",         label: "AI Summary" },
+  ]},
+  { group: "Pages & modules (on by default — switch off to remove for this company)", items: [
+    { key: "dashboard",           label: "Dashboard" },
+    { key: "callMonitoring",      label: "Call Monitoring" },
+    { key: "communications",      label: "Communications page" },
+    { key: "pipelineBoard",       label: "Pipeline Board" },
+    { key: "clientMeetings",      label: "Client Meetings" },
+    { key: "festivalCampaigns",   label: "Festival Campaigns" },
+    { key: "whatsappScreenshots", label: "WhatsApp Screenshot Proof" },
+    { key: "projects",            label: "Projects" },
+    { key: "tasks",               label: "Tasks" },
+    { key: "payroll",             label: "Payroll" },
+    { key: "customReports",       label: "Custom Reports" },
+    { key: "voiceBot",            label: "Voice Bot" },
+    { key: "telegramNotification", label: "Telegram Notifications" },
   ]},
   { group: "Automation (single-company rollout)", items: [
     { key: "leadNurtureSequence", label: "Lead Nurture Sequence" },
@@ -106,6 +122,7 @@ const TABS = [
   { id: "credits",       label: "AI Credits",    icon: Sparkles },
   { id: "storage",       label: "Storage",       icon: HardDrive },
   { id: "daily-report",  label: "Daily Report",  icon: BarChart2 },
+  { id: "customize",     label: "Customize CRM", icon: Sliders },
   { id: "activity",      label: "Activity",      icon: ScrollText },
 ];
 
@@ -610,6 +627,11 @@ export default function CompanyDetails() {
       {/* ── STORAGE TAB ── */}
       {tab === "storage" && (
         <CloudinaryPanel companyId={id} company={company} onRefresh={load} showToast={showToast} />
+      )}
+
+      {/* ── CUSTOMIZE CRM TAB — same editor the company super admin sees ── */}
+      {tab === "customize" && (
+        <CustomizeCRM companyId={id} embedded />
       )}
 
       {/* ── DAILY REPORT TAB ── */}
