@@ -16,9 +16,9 @@ import { NotificationProvider, NotificationBell } from "./components/Notificatio
 import { clearFeaturesCache } from "./hooks/usePlanFeatures";
 import TelegramSettings from "./components/TelegramSettings";
 import DailyReportTelegramSettings from "./components/DailyReportTelegramSettings";
-import SheetIntegrationAdminSettings from "./components/SheetIntegrationAdminSettings";
 import { isChunkLoadError, reloadOnceForChunkError } from "./utils/chunkReload";
 import useCustomization from "./hooks/useCustomization";
+import UpgradePromptHost from "./components/UpgradePrompt";
 
 // ── Module route — sends the user elsewhere when the company has switched a
 //    page's module off (Customize CRM → Modules), e.g. the Dashboard. ────────
@@ -52,7 +52,6 @@ const UserDashboard          = lazy(() => import("./pages/UserDashboard"));
 const UserDailyReport        = lazy(() => import("./pages/UserDailyReport"));
 const UserLeadsPage          = lazy(() => import("./pages/UserLeadsPage"));
 const UserLeadCommunication  = lazy(() => import("./pages/UserLeadCommunication"));
-const UserSheetIntegration   = lazy(() => import("./pages/UserSheetIntegration"));
 
 // Developer pages
 const DeveloperDashboard         = lazy(() => import("./pages/developer/DeveloperDashboard"));
@@ -61,6 +60,9 @@ const DeveloperCompanyDetails    = lazy(() => import("./pages/developer/CompanyD
 const DeveloperSubscriptions     = lazy(() => import("./pages/developer/Subscriptions"));
 const DeveloperPlanCustomization = lazy(() => import("./pages/developer/PlanCustomization"));
 const DeveloperCustomizeCRM     = lazy(() => import("./pages/developer/CustomizeCompanyPage"));
+const TeamsManager              = lazy(() => import("./pages/Admin/TeamsManager"));
+const MyTeam                    = lazy(() => import("./pages/TeamLead/MyTeam"));
+const UserCallHistory           = lazy(() => import("./pages/UserCallHistory"));
 const DeveloperAddonManager      = lazy(() => import("./pages/developer/AddonManagerPage"));
 
 // Auth pages
@@ -365,11 +367,6 @@ function CompanyHeader() {
         {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
           <DailyReportTelegramSettings />
         )}
-        {/* Employee Excel / Google Sheet integration control — admin/superadmin.
-            Self-hides unless the feature is available for this company. */}
-        {(role === 'admin' || role === 'superadmin' || role === 'super_admin') && (
-          <SheetIntegrationAdminSettings />
-        )}
         <span className={`whitespace-nowrap shrink-0 text-[10px] sm:text-[11px] font-semibold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border ${roleColor}`}>
           {roleLabel}
         </span>
@@ -549,15 +546,6 @@ function AppInner() {
               </UserRoute>
             }/>
 
-            {/* ── User Excel / Google Sheet integration ── */}
-            <Route path="/user/sheet-integration" element={
-              <UserRoute>
-                <FeatureGate featureKey="googleSheetIntegrationEnabled">
-                  <UserSheetIntegration />
-                </FeatureGate>
-              </UserRoute>
-            }/>
-
             {/* ── Developer pages ── */}
             <Route path="/developer/dashboard" element={
               <DeveloperRoute><DeveloperDashboard /></DeveloperRoute>
@@ -574,6 +562,18 @@ function AppInner() {
             <Route path="/developer/plan-customization" element={
               <DeveloperRoute><DeveloperPlanCustomization /></DeveloperRoute>
             }/>
+            {/* ── Teams: admin sets Team Leads; Team Lead's "My Team" ── */}
+            <Route path="/teams" element={
+              <AdminRoute><ModuleRoute moduleKey="teamLeads" fallbackTo="/leads"><TeamsManager /></ModuleRoute></AdminRoute>
+            }/>
+            {/* ── Employee: complete call log + talk time ── */}
+            <Route path="/user/calls" element={
+              <UserRoute><UserCallHistory /></UserRoute>
+            }/>
+            <Route path="/my-team" element={
+              <UserRoute><ModuleRoute moduleKey="teamLeads" fallbackTo="/leads"><MyTeam /></ModuleRoute></UserRoute>
+            }/>
+
             {/* ── Customize CRM (developer only) — pick company → full editor ── */}
             <Route path="/developer/customize" element={
               <DeveloperRoute><DeveloperCustomizeCRM /></DeveloperRoute>
@@ -665,6 +665,8 @@ function AppInner() {
 
         </Routes>
       </Suspense>
+      {/* "Upgrade to unlock" modal — opened by locked sidebar items / buttons */}
+      <UpgradePromptHost />
     </ErrorBoundary>
   );
 }

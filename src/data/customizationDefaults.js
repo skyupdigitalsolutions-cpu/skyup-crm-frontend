@@ -101,6 +101,12 @@ export const CUSTOMIZATION_DEFAULTS = {
       "admin": true,
       "employee": false
     },
+    "teamLeads": {
+      "enabled": true,
+      "label": "",
+      "admin": true,
+      "employee": true
+    },
     "communications": {
       "enabled": true,
       "label": "",
@@ -686,7 +692,12 @@ export const CUSTOMIZATION_DEFAULTS = {
       "Video Editing",
       "Graphic Design",
       "Social Media Marketing",
-      "AI Voice Agent"
+      "AI Voice Agent",
+      "Custom Software",
+      "WhatsApp Automation & Chatbots",
+      "ERP Systems",
+      "Mobile Applications",
+      "Branding"
     ],
     "languages": [
       "English",
@@ -729,12 +740,15 @@ export const CUSTOMIZATION_DEFAULTS = {
     "industry": {
       "visible": true,
       "required": false,
-      "label": "Industry"
+      "label": "Industry",
+      "allowOther": true
     },
     "service": {
       "visible": true,
       "required": false,
-      "label": "Service"
+      "label": "Service",
+      "multiple": true,
+      "allowOther": false
     },
     "businessName": {
       "visible": true,
@@ -781,6 +795,7 @@ export const CUSTOMIZATION_DEFAULTS = {
       "verificationStatus": "Verification",
       "finalStatus": "Not Interested",
       "resetStatus": "New",
+      "verifier": "round_robin",
       "followUps": [
         {
           "type": "follow-up",
@@ -841,7 +856,6 @@ export const CUSTOMIZATION_DEFAULTS = {
       "canImportLeads": true,
       "canEditLeadDetails": true,
       "canEditPhoneNumbers": true,
-      "canDeleteLeads": true,
       "canCloseLeads": true,
       "canMarkInvalid": true,
       "canMarkNotInterested": true,
@@ -853,8 +867,23 @@ export const CUSTOMIZATION_DEFAULTS = {
       "canExportLeads": true,
       "canLogClientMeetings": true
     },
+    "teamLead": {
+      "canViewTeamLeads": true,
+      "canEditTeamLeads": true,
+      "canCallTeamLeads": true,
+      "canReassignLeads": true,
+      "canRevealTeamContact": false,
+      "canViewTeamCalls": true,
+      "canViewTeamAttendance": true,
+      "canVerifyNotInterested": true
+    },
+    "recordings": {
+      "superAdminCanDownload": false,
+      "adminCanDownload": false,
+      "teamLeadCanDownload": false,
+      "employeeCanDownload": false
+    },
     "admin": {
-      "canDeleteLeads": true,
       "canImportLeads": true,
       "canExportLeads": true,
       "canReassignLeads": true
@@ -866,7 +895,8 @@ export const CUSTOMIZATION_DEFAULTS = {
       "firstAlertHours": 1,
       "secondAlertHours": 2,
       "escalationHours": 3,
-      "escalationEnabled": true
+      "escalationEnabled": true,
+      "notifyTeamLead": true
     },
     "noFollowUpDate": {
       "enabled": true,
@@ -1009,6 +1039,12 @@ export const CUSTOMIZATION_META = {
       "key": "payroll",
       "group": "People",
       "label": "Payroll"
+    },
+    {
+      "key": "teamLeads",
+      "group": "People",
+      "label": "Team Leads (My Team)",
+      "navOnly": true
     },
     {
       "key": "communications",

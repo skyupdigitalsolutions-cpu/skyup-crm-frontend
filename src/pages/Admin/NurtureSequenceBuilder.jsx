@@ -9,11 +9,17 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../../data/axiosConfig";
+import { getCustomization, list as custList, statusCategory } from "../../data/customizationStore";
+import useCustomization from "../../hooks/useCustomization";
 // Statuses relevant to nurture — deliberately NOT the same as the app-wide
 // ALL_STATUSES constant. "Not Interested", "Merged", and "Closed" leads are
 // dead ends (no nurture makes sense there), and "Interested" is a real
 // lead.status value in this CRM that the global constant doesn't list.
-const NURTURE_STATUSES = ["New", "In Progress", "Interested", "Converted"];
+// Now the company's active statuses (Customize CRM), minus lost/verification
+// dead ends. Default: New, In Progress, Interested, Converted.
+const nurtureStatuses = () => getCustomization().statuses
+  .filter((s) => s.active && ["new", "open", "interested", "won"].includes(s.category))
+  .map((s) => s.key);
 
 // Industries — these MUST match utils/templateNameResolver.js on the backend,
 // because each one's slug becomes part of an APPROVED MSG91 template name
@@ -23,15 +29,11 @@ const NURTURE_STATUSES = ["New", "In Progress", "Interested", "Converted"];
 // approved in MSG91, or auto-resolve will build a name that doesn't exist and
 // the send will fail. The previous list contained E-commerce / Manufacturing /
 // Hospitality / Other, none of which have templates in the library.
-const INDUSTRIES = [
-  "Healthcare", "Education", "Real Estate", "Logistics", "Finance",
-  "IT Solutions", "Digital Marketing", "Construction", "Local Business",
-  "Interior Designers", "Professional Services",
-];
-const SERVICES = [
-  "SEO", "Paid Ads", "Website Design & Development", "AI Automation",
-  "CRM", "Video Editing", "Graphic Design", "Social Media Marketing",
-];
+// Company lists from Customize CRM → Dropdown Lists (default = the approved
+// template library's industries/services). Adding one here only works once
+// matching templates are approved in MSG91 — see the warning above.
+const industriesList = () => custList("industries");
+const servicesList   = () => custList("services");
 
 // The 4 funnel stages in the approved template library.
 const FUNNEL_STAGES = [
@@ -49,12 +51,15 @@ const tplNameFor = (industry, service, stage, variation1Based) =>
 
 // Same status → funnel-stage mapping shown next to the Status Stage <select>
 // (New→awareness, In Progress→interest, Interested→desire, Converted→action).
-const STATUS_TO_STAGE = {
+// Custom statuses map by their TYPE (new→awareness, open→interest,
+// interested→desire, won→action).
+const CATEGORY_TO_STAGE = { new: "awareness", open: "interest", interested: "desire", won: "action" };
+const STATUS_TO_STAGE = new Proxy({
   "New": "awareness",
   "In Progress": "interest",
   "Interested": "desire",
   "Converted": "action",
-};
+}, { get: (t, k) => (typeof k !== "string" ? undefined : (t[k] || CATEGORY_TO_STAGE[statusCategory(k)])) });
 
 // Shared MSG91 status classification — used by TemplatePreview AND the full
 // template library grid, so a template shows the same color/label everywhere.
@@ -378,6 +383,7 @@ function CampaignTagInput({ values = [], onChange, placeholder = "" }) {
 }
 
 export default function NurtureSequenceBuilder() {
+  useCustomization(); // re-render when the company lists / statuses load
   const [rules,   setRules]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState("");
@@ -581,7 +587,7 @@ export default function NurtureSequenceBuilder() {
     const existingStatuses = new Set(
       rules.flatMap((r) => r.trigger?.statuses || [])
     );
-    const toCreate = NURTURE_STATUSES.filter(
+    const toCreate = nurtureStatuses().filter(
       (st) => STATUS_TO_STAGE[st] && !existingStatuses.has(st)
     );
     if (toCreate.length === 0) {
@@ -722,7 +728,7 @@ export default function NurtureSequenceBuilder() {
 
           <div>
             <label className="text-[11px] font-semibold text-[#8B92A9] uppercase">Only fire for these statuses (empty = any)</label>
-            <div className="mt-1"><MultiChip options={NURTURE_STATUSES} selected={draft.trigger.statuses} onToggle={(v) => toggleArrayValue("statuses", v)} /></div>
+            <div className="mt-1"><MultiChip options={nurtureStatuses()} selected={draft.trigger.statuses} onToggle={(v) => toggleArrayValue("statuses", v)} /></div>
           </div>
 
           <div>
@@ -823,7 +829,7 @@ export default function NurtureSequenceBuilder() {
                       className="w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-transparent text-[13px]"
                     >
                       <option value="">— Any status (no stage gate) —</option>
-                      {NURTURE_STATUSES.map(s => <option key={s} value={s}>{s} → {STATUS_TO_STAGE[s]?.replace(/^./, (c) => c.toUpperCase())}</option>)}
+                      {nurtureStatuses().map(s => <option key={s} value={s}>{s} → {STATUS_TO_STAGE[s]?.replace(/^./, (c) => c.toUpperCase())}</option>)}
                     </select>
                   )}
                   <p className="text-[10px] text-[#8B92A9] mt-1">
@@ -866,7 +872,7 @@ export default function NurtureSequenceBuilder() {
                     onClick={() => setShowLibrary((v) => !v)}
                     className="w-full flex items-center justify-between px-3 py-2 text-[12px] font-semibold"
                   >
-                    <span>📚 Full Template Library ({INDUSTRIES.length * SERVICES.length * FUNNEL_STAGES.length * 5} combos)</span>
+                    <span>📚 Full Template Library ({industriesList().length * servicesList().length * FUNNEL_STAGES.length * 5} combos)</span>
                     <span className="text-[#8B92A9]">{showLibrary ? "▲ Hide" : "▼ Show"}</span>
                   </button>
 
@@ -879,7 +885,7 @@ export default function NurtureSequenceBuilder() {
                           className="text-[11px] px-2 py-1 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
                         >
                           <option value="">All industries</option>
-                          {INDUSTRIES.map((ind) => <option key={ind} value={ind}>{ind}</option>)}
+                          {industriesList().map((ind) => <option key={ind} value={ind}>{ind}</option>)}
                         </select>
                         <select
                           value={libFilterService}
@@ -887,7 +893,7 @@ export default function NurtureSequenceBuilder() {
                           className="text-[11px] px-2 py-1 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
                         >
                           <option value="">All services</option>
-                          {SERVICES.map((svc) => <option key={svc} value={svc}>{svc}</option>)}
+                          {servicesList().map((svc) => <option key={svc} value={svc}>{svc}</option>)}
                         </select>
                         <select
                           value={libFilterStage}
@@ -919,8 +925,8 @@ export default function NurtureSequenceBuilder() {
                             </tr>
                           </thead>
                           <tbody>
-                            {INDUSTRIES.filter((ind) => !libFilterIndustry || ind === libFilterIndustry).map((ind) =>
-                              SERVICES.filter((svc) => !libFilterService || svc === libFilterService).map((svc) => (
+                            {industriesList().filter((ind) => !libFilterIndustry || ind === libFilterIndustry).map((ind) =>
+                              servicesList().filter((svc) => !libFilterService || svc === libFilterService).map((svc) => (
                                 <tr key={`${ind}__${svc}`} className="border-t border-[#E4E7EF] dark:border-[#262A38]">
                                   <td className="px-2 py-1.5 whitespace-nowrap">{ind}</td>
                                   <td className="px-2 py-1.5 whitespace-nowrap">{svc}</td>
@@ -1024,7 +1030,7 @@ export default function NurtureSequenceBuilder() {
                                 className="text-[11px] px-2 py-1 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
                               >
                                 <option value="">— Industry —</option>
-                                {INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                                {industriesList().map(ind => <option key={ind} value={ind}>{ind}</option>)}
                               </select>
                               <select
                                 value={previewService}
@@ -1032,7 +1038,7 @@ export default function NurtureSequenceBuilder() {
                                 className="text-[11px] px-2 py-1 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#0F1117]"
                               >
                                 <option value="">— Service —</option>
-                                {SERVICES.map(svc => <option key={svc} value={svc}>{svc}</option>)}
+                                {servicesList().map(svc => <option key={svc} value={svc}>{svc}</option>)}
                               </select>
                             </div>
                           </div>

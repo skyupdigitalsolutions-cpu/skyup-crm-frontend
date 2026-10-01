@@ -313,15 +313,29 @@ export function NotificationProvider({ children }) {
       console.error('[NotificationProvider] socket connect_error:', err.message);
     });
 
+    // Company admin changed Customize CRM settings → reload config + entitlements
+    // (module switches feed into entitlements) without a page refresh.
+    // Admin changed teams (Team Lead promoted / members moved) → refresh "My Team".
+    socket.on('team_updated', () => {
+      window.dispatchEvent(new Event('team_updated'));
+    });
+
+    socket.on('customization_updated', () => {
+      window.dispatchEvent(new Event('customization_updated'));
+      window.dispatchEvent(new Event('plan_updated'));
+    });
+
     socket.on('disconnect', (reason) => {
       console.debug('[NotificationProvider] socket disconnected:', reason);
     });
 
     socket.on('no_action_alert', ({ count, threshold, leads, timestamp }) => {
-      const thresholdLabel =
-        threshold === '1h' ? '1 hour' :
-        threshold === '2h' ? '2 hours' :
-        threshold === '3h' ? '3 hours' : '24 hours';
+      // threshold = "<n>h" | "<n>m" (company-configurable alert timings)
+      const _m = /^(\d+(?:\.\d+)?)(h|m)$/.exec(String(threshold || ''));
+      const _mins = _m ? (_m[2] === 'h' ? Number(_m[1]) * 60 : Number(_m[1])) : 24 * 60;
+      const thresholdLabel = _mins % 60 === 0
+        ? `${_mins / 60} hour${_mins === 60 ? '' : 's'}`
+        : `${_mins} minutes`;
       const notif = {
         id:        `noa-${threshold}`,
         type:      'no_action',

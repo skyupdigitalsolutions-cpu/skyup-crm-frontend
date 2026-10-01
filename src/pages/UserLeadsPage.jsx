@@ -4,10 +4,17 @@ import ColdReassignModal from "../components/ColdReassignModal";
 import ClientMeetingTab from "../components/ClientMeetingTab";
 import ScheduledCallsBadge from "../components/Scheduledcallsbadge";
 import QualificationScore from "../components/QualificationScore";
-import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
+import { getLeadDisplayStatus, statusConfigFor, statusDisplayLabel, temperatureStyle, paletteOf } from "../utils/statusConfig";
+import useCustomization from "../hooks/useCustomization";
+import CustomFieldsEditor from "../components/CustomFieldsEditor";
+import { formatCustomValue } from "../utils/customFields";
 import { maskPhone as _maskPhone } from "../utils/maskPhone";
 import { Check, AlertTriangle, X } from "lucide-react";
 import useEntitlements from "../hooks/useEntitlements";
+import RecordingAudio from "../components/RecordingAudio";
+import IndustryServicePicker from "../components/IndustryServicePicker";
+import { leadServices } from "../utils/leadServices";
+import { scrollPageTop } from "../utils/scrollTop";
 
 const BACKEND_ROOT = import.meta.env.VITE_API_URL.replace(/\/api$/, "")
  
@@ -33,22 +40,8 @@ const TEMP_STYLE = {
   Cold: { bg: "bg-blue-50 dark:bg-blue-900/20",     text: "text-blue-500 dark:text-blue-400",     dot: "bg-blue-400" },
 };
 
-const STATUS_OPTIONS  = ["New", "In Progress", "Converted", "Not Interested"];
-// Kept in sync with the mobile app's OUTCOMES list (LeadDetailScreen.js) and the
-// backend outcomeAutomationService keys, so web and mobile offer the same call
-// outcomes.
-const OUTCOME_OPTIONS = ["Answered", "Not Answered", "Busy", "Switch Off", "Call Back Later", "Interested", "Not Interested", "Invalid", "Client Meeting"];
-
-// ── Nurture: industry & service options (kept in sync with NurtureSequenceBuilder) ──
-const INDUSTRIES = [
-  "Healthcare", "Education", "Real Estate", "Logistics", "Finance",
-  "IT Solutions", "Digital Marketing", "Construction", "Local Business",
-  "Interior Designers", "Professional Services",
-];
-const SERVICES = [
-  "SEO", "Paid Ads", "Website Design & Development", "AI Automation",
-  "CRM", "Video Editing", "Graphic Design", "Social Media Marketing",
-];
+// Statuses, call outcomes, lead qualities, industries and services all come
+// from the company's customization (Customize CRM) — see useCustomization().
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -81,7 +74,9 @@ phone:          l.primaryPhone   || l.mobile || l.phone || "",
     adSetName:      l.adSetName      || "",   
     industry:       l.industry       || "",
     service:        l.service        || "",
+    services:       Array.isArray(l.services) ? l.services : [],
     status:         l.status         || "New",
+    customFields:   (l.customFields && typeof l.customFields === "object") ? l.customFields : {},
     temperature:    l.temperature    || l.Quality || null,
     // ── Qualification scoring (Meta ad-set leads) ──────────────────────────
     leadScore:               l.leadScore               ?? null,
@@ -121,8 +116,8 @@ function StatusBadge({ lead, status }) {
   if (lead) {
     ({ label, config } = getLeadDisplayStatus(lead));
   } else {
-    config = STATUS_CONFIG[status] || STATUS_CONFIG["New"];
-    label  = status || "New";
+    config = statusConfigFor(status);
+    label  = statusDisplayLabel(status || "New");
   }
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[13px] font-semibold ${config.bg} ${config.text}`}>
@@ -133,11 +128,12 @@ function StatusBadge({ lead, status }) {
 }
 function TempBadge({ temp }) {
   if (!temp) return null;
-  const s = TEMP_CONFIG[temp];
-  if (!s) return null;
+  // Colour + (renamed) label from the company's lead-quality settings.
+  const _t = temperatureStyle(temp);
+  const s = { bg: _t.bg, text: _t.text, icon: "" };
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[16px] font-semibold ${s.bg} ${s.text}`}>
-      {s.icon} {temp}
+      {s.icon} {_t.label || temp}
     </span>
   );
 }
@@ -662,11 +658,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
 
                   <div className="px-3 pt-2.5 pb-1">
                     {r.url ? (
-                      <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={audioUrl(r.url)}
-                        className="w-full h-8 rounded-xl accent-[#2563EB]"
-                        preload="none"
-                        onError={e => { e.target.style.display = "none"; }}
-                      />
+                      <RecordingAudio src={audioUrl(r.url)} className="w-full h-8 rounded-xl" />
                     ) : (
                       <p className="text-[13px] text-[#8B92A9] italic py-1">Audio file not available</p>
                     )}
@@ -683,8 +675,7 @@ const primaryDigits   = (lead.primaryPhone || lead.phone || "").replace(/\D/g, "
               ))
             ) : log.recordingUrl ? (
               <div className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] p-3 bg-[#F8F9FC] dark:bg-[#13161E]">
-                <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={audioUrl(log.recordingUrl)}
-                  className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none"/>
+                <RecordingAudio src={audioUrl(log.recordingUrl)} className="w-full h-8 rounded-xl" />
               </div>
             ) : (
               <p className="text-[13px] text-[#8B92A9] italic">Recording file not available</p>
@@ -713,22 +704,45 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
 
   // ── Industry / Service (Nurture Sequence feature-gated) ──────────────────────
   const [industry, setIndustry] = useState(lead.industry || "");
-  const [service,  setService]  = useState(lead.service  || "");
+  const [services, setServices] = useState(leadServices(lead));
   const { hasFeature } = useEntitlements();
-  const showNurtureFields = hasFeature('leadNurtureSequence');
+  const cz = useCustomization();
+  const wf = cz.c.workflows || {};
+  // Industry/Service show for nurture companies OR when the company shows the
+  // fields (Customize CRM → Lead Fields).
+  const showNurtureFields = hasFeature('leadNurtureSequence') ||
+    cz.leadField("industry").visible !== false || cz.leadField("service").visible !== false;
+  const showIndustry = hasFeature('leadNurtureSequence') || cz.leadField("industry").visible !== false;
+  const showService  = hasFeature('leadNurtureSequence') || cz.leadField("service").visible !== false;
+  const STATUS_OPTIONS = cz.employeeStatuses().map(s => s.key);
+  const [customValues, setCustomValues] = useState(lead.customFields || {});
 
-  const isNI = status === "Not Interested";
+  // Selecting the company's "Not Interested" status runs the NI workflow.
+  const niStatus = wf.notInterested?.finalStatus || "Not Interested";
+  const isNI = status === niStatus && wf.notInterested?.enabled !== false;
 
   // Already marked Interested? Hide the "Interested" outcome so it can't be repeated.
   const alreadyInterested = (() => {
-    const s = (lead.status || "").toLowerCase();
-    if (s === "interested" || s === "in progress" || s === "converted") return true;
+    if (wf.leadUpdate?.hideInterestedOnceInterested === false) return false;
+    const cat = cz.statusCategory(lead.status);
+    if (cat === "interested" || cat === "open" || cat === "won") return true;
     const hist = Array.isArray(lead.callHistory) ? lead.callHistory : [];
-    return hist.some(h => (h.outcome || "").toLowerCase() === "interested");
+    return hist.some(h => cz.findOutcome(h.outcome)?.behavior === "interested" || (h.outcome || "").toLowerCase() === "interested");
   })();
+  const OUTCOME_OPTIONS = cz.activeOutcomes()
+    .filter(o => !(alreadyInterested && o.behavior === "interested"));
+  const outcomeObj = cz.findOutcome(outcome);
+  const followUpRule = outcomeObj ? outcomeObj.followUp : "optional";
+  const remarkRequired = wf.leadUpdate?.remarkRequired !== false;
+  const canSchedule = cz.can("canScheduleFollowUps", "employee");
+  const canQuality  = cz.can("canChangeTemperature", "employee");
+  const TEMPS = cz.activeTemperatures();
 
   const handleSave = async () => {
-    if (!remark.trim()) return setError("Remark is required.");
+    if (remarkRequired && !remark.trim()) return setError("Remark is required.");
+    if (!isNI && outcomeObj && followUpRule === "required" && !followUpDate) {
+      return setError(`Pick a follow-up date for "${outcomeObj.label}".`);
+    }
     setSaving(true);
     setError("");
     try {
@@ -739,19 +753,20 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
       } else {
         const body = { status, remark: remark.trim(), outcome };
         if (temperature)  body.temperature  = temperature;
+        if (Object.keys(customValues || {}).length) body.customFields = customValues;
         // Match mobile: send the follow-up as a full ISO timestamp (date + time).
         if (followUpDate) body.followUpDate = new Date(followUpDate).toISOString();
         // ── Nurture fields: only sent when feature is enabled ──────────────────
         if (showNurtureFields) {
-          if (industry) body.industry = industry;
-          if (service)  body.service  = service;
+          if (showIndustry) body.industry = industry.trim();
+          if (showService)  body.services = services;
         }
         const res = await api.patch(`/lead/${lead.id}`, body);
         updatedLead = res.data?.lead || res.data;
       }
       // Prefer backend response for scheduledCalls so progress is always accurate.
       // Fall back to optimistic merge only if backend didn't return the lead.
-      const newCall = { outcome: isNI ? "Not Interested" : outcome, remark: remark.trim(), calledAt: new Date().toISOString() };
+      const newCall = { outcome: isNI ? (cz.activeOutcomes().find(o => o.behavior === "notInterested")?.key || "Not Interested") : outcome, remark: remark.trim(), calledAt: new Date().toISOString() };
       const mergedCallHistory = updatedLead?.callHistory
         ? (Array.isArray(updatedLead.callHistory) ? updatedLead.callHistory : [...(lead.callHistory || []), newCall])
         : [...(lead.callHistory || []), newCall];
@@ -764,13 +779,15 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
         id:             lead.id,  // preserve frontend id
         // Use the status the backend resolved (NI flow may set "Verification",
         // return the lead, etc.). Fall back to the chosen status for non-NI saves.
-        status:         isNI ? (updatedLead?.status || "Not Interested") : status,
+        status:         isNI ? (updatedLead?.status || niStatus) : (updatedLead?.status || status),
+        customFields:   updatedLead?.customFields || customValues,
         remark:         remark.trim(),
         temperature:    temperature || lead.temperature,
         // Persist nurture selections into local lead state so they survive
         // without a full refresh (backend is the source of truth on next load).
         industry:       (showNurtureFields && industry) ? industry : (updatedLead?.industry ?? lead.industry),
-        service:        (showNurtureFields && service)  ? service  : (updatedLead?.service  ?? lead.service),
+        services:       updatedLead?.services ?? (showService ? services : lead.services),
+        service:        updatedLead?.service  ?? (showService ? (services[0] || "") : lead.service),
         callHistory:    mergedCallHistory,
         scheduledCalls: mergedScheduled,
       });
@@ -842,7 +859,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
             { label: "Source",   value: lead.source },
             { label: "Calls",    value: lead.callHistory.length || 0 },
             ...(showNurtureFields && lead.industry ? [{ label: "Industry", value: lead.industry }] : []),
-            ...(showNurtureFields && lead.service  ? [{ label: "Service",  value: lead.service  }] : []),
+            ...(showNurtureFields && leadServices(lead).length ? [{ label: "Services", value: leadServices(lead).join(", ") }] : []),
           ].map(({ label, value }) => (
             <div key={label}>
               <p className="text-[11px] font-bold text-[#8B92A9] uppercase tracking-widest">{label}</p>
@@ -902,7 +919,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-[#0F1117] dark:text-white truncate">{h.outcome || "Call Back"}</span>
+                            <span className="font-semibold text-[#0F1117] dark:text-white truncate">{cz.outcomeLabel(h.outcome) || "Call Back"}</span>
                             <span className="text-[#8B92A9] shrink-0 text-[12px]">{h.calledAt ? fmtDate(h.calledAt) : "—"}</span>
                           </div>
                           <p className="text-[#4B5168] dark:text-white italic truncate">{h.remark || "—"}</p>
@@ -954,7 +971,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                   <label className="block text-[16px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Status</label>
                   <div className="grid grid-cols-2 gap-2">
                     {STATUS_OPTIONS.map(s => {
-                      const sc2   = STATUS_CONFIG[s] || STATUS_CONFIG["New"];
+                      const sc2   = statusConfigFor(s);
                       const active = status === s;
                       return (
                         <button key={s} onClick={() => setStatus(s)}
@@ -964,7 +981,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                               : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-white hover:border-[#CBD5E1]"
                           }`}>
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: active ? sc2.dot : "#CBD5E1" }} />
-                          {s}
+                          {statusDisplayLabel(s)}
                         </button>
                       );
                     })}
@@ -984,22 +1001,23 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                     <select value={outcome} onChange={e => setOutcome(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[16px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition">
                       <option value="">— Select outcome to log a call —</option>
-                      {OUTCOME_OPTIONS
-                        .filter(o => !(alreadyInterested && o === "Interested"))
-                        .map(o => <option key={o}>{o}</option>)}
+                      {OUTCOME_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
                     </select>
                   </div>
                 )}
+                {cz.leadField("temperature").visible !== false && canQuality && (
                 <div>
-                  <label className="block text-[16px] font-semibold text-[#4B5168] dark:text-white mb-1.5">Lead Quality</label>
+                  <label className="block text-[16px] font-semibold text-[#4B5168] dark:text-white mb-1.5">{cz.leadField("temperature").label || "Lead Quality"}</label>
                   <div className="grid grid-cols-4 gap-2">
-                    {["", "Hot", "Warm", "Cold"].map(q => {
-                      const colors = { Hot: "#DC2626", Warm: "#D97706", Cold: "#2563EB", "": "#8B92A9" };
-                      const labels = { Hot: "Hot", Warm: " Warm", Cold: " Cold", "": "— None" };
+                    {["", ...TEMPS.map(t => t.key)].map(q => {
+                      const tObj   = TEMPS.find(t => t.key === q);
+                      const colors = { "": "#8B92A9", ...Object.fromEntries(TEMPS.map(t => [t.key, paletteOf(t.color).dot])) };
+                      const labels = { "": "— None", ...Object.fromEntries(TEMPS.map(t => [t.key, t.label])) };
                       const active = temperature === q;
-                      // Cold quality triggers the ColdReassignModal (same flow as Not Interested)
+                      // A quality flagged "runs cold flow" opens the ColdReassignModal
+                      // (same flow as Not Interested) — Customize CRM → Lead Quality.
                       const handleQualityClick = () => {
-                        if (q === "Cold") { setShowColdModal(true); return; }
+                        if (tObj?.triggersColdFlow && wf.cold?.enabled !== false && cz.can("canMarkCold", "employee")) { setShowColdModal(true); return; }
                         setTemperature(q);
                       };
                       return (
@@ -1016,43 +1034,26 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                     })}
                   </div>
                 </div>
+                )}
                 {/* ── Industry & Service (Nurture Sequence) ────────────────── */}
                 {showNurtureFields && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
-                        Industry
-                      </label>
-                      <select
-                        value={industry}
-                        onChange={e => setIndustry(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
-                      >
-                        <option value="">— Select —</option>
-                        {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
-                        Service
-                      </label>
-                      <select
-                        value={service}
-                        onChange={e => setService(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
-                      >
-                        <option value="">— Select —</option>
-                        {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                  </div>
+                  <IndustryServicePicker
+                    industry={industry} onIndustry={setIndustry}
+                    services={services} onServices={setServices}
+                    showIndustry={showIndustry} showService={showService}
+                  />
                 )}
 
-                {!isNI && (
+                {/* ── Company custom fields (Customize CRM → Lead Fields) ── */}
+                <CustomFieldsEditor values={customValues} onChange={setCustomValues} role="employee" />
+
+                {!isNI && canSchedule && followUpRule !== "none" && (
                   <div>
                     <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
                       Follow-up Date &amp; Time
-                      <span className="ml-1 font-normal text-[13px] text-[#8B92A9]">(optional)</span>
+                      <span className="ml-1 font-normal text-[13px] text-[#8B92A9]">
+                        {followUpRule === "required" ? <span className="text-red-500">* required</span> : followUpRule === "auto" ? "(auto-scheduled if left empty)" : "(optional)"}
+                      </span>
                     </label>
                     <input
                       type="datetime-local"
@@ -1065,7 +1066,7 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
                 )}
                 <div>
                   <label className="block text-[14px] font-semibold text-[#4B5168] dark:text-white mb-1.5">
-                    Remark <span className="text-red-500">*</span>
+                    Remark {remarkRequired && <span className="text-red-500">*</span>}
                     {isNI && <span className="ml-1 font-normal text-[16px] text-[#8B92A9]">(reason required)</span>}
                   </label>
                   <textarea
@@ -1125,12 +1126,13 @@ function UpdateDrawer({ lead, onClose, onSaved }) {
           // the list's shape and preserve the frontend id. The backend resolves
           // the correct status (e.g. "Verification" on first Cold mark).
           const mapped = updatedLead ? mapLead(updatedLead) : {};
-          setTemperature("Cold");
+          const coldKey = updatedLead?.temperature || cz.coldTemperatureKey() || "Cold";
+          setTemperature(coldKey);
           onSaved({
             ...lead,
             ...mapped,
             id:          lead.id,
-            temperature: "Cold",
+            temperature: coldKey,
             status:      updatedLead?.status || lead.status,
           });
           setShowColdModal(false);
@@ -1171,6 +1173,16 @@ export default function UserLeadsPage() {
   // ── Feature gate — show Industry/Service only when leadNurtureSequence is enabled
   const { hasFeature } = useEntitlements();
   const showNurtureFields = hasFeature('leadNurtureSequence');
+  const cz = useCustomization();
+  const TEMPS = cz.activeTemperatures();
+  const listFields = cz.customFields({ role: "employee" }).filter(f => f.showInList);
+  const topTemp = TEMPS[0] || null; // first quality (default "Hot") gets the quick pill
+  // KPI pills per status TYPE (Customize CRM → Statuses) — a company with
+  // several "won" statuses still gets one Converted pill.
+  const catLabel = (cat, fallback) => {
+    const list = cz.c.statuses.filter(x => x.category === cat && x.active);
+    return list.length === 1 ? list[0].label : fallback;
+  };
   const [filterProject, setFilterProject] = useState("All");
   const [projects,      setProjects]      = useState([]);
   const [sortBy,     setSortBy]     = useState("date_desc");
@@ -1231,16 +1243,20 @@ export default function UserLeadsPage() {
     [...new Set(leads.map(l => l.source).filter(s => s && s !== "—"))],
   [leads]);
 
-  const kpi = useMemo(() => ({
-    total:      leads.length,
-    newLeads:   leads.filter(l => l.status === "New" && !l.isClosed && !l.mergedInto).length,
-    inProgress: leads.filter(l => l.status === "In Progress" && !l.isClosed && !l.mergedInto).length,
-    converted:  leads.filter(l => l.status === "Converted" && !l.isClosed && !l.mergedInto).length,
-    notInt:     leads.filter(l => l.status === "Not Interested" && !l.isClosed && !l.mergedInto).length,
-    hot:        leads.filter(l => l.temperature === "Hot").length,
-    merged:     leads.filter(l => !!l.mergedInto).length,
-    closed:     leads.filter(l => l.isClosed && !l.mergedInto).length,
-  }), [leads]);
+  const kpi = useMemo(() => {
+    const live = (l) => !l.isClosed && !l.mergedInto;
+    const inCat = (cat) => (l) => live(l) && cz.statusCategory(l.status) === cat;
+    return {
+      total:      leads.length,
+      newLeads:   leads.filter(inCat("new")).length,
+      inProgress: leads.filter(inCat("open")).length,
+      converted:  leads.filter(inCat("won")).length,
+      notInt:     leads.filter(inCat("lost")).length,
+      hot:        topTemp ? leads.filter(l => l.temperature === topTemp.key).length : 0,
+      merged:     leads.filter(l => !!l.mergedInto).length,
+      closed:     leads.filter(l => l.isClosed && !l.mergedInto).length,
+    };
+  }, [leads, cz.c]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayed = useMemo(() => {
     let res = leads.filter(l => {
@@ -1251,7 +1267,10 @@ export default function UserLeadsPage() {
       const matchSearch = !q || l.name.toLowerCase().includes(q) || l.source.toLowerCase().includes(q) || l.campaign.toLowerCase().includes(q) ||
         (l.mergedSourceName && l.mergedSourceName.toLowerCase().includes(q));
       const { label: displayLabel } = getLeadDisplayStatus(l);
-      const matchSt     = filterSt   === "All" || displayLabel === filterSt;
+      // filterSt is "All", a status key, or "cat:<type>" from the KPI pills.
+      const matchSt     = filterSt   === "All" || displayLabel === filterSt ||
+        (!l.isClosed && !l.mergedInto && (l.status === filterSt ||
+          (filterSt.startsWith("cat:") && cz.statusCategory(l.status) === filterSt.slice(4))));
       const matchTemp   = filterTemp === "All" || l.temperature === filterTemp;
       const matchSrc    = filterSrc  === "All" || l.source      === filterSrc;
       const matchProject = filterProject === "All" ||
@@ -1270,13 +1289,18 @@ export default function UserLeadsPage() {
       if (sortBy === "status")    return a.status.localeCompare(b.status);
       return 0;
     });
-  }, [leads, search, filterSt, filterTemp, filterSrc, filterProject, sortBy, dateFrom, dateTo]);
+  }, [leads, search, filterSt, filterTemp, filterSrc, filterProject, sortBy, dateFrom, dateTo, cz.c]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalPages = Math.ceil(displayed.length / PER_PAGE);
+  // Never get stuck on an empty page: when filters shrink the list below the
+  // current page, go back to page 1. Every page change starts at the top.
+  useEffect(() => { if (page > 1 && page > totalPages) setPage(1); }, [page, totalPages]);
+  useEffect(() => { scrollPageTop(); }, [page]);
   const paged      = displayed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const clearFilters = () => {
     setSearch(""); setFilterSt("All"); setFilterTemp("All"); setFilterSrc("All"); setFilterProject("All"); setDateFrom(""); setDateTo(""); setPage(1);
+    scrollPageTop();
   };
   const hasFilter = search || filterSt !== "All" || filterTemp !== "All" || filterSrc !== "All" || filterProject !== "All" || dateFrom || dateTo;
   // MOBILE CHANGE: count of filters living inside the collapsible panel
@@ -1295,7 +1319,7 @@ export default function UserLeadsPage() {
 
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div className="min-w-0">
-          <h1 className="text-[22px] sm:text-[26px] font-bold text-[#0F1117] dark:text-white">My Leads</h1>
+          <h1 className="text-[22px] sm:text-[26px] font-bold text-[#0F1117] dark:text-white">My {cz.term("leads", "Leads")}</h1>
           <p className="text-[14px] sm:text-[16px] text-[#8B92A9] dark:text-gray-400 mt-0.5">
             Your assigned leads — click any row to update status &amp; add call notes
           </p>
@@ -1311,22 +1335,22 @@ export default function UserLeadsPage() {
       <div className="flex flex-wrap gap-2 mb-6">
         {[
           { label: "Total",          value: kpi.total,      color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30",       text: "text-blue-700 dark:text-blue-300",       filter: "All"           },
-          { label: "New",            value: kpi.newLeads,   color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30",       text: "text-blue-600 dark:text-blue-400",       filter: "New"           },
-          { label: "In Progress",    value: kpi.inProgress, color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30",     text: "text-amber-600 dark:text-amber-400",     filter: "In Progress"   },
-          { label: "Converted",      value: kpi.converted,  color: "#059669", bg: "bg-emerald-50 dark:bg-emerald-950/30", text: "text-emerald-600 dark:text-emerald-400", filter: "Converted"     },
-          { label: "Not Interested", value: kpi.notInt,     color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30",         text: "text-red-600 dark:text-red-400",         filter: "Not Interested"},
+          { label: catLabel("new", "New"),             value: kpi.newLeads,   color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30",       text: "text-blue-600 dark:text-blue-400",       filter: "cat:new"  },
+          { label: catLabel("open", "In Progress"),    value: kpi.inProgress, color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30",     text: "text-amber-600 dark:text-amber-400",     filter: "cat:open" },
+          { label: catLabel("won", "Converted"),       value: kpi.converted,  color: "#059669", bg: "bg-emerald-50 dark:bg-emerald-950/30", text: "text-emerald-600 dark:text-emerald-400", filter: "cat:won"  },
+          { label: catLabel("lost", "Not Interested"), value: kpi.notInt,     color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30",         text: "text-red-600 dark:text-red-400",         filter: "cat:lost" },
         ].map(s => (
           <KpiPill key={s.label} {...s}
             active={filterSt === s.filter}
             onClick={() => { setFilterSt(filterSt === s.filter ? "All" : s.filter); setPage(1); }} />
         ))}
-        {kpi.hot > 0 && (
+        {kpi.hot > 0 && topTemp && (
           <button
-            onClick={() => { setFilterTemp(filterTemp === "Hot" ? "All" : "Hot"); setPage(1); }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition font-semibold text-[15px] bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 ${filterTemp === "Hot" ? "" : "border-transparent"}`}
-            style={{ borderColor: filterTemp === "Hot" ? "#DC2626" : undefined }}>
+            onClick={() => { setFilterTemp(filterTemp === topTemp.key ? "All" : topTemp.key); setPage(1); }}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition font-semibold text-[15px] ${paletteOf(topTemp.color).soft} ${paletteOf(topTemp.color).text} ${filterTemp === topTemp.key ? "" : "border-transparent"}`}
+            style={{ borderColor: filterTemp === topTemp.key ? paletteOf(topTemp.color).dot : undefined }}>
             <span className="text-[20px] font-black">{kpi.hot}</span>
-             Hot
+             {topTemp.label}
           </button>
         )}
       </div>
@@ -1353,7 +1377,7 @@ export default function UserLeadsPage() {
           </select>
           <select value={filterTemp} onChange={e => { setFilterTemp(e.target.value); setPage(1); }} className={INP}>
             <option value="All">All quality</option>
-            <option>Hot</option><option>Warm</option><option>Cold</option>
+            {TEMPS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
           <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={`${INP} hidden sm:block`}>
             <option value="date_desc">Newest first</option>
@@ -1499,6 +1523,7 @@ export default function UserLeadsPage() {
                       "Project",
                       ...(showStatusCol ? ["Status"] : []),
                       ...(showTempCol ? ["Quality"] : []),
+                      ...listFields.map(f => f.label),
                       "Calls",
                       "",
                     ].map((h, i) => (
@@ -1508,7 +1533,7 @@ export default function UserLeadsPage() {
                 </thead>
                 <tbody className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
                   {paged.map(l => {
-                    const sc = STATUS_CONFIG[l.status] || STATUS_CONFIG["New"];
+                    const sc = statusConfigFor(l.status);
                     return (
                       <tr key={l.id}
                         className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition cursor-pointer group"
@@ -1595,6 +1620,11 @@ export default function UserLeadsPage() {
                         {showTempCol && (
                           <td className="px-4 py-3"><TempBadge temp={l.temperature} /></td>
                         )}
+                        {listFields.map(f => (
+                          <td key={f.key} className="px-4 py-3 text-[14px] text-[#4B5168] dark:text-white whitespace-nowrap max-w-[180px] truncate">
+                            {formatCustomValue(f, l.customFields?.[f.key])}
+                          </td>
+                        ))}
 
                         <td className="px-4 py-3">
                           {l.callHistory.length > 0 ? (

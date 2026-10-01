@@ -763,6 +763,17 @@ function FieldsTab({ draft, set, patch, ro }) {
               <input value={f.label} disabled={ro} onChange={(e) => patch("leadFields", `${k}.label`, e.target.value)} className={INPUT} />
               <Toggle small on={f.visible} disabled={ro || k === "remark"} onChange={(v) => patch("leadFields", `${k}.visible`, v)} label="Visible" />
               <Toggle small on={f.required} disabled={ro || !f.visible} onChange={(v) => patch("leadFields", `${k}.required`, v)} label="Required" />
+              {(k === "industry" || k === "service") && (
+                <div className="sm:col-span-3 flex flex-wrap gap-5 pl-1 -mt-1">
+                  <Toggle small on={f.allowOther !== false && (k === "industry" || !!f.allowOther)} disabled={ro || !f.visible}
+                    onChange={(v) => patch("leadFields", `${k}.allowOther`, v)}
+                    label={`Allow "Other" (type a value not in the ${k === "industry" ? "Industries" : "Services"} list)`} />
+                  {k === "service" && (
+                    <Toggle small on={f.multiple !== false} disabled={ro || !f.visible}
+                      onChange={(v) => patch("leadFields", `${k}.multiple`, v)} label="Allow selecting multiple services" />
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -905,6 +916,12 @@ function WorkflowsTab({ draft, patch, ro }) {
             <Toggle on={w.notInterested.enabled} disabled={ro} onChange={P("notInterested.enabled")} label="Use this workflow" hint="Off = just set the lost status, nothing else." />
             <Toggle on={w.notInterested.verification} disabled={ro || !w.notInterested.enabled} onChange={P("notInterested.verification")} label="Second-agent verification" hint="Send to another agent to double-check first." />
           </div>
+          <Field label="Who verifies" hint="Team Lead = the employee's own Team Lead checks it (falls back to round robin when there is no Team Lead).">
+            <select value={w.notInterested.verifier || "round_robin"} disabled={ro || !w.notInterested.enabled || !w.notInterested.verification} onChange={(e) => P("notInterested.verifier")(e.target.value)} className={INPUT + " md:max-w-sm"}>
+              <option value="round_robin">Another employee (round robin)</option>
+              <option value="team_lead">The employee's Team Lead</option>
+            </select>
+          </Field>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="While verifying"><StatusSelect draft={draft} value={w.notInterested.verificationStatus} disabled={ro} onChange={P("notInterested.verificationStatus")} /></Field>
             <Field label="Confirmed not interested"><StatusSelect draft={draft} value={w.notInterested.finalStatus} disabled={ro} onChange={P("notInterested.finalStatus")} /></Field>
@@ -975,7 +992,10 @@ function AlertsTab({ draft, patch, ro, automations, saveAutomation }) {
             <Field label="Second alert after (hours)"><input type="number" step="0.25" min={0.25} value={a.noAction.secondAlertHours} disabled={ro || !a.noAction.enabled} onChange={(e) => num("noAction.secondAlertHours", e.target.value, 0.25)} className={INPUT} /></Field>
             <Field label="Escalate after (hours)"><input type="number" step="0.25" min={0.25} value={a.noAction.escalationHours} disabled={ro || !a.noAction.enabled || !a.noAction.escalationEnabled} onChange={(e) => num("noAction.escalationHours", e.target.value, 0.25)} className={INPUT} /></Field>
           </div>
-          <Toggle on={a.noAction.escalationEnabled} disabled={ro || !a.noAction.enabled} onChange={P("noAction.escalationEnabled")} label="Escalate to super admin" />
+          <div className="flex flex-wrap gap-6">
+            <Toggle on={a.noAction.notifyTeamLead !== false} disabled={ro || !a.noAction.enabled} onChange={P("noAction.notifyTeamLead")} label="Second alert also goes to the Team Lead" />
+            <Toggle on={a.noAction.escalationEnabled} disabled={ro || !a.noAction.enabled} onChange={P("noAction.escalationEnabled")} label="Escalate to super admin" />
+          </div>
         </div>
       </Section>
 
@@ -1034,23 +1054,39 @@ function AlertsTab({ draft, patch, ro, automations, saveAutomation }) {
 const PERM_LABELS = {
   employee: {
     canAddLeads: "Add leads", canImportLeads: "Import leads (CSV / Excel)", canEditLeadDetails: "Edit lead details",
-    canEditPhoneNumbers: "Edit phone numbers", canDeleteLeads: "Delete leads", canCloseLeads: "Close leads",
+    canEditPhoneNumbers: "Edit phone numbers", canCloseLeads: "Close leads",
     canMarkInvalid: "Mark leads invalid", canMarkNotInterested: "Mark leads not interested", canMarkCold: "Mark leads cold",
     canMergeLeads: "Merge duplicate leads", canRevealContact: "Reveal masked phone / email",
     canChangeTemperature: "Change lead quality", canScheduleFollowUps: "Schedule follow-ups",
     canExportLeads: "Export leads", canLogClientMeetings: "Log client meetings",
   },
+  teamLead: {
+    canViewTeamLeads: "See team members' leads", canEditTeamLeads: "Update team members' leads", canCallTeamLeads: "Call team members' leads",
+    canReassignLeads: "Reassign leads within the team", canRevealTeamContact: "See unmasked phone / email of team leads",
+    canViewTeamCalls: "See team call logs & recordings", canViewTeamAttendance: "See team attendance",
+    canVerifyNotInterested: "Verify team's Not-Interested leads",
+  },
+  recordings: {
+    superAdminCanDownload: "Super admin can download", adminCanDownload: "Admins can download",
+    teamLeadCanDownload: "Team Leads can download", employeeCanDownload: "Employees can download",
+  },
   admin: {
-    canDeleteLeads: "Delete leads", canImportLeads: "Import leads",
+    canImportLeads: "Import leads",
     canExportLeads: "Export leads", canReassignLeads: "Reassign leads",
   },
+};
+const PERM_TITLES = { employee: "Employees can…", teamLead: "Team Leads can… (on top of employee rights, own team only)", admin: "Admins can…", recordings: "Call recordings — download" };
+const PERM_DESC = {
+  employee: "Enforced on the server for web and the mobile app.",
+  teamLead: "A Team Lead is an employee who manages a group of employees. Set teams in User Management → Teams.",
+  admin: "The company super admin can always do everything. Leads can never be deleted — they're closed or merged.",
+  recordings: "Everyone can always PLAY recordings inside the CRM. Switch on who may also download the audio file.",
 };
 function PermissionsTab({ draft, patch, ro }) {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-      {["employee", "admin"].map((role) => (
-        <Section key={role} title={role === "employee" ? "Employees can…" : "Admins can…"}
-          desc={role === "admin" ? "The company super admin can always do everything." : "Enforced on the server for web and the mobile app."}>
+      {["employee", "teamLead", "admin", "recordings"].filter((role) => draft.permissions[role]).map((role) => (
+        <Section key={role} title={PERM_TITLES[role]} desc={PERM_DESC[role]}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {Object.entries(PERM_LABELS[role]).map(([k, label]) => (
               <Toggle key={k} on={draft.permissions[role][k]} disabled={ro} onChange={(v) => patch("permissions", `${role}.${k}`, v)} label={label} />

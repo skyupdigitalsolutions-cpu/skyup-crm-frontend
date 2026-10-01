@@ -4,6 +4,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import api, { clearAllCache } from "../data/axiosConfig";
 import { getToken, getUser, clearSession, getBrand } from "../data/sessionStore";
 import useCustomization from "../hooks/useCustomization";
+import useTeamInfo from "../hooks/useTeamInfo";
+import { requestUpgrade } from "../utils/upgrade";
 
 // ── Nav items for ADMIN ───────────────────────────────────────────────────────
 const ADMIN_NAV_ITEMS = [
@@ -135,6 +137,17 @@ const ADMIN_NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    to: "/teams",
+    label: "Teams",
+    moduleKey: "teamLeads",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <circle cx="12" cy="5" r="2.5" /><circle cx="5" cy="17" r="2.5" /><circle cx="19" cy="17" r="2.5" />
+        <path d="M12 7.5v4M12 11.5l-6 3M12 11.5l6 3" />
+      </svg>
+    ),
+  },
 ];
 
 
@@ -222,21 +235,23 @@ const USER_NAV_ITEMS = [
     ),
   },
   {
-    // Excel / Google Sheet integration — appears ONLY when the derived
-    // effective flag is true (Developer made it available AND Company Admin
-    // enabled it). googleSheetIntegrationEnabled is computed server-side in
-    // entitlementService.js, so hasFeature() alone enforces both gates.
-    to: "/user/sheet-integration",
-    label: "Excel / Google Sheet",
-    featureKey: "googleSheetIntegrationEnabled",
-    moduleKey: "googleSheetIntegration",
+    to: "/user/calls",
+    label: "My Calls",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-        <line x1="3" y1="9" x2="21" y2="9" />
-        <line x1="3" y1="15" x2="21" y2="15" />
-        <line x1="9" y1="3" x2="9" y2="21" />
-        <line x1="15" y1="3" x2="15" y2="21" />
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
+      </svg>
+    ),
+  },
+  {
+    to: "/my-team",
+    label: "My Team",
+    moduleKey: "teamLeads",
+    teamLeadOnly: true,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <circle cx="12" cy="5" r="2.5" /><circle cx="5" cy="17" r="2.5" /><circle cx="19" cy="17" r="2.5" />
+        <path d="M12 7.5v4M12 11.5l-6 3M12 11.5l6 3" />
       </svg>
     ),
   },
@@ -345,6 +360,7 @@ export function Sidebar() {
   // ── Sidebar branding — SKYUP by default; a company that sets an app name in
   //    Customize CRM → Branding sees its own name (and brand logo, if any). ──
   const cust = useCustomization();
+  const teamInfo = useTeamInfo();
   const _appName = cust.c?.general?.appName || "";
   const _brand = getBrand();
   const companyName = _appName || "SKYUP";
@@ -424,10 +440,11 @@ export function Sidebar() {
     developer:   { border: "border-emerald-500/30",bg: "bg-emerald-500/10",text: "text-emerald-400" },
   }[role] ?? { border: "border-blue-500/30", bg: "bg-blue-500/10", text: "text-blue-400" };
 
-  // ── Build nav items based on role, filtered by entitlement feature flags ──
-  // NOTE: Items without a featureKey are always shown regardless of plan.
-  //       Items WITH a featureKey are hidden if hasFeature() returns false —
-  //       which is now driven by the entitlements API, not hardcoded plan names.
+  // ── Build nav items based on role ──────────────────────────────────────────
+  // Every feature is SHOWN in every plan. Items whose featureKey isn't in the
+  // company's plan are marked `locked` — clicking one opens the upgrade prompt
+  // instead of navigating. Only modules the company switched OFF (Customize
+  // CRM → Modules) or hid from this role are removed from the menu.
   const ALL_NAV_ITEMS =
     isDeveloper  ? DEVELOPER_NAV_ITEMS :
     role === "user" ? USER_NAV_ITEMS :
@@ -438,13 +455,15 @@ export function Sidebar() {
   // (Customize CRM → Modules / Terminology).
   const navRole = role === "user" ? "employee" : "admin";
   const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => {
+    if (item.teamLeadOnly && !teamInfo.isTeamLead) return false;
     if (!isDeveloper && item.moduleKey && !cust.moduleVisibleFor(item.moduleKey, navRole)) return false;
-    if (Array.isArray(item.featureKeyAny) && item.featureKeyAny.length) {
-      return item.featureKeyAny.some(k => hasFeature(k));
-    }
-    return !item.featureKey || hasFeature(item.featureKey);
+    return true;
   }).map(item => {
     if (isDeveloper) return item;
+    const inPlan = Array.isArray(item.featureKeyAny) && item.featureKeyAny.length
+      ? item.featureKeyAny.some(k => hasFeature(k))
+      : (!item.featureKey || hasFeature(item.featureKey));
+    if (!inPlan) item = { ...item, locked: true, lockKey: item.featureKey || item.featureKeyAny?.[0] };
     const custom = item.moduleKey && cust.moduleLabel(item.moduleKey, "");
     if (custom) return { ...item, label: custom };
     if (item.termKey) {
@@ -639,8 +658,10 @@ export function Sidebar() {
               <Link
                 key={item.to}
                 to={item.to}
+                onClick={item.locked ? (e) => { e.preventDefault(); requestUpgrade({ featureKey: item.lockKey, label: item.label }); } : undefined}
+                title={item.locked ? `${item.label} — not in your plan` : undefined}
                 className={`nav-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium
-                  ${isActive
+                  ${item.locked ? "opacity-60 " : ""}${isActive
                     ? "bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400"
                     : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-indigo-500/15 hover:text-gray-900 dark:hover:text-indigo-300"
                   }`}
@@ -669,6 +690,11 @@ export function Sidebar() {
                 {!effMinimized && (
                   <span className="nav-label flex items-center gap-1.5 flex-1">
                     {item.label}
+                    {item.locked && (
+                      <svg className="ml-auto w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-label="Upgrade to unlock">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    )}
                     {hasWaUnread && (
                       <span
                         className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white"

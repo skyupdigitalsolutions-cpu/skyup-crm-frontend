@@ -13,6 +13,7 @@ import { useDailyOutcomesReport } from '../hooks/useDailyOutcomesReport';
 import useEntitlements from '../hooks/useEntitlements';
 import { addDays, formatLong, formatMedium, isToday } from '../utils/dateUtils';
 import LeadInsights from './LeadInsights';
+import { requestUpgrade } from '../utils/upgrade';
 
 // ── Phone masking ─────────────────────────────────────────────────────────────
 function maskPhone(phone, isSuperAdmin) {
@@ -156,9 +157,10 @@ export default function DailyReport() {
     { k: 'leads',       l: 'New Leads',          count: leads.length },
     { k: 'followups',   l: 'Follow-ups',         count: followUps.filter(f => f.urgency !== 'upcoming').length + missingFollowUps.length },
     { k: 'conversions', l: 'Conversions',        count: conversions.length },
-    ...(showOutcomesTab
-      ? [{ k: 'outcomes', l: 'Call Outcomes', count: outcomesData?.summary?.totalCalls || 0 }]
-      : []),
+    // Always listed; locked (upgrade prompt) when not in the plan.
+    showOutcomesTab
+      ? { k: 'outcomes', l: 'Call Outcomes', count: outcomesData?.summary?.totalCalls || 0 }
+      : { k: 'outcomes', l: 'Call Outcomes 🔒', count: null, locked: true },
     { k: 'insights',    l: 'Lead Insights',     count: null },
   ];
 
@@ -226,7 +228,7 @@ export default function DailyReport() {
       {/* ── Tabs ──────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl p-1 mb-6 overflow-x-auto">
         {TABS.map(t => (
-          <button key={t.k} onClick={() => setTab(t.k)}
+          <button key={t.k} onClick={() => (t.locked ? requestUpgrade({ featureKey: 'callOutcomesReport', label: 'Call Outcomes Report' }) : setTab(t.k))}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-semibold whitespace-nowrap transition
               ${tab === t.k ? 'bg-[#2563EB] text-white' : 'text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#21253A]'}`}>
             {t.l}

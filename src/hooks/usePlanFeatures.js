@@ -35,7 +35,7 @@ function getStoredRole() {
 // ── Feature key → entitlements boolean key map ────────────────────────────────
 // Converts legacy sidebar/FeatureGate keys (e.g. "basic-reports") to the
 // entitlements object keys returned by the /my/entitlements endpoint.
-const FEATURE_KEY_MAP = {
+export const FEATURE_KEY_MAP = {
   "leads":               "leadManagement",
   "contacts":            "contacts",
   "basic-reports":       "basicReports",

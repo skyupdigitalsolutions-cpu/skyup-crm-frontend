@@ -14,10 +14,27 @@ import CRMEncryption from "../utils/CRMEncryption";
 // FIX (clock/timezone bug): see getGreeting() below.
 import { toIST } from "../utils/dateUtils";
 import IdleRemarkModal from "../components/IdleRemarkModal";
+// Company customization (Customize CRM): statuses, outcomes, qualities, lists.
+import useCustomization from "../hooks/useCustomization";
+import {
+  statusCategory, statusLabel, employeeStatuses, activeStatuses, activeOutcomes,
+  activeTemperatures, getCustomization, list as custList,
+} from "../data/customizationStore";
+import { statusConfigFor, temperatureStyle, paletteOf } from "../utils/statusConfig";
+
+// Status TYPE checks instead of literal names, so renamed / custom statuses count right.
+const isStatusCat = (status, cat) => statusCategory(status) === cat;
+// Label for a status TYPE: the status's own (renamed) label when the company
+// has exactly one active status of that type, otherwise the generic fallback.
+const catLabel = (cat, fallback) => {
+  const l = activeStatuses().filter(x => x.category === cat);
+  return l.length === 1 ? l[0].label : fallback;
+};
 
 const crm = new CRMEncryption();
-const ALL_SOURCES  = ["Manual", "Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral"];
-const ALL_STATUSES = ["New", "In Progress", "Converted", "Not Interested"];
+// Live lists from the company's customization (were hardcoded arrays).
+const allSources  = () => custList("sources");
+const allStatuses = () => activeStatuses().map(s => s.key);
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function parseDate(s) {
@@ -76,12 +93,8 @@ function parseCSVLine(line) {
 }
 
 // ── Status / Quality configs ──────────────────────────────────────────────────
-const STATUS_CONFIG = {
-  "New":            { bg:"bg-blue-50 dark:bg-blue-950/40",       text:"text-blue-600 dark:text-blue-400",    dot:"#2563EB" },
-  "In Progress":    { bg:"bg-amber-50 dark:bg-amber-950/40",     text:"text-amber-600 dark:text-amber-400",  dot:"#D97706" },
-  "Converted":      { bg:"bg-emerald-50 dark:bg-emerald-950/40", text:"text-emerald-600 dark:text-emerald-400", dot:"#059669" },
-  "Not Interested": { bg:"bg-red-50 dark:bg-red-950/40",         text:"text-red-600 dark:text-red-400",      dot:"#DC2626" },
-};
+// Colour per status now comes from the company's status settings.
+const STATUS_CONFIG = new Proxy({}, { get: (_t, k) => (typeof k === "string" ? statusConfigFor(k) : undefined) });
 const TEMP_CONFIG = {
   Hot:  { bg:"bg-red-50 dark:bg-red-950/40",    text:"text-red-600 dark:text-red-400",    icon:"" },
   Warm: { bg:"bg-amber-50 dark:bg-amber-950/40",text:"text-amber-600 dark:text-amber-400",icon:"" },
@@ -93,17 +106,17 @@ function StatusBadge({ status }) {
   return (
     <span className={"inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold " + s.bg + " " + s.text}>
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.dot }} />
-      {status}
+      {statusLabel(status)}
     </span>
   );
 }
 function TempBadge({ temp }) {
   if (!temp) return null;
-  const s = TEMP_CONFIG[temp];
-  if (!s) return null;
+  const t = temperatureStyle(temp);
+  const s = { bg: t.bg, text: t.text, icon: TEMP_CONFIG[temp]?.icon || "" };
   return (
     <span className={"inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold " + s.bg + " " + s.text}>
-      {s.icon} {temp}
+      {s.icon} {t.label || temp}
     </span>
   );
 }
@@ -742,14 +755,21 @@ function getTodayStr()    { return new Date().toISOString().split("T")[0]; }
 // Kept in sync with the mobile app's OUTCOMES list (LeadDetailScreen.js) so the
 // same call-remark outcomes are available on web and mobile, and so they match the
 // backend outcomeAutomationService keys (answered / notAnswered / busy / switchOff / …).
-const OUTCOME_OPTIONS = ["Answered","Not Answered","Busy","Switch Off","Call Back Later","Interested","Not Interested","Invalid","Client Meeting"];
+// Outcomes now come from Customize CRM → Call Outcomes (activeOutcomes()).
 
 // ── UpdateStatusModal ─────────────────────────────────────────────────────────
 // Now accepts `projects` prop so users can assign/remove project tags while updating a lead.
 function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects = [] }) {
-  const [status,       setStatus]       = useState(lead.status === "Not Interested" ? "In Progress" : (lead.status || "New"));
+  const _cfg = getCustomization();
+  const niStatus = _cfg.workflows?.notInterested?.finalStatus || "Not Interested";
+  const niFlowOn = _cfg.workflows?.notInterested?.enabled !== false;
+  const openStatus = (activeStatuses().find(x => x.category === "open") || { key: "In Progress" }).key;
+  const OUTCOMES = activeOutcomes();
+  const TEMPS = activeTemperatures();
+  const TEMP_ICONS = { Hot: Flame, Warm: CloudSun, Cold: Snowflake };
+  const [status,       setStatus]       = useState(lead.status === niStatus ? openStatus : (lead.status || "New"));
   const [temp,         setTemp]         = useState(lead.temperature || lead.Quality || "");
-  const [outcome,      setOutcome]      = useState("Answered");
+  const [outcome,      setOutcome]      = useState((OUTCOMES.find(o => o.key === "Answered") || OUTCOMES[0] || {}).key || "");
   const [remark,       setRemark]       = useState(lead.remark || "");
   const [followUpDate, setFollowUpDate] = useState(getTomorrowStr());
   const [loading,      setLoading]      = useState(false);
@@ -769,7 +789,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects =
   const CLS = "w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition";
 
   const handleStatusChange = (e) => {
-    if (e.target.value === "Not Interested") { onNotInterested(); return; }
+    if (e.target.value === niStatus && niFlowOn) { onNotInterested(); return; }
     setStatus(e.target.value);
   };
 
@@ -778,7 +798,8 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects =
     try {
       const body = { status, remark, outcome, projects: selectedProjects };
       if (temp) { body.temperature = temp; body.Quality = temp; }
-      if (status !== "Not Interested") { body.followUpDate = followUpDate || getTomorrowStr(); }
+      const _oc = OUTCOMES.find(o => o.key === outcome);
+      if (status !== niStatus && (!_oc || _oc.followUp !== "none")) { body.followUpDate = followUpDate || getTomorrowStr(); }
       const res = await api.patch(`/lead/${lead.id || lead._id}`, body);
       onSaved({
         ...lead,
@@ -816,16 +837,16 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects =
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Status</label>
             <select value={status} onChange={handleStatusChange} className={CLS}>
-              {["New","In Progress","Converted","Not Interested"].map(s => <option key={s}>{s}</option>)}
+              {employeeStatuses().map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
             </select>
-            <p className="text-[10px] text-amber-500 mt-1">Selecting "Not Interested" opens the reassignment workflow.</p>
+            {niFlowOn && <p className="text-[10px] text-amber-500 mt-1">Selecting "{statusLabel(niStatus)}" opens the reassignment workflow.</p>}
           </div>
 
           {/* Call Outcome */}
           <div>
             <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Call Outcome</label>
             <select value={outcome} onChange={e => setOutcome(e.target.value)} className={CLS}>
-              {OUTCOME_OPTIONS.map(o => <option key={o}>{o}</option>)}
+              {OUTCOMES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
           </div>
 
@@ -835,9 +856,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects =
             <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
               {[
                 {val:"",    label:"None",  Icon:null,      color:"#8B92A9", bg:"bg-gray-50 dark:bg-gray-900/30"},
-                {val:"Hot", label:"Hot",   Icon:Flame,     color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30"},
-                {val:"Warm",label:"Warm",  Icon:CloudSun,  color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30"},
-                {val:"Cold",label:"Cold",  Icon:Snowflake, color:"#2563EB", bg:"bg-blue-50 dark:bg-blue-950/30"},
+                ...TEMPS.map(t => ({ val: t.key, label: t.label, Icon: TEMP_ICONS[t.key] || null, color: paletteOf(t.color).dot, bg: paletteOf(t.color).soft })),
               ].map(q => (
                 <button key={q.val} type="button" onClick={() => setTemp(q.val)}
                   className={`py-2 px-1 rounded-xl border-2 text-[10px] sm:text-[11px] font-semibold transition ${q.bg} ${temp === q.val ? "border-current scale-[1.03]" : "border-transparent opacity-60 hover:opacity-100"}`}
@@ -865,7 +884,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects =
          
 
           {/* Follow-up Date */}
-          {status !== "Not Interested" && (
+          {status !== niStatus && (
             <div>
               <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Follow-up Date</label>
               <input type="date" value={followUpDate} min={getTodayStr()} onChange={e => setFollowUpDate(e.target.value)} className={CLS} />
@@ -924,8 +943,8 @@ function EditLeadModal({ lead, onClose, onSave }) {
               className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#8B92A9] dark:text-[#565C75] cursor-not-allowed" />
           </div>
           {[
-            { label: "Source", key: "source", options: ALL_SOURCES },
-            { label: "Status", key: "status", options: ALL_STATUSES },
+            { label: "Source", key: "source", options: allSources() },
+            { label: "Status", key: "status", options: allStatuses() },
           ].map(f => (
             <div key={f.key} className="flex flex-col gap-1">
               <label className="text-[11px] font-medium text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">{f.label}</label>
@@ -1379,7 +1398,7 @@ function AddLeadModal({ onClose, onAdd }) {
     email:          "",
     source:         "Manual",
     campaign:       "",
-    status:         "New",
+    status:         "",        // "" → company default status (server resolves)
     remark:         "",
   });
   const [errors,     setErrors]     = useState({});
@@ -1630,7 +1649,8 @@ function AddLeadModal({ onClose, onAdd }) {
               onChange={e => set("status", e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none"
             >
-              {["New","In Progress","Converted"].map(s => <option key={s}>{s}</option>)}
+              <option value="">{statusLabel(activeStatuses().find(x => x.isDefault)?.key || "New")} (default)</option>
+              {employeeStatuses().filter(s => !s.isDefault).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
             </select>
           </div>
 
@@ -1932,9 +1952,9 @@ function ProjectsCard({ projects, leads, projectFilter, setProjectFilter, setAct
         const hot       = projLeads.filter(l => l.Quality === "Hot"  || l.temperature === "Hot").length;
         const warm      = projLeads.filter(l => l.Quality === "Warm" || l.temperature === "Warm").length;
         const cold      = projLeads.filter(l => l.Quality === "Cold" || l.temperature === "Cold").length;
-        const converted = projLeads.filter(l => l.status === "Converted").length;
-        const inProg    = projLeads.filter(l => l.status === "In Progress").length;
-        const newL      = projLeads.filter(l => l.status === "New").length;
+        const converted = projLeads.filter(l => isStatusCat(l.status, "won")).length;
+        const inProg    = projLeads.filter(l => isStatusCat(l.status, "open")).length;
+        const newL      = projLeads.filter(l => isStatusCat(l.status, "new")).length;
         const convPct   = projLeads.length > 0 ? Math.round(converted / projLeads.length * 100) : 0;
         const isFiltered = projectFilter === String(p._id);
 
@@ -1950,9 +1970,9 @@ function ProjectsCard({ projects, leads, projectFilter, setProjectFilter, setAct
             <div className="space-y-1.5">
               {[
                 { label: "Total Leads", value: projLeads.length, color: "#2563EB" },
-                { label: "Converted",   value: converted,         color: "#059669" },
-                { label: "In Progress", value: inProg,            color: "#D97706" },
-                { label: "New",         value: newL,              color: "#8B92A9" },
+                { label: catLabel("won", "Converted"),   value: converted,         color: "#059669" },
+                { label: catLabel("open", "In Progress"), value: inProg,            color: "#D97706" },
+                { label: catLabel("new", "New"),         value: newL,              color: "#8B92A9" },
               ].map(s => (
                 <div key={s.label} className="flex items-center justify-between">
                   <span className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">{s.label}</span>
@@ -2199,6 +2219,7 @@ function TelegramSetupWidget({ user }) {
 }
 
 export default function UserDashboard() {
+  useCustomization(); // re-render when the company customization loads / changes
   const user     = getUser();
   const greeting = getGreeting();
   const [leads,         setLeads]         = useState([]);
@@ -2211,7 +2232,6 @@ export default function UserDashboard() {
   const [sortBy,        setSortBy]        = useState("date_desc");
   const [page,          setPage]          = useState(1);
   const [showAddModal,  setShowAddModal]  = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editLead,      setEditLead]      = useState(null);
   const [phoneLead,     setPhoneLead]     = useState(null);
   const [activeTab,     setActiveTab]     = useState("leads");
@@ -2292,7 +2312,7 @@ export default function UserDashboard() {
     return leads
       .filter((l) => {
         if (!l.followUpDate) return false;
-        if (l.status === "Converted" || l.status === "Not Interested") return false;
+        if (isStatusCat(l.status, "won") || isStatusCat(l.status, "lost")) return false;
         const fu = new Date(l.followUpDate);
         fu.setHours(0, 0, 0, 0);
         return fu <= today; // due today OR overdue
@@ -2304,10 +2324,10 @@ export default function UserDashboard() {
     const total        = leads.length;
     const todayLeads   = leads.filter(l => isToday(l.date)).length;
     const weekLeads    = leads.filter(l => isThisWeek(l.date)).length;
-    const converted    = leads.filter(l => l.status === "Converted").length;
-    const inProgress   = leads.filter(l => l.status === "In Progress").length;
-    const notInt       = leads.filter(l => l.status === "Not Interested").length;
-    const newLeads     = leads.filter(l => l.status === "New").length;
+    const converted    = leads.filter(l => isStatusCat(l.status, "won")).length;
+    const inProgress   = leads.filter(l => isStatusCat(l.status, "open")).length;
+    const notInt       = leads.filter(l => isStatusCat(l.status, "lost")).length;
+    const newLeads     = leads.filter(l => isStatusCat(l.status, "new")).length;
     const hot          = leads.filter(l => l.Quality === "Hot").length;
     const warm         = leads.filter(l => l.Quality === "Warm").length;
     const cold         = leads.filter(l => l.Quality === "Cold").length;
@@ -2367,10 +2387,7 @@ export default function UserDashboard() {
   };
 
   const handleAddLead  = newLead => { setLeads(prev => [newLead, ...prev]); setPage(1); };
-  const handleDeleteLead = async id => {
-    try { await api.delete("/lead/" + id); setLeads(prev => prev.filter(l => l.id !== id)); if (selected?.id === id) setSelected(null); }
-    catch { /* ignore */ } finally { setDeleteConfirm(null); }
-  };
+  // Lead deletion removed for every role — leads are closed or merged instead.
 
   // ── CSV template download ─────────────────────────────────────────────────
   const downloadCSVTemplate = () => {
@@ -2570,7 +2587,7 @@ export default function UserDashboard() {
             { label:"My Total Leads", value:kpi.total,          color:"text-[#0F1117] dark:text-white" },
             { label:"Today",          value:kpi.todayLeads,     color:"text-[#2563EB] dark:text-[#4F8EF7]" },
             { label:"This Week",      value:kpi.weekLeads,      color:"text-[#2563EB] dark:text-[#4F8EF7]" },
-            { label:"Converted",      value:kpi.converted,      color:"text-[#059669] dark:text-[#34D399]" },
+            { label:catLabel("won", "Converted"),      value:kpi.converted,      color:"text-[#059669] dark:text-[#34D399]" },
             { label:"Conv. Rate",     value:kpi.convRate + "%", color:"text-[#059669] dark:text-[#34D399]" },
           ].map(stat => (
             <div key={stat.label} className="flex items-center gap-1.5 sm:gap-2">
@@ -2594,8 +2611,8 @@ export default function UserDashboard() {
         {/* KPI cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <KpiCard label="My Total Leads" value={kpi.total}      sub="All assigned to you"             color="#2563EB" icon={<UsersIcon className="w-5 h-5"/>} />
-          <KpiCard label="Converted"      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon={<CheckIcon className="w-5 h-5"/>} trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
-          <KpiCard label="In Progress"    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon={<LoaderIcon className="w-5 h-5"/>} />
+          <KpiCard label={catLabel("won", "Converted")}      value={kpi.converted}  sub={kpi.convRate + "% success rate"} color="#059669" icon={<CheckIcon className="w-5 h-5"/>} trendUp={kpi.convRate > 20} trend={kpi.convRate + "% rate"} />
+          <KpiCard label={catLabel("open", "In Progress")}    value={kpi.inProgress} sub="Awaiting follow-up"              color="#D97706" icon={<LoaderIcon className="w-5 h-5"/>} />
           <KpiCard label="Hot Leads"      value={kpi.hot}        sub="Call these first!"               color="#DC2626" icon={<FlameIcon className="w-5 h-5"/>} />
         </div>
 
@@ -2645,8 +2662,8 @@ export default function UserDashboard() {
             <p className="text-[13px] sm:text-[14px] font-bold text-[#0F1117] dark:text-white uppercase tracking-wide mb-4"> My Daily Targets</p>
             <div className="flex items-center justify-around flex-wrap gap-3">
               <RadialProgress value={kpi.todayLeads} max={10} color="#2563EB" label="Leads" size={80} />
-              <RadialProgress value={leads.filter(l => isToday(l.date) && l.status==="Converted").length} max={5} color="#059669" label="Convert" size={80} />
-              <RadialProgress value={leads.filter(l => isToday(l.date) && l.status==="In Progress").length} max={8} color="#D97706" label="Active" size={80} />
+              <RadialProgress value={leads.filter(l => isToday(l.date) && isStatusCat(l.status, "won")).length} max={5} color="#059669" label="Convert" size={80} />
+              <RadialProgress value={leads.filter(l => isToday(l.date) && isStatusCat(l.status, "open")).length} max={8} color="#D97706" label="Active" size={80} />
             </div>
             <p className="text-[9px] text-center text-[#8B92A9] dark:text-[#D1D5DB] mt-3 font-medium uppercase tracking-wide">Targets: 10 leads · 5 conversions · 8 follow-ups</p>
           </div>
@@ -2679,10 +2696,10 @@ export default function UserDashboard() {
         {/* Status filter pills */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
           {[
-            { label:"New",            count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-100 dark:bg-blue-950/70",      icon:"" },
-            { label:"In Progress",    count:kpi.inProgress, color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30",     icon:"" },
-            { label:"Converted",      count:kpi.converted,  color:"#059669", bg:"bg-emerald-50 dark:bg-emerald-950/30", icon:"" },
-            { label:"Not Interested", count:kpi.notInt,     color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30",         icon:"" },
+            { label:catLabel("new", "New"),            count:kpi.newLeads,   color:"#2563EB", bg:"bg-blue-100 dark:bg-blue-950/70",      icon:"" },
+            { label:catLabel("open", "In Progress"),    count:kpi.inProgress, color:"#D97706", bg:"bg-amber-50 dark:bg-amber-950/30",     icon:"" },
+            { label:catLabel("won", "Converted"),      count:kpi.converted,  color:"#059669", bg:"bg-emerald-50 dark:bg-emerald-950/30", icon:"" },
+            { label:catLabel("lost", "Not Interested"), count:kpi.notInt,     color:"#DC2626", bg:"bg-red-50 dark:bg-red-950/30",         icon:"" },
           ].map(item => (
             <button key={item.label}
               onClick={() => { setFilterSt(filterSt === item.label ? "All" : item.label); setActiveTab("leads"); setPage(1); }}
@@ -2960,21 +2977,6 @@ export default function UserDashboard() {
         />,
         document.body
       )}
-      {/* {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            </div>
-            <h2 className="text-[16px] font-bold text-[#0F1117] dark:text-white text-center mb-2">Delete Lead?</h2>
-            <p className="text-[12px] text-[#8B92A9] text-center mb-5">This will permanently remove <strong className="text-[#0F1117] dark:text-white">{deleteConfirm.name}</strong> from your list.</p>
-            <div className="flex gap-2">
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#E5E7EB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
-              <button onClick={() => handleDeleteLead(deleteConfirm.id)} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition">Delete</button>
-            </div>
-          </div>
-        </div>
-      )} */}
 
       <UserChatWidget />
     </div>

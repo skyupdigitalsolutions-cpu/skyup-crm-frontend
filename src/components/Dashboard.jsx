@@ -14,6 +14,20 @@ import AdminAttendanceView from "./AdminAttendanceView";
 import CompanyBrandSettings from "./CompanyBrandSettings";
 import SuperAdminFilter from "./SuperAdminFilter";
 import useEntitlements from "../hooks/useEntitlements";
+import useCustomization from "../hooks/useCustomization";
+import { getCustomization, statusCategory, statusLabel, findTemperature } from "../data/customizationStore";
+import { statusConfigFor, paletteOf } from "../utils/statusConfig";
+
+// ── Customize CRM helpers: statuses are compared by CATEGORY so renamed /
+//    custom statuses still land in the right bucket. ──────────────────────────
+const isCatS  = (status, cat) => statusCategory(status) === cat;
+const isWonS  = (status) => isCatS(status, "won");
+const catLabelD = (cat, fb) => ((getCustomization().statuses || []).find((s) => s.category === cat && s.active) || {}).label || fb;
+const catColorD = (cat, fb) => {
+  const st = (getCustomization().statuses || []).find((s) => s.category === cat && s.active);
+  return st ? paletteOf(st.color).dot : fb;
+};
+const tempLabelD = (key) => findTemperature(key)?.label || key;
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
 function maskPhone(phone) {
@@ -92,7 +106,7 @@ function buildChartBuckets(leads, range) {
     return {
       labels: hours.map((h) => `${h > 12 ? h - 12 : h}${h >= 12 ? "pm" : "am"}`),
       new:    hours.map((h) => leads.filter((l) => parseDate(l.date).getHours() === h).length),
-      conv:   hours.map((h) => leads.filter((l) => l.status === "Converted" && parseDate(l.date).getHours() === h).length),
+      conv:   hours.map((h) => leads.filter((l) => isWonS(l.status) && parseDate(l.date).getHours() === h).length),
     };
   }
   if (range === "week") {
@@ -107,7 +121,7 @@ function buildChartBuckets(leads, range) {
       }),
       conv: Array.from({ length: 7 }, (_, i) => {
         const d = new Date(); d.setDate(d.getDate() - 6 + i);
-        return leads.filter((l) => l.status === "Converted" && parseDate(l.date).toDateString() === d.toDateString()).length;
+        return leads.filter((l) => isWonS(l.status) && parseDate(l.date).toDateString() === d.toDateString()).length;
       }),
     };
   }
@@ -115,7 +129,7 @@ function buildChartBuckets(leads, range) {
     return {
       labels: ["Wk 1", "Wk 2", "Wk 3", "Wk 4"],
       new:    [1, 2, 3, 4].map((w) => leads.filter((l) => Math.ceil(parseDate(l.date).getDate() / 7) === w).length),
-      conv:   [1, 2, 3, 4].map((w) => leads.filter((l) => l.status === "Converted" && Math.ceil(parseDate(l.date).getDate() / 7) === w).length),
+      conv:   [1, 2, 3, 4].map((w) => leads.filter((l) => isWonS(l.status) && Math.ceil(parseDate(l.date).getDate() / 7) === w).length),
     };
   }
   const q = Math.floor(now.getMonth() / 3);
@@ -124,7 +138,7 @@ function buildChartBuckets(leads, range) {
   return {
     labels: months.map((m) => MON[m]),
     new:    months.map((m) => leads.filter((l) => parseDate(l.date).getMonth() === m).length),
-    conv:   months.map((m) => leads.filter((l) => l.status === "Converted" && parseDate(l.date).getMonth() === m).length),
+    conv:   months.map((m) => leads.filter((l) => isWonS(l.status) && parseDate(l.date).getMonth() === m).length),
   };
 }
 
@@ -735,12 +749,6 @@ function LeadsDetailModal({ open, onClose, title, leads, accentColor, TitleIcon 
     );
   }, [leads, search]);
 
-  const statusColors = {
-    "Converted":      { bg: "bg-green-50 dark:bg-green-950/40",  text: "text-green-700 dark:text-green-400",  dot: "#16A34A" },
-    "In Progress":    { bg: "bg-amber-50 dark:bg-amber-950/40",   text: "text-amber-700 dark:text-amber-400",  dot: "#D97706" },
-    "Not Interested": { bg: "bg-red-50 dark:bg-red-950/40",       text: "text-red-700 dark:text-red-400",      dot: "#DC2626" },
-    "New":            { bg: "bg-blue-50 dark:bg-blue-950/30",     text: "text-blue-700 dark:text-blue-400",    dot: "#2563EB" },
-  };
 
   return (
     <Modal
@@ -779,7 +787,7 @@ function LeadsDetailModal({ open, onClose, title, leads, accentColor, TitleIcon 
       ) : (
         <div className="space-y-2">
           {filtered.map((lead, i) => {
-            const sc = statusColors[lead.status] || statusColors["New"];
+            const sc = statusConfigFor(lead.status);
             return (
               <div
                 key={lead.id || i}
@@ -960,15 +968,19 @@ const SOURCE_COLORS = {
   "Referral":     "#D97706",
 };
 
+// Pipeline donut buckets by status category; label + colour from Customize CRM.
 const PIPELINE_SEGMENTS_CONFIG = [
-  { key: "new",       label: "New",            color: "#2563EB" },
-  { key: "progress",  label: "In progress",    color: "#D97706" },
-  { key: "lost",      label: "Not interested", color: "#DC2626" },
-  { key: "converted", label: "Converted",      color: "#16A34A" },
+  { key: "new",       cat: "new",  fb: "New",            color: "#2563EB" },
+  { key: "progress",  cat: "open", fb: "In progress",    color: "#D97706" },
+  { key: "lost",      cat: "lost", fb: "Not interested", color: "#DC2626" },
+  { key: "converted", cat: "won",  fb: "Converted",      color: "#16A34A" },
 ];
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
+  const cz = useCustomization();
+  const W  = cz.c?.dashboard?.widgets || {};
+  const showW = (k) => W[k] !== false;
   const [allLeads,    setAllLeads]    = useState([]);
   const [agents,      setAgents]      = useState([]);
   const [dbAdmins,    setDbAdmins]    = useState([]);
@@ -1081,7 +1093,7 @@ export default function Dashboard() {
       (dashStats && typeof dashStats.totalLeads === "number") ? dashStats.totalLeads
       : (typeof serverTotal === "number") ? serverTotal
       : allLeads.length;
-    const converted  = allLeads.filter((l) => l.status === "Converted").length;
+    const converted  = allLeads.filter((l) => isWonS(l.status)).length;
     const rangeTotal = leads.length;
     return {
       total: accurateTotal,
@@ -1089,26 +1101,26 @@ export default function Dashboard() {
       rate: `${accurateTotal > 0 ? Math.round((converted / accurateTotal) * 100) : 0}%`,
       rangeTotal,
     };
-  }, [leads, allLeads, dashStats, serverTotal]);
+  }, [leads, allLeads, dashStats, serverTotal, cz.c]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const chart = useMemo(() => buildChartBuckets(leads, range), [leads, range]);
+  const chart = useMemo(() => buildChartBuckets(leads, range), [leads, range, cz.c]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pipeline = useMemo(() => ({
-    new:       leads.filter((l) => l.status === "New").length,
-    progress:  leads.filter((l) => l.status === "In Progress").length,
-    lost:      leads.filter((l) => l.status === "Not Interested").length,
-    converted: leads.filter((l) => l.status === "Converted").length,
-  }), [leads]);
+    new:       leads.filter((l) => isCatS(l.status, "new")).length,
+    progress:  leads.filter((l) => isCatS(l.status, "open")).length,
+    lost:      leads.filter((l) => isCatS(l.status, "lost")).length,
+    converted: leads.filter((l) => isWonS(l.status)).length,
+  }), [leads, cz.c]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const agentStats = useMemo(
     () =>
       agents
         .map((a) => {
           const al = leads.filter((l) => l.agent === a.name);
-          return { ...a, leads: al.length, conv: al.filter((l) => l.status === "Converted").length };
+          return { ...a, leads: al.length, conv: al.filter((l) => isWonS(l.status)).length };
         })
         .sort((a, b) => b.leads - a.leads),
-    [leads, agents]
+    [leads, agents, cz.c] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const sourceStats = useMemo(() => {
@@ -1139,19 +1151,16 @@ export default function Dashboard() {
         .sort((a, b) => String(b.id).localeCompare(String(a.id)))
         .slice(0, 6)
         .map((l) => ({
-          text: `${l.agent} · ${l.name} — ${l.status}`,
+          text: `${l.agent} · ${l.name} — ${statusLabel(l.status)}`,
           time: l.date,
           dot:
-            l.status === "Converted"        ? "#16A34A"
-            : l.status === "In Progress"    ? "#D97706"
-            : l.status === "Not Interested" ? "#DC2626"
-            : "#2563EB",
+            statusConfigFor(l.status)?.dot || "#2563EB",
         })),
-    [allLeads]
+    [allLeads, cz.c] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const maxLeads        = Math.max(...agentStats.map((a) => a.leads), 1);
-  const pipelineSegs    = PIPELINE_SEGMENTS_CONFIG.map((cfg) => ({ label: cfg.label, color: cfg.color, value: pipeline[cfg.key] }));
+  const pipelineSegs    = PIPELINE_SEGMENTS_CONFIG.map((cfg) => ({ label: catLabelD(cfg.cat, cfg.fb), color: catColorD(cfg.cat, cfg.color), value: pipeline[cfg.key] }));
   const pipelineTotal   = pipelineSegs.reduce((s, x) => s + x.value, 0);
   const uniqueSources   = [...new Set(allLeads.map((l) => l.source))].length;
   const uniqueCampaigns = [...new Set(allLeads.map((l) => l.campaign).filter((c) => c && c !== "—"))].length;
@@ -1205,18 +1214,18 @@ export default function Dashboard() {
       {error && <ErrorBanner message={error} onRetry={() => loadData()} />}
 
       {/* ── KPI row ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
+      {showW("kpis") && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
         <KpiCard label="Total Leads"    value={kpi.total.toLocaleString()}     sub={`${kpi.rangeTotal} in selected range`} up IconComponent={Users}       variant="blue" />
-        <KpiCard label="Conversions"    value={kpi.converted.toLocaleString()} sub={`${kpi.rate} conversion rate`}        up={kpi.converted > 0} IconComponent={CheckCircle} variant="green" />
-        <KpiCard label="Conv. Rate"     value={kpi.rate}                       sub={`${pipeline.progress} in progress`}   up={parseInt(kpi.rate, 10) >= 15} IconComponent={BarChart2} variant="amber" />
-        <KpiCard label="Not Interested" value={pipeline.lost.toLocaleString()} sub="Review needed"                       up={false} IconComponent={Clock} variant="red" />
-      </div>
+        <KpiCard label={cz.term("conversions", "Conversions")}    value={kpi.converted.toLocaleString()} sub={`${kpi.rate} conversion rate`}        up={kpi.converted > 0} IconComponent={CheckCircle} variant="green" />
+        <KpiCard label="Conv. Rate"     value={kpi.rate}                       sub={`${pipeline.progress} ${catLabelD("open", "in progress").toLowerCase()}`}   up={parseInt(kpi.rate, 10) >= 15} IconComponent={BarChart2} variant="amber" />
+        <KpiCard label={catLabelD("lost", "Not Interested")} value={pipeline.lost.toLocaleString()} sub="Review needed"                       up={false} IconComponent={Clock} variant="red" />
+      </div>}
 
       {/* ── Quality KPI row + Phone & Email Reveal Stats ── */}
-      {dashStats && (
+      {dashStats && showW("temperature") && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
           <KpiCard
-            label="Hot Leads"
+            label={`${tempLabelD("Hot")} Leads`}
             value={(dashStats.quality?.hot ?? 0).toLocaleString()}
             sub="All fields filled · Tap to view"
             up={(dashStats.quality?.hot ?? 0) > 0}
@@ -1226,7 +1235,7 @@ export default function Dashboard() {
             onClick={() => setHotModal(true)}
           />
           <KpiCard
-            label="Warm Leads"
+            label={`${tempLabelD("Warm")} Leads`}
             value={(dashStats.quality?.warm ?? 0).toLocaleString()}
             sub="Partially filled · Tap to view"
             up={(dashStats.quality?.warm ?? 0) > 0}
@@ -1261,7 +1270,7 @@ export default function Dashboard() {
       {/* ── Chart row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-6">
 
-        <div className="lg:col-span-2 bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
+        <div className={`${showW("pipeline") ? "lg:col-span-2" : "lg:col-span-3"} bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-5">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-5">
               <h2 className="text-[13px] sm:text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Leads over time</h2>
@@ -1293,7 +1302,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
+        {showW("pipeline") && <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
           <h2 className="text-[13px] sm:text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-4 sm:mb-5">Pipeline status</h2>
           <div className="flex items-center gap-4">
             <div className="relative shrink-0" style={{ width: 110, height: 110 }}>
@@ -1321,13 +1330,13 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* ── Bottom row ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
 
-        <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
+        {showW("employeePerformance") && <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
           <h2 className="text-[13px] sm:text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-3 sm:mb-4">
             {isSuperAdmin ? "Top employees" : "Employee performance"}
           </h2>
@@ -1366,9 +1375,9 @@ export default function Dashboard() {
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
-        <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
+        {showW("sources") && <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
           <h2 className="text-[13px] sm:text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA] mb-3 sm:mb-4">Leads by source</h2>
           <div className="space-y-2.5 sm:space-y-3">
             {sourceStats.length === 0 ? (
@@ -1411,9 +1420,9 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
-        </div>
+        </div>}
 
-        <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
+        {showW("recentLeads") && <div className="bg-white dark:bg-[#1A1D27] border border-[#E5E7EB] dark:border-[#262A38] rounded-2xl p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2 className="text-[13px] sm:text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Recent activity</h2>
             <span className="flex items-center gap-1.5 text-[10px] font-semibold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 px-2 py-1 rounded-full shrink-0">
@@ -1436,7 +1445,7 @@ export default function Dashboard() {
               ))
             )}
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* ── Sub-components ── */}

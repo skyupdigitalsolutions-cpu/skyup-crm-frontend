@@ -2,6 +2,7 @@ import { useState } from "react";
 import { maskPhone } from '../utils/maskPhone';
 import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
+import useCustomization from "../hooks/useCustomization";
 
 /**
  * NotInterestedModal
@@ -15,6 +16,15 @@ export default function NotInterestedModal({ lead, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
   const [result,  setResult]  = useState(null);
+
+  // Company workflow + reasons (Customize CRM → Workflows / Lists)
+  const cz = useCustomization();
+  const niFlow   = cz.c?.workflows?.notInterested || {};
+  const niSteps  = Array.isArray(niFlow.followUps) ? niFlow.followUps : [];
+  const verifyOn = niFlow.verification !== false;
+  const reasons  = cz.list("notInterestedReasons");
+  const verificationLabel = cz.statusLabel(niFlow.verificationStatus || "Verification");
+  const niLabel  = cz.statusLabel(niFlow.finalStatus || "Not Interested");
 
   if (!lead) return null;
 
@@ -82,7 +92,7 @@ export default function NotInterestedModal({ lead, onClose, onSuccess }) {
           )}
           {result.isVerification && (
             <p className="text-[12px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 rounded-xl px-4 py-2">
-              Status set to <strong>Verification</strong>. If the verifier also marks it Not Interested,
+              Status set to <strong>{verificationLabel}</strong>. If the verifier also marks it {niLabel},
               it will come back to you with the remaining follow-ups.
             </p>
           )}
@@ -137,7 +147,7 @@ export default function NotInterestedModal({ lead, onClose, onSuccess }) {
               </svg>
             </span>
             <div>
-              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Mark as Not Interested</h2>
+              <h2 className="text-[15px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Mark as {niLabel}</h2>
               <p className="text-[12px] text-[#8B92A9]">{lead.name} · {maskPhone(lead.mobile || lead.phone)}</p>
             </div>
           </div>
@@ -157,11 +167,19 @@ export default function NotInterestedModal({ lead, onClose, onSuccess }) {
           <div className="px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-[12px] text-amber-700 dark:text-amber-300 space-y-1">
             <p className="font-semibold">What happens next:</p>
             <ul className="list-disc list-inside space-y-1 text-[11px]">
-              <li>Lead is sent to <strong>another agent for verification</strong></li>
-              <li>If the verifier also marks it Not Interested, it comes <strong>back to you</strong> with the remaining follow-ups</li>
-              <li> Follow-up call in <strong>3 days</strong> ({fmt(now + 3 * 86400000)})</li>
-              <li> Verification call in <strong>7 days</strong> ({fmt(now + 7 * 86400000)})</li>
-              <li> Verification call in <strong>30 days</strong> ({fmt(now + 30 * 86400000)})</li>
+              {verifyOn ? (
+                <>
+                  <li>Lead is sent to <strong>another agent for verification</strong></li>
+                  <li>If the verifier also marks it {niLabel}, it comes <strong>back to you</strong> with the remaining follow-ups</li>
+                </>
+              ) : (
+                <li>Lead is marked <strong>{niLabel}</strong></li>
+              )}
+              {niSteps.map(function(st, i) {
+                return (
+                  <li key={i}> {st.type === "verification" ? "Verification" : "Follow-up"} call in <strong>{st.days} day{st.days === 1 ? "" : "s"}</strong> ({fmt(now + st.days * 86400000)})</li>
+                );
+              })}
               <li>Full call history passed to the verifier</li>
             </ul>
           </div>
@@ -198,6 +216,20 @@ export default function NotInterestedModal({ lead, onClose, onSuccess }) {
             <label className="block text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide mb-1.5">
               Reason / Remark <span className="text-red-500">*</span>
             </label>
+            {reasons.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {reasons.map(function(r) {
+                  const on = remark.trim() === r;
+                  return (
+                    <button key={r} type="button"
+                      onClick={function() { setRemark(r); if (error) setError(""); }}
+                      className={"px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition " + (on ? "border-orange-400 bg-orange-50 dark:bg-orange-500/10 text-orange-600" : "border-[#E4E7EF] dark:border-[#262A38] text-[#565C75] dark:text-[#9DA3BB] hover:border-orange-300")}>
+                      {r}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <textarea
               rows={3}
               value={remark}
@@ -234,7 +266,7 @@ export default function NotInterestedModal({ lead, onClose, onSuccess }) {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
               </svg>
             )}
-            {loading ? "Processing…" : "Confirm & Reassign"}
+            {loading ? "Processing…" : (verifyOn ? "Confirm & Reassign" : "Confirm")}
           </button>
         </div>
       </div>

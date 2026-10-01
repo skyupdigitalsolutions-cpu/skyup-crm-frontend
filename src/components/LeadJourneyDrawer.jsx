@@ -6,7 +6,13 @@ import WhatsAppScreenshotUploader from "./WhatsAppScreenshotUploader";
 import LeadAIIntelligence from "./lead-ai/LeadAIIntelligence";
 import LeadChronologyTimeline from "./LeadChronologyTimeline";
 import api from "../data/axiosConfig";
+import { statusConfigFor, statusDisplayLabel, temperatureStyle, outcomeStyle } from "../utils/statusConfig";
+import { outcomeLabel } from "../data/customizationStore";
+import useCustomization from "../hooks/useCustomization";
+import CustomFieldsEditor from "./CustomFieldsEditor";
 import useEntitlements from "../hooks/useEntitlements";
+import IndustryServicePicker from "./IndustryServicePicker";
+import { leadServices } from "../utils/leadServices";
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -35,19 +41,12 @@ function daysSince(iso) {
   return `${days}d ago`;
 }
 
-const STATUS_COLOR = {
-  "New":            { bg: "bg-blue-100 dark:bg-blue-950/40",    text: "text-blue-600 dark:text-blue-400",    dot: "#2563EB" },
-  "In Progress":    { bg: "bg-amber-100 dark:bg-amber-950/40",  text: "text-amber-600 dark:text-amber-400",  dot: "#D97706" },
-  "Converted":      { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-600 dark:text-emerald-400", dot: "#059669" },
-  "Not Interested": { bg: "bg-red-100 dark:bg-red-950/40",      text: "text-red-600 dark:text-red-400",      dot: "#DC2626" },
-};
+// Status colours come from the company's status settings (Customize CRM).
+const STATUS_COLOR = new Proxy({}, { get: (_t, k) => (typeof k === "string" ? statusConfigFor(k) : undefined) });
 
 const TEMP_ICON = { Hot: Flame, Warm: Sun, Cold: Snowflake };
-const TEMP_STYLE = {
-  Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400" },
-  Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400" },
-  Cold: { bg: "bg-blue-100 dark:bg-blue-950/40",  text: "text-blue-600 dark:text-blue-400" },
-};
+// Lead-quality colours/labels from the company's settings (Customize CRM).
+const TEMP_STYLE = new Proxy({}, { get: (_t, k) => (typeof k === "string" && k ? temperatureStyle(k) : undefined) });
 
 const OUTCOME_STYLE = {
   "Not Interested": { bg: "bg-red-50 dark:bg-red-950/40",        text: "text-red-600 dark:text-red-400" },
@@ -110,7 +109,7 @@ function JourneyProgressBar({ lead, totalCalls, scheduledCalls }) {
 
 function CallCard({ call, displayIndex }) {
   const outcome = call.outcome || "No Answer";
-  const os = OUTCOME_STYLE[outcome] || OUTCOME_STYLE["No Answer"];
+  const os = OUTCOME_STYLE[outcome] || outcomeStyle(outcome);
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-[#E4E7EF] dark:border-[#262A38] p-3 mb-2">
       <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -127,7 +126,7 @@ function CallCard({ call, displayIndex }) {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${os.bg} ${os.text}`}>
-            {outcome}
+            {outcomeLabel(outcome)}
           </span>
           {call.calledAt && (
             <span className="text-[9px] text-[#8B92A9] bg-[#F0F2FA] dark:bg-[#1E2130] px-1.5 py-0.5 rounded-md font-medium">
@@ -225,7 +224,7 @@ const MEETING_TYPE_ICON = {
 
 function MeetingCard({ visit }) {
   const MIcon = MEETING_TYPE_ICON[visit.meetingType] || CalendarClock;
-  const oStyle = OUTCOME_STYLE[visit.outcome] || { bg: "bg-gray-100 dark:bg-gray-900/40", text: "text-gray-500 dark:text-gray-400" };
+  const oStyle = OUTCOME_STYLE[visit.outcome] || outcomeStyle(visit.outcome);
   return (
     <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] p-3 mb-2">
       <div className="flex items-start justify-between gap-2">
@@ -346,16 +345,7 @@ function defaultMaskEmail(email, isSuperAdmin) {
 }
 
 // ── Main drawer ───────────────────────────────────────────────────────────────
-// ── Nurture: industry & service options (module-level — not inside component) ─
-const INDUSTRIES = [
-  "Healthcare", "Education", "Real Estate", "Logistics", "Finance",
-  "IT Solutions", "Digital Marketing", "Construction", "Local Business",
-  "Interior Designers", "Professional Services",
-];
-const SERVICES = [
-  "SEO", "Paid Ads", "Website Design & Development", "AI Automation",
-  "CRM", "Video Editing", "Graphic Design", "Social Media Marketing",
-];
+// ── Industry & service options come from Customize CRM → Dropdown Lists ─────
 
 export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false, maskPhone, maskEmail, onLeadUpdated, onToast, showNurtureFields: showNurtureFieldsProp }) {
   // Hooks below must run unconditionally — keep the null check AFTER them.
@@ -367,23 +357,32 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
   // ── Feature gate — show Industry/Service only when leadNurtureSequence is enabled
   // Accepts prop from parent (AdminLeadsPage) or computes internally (UserLeadsPage)
   const { hasFeature } = useEntitlements();
-  const showNurtureFields = showNurtureFieldsProp !== undefined
+  const cz = useCustomization();
+  const showNurtureFields = (showNurtureFieldsProp !== undefined
     ? showNurtureFieldsProp
-    : hasFeature('leadNurtureSequence');
+    : hasFeature('leadNurtureSequence')) ||
+    cz.leadField("industry").visible !== false || cz.leadField("service").visible !== false;
+
+  // ── Company custom fields (Customize CRM → Lead Fields) ───────────────────
+  const [editingCustom, setEditingCustom] = useState(false);
+  const [customDraft,   setCustomDraft]   = useState(safeLead.customFields || {});
+  const [customSaving,  setCustomSaving]  = useState(false);
 
   const leadId = safeLead._id || safeLead.id || null;
 
   // ── Inline Industry / Service editor (admin/super_admin right panel) ──────────
   const [editingNurture,  setEditingNurture]  = useState(false);
   const [nurtureIndustry, setNurtureIndustry] = useState(safeLead.industry || "");
-  const [nurtureService,  setNurtureService]  = useState(safeLead.service  || "");
+  const [nurtureServices, setNurtureServices] = useState(leadServices(safeLead));
   const [nurtureSaving,   setNurtureSaving]   = useState(false);
 
   // Reset inline editor whenever a different lead is opened
   useEffect(() => {
+    setEditingCustom(false);
+    setCustomDraft(safeLead.customFields || {});
     setEditingNurture(false);
     setNurtureIndustry(safeLead.industry || "");
-    setNurtureService(safeLead.service   || "");
+    setNurtureServices(leadServices(safeLead));
   }, [leadId]);
 
   // ── AI Action Summary ─────────────────────────────────────────────────────
@@ -431,16 +430,17 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
       const endpoint = isSuperAdmin
         ? `/lead/superadmin/${leadId}`
         : `/lead/admin/${leadId}`;
-      await api.put(endpoint, {
-        industry: nurtureIndustry || "",
-        service:  nurtureService  || "",
+      const { data: saved } = await api.put(endpoint, {
+        industry: (nurtureIndustry || "").trim(),
+        services: nurtureServices,
       });
       setEditingNurture(false);
       if (onLeadUpdated) {
         onLeadUpdated({
           ...safeLead,
-          industry: nurtureIndustry || "",
-          service:  nurtureService  || "",
+          industry: saved?.industry ?? (nurtureIndustry || ""),
+          services: saved?.services ?? nurtureServices,
+          service:  saved?.service ?? (nurtureServices[0] || ""),
         });
       }
       if (onToast) onToast("Industry & Service saved", "success");
@@ -448,6 +448,22 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
       if (onToast) onToast(e?.response?.data?.message || "Save failed", "error");
     } finally {
       setNurtureSaving(false);
+    }
+  };
+
+  const saveCustomFields = async () => {
+    if (!leadId) return;
+    setCustomSaving(true);
+    try {
+      const endpoint = isSuperAdmin ? `/lead/superadmin/${leadId}` : `/lead/admin/${leadId}`;
+      const { data } = await api.put(endpoint, { customFields: customDraft });
+      setEditingCustom(false);
+      if (onLeadUpdated) onLeadUpdated({ ...safeLead, customFields: data?.customFields || customDraft });
+      if (onToast) onToast("Details saved", "success");
+    } catch (e) {
+      if (onToast) onToast(e?.response?.data?.message || "Save failed", "error");
+    } finally {
+      setCustomSaving(false);
     }
   };
 
@@ -570,11 +586,11 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
           <div className="flex flex-wrap gap-1.5">
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${sc.bg} ${sc.text}`}>
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: sc.dot }} />
-              {lead.status}
+              {statusDisplayLabel(lead.status)}
             </span>
             {lead.Quality && TEMP_STYLE[lead.Quality] && (
               <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${TEMP_STYLE[lead.Quality].bg} ${TEMP_STYLE[lead.Quality].text}`}>
-                {(() => { const I = TEMP_ICON[lead.Quality]; return I ? <I className="w-3 h-3" /> : null; })()} {lead.Quality}
+                {(() => { const I = TEMP_ICON[lead.Quality]; return I ? <I className="w-3 h-3" /> : null; })()} {TEMP_STYLE[lead.Quality]?.label || lead.Quality}
               </span>
             )}
             {lead.agent && (
@@ -772,7 +788,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                     <>
                       {[
                         { label: "Industry", value: lead.industry || "—" },
-                        { label: "Service",  value: lead.service  || "—" },
+                        { label: "Services", value: leadServices(lead).join(", ") || "—" },
                       ].map((row) => (
                         <div
                           key={row.label}
@@ -789,31 +805,13 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                     </>
                   ) : (
                     <div className="border-t border-[#F0F2FA] dark:border-[#1E2130] px-4 py-3 space-y-2.5">
-                      <div>
-                        <label className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1">Industry</label>
-                        <select
-                          value={nurtureIndustry}
-                          onChange={e => setNurtureIndustry(e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
-                        >
-                          <option value="">— Not set —</option>
-                          {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-[#8B92A9] uppercase tracking-wider block mb-1">Service</label>
-                        <select
-                          value={nurtureService}
-                          onChange={e => setNurtureService(e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[12px] text-[#0F1117] dark:text-white focus:outline-none focus:border-[#2563EB] transition"
-                        >
-                          <option value="">— Not set —</option>
-                          {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
+                      <IndustryServicePicker
+                        industry={nurtureIndustry} onIndustry={setNurtureIndustry}
+                        services={nurtureServices} onServices={setNurtureServices}
+                      />
                       <div className="flex gap-2 pt-1">
                         <button
-                          onClick={() => { setEditingNurture(false); setNurtureIndustry(lead.industry || ""); setNurtureService(lead.service || ""); }}
+                          onClick={() => { setEditingNurture(false); setNurtureIndustry(lead.industry || ""); setNurtureServices(leadServices(lead)); }}
                           className="flex-1 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[11px] font-semibold text-[#8B92A9] hover:text-[#4B5168] transition"
                         >
                           Cancel
@@ -830,6 +828,30 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                     </div>
                   )}
                 </>
+              )}
+
+              {/* ── Company custom fields — inline editable ─────────────────── */}
+              {cz.customFields({ role: "admin" }).length > 0 && (
+                <div className="border-t border-[#F0F2FA] dark:border-[#1E2130] px-4 py-3">
+                  {!editingCustom ? (
+                    <div className="cursor-pointer group/cf" onClick={() => setEditingCustom(true)}>
+                      <CustomFieldsEditor values={lead.customFields || {}} readOnly title="" />
+                      <span className="text-[10px] font-semibold text-[#2563EB] opacity-0 group-hover/cf:opacity-100 transition">Edit details</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <CustomFieldsEditor values={customDraft} onChange={setCustomDraft} role="admin" title="" columns={1} />
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => { setEditingCustom(false); setCustomDraft(lead.customFields || {}); }}
+                          className="flex-1 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[11px] font-semibold text-[#8B92A9] hover:text-[#4B5168] transition">Cancel</button>
+                        <button onClick={saveCustomFields} disabled={customSaving}
+                          className="flex-1 py-1.5 rounded-lg bg-[#2563EB] hover:bg-blue-700 text-white text-[11px] font-bold disabled:opacity-50 transition flex items-center justify-center gap-1">
+                          <Save className="w-3 h-3" />{customSaving ? "Saving…" : "Save"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
 
               {lead.projects && lead.projects.length > 0 && (
@@ -992,7 +1014,7 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                    : <Sparkles className="w-5 h-5" />}
                 </div>
                 <div>
-                  <p className="text-[13px] font-bold" style={{ color: sc.dot }}>{lead.status}</p>
+                  <p className="text-[13px] font-bold" style={{ color: sc.dot }}>{statusDisplayLabel(lead.status)}</p>
                   <p className="text-[10px] text-[#8B92A9]">
                     {lead.status === "Converted"      ? "Successfully converted to customer" :
                      lead.status === "Not Interested" ? "Lead declined the offer" :

@@ -6,10 +6,21 @@ import QualificationScore from "./QualificationScore";
 import CRMEncryption from "../utils/CRMEncryption";
 import { getRole } from "../data/dataService";
 import useEntitlements from "../hooks/useEntitlements";
+import { requestUpgrade, handlePlanError } from "../utils/upgrade";
 import { normalizePhone } from "../utils/normalizePhone";
-import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES } from "../utils/statusConfig";
+import { getLeadDisplayStatus, statusConfigFor, statusDisplayLabel, temperatureStyle, outcomeStyle } from "../utils/statusConfig";
+// Company customization (Customize CRM): statuses, qualities, sources, fields, workflows.
+import useCustomization from "../hooks/useCustomization";
+import CustomFieldsEditor from "./CustomFieldsEditor";
+import { missingRequiredCustomFields } from "../utils/customFields";
+import {
+  statusCategory, activeStatuses, activeTemperatures, getCustomization, list as custList,
+  activeCustomFields, outcomeLabel,
+} from "../data/customizationStore";
 import { fetchAllPages } from "../utils/fetchAllPages";
 import { LanguageFilter, LeadLanguageBadge } from "./LanguageControls";
+import RecordingAudio from "./RecordingAudio";
+import { scrollPageTop } from "../utils/scrollTop";
 import {
   RefreshCw,
   Plus,
@@ -32,6 +43,7 @@ import {
   RotateCcw,
   Filter,
   Megaphone,
+  Lock,
 } from "lucide-react";
 
 const crm = new CRMEncryption();
@@ -70,11 +82,6 @@ function maskEmail(email, isSuperAdmin) {
   return `${maskedLocal}@${maskedDomain}`;
 }
 
-const TEMP_CONFIG = {
-  Hot:  { bg: "bg-red-100 dark:bg-red-950/40",    text: "text-red-600 dark:text-red-400" },
-  Warm: { bg: "bg-amber-100 dark:bg-amber-950/40",text: "text-amber-600 dark:text-amber-400" },
-  Cold: { bg: "bg-blue-100 dark:bg-blue-950/40",  text: "text-blue-600 dark:text-blue-400" },
-};
 const SENTIMENT_STYLE = {
   Positive: { bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-600 dark:text-emerald-400" },
   Neutral:  { bg: "bg-slate-100 dark:bg-slate-800",       text: "text-slate-500 dark:text-slate-400" },
@@ -86,7 +93,8 @@ const TEMP_STYLE = {
   Cold: { bg: "bg-blue-50 dark:bg-blue-900/20",     text: "text-blue-500 dark:text-blue-400",     dot: "bg-blue-400" },
 };
 
-const ALL_SOURCES  = ["Manual", "Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral", "CSV Import", "Channel Partner", "Other"];
+// Lead sources come from Customize CRM → Dropdown Lists ("Other" always allows a custom value).
+const allSources = () => { const l = custList("sources"); return l.includes("Other") ? l : [...l, "Other"]; };
 
 function normalizeMobile(val) {
   return normalizePhone(val);
@@ -112,8 +120,8 @@ function StatusBadge({ lead, status }) {
   if (lead) {
     ({ label, config } = getLeadDisplayStatus(lead));
   } else {
-    config = STATUS_CONFIG[status] || STATUS_CONFIG["New"];
-    label  = status || "New";
+    config = statusConfigFor(status);
+    label  = statusDisplayLabel(status || "New");
   }
   return (
     <span
@@ -126,23 +134,36 @@ function StatusBadge({ lead, status }) {
 }
 function TempBadge({ temp }) {
   if (!temp) return null;
-  const s = TEMP_CONFIG[temp];
-  if (!s) return null;
+  const s = temperatureStyle(temp); // company colour + renamed label
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[13px] font-semibold ${s.bg} ${s.text}`}>
-      {temp}
+      {s.label || temp}
     </span>
   );
 }
 
 // ── TranscriptionPanel ────────────────────────────────────────────────────────
+// Flow:
+//   not in plan        → locked button → "Upgrade to unlock" popup
+//   pending            → "AI Transcribe & Summarize"
+//   processing         → spinner (polls)
+//   done + summary     → AI summary card (+ full transcript)
+//   done, no summary   → transcript + "Generate AI summary" (or unlock / limit prompt)
+//   monthly limit hit  → popup explaining the limit (upgrade / buy add-on)
 function TranscriptionPanel({ callLogId, recording, contactName }) {
+  const { hasFeature } = useEntitlements();
+  const canTranscribe = hasFeature("call-transcription");
+  const canSummarize  = hasFeature("ai-summary");
   const [status,     setStatus]     = useState(recording.transcribeStatus || "pending");
   const [transcript, setTranscript] = useState(recording.transcript || null);
   const [summary,    setSummary]    = useState(recording.summary    || null);
+  const [skipReason, setSkipReason] = useState(null);
+  const [summarizing, setSummarizing] = useState(false);
   const [expanded,   setExpanded]   = useState(false);
   const [error,      setError]      = useState(null);
   const recId = recording._id;
+  const TX = { featureKey: "callTranscription", label: "Call Transcription" };
+  const SUM = { featureKey: "aiSummary", label: "AI Call Summary" };
 
   useEffect(() => {
     if (status !== "processing") return;
@@ -159,12 +180,15 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
           setError("Transcription failed. Please try again, or contact support if it persists.");
           clearInterval(interval);
         }
-      } catch { /* keep polling */ }
+      } catch (e) {
+        if (e?.response?.status === 403) { setStatus("pending"); clearInterval(interval); }
+      }
     }, 3000);
     return () => clearInterval(interval);
   }, [status, callLogId, recId]);
 
   const handleTranscribe = async () => {
+    if (!canTranscribe) { requestUpgrade(TX); return; }
     setStatus("processing");
     setError(null);
     try {
@@ -174,9 +198,28 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
       setStatus("done");
       setTranscript(res.data.transcript);
       setSummary(res.data.summary);
+      setSkipReason(res.data.summarySkippedReason || null);
     } catch (e) {
+      if (handlePlanError(e, TX)) { setStatus("pending"); return; }
       setStatus("failed");
       setError(e.response?.data?.message || "Transcription failed.");
+    }
+  };
+
+  // Transcript exists, summary missing → summary-only run (audio isn't re-billed).
+  const handleSummarize = async () => {
+    if (!canSummarize) { requestUpgrade(SUM); return; }
+    setSummarizing(true);
+    setError(null);
+    try {
+      const res = await api.post(`/transcription/mobile/${callLogId}/${recId}`, { contactName: contactName || "the customer" });
+      setSummary(res.data.summary || null);
+      if (!res.data.summary) setError("Summary could not be generated. Try again.");
+      else setExpanded(true);
+    } catch (e) {
+      if (!handlePlanError(e, SUM)) setError(e.response?.data?.message || "Summary failed.");
+    } finally {
+      setSummarizing(false);
     }
   };
 
@@ -185,10 +228,14 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
       <div className="mt-2">
         <button
           onClick={handleTranscribe}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-[#DBEAFE] transition"
+          title={canTranscribe ? undefined : "Not in your plan — upgrade to unlock"}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${canTranscribe
+            ? "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-[#DBEAFE]"
+            : "bg-[#F1F4FF] dark:bg-[#1A1D27] text-[#8B92A9] border border-dashed border-amber-300 hover:text-amber-600"}`}
         >
-          <Sparkles className="w-3 h-3" />
+          {canTranscribe ? <Sparkles className="w-3 h-3" /> : <Lock className="w-3 h-3 text-amber-500" />}
           AI Transcribe &amp; Summarize
+          {!canTranscribe && <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 ml-1">Upgrade</span>}
         </button>
       </div>
     );
@@ -211,6 +258,44 @@ function TranscriptionPanel({ callLogId, recording, contactName }) {
           <span className="text-[13px] text-red-500">{error || "Transcription failed."}</span>
         </div>
         <button onClick={handleTranscribe} className="text-[13px] text-[#2563EB] underline pl-1">Retry</button>
+      </div>
+    );
+  }
+
+  // ── Done, but no AI summary (not in plan / quota used / failed) ───────────
+  if (!summary) {
+    const limitHit = skipReason === "limit_reached";
+    return (
+      <div className="mt-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 bg-[#F8F9FC] dark:bg-[#13161E]">
+          <span className="flex items-center gap-1.5 text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">
+            <Check className="w-3.5 h-3.5 text-emerald-500" /> Transcript ready
+          </span>
+          <button
+            onClick={handleSummarize}
+            disabled={summarizing}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition disabled:opacity-60 ${canSummarize
+              ? "bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] hover:bg-[#DBEAFE]"
+              : "bg-white dark:bg-[#1A1D27] text-[#8B92A9] border border-dashed border-amber-300 hover:text-amber-600"}`}
+          >
+            {summarizing ? <Loader2 className="w-3 h-3 animate-spin" /> : canSummarize ? <Sparkles className="w-3 h-3" /> : <Lock className="w-3 h-3 text-amber-500" />}
+            {summarizing ? "Summarizing…" : canSummarize ? (limitHit ? "Generate AI summary (limit reached)" : "Generate AI summary") : "Unlock AI summary"}
+          </button>
+        </div>
+        {error && <p className="px-3 pt-2 text-[12px] text-red-500">{error}</p>}
+        {transcript && (
+          <div className="px-3 py-2.5 bg-white dark:bg-[#13161E]">
+            <details className="group">
+              <summary className="cursor-pointer text-[12px] font-bold text-[#8B92A9] uppercase tracking-widest select-none list-none flex items-center gap-1">
+                <ChevronRight className="w-3 h-3 group-open:rotate-90 transition-transform" />
+                Full Transcript
+              </summary>
+              <div className="mt-2 max-h-40 overflow-y-auto">
+                <p className="text-[13px] text-[#64748B] dark:text-[#94A3B8] leading-relaxed whitespace-pre-wrap font-mono bg-[#F8F9FC] dark:bg-[#0D0F14] rounded-lg px-3 py-2">{transcript}</p>
+              </div>
+            </details>
+          </div>
+        )}
       </div>
     );
   }
@@ -298,6 +383,10 @@ function LeadCombinedSummaryPanel({ leadId }) {
   const [data,    setData]    = useState(null);
   const [error,   setError]   = useState(null);
 
+  const { hasFeature } = useEntitlements();
+  const canSummarize = hasFeature("ai-summary");
+  const SUM = { featureKey: "aiSummary", label: "Lead AI Summary" };
+
   const fetchSummary = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -305,6 +394,7 @@ function LeadCombinedSummaryPanel({ leadId }) {
       const res = await api.get(`/transcription/lead/${leadId}/summary`);
       setData(res.data);
     } catch (e) {
+      if (handlePlanError(e, { featureKey: "aiSummary", label: "Lead AI Summary" })) { setOpen(false); return; }
       setError(e.response?.data?.message || "Failed to generate combined summary.");
     } finally {
       setLoading(false);
@@ -312,6 +402,7 @@ function LeadCombinedSummaryPanel({ leadId }) {
   }, [leadId]);
 
   const handleToggle = () => {
+    if (!canSummarize) { requestUpgrade(SUM); return; }
     const next = !open;
     setOpen(next);
     if (next && !data && !loading) fetchSummary();
@@ -332,6 +423,11 @@ function LeadCombinedSummaryPanel({ leadId }) {
         <div className="flex items-center gap-2 flex-wrap">
           <Sparkles className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400 shrink-0" />
           <span className="text-[14px] font-bold text-violet-700 dark:text-violet-300">Lead AI Summary</span>
+          {!canSummarize && (
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600">
+              <Lock className="w-2.5 h-2.5" /> Upgrade
+            </span>
+          )}
           <span className="text-[12px] text-violet-500 dark:text-violet-400">
             {data ? `${data.summarizedCalls} call${data.summarizedCalls !== 1 ? "s" : ""} combined` : "All transcribed calls combined"}
           </span>
@@ -602,15 +698,7 @@ function RecordingsTab({ lead }) {
                   </div>
                   <div className="px-3 pt-2.5 pb-1">
                     {r.url ? (
-                      <audio
-                        controls
-                        controlsList="nodownload noplaybackrate"
-                        onContextMenu={e => e.preventDefault()}
-                        src={audioUrl(r.url)}
-                        className="w-full h-8 rounded-xl accent-[#2563EB]"
-                        preload="none"
-                        onError={e => { e.target.style.display = "none"; }}
-                      />
+                      <RecordingAudio src={audioUrl(r.url)} className="w-full h-8 rounded-xl" />
                     ) : (
                       <p className="text-[13px] text-[#8B92A9] italic py-1">Audio file not available</p>
                     )}
@@ -626,7 +714,7 @@ function RecordingsTab({ lead }) {
               ))
             ) : log.recordingUrl ? (
               <div className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] p-3 bg-[#F8F9FC] dark:bg-[#13161E]">
-                <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={audioUrl(log.recordingUrl)} className="w-full h-8 rounded-xl accent-[#2563EB]" preload="none" />
+                <RecordingAudio src={audioUrl(log.recordingUrl)} className="w-full h-8 rounded-xl" />
               </div>
             ) : (
               <p className="text-[13px] text-[#8B92A9] italic">Recording file not available</p>
@@ -1123,9 +1211,12 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
   const [users,   setUsers]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [customSource, setCustomSource] = useState("");
+  const _cust = getCustomization();
+  const manualAssign = _cust.workflows?.assignment?.strategy === "manual";
+  const [customValues, setCustomValues] = useState({});
   const [form, setForm] = useState({
-    name: "", mobile: "", secondaryPhone: "", email: "", source: "Manual", campaign: "",
-    userId: "", status: "New", remark: "",
+    name: "", mobile: "", secondaryPhone: "", email: "", source: allSources()[0] || "Manual", campaign: "",
+    userId: "", status: "", remark: "",
   });
   const [errors,     setErrors]     = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -1203,8 +1294,14 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
       if (secMob.length > 0 && secMob.length < 7) e.secondaryPhone = "Enter a valid secondary number.";
       else if (secMob === mob) e.secondaryPhone = "Secondary phone cannot be the same as primary.";
     }
-    if (!form.userId) e.userId = "Please select an employee to assign this lead.";
+    // Employee is optional unless the company assigns leads manually —
+    // otherwise an empty pick auto-assigns (Customize CRM → Workflows).
     if (form.source === "Other" && !customSource.trim()) e.source = "Please enter custom source.";
+    const lf = _cust.leadFields || {};
+    if (lf.email?.visible !== false && lf.email?.required && !form.email.trim()) e.email = `${lf.email.label || "Email"} is required.`;
+    if (lf.campaign?.visible !== false && lf.campaign?.required && !form.campaign.trim()) e.campaign = `${lf.campaign.label || "Campaign"} is required.`;
+    const missing = missingRequiredCustomFields(activeCustomFields(_cust), customValues);
+    if (missing.length) e.submit = `Required: ${missing.join(", ")}`;
     return e;
   };
 
@@ -1237,9 +1334,10 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
       source:   form.source === "Other" ? customSource : form.source,
       campaign: form.campaign.trim() || null,
       status:   form.status,
-      remark:   form.remark.trim() || "Manually added",
-      user:     form.userId,
+      remark:   form.remark.trim() || _cust.workflows?.leadCreation?.defaultRemark || "Manually added",
+      user:     form.userId || null,
       date:     new Date(),
+      customFields: customValues,
     };
     let payload = basePayload;
     const keyString = crm.getLocalKey();
@@ -1501,7 +1599,7 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
             ) : (
               <select value={form.userId} onChange={e => set("userId", e.target.value)}
                 className={`w-full px-3 py-2.5 rounded-xl border text-[15px] bg-white dark:bg-[#13161E] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none transition ${errors.userId ? "border-red-400 dark:border-red-500" : "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"}`}>
-                <option value="">— Select employee —</option>
+                <option value="">{manualAssign ? "— Leave unassigned —" : "— Auto-assign —"}</option>
                 {users.map(u => <option key={u._id} value={u._id}>{u.name} ({u.email})</option>)}
               </select>
             )}
@@ -1512,7 +1610,7 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
               <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Source</label>
               <select value={form.source} onChange={e => set("source", e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]">
-                {ALL_SOURCES.map(o => <option key={o} value={o}>{o}</option>)}
+                {allSources().map(o => <option key={o} value={o}>{o}</option>)}
               </select>
               {form.source === "Other" && (
                 <input type="text" placeholder="Enter custom source" value={customSource} onChange={e => setCustomSource(e.target.value)}
@@ -1524,7 +1622,8 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
               <label className="text-[13px] font-semibold text-[#8B92A9] uppercase tracking-wide">Status</label>
               <select value={form.status} onChange={e => set("status", e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]">
-                {ALL_STATUSES.map(o => <option key={o}>{o}</option>)}
+                <option value="">{statusDisplayLabel(activeStatuses().find(x => x.isDefault)?.key || "New")} (default)</option>
+                {activeStatuses().filter(x => !x.isDefault).map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
               </select>
             </div>
           </div>
@@ -1545,6 +1644,8 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
                 className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[15px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB]" />
             </div>
           </div>
+          {/* Company custom fields (Customize CRM → Lead Fields) */}
+          <CustomFieldsEditor values={customValues} onChange={setCustomValues} role="admin" onlyForm title="" />
         </div>
         {errors.submit && (
           <div className="mt-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-[14px] text-red-600 dark:text-red-400 flex items-center gap-2">
@@ -1618,10 +1719,7 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
         // literally named "status"/"source" — a very common alternative
         // naming ("Lead Status", "Stage", "Lead Source") silently fell
         // through to the hardcoded default ("New" / "Excel Import"),
-        // discarding the sheet's real value with no visible error. Widened
-        // to match the same aliases the Google Sheet integration already
-        // recognizes (sheetIntegrationController.js's CRM_FIELDS list),
-        // so both import paths behave consistently.
+        // discarding the file's real value with no visible error.
         const rawStatus = row.status || row["lead status"] || row.stage || "";
         const rawSource = row.source || row["lead source"] || "";
         const normalized   = normalizeMobile(rawMobile);
@@ -1756,6 +1854,7 @@ function mapLead(l) {
   const secondaryPhone = l.secondaryPhone ? strip91(l.secondaryPhone) : null;
 
   return {
+    customFields:   (l.customFields && typeof l.customFields === "object") ? l.customFields : {},
     id:             String(l._id),
     _id:            l._id,
     name:           l.name           || "Unknown",
@@ -1769,6 +1868,7 @@ function mapLead(l) {
     adSetName:      l.adSetName      || "",
     industry:       l.industry       || "",
     service:        l.service        || "",
+    services:       Array.isArray(l.services) ? l.services : [],
     agent:          l.user?.name || l.assignedTo?.name || l.agent || "Unassigned",
     language:       l.language       || "",
     status:         l.status         || "New",
@@ -1808,6 +1908,11 @@ const PER_PAGE = 15;
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function AdminLeadsPage() {
+  const cz = useCustomization(); // re-render when the company customization loads / changes
+  const catLabel = (cat, fallback) => {
+    const l = cz.c.statuses.filter(x => x.category === cat && x.active);
+    return l.length === 1 ? l[0].label : fallback;
+  };
   const [allLeads,   setAllLeads]   = useState([]);
   const [agents,     setAgents]     = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -2008,15 +2113,21 @@ export default function AdminLeadsPage() {
     [...new Set(allLeads.map(l => l.source).filter(s => s && s !== "—"))],
   [allLeads]);
 
-  const kpi = useMemo(() => ({
-    total:      allLeads.length,
-    converted:  allLeads.filter(l => l.status === "Converted").length,
-    inProgress: allLeads.filter(l => l.status === "In Progress").length,
-    notInt:     allLeads.filter(l => l.status === "Not Interested").length,
-    newLeads:   allLeads.filter(l => l.status === "New").length,
-    merged:     allLeads.filter(l => !!l.mergedInto).length,
-    closed:     allLeads.filter(l => l.isClosed && !l.mergedInto).length,
-  }), [allLeads]);
+  // Counts per status TYPE (Customize CRM → Statuses) so renamed / custom
+  // statuses land in the right pill.
+  const kpi = useMemo(() => {
+    const live = (l) => !l.isClosed && !l.mergedInto;
+    const inCat = (cat) => (l) => live(l) && statusCategory(l.status) === cat;
+    return {
+      total:      allLeads.length,
+      converted:  allLeads.filter(inCat("won")).length,
+      inProgress: allLeads.filter(inCat("open")).length,
+      notInt:     allLeads.filter(inCat("lost")).length,
+      newLeads:   allLeads.filter(inCat("new")).length,
+      merged:     allLeads.filter(l => !!l.mergedInto).length,
+      closed:     allLeads.filter(l => l.isClosed && !l.mergedInto).length,
+    };
+  }, [allLeads, cz.c]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayed = useMemo(() => {
     let res = allLeads.filter(l => {
@@ -2027,7 +2138,10 @@ export default function AdminLeadsPage() {
         (l.mergedSourceName && l.mergedSourceName.toLowerCase().includes(q));
 
       const { label: displayLabel } = getLeadDisplayStatus(l);
-      const matchSt     = filterSt    === "All" || displayLabel === filterSt;
+      // filterSt: "All" | status key / label | "cat:<type>" (KPI pills) | Merged | Closed
+      const matchSt     = filterSt    === "All" || displayLabel === filterSt ||
+        (!l.isClosed && !l.mergedInto && (l.status === filterSt ||
+          (filterSt.startsWith("cat:") && statusCategory(l.status) === filterSt.slice(4))));
       const matchAgent  = filterAgent === "All" || l.agent   === filterAgent;
       const matchSrc    = filterSrc   === "All" || l.source  === filterSrc;
       const matchTemp   = filterTemp  === "All" || l.Quality === filterTemp || l.leadCategory === filterTemp;
@@ -2054,11 +2168,16 @@ export default function AdminLeadsPage() {
   }, [allLeads, search, filterSt, filterAgent, filterSrc, filterTemp, dateFrom, dateTo, sortBy, filterProject, filterLang]);
 
   const totalPages = Math.ceil(displayed.length / PER_PAGE);
+  // Never get stuck on an empty page: when filters shrink the list below the
+  // current page, go back to page 1. Every page change starts at the top.
+  useEffect(() => { if (page > 1 && page > totalPages) setPage(1); }, [page, totalPages]);
+  useEffect(() => { scrollPageTop(); }, [page]);
   const paged      = displayed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const clearFilters = () => {
     setSearch(""); setFilterSt("All"); setFilterAgent("All"); setFilterSrc("All");
     setFilterTemp("All"); setFilterProject("All"); setFilterLang(""); setDateFrom(""); setDateTo(""); setPage(1);
+    scrollPageTop();
     setShowMoreFilters(false);
   };
 
@@ -2149,10 +2268,10 @@ export default function AdminLeadsPage() {
       <div className="flex flex-wrap gap-3 mb-6">
         {[
           { label: "Total",          value: kpi.total,      color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30",       text: "text-blue-700 dark:text-blue-300",       filter: "All" },
-          { label: "New",            value: kpi.newLeads,   color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30",       text: "text-blue-600 dark:text-blue-400",       filter: "New" },
-          { label: "In Progress",    value: kpi.inProgress, color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30",     text: "text-amber-600 dark:text-amber-400",     filter: "In Progress" },
-          { label: "Converted",      value: kpi.converted,  color: "#059669", bg: "bg-emerald-50 dark:bg-emerald-950/30", text: "text-emerald-600 dark:text-emerald-400", filter: "Converted" },
-          { label: "Not Interested", value: kpi.notInt,     color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30",         text: "text-red-600 dark:text-red-400",         filter: "Not Interested" },
+          { label: catLabel("new", "New"),             value: kpi.newLeads,   color: "#2563EB", bg: "bg-blue-50 dark:bg-blue-950/30",       text: "text-blue-600 dark:text-blue-400",       filter: "cat:new" },
+          { label: catLabel("open", "In Progress"),    value: kpi.inProgress, color: "#D97706", bg: "bg-amber-50 dark:bg-amber-950/30",     text: "text-amber-600 dark:text-amber-400",     filter: "cat:open" },
+          { label: catLabel("won", "Converted"),       value: kpi.converted,  color: "#059669", bg: "bg-emerald-50 dark:bg-emerald-950/30", text: "text-emerald-600 dark:text-emerald-400", filter: "cat:won" },
+          { label: catLabel("lost", "Not Interested"), value: kpi.notInt,     color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30",         text: "text-red-600 dark:text-red-400",         filter: "cat:lost" },
           { label: "Merged",         value: kpi.merged,     color: "#D97706", bg: "bg-yellow-50 dark:bg-yellow-950/30",   text: "text-yellow-700 dark:text-yellow-400",   filter: "Merged" },
           { label: "Closed",         value: kpi.closed,     color: "#DC2626", bg: "bg-red-50 dark:bg-red-950/30",         text: "text-red-700 dark:text-red-400",         filter: "Closed" },
         ].map(s => (
@@ -2183,7 +2302,7 @@ export default function AdminLeadsPage() {
           {/* Quality — always visible */}
           <select value={filterTemp} onChange={e => { setFilterTemp(e.target.value); setPage(1); }} className={INP}>
             <option value="All">All qualities</option>
-            <option>Hot</option><option>Warm</option><option>Cold</option>
+            {activeTemperatures().map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
 
           {/* Sort — always visible on desktop, hidden on mobile (in secondary panel) */}
@@ -2525,13 +2644,7 @@ export default function AdminLeadsPage() {
                         <td className="px-2.5 py-2.5">
                           {l.lastOutcome ? (
                             <div>
-                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${
-                                l.lastOutcome === "Interested" || l.lastOutcome === "Converted"
-                                  ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
-                                  : l.lastOutcome === "Not Interested" || l.lastOutcome === "Not Reachable"
-                                  ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400"
-                                  : "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
-                              }`}>{l.lastOutcome}</span>
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${outcomeStyle(l.lastOutcome).bg} ${outcomeStyle(l.lastOutcome).text}`}>{outcomeLabel(l.lastOutcome)}</span>
                               {l.lastCalledAt && <p className="text-[11px] text-[#8B92A9] mt-0.5">{daysSince(l.lastCalledAt)}</p>}
                               {l.lastRemark && <p className="text-[11px] text-[#8B92A9] truncate italic mt-0.5">"{l.lastRemark}"</p>}
                             </div>

@@ -13,6 +13,7 @@ import { io as socketIO } from "socket.io-client";
 import usePlanFeatures from "../hooks/usePlanFeatures";
 import { activeStatuses, list as custList } from "../data/customizationStore";
 import { statusConfigFor } from "../utils/statusConfig";
+import { requestUpgrade } from "../utils/upgrade";
 import useCustomization from "../hooks/useCustomization";
 
 // Company-configured statuses for "Default Status" pickers (Customize CRM → Statuses).
@@ -3045,10 +3046,10 @@ export default function Campaigns() {
                 Connect Meta
               </button>
             ) : (
-              <div title="Meta Ads not enabled on your plan" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F1F4FF] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#C4C9D9] dark:text-[#3E4257] text-[13px] font-semibold cursor-not-allowed select-none">
+              <button type="button" onClick={() => requestUpgrade({ featureKey: "metaAds", label: "Meta Ads" })} title="Meta Ads — upgrade to unlock" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F1F4FF] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#C4C9D9] dark:text-[#3E4257] text-[13px] font-semibold hover:border-amber-400 hover:text-amber-600 transition">
                 <Lock className="w-3.5 h-3.5" />
                 Meta Ads — Plan upgrade required
-              </div>
+              </button>
             )}
 
             {/* Connect Google Ads */}
@@ -3066,10 +3067,10 @@ export default function Campaigns() {
                 Connect Google Ads
               </button>
             ) : (
-              <div title="Google Ads not enabled on your plan" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F1F4FF] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#C4C9D9] dark:text-[#3E4257] text-[13px] font-semibold cursor-not-allowed select-none">
+              <button type="button" onClick={() => requestUpgrade({ featureKey: "googleAds", label: "Google Ads" })} title="Google Ads — upgrade to unlock" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F1F4FF] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#C4C9D9] dark:text-[#3E4257] text-[13px] font-semibold hover:border-amber-400 hover:text-amber-600 transition">
                 <Lock className="w-3.5 h-3.5" />
                 Google Ads — Plan upgrade required
-              </div>
+              </button>
             )}
 
             {/* Connect Website */}
@@ -3082,10 +3083,10 @@ export default function Campaigns() {
                 Connect Website
               </button>
             ) : (
-              <div title="Website Tracking not enabled on your plan" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F1F4FF] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#C4C9D9] dark:text-[#3E4257] text-[13px] font-semibold cursor-not-allowed select-none">
+              <button type="button" onClick={() => requestUpgrade({ featureKey: "websiteTracking", label: "Website Forms" })} title="Website Tracking — upgrade to unlock" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F1F4FF] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#C4C9D9] dark:text-[#3E4257] text-[13px] font-semibold hover:border-amber-400 hover:text-amber-600 transition">
                 <Lock className="w-3.5 h-3.5" />
                 Website Tracking — Plan upgrade required
-              </div>
+              </button>
             )}
 
             {/* Connect LinkedIn */}
@@ -3100,10 +3101,10 @@ export default function Campaigns() {
                 Connect LinkedIn
               </button>
             ) : (
-              <div title="LinkedIn Campaigns not enabled on your plan" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F1F4FF] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#C4C9D9] dark:text-[#3E4257] text-[13px] font-semibold cursor-not-allowed select-none">
+              <button type="button" onClick={() => requestUpgrade({ featureKey: "linkedInAds", label: "LinkedIn Ads" })} title="LinkedIn Campaigns — upgrade to unlock" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F1F4FF] dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] text-[#C4C9D9] dark:text-[#3E4257] text-[13px] font-semibold hover:border-amber-400 hover:text-amber-600 transition">
                 <Lock className="w-3.5 h-3.5" />
                 LinkedIn Campaigns — Plan upgrade required
-              </div>
+              </button>
             )}
           </div>
         )}

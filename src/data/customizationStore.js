@@ -220,3 +220,17 @@ export function leadField(key, c = getCustomization()) {
 export function activeCustomFields(c = getCustomization(), { role = "admin" } = {}) {
   return (c?.customFields || []).filter((f) => f.active && (role !== "employee" || f.employeeVisible));
 }
+
+/**
+ * May this user DOWNLOAD call recordings? (Customize CRM → Permissions →
+ * Call recordings). role: "super_admin" | "admin" | "user"; isTeamLead for
+ * employees flagged as Team Lead. Default for everyone: no download.
+ */
+export function canDownloadRecordings(role, isTeamLead = false, c = getCustomization()) {
+  const r = c?.permissions?.recordings || {};
+  const rl = String(role || "").toLowerCase();
+  if (rl === "super_admin" || rl === "superadmin") return !!r.superAdminCanDownload;
+  if (rl === "admin") return !!r.adminCanDownload;
+  if (isTeamLead && r.teamLeadCanDownload) return true;
+  return !!r.employeeCanDownload;
+}

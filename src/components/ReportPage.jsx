@@ -3,7 +3,8 @@ import { fetchAll, getRole } from "../data/dataService";
 import api from "../data/axiosConfig";
 import { useDateFilter } from "../components/dataFilter";
 import CRMEncryption from "../utils/CRMEncryption";
-import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES as ALL_STATUSES_SHARED } from "../utils/statusConfig";
+import { STATUS_CONFIG, getLeadDisplayStatus, ALL_STATUSES as ALL_STATUSES_SHARED, outcomeStyle } from "../utils/statusConfig";
+import { list as custList } from "../data/customizationStore";
 import { normalizePhone } from "../utils/normalizePhone";
 import { AlertTriangle } from "lucide-react";
 import NonConversionReport from "./NonConversionReport";
@@ -13,6 +14,7 @@ import GoogleAdsInsightsReport from "./GoogleAdsInsightsReport";
 import GoogleAdsDashboard from "./GoogleAdsDashboard";
 import WebsiteInsightsReport from "./WebsiteInsightsReport";
 import WebsiteAnalyticsDashboard from "./WebsiteAnalyticsDashboard";
+import RecordingAudio from "./RecordingAudio";
 
 // ── Phone masking helper ──────────────────────────────────────────────────────
 function maskPhone(phone) {
@@ -42,19 +44,15 @@ const SOURCE_COLORS = {
   "Referral":     "#D97706",
 };
 
-const STATUS_STYLE = Object.fromEntries(
-  Object.entries(STATUS_CONFIG).map(([k, v]) => [k, { bg: v.bg, text: v.text }])
-);
+// Live view over STATUS_CONFIG (rebuilt when Customize CRM → Statuses changes).
+const STATUS_STYLE = new Proxy({}, { get: (_t, k) => (typeof k === "string" && STATUS_CONFIG[k] ? { bg: STATUS_CONFIG[k].bg, text: STATUS_CONFIG[k].text } : undefined) });
 const ALL_STATUSES = ALL_STATUSES_SHARED;
 
-const OUTCOME_STYLE = {
-  "Not Interested": { bg: "bg-red-50 dark:bg-red-950/40",        text: "text-red-600 dark:text-red-400" },
-  "Interested":     { bg: "bg-emerald-50 dark:bg-emerald-950/40", text: "text-emerald-600 dark:text-emerald-400" },
-  "Call Back":      { bg: "bg-amber-50 dark:bg-amber-950/40",     text: "text-amber-600 dark:text-amber-400" },
-  "No Answer":      { bg: "bg-gray-100 dark:bg-gray-900/40",      text: "text-gray-500 dark:text-gray-400" },
-};
+// Outcome colours come from Customize CRM → Call Outcomes.
+const OUTCOME_STYLE = new Proxy({}, { get: (_t, k) => (typeof k === "string" ? outcomeStyle(k) : undefined) });
 
-const ALL_SOURCES = ["Google Ads", "Campaign", "Facebook Ads", "Web Form", "Referral"];
+// Lead sources come from Customize CRM → Lists.
+const allSources = () => custList("sources");
 
 function fmtDateTime(iso) {
   if (!iso) return "—";
@@ -710,7 +708,7 @@ function EditLeadModal({ lead, agents, projects = [], onClose, onSave }) {
               className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#8B92A9] dark:text-[#565C75] cursor-not-allowed" />
           </div>
           {[
-            { label: "Source",   key: "source",  options: ALL_SOURCES },
+            { label: "Source",   key: "source",  options: allSources() },
             { label: "Employee", key: "agent",   options: agents.map(a => a.name) },
             { label: "Status",   key: "status",  options: ALL_STATUSES },
           ].map(f => (
@@ -1077,7 +1075,7 @@ function RecordingModal({ lead, role, onClose }) {
                   )}
                   {h.recordingUrl && (
                     <div className="mt-2">
-                      <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={`${import.meta.env.VITE_API_URL.replace(/\/api$/, '')}${h.recordingUrl}`} className="w-full h-7 rounded-lg accent-[#2563EB]" />
+                      <RecordingAudio src={h.recordingUrl} className="w-full h-7 rounded-lg" />
                     </div>
                   )}
                 </div>
@@ -1130,11 +1128,7 @@ function RecordingModal({ lead, role, onClose }) {
                     <p className="text-[11px] text-[#4B5168] dark:text-[#9DA3BB] italic mb-1.5">"{log.remark}"</p>
                   )}
                   {(log.recordings || []).map((rec, ri) => (
-                    <audio key={ri} controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()}
-                      src={rec.url?.startsWith("http") ? rec.url : `${import.meta.env.VITE_API_URL.replace(/\/api$/, '')}${rec.url}`}
-                      preload="none"
-                      onError={(e) => { e.target.style.display = "none"; }}
-                      className="w-full h-7 rounded-lg accent-[#2563EB] mb-1" />
+                    <div key={ri} className="mb-1"><RecordingAudio src={rec.url} className="w-full h-7 rounded-lg" /></div>
                   ))}
                 </div>
               ))}

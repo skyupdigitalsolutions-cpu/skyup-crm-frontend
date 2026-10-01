@@ -30,6 +30,8 @@ import api, { clearCache } from "../../data/axiosConfig";
 import { getUser } from "../../data/sessionStore";
 import { maskPhone } from "../../utils/maskPhone";
 import useEntitlements from "../../hooks/useEntitlements";
+import { requestUpgrade } from "../../utils/upgrade";
+import RecordingAudio from "../../components/RecordingAudio";
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 const pad = (n) => String(n).padStart(2, "0");
@@ -984,7 +986,7 @@ function HistoryTab({ query, refreshKey, isSuperAdmin, recordingsOnly = false, i
                           <div className="space-y-1.5">
                             {l.recordings.map((r) => (
                               <div key={r._id || r.url}>
-                                <audio controls preload="none" src={r.url} className="h-8 w-56 max-w-full" aria-label={`Recording of call with ${l.name || "contact"}`} />
+                                <RecordingAudio src={r.url} className="h-8 w-56 max-w-full" aria-label={`Recording of call with ${l.name || "contact"}`} />
                                 {r.summary?.summary && <p className="text-[11px] text-[#8B92A9] mt-0.5 max-w-[240px] whitespace-normal line-clamp-2" title={r.summary.summary}>{r.summary.summary}</p>}
                               </div>
                             ))}
@@ -1234,7 +1236,8 @@ export default function CallMonitoring() {
     { key: "analysis",  label: "Analysis",       icon: Clock },
     { key: "never",     label: "Never attended", icon: PhoneMissed },
     { key: "history",   label: "Call history",   icon: History },
-    ...(canRecordings ? [{ key: "recordings", label: "Recordings", icon: Mic }] : []),
+    // Always listed; locked (upgrade prompt) when Call Recording isn't in the plan.
+    { key: "recordings", label: canRecordings ? "Recordings" : "Recordings 🔒", icon: Mic, locked: !canRecordings },
   ];
 
   const selectedName = employee ? team.find((t) => String(t._id) === String(employee))?.name : null;
@@ -1298,7 +1301,7 @@ export default function CallMonitoring() {
           const { key, label } = t;
           const TabIcon = t.icon;
           return (
-          <button key={key} role="tab" aria-selected={tab === key} onClick={() => openTab(key)}
+          <button key={key} role="tab" aria-selected={tab === key} onClick={() => (t.locked ? requestUpgrade({ featureKey: "callRecording", label: "Call Recording" }) : openTab(key))}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 -mb-px transition ${tab === key
               ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400"
               : "border-transparent text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]"}`}>

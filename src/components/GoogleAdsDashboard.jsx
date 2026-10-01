@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import api from "../data/axiosConfig";
+import { activeStatuses } from "../data/customizationStore";
 import GoogleAdsApiConnect from "./GoogleAdsApiConnect";
 import GoogleAdsBreakdown from "./GoogleAdsBreakdown";
 import AISummaryPanel from "./AISummaryPanel";
@@ -16,7 +17,8 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const isoDaysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
-const STATUS_OPTS = ["New", "In Progress", "Converted", "Not Interested", "Verification", "Closed"];
+// Statuses come from Customize CRM → Statuses (+ the virtual "Closed").
+const statusOpts = () => [...activeStatuses().map((s) => ({ value: s.key, label: s.label })), { value: "Closed", label: "Closed" }];
 
 const money = (v) => v == null ? "—" : `₹${Number(v).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const int   = (v) => v == null ? "—" : Number(v).toLocaleString("en-IN");
@@ -221,7 +223,7 @@ export default function GoogleAdsDashboard() {
             </select>
             <select value={status} onChange={(e) => setStatus(e.target.value)} className={selCls}>
               <option value="">All statuses</option>
-              {STATUS_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
+              {statusOpts().map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
             {loading && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
           </div>

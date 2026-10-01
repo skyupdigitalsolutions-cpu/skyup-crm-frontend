@@ -8,6 +8,7 @@ import axios from "axios";
 import { maskPhone, maskEmail } from "../utils/maskPhone";
 // FIX (clock/timezone bug): see fmtTime/fmtDate below.
 import { formatTime as istFormatTime, formatMedium as istFormatDate } from "../utils/dateUtils";
+import RecordingAudio from "./RecordingAudio";
 
 // ─── PhoneText ─────────────────────────────────────────────────────────────────
 // Renders a phone number masked for admins with a toggle eye-button.
@@ -567,7 +568,7 @@ function CallLogCard({ log, isSuperAdmin }) {
                   <p className="text-[10px] font-semibold text-[#8B92A9] mb-1.5 uppercase tracking-wider">
                     Recording {localLog.recordings.length > 1 ? i + 1 : ""}
                   </p>
-                  <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()} src={rec.url} className="w-full" style={{ height: "36px", accentColor: "#6366f1" }} />
+                  <RecordingAudio src={rec.url} className="w-full" style={{ height: "36px" }} />
                 </div>
               )}
               {/* Transcription status */}

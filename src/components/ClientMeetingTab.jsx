@@ -23,6 +23,8 @@ import {
   CheckCircle2, Image as ImageIcon, Upload, Loader2,
 } from "lucide-react";
 import api from "../data/axiosConfig";
+import { list as custList } from "../data/customizationStore";
+import useCustomization from "../hooks/useCustomization";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtDateTime(iso) {
@@ -44,8 +46,9 @@ const MEETING_TYPE_ICON = {
   "Phone Call": Phone,
 };
 
-const MEETING_TYPES = ["In-Person", "Video Call", "Phone Call", "Site Visit", "Demo"];
-const OUTCOMES = ["Interested", "Not Interested", "Converted", "Follow-Up Required", "Pending Decision", "No Show"];
+// Meeting types & outcomes come from Customize CRM → Dropdown Lists.
+const meetingTypes    = () => custList("meetingTypes");
+const meetingOutcomes = () => custList("meetingOutcomes");
 
 const OUTCOME_STYLE = {
   "Not Interested":    "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400",
@@ -164,7 +167,8 @@ function ScreenshotCard({ shot }) {
 
 // ── Log Meeting form ───────────────────────────────────────────────────────────
 function LogMeetingForm({ leadId, isAdmin, onSaved, onClose }) {
-  const [meetingType, setMeetingType]     = useState("In-Person");
+  useCustomization(); // re-render when the company lists load
+  const [meetingType, setMeetingType]     = useState(() => meetingTypes()[0] || "In-Person");
   const [outcome, setOutcome]             = useState("");
   const [remark, setRemark]               = useState("");
   const [followUpDate, setFollowUpDate]   = useState("");
@@ -225,14 +229,14 @@ function LogMeetingForm({ leadId, isAdmin, onSaved, onClose }) {
         <div>
           <label className={labelCls}>Meeting type</label>
           <select className={inputCls} value={meetingType} onChange={(e) => setMeetingType(e.target.value)}>
-            {MEETING_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            {meetingTypes().map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
         <div>
           <label className={labelCls}>Outcome *</label>
           <select className={inputCls} value={outcome} onChange={(e) => setOutcome(e.target.value)}>
             <option value="">Select outcome...</option>
-            {OUTCOMES.map((o) => <option key={o} value={o}>{o}</option>)}
+            {meetingOutcomes().map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
       </div>

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import api from "../data/axiosConfig";
 import { fetchAll, getRole } from "../data/dataService";
-import { STATUS_CONFIG } from "../utils/statusConfig";
+import { STATUS_CONFIG, statusDisplayLabel } from "../utils/statusConfig";
+import useCustomization from "../hooks/useCustomization";
 import { LayoutGrid, RefreshCw, AlertTriangle, Clock, GripVertical } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -15,8 +16,8 @@ import { LayoutGrid, RefreshCw, AlertTriangle, Clock, GripVertical } from "lucid
 // Frontend-only: no new backend. Uses native HTML5 drag-and-drop (no new deps).
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Active pipeline stages shown as columns (terminal states handled separately).
-const STAGES = ["New", "In Progress", "Verification", "Converted"];
+// Pipeline columns = statuses marked "Show on pipeline board" in
+// Customize CRM → Statuses (default: New, In Progress, Verification, Converted).
 
 // Lead-aging thresholds (days in current stage) → colour signal for bottlenecks.
 const AGE_OK = 2;    // ≤2 days: fine
@@ -37,6 +38,9 @@ function ageColor(days) {
 
 export default function PipelineBoard() {
   const role = getRole();
+  const cz = useCustomization();
+  const STAGES = cz.pipelineStatuses().map((s) => s.key);
+  const defaultStage = cz.defaultStatusKey();
   const [leads, setLeads]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
@@ -63,15 +67,15 @@ export default function PipelineBoard() {
   const byStage = useMemo(() => {
     const g = Object.fromEntries(STAGES.map((s) => [s, []]));
     for (const l of leads) {
-      const s = STAGES.includes(l.status) ? l.status : "New";
-      g[s].push(l);
+      const s = STAGES.includes(l.status) ? l.status : (STAGES.includes(defaultStage) ? defaultStage : STAGES[0]);
+      if (s && g[s]) g[s].push(l);
     }
     // Sort each column oldest-first so stalled leads surface at the top.
     for (const s of STAGES) {
       g[s].sort((a, b) => daysSince(b.updatedAt || b.date) - daysSince(a.updatedAt || a.date));
     }
     return g;
-  }, [leads]);
+  }, [leads, cz.c]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Drag handlers
   const onDragStart = (id) => setDragId(id);
@@ -144,7 +148,7 @@ export default function PipelineBoard() {
               <div className="flex items-center justify-between px-2 py-2 mb-2 sticky top-0">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ background: cfg.dot }} />
-                  <span className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">{stage}</span>
+                  <span className="text-sm font-bold text-[#0F1117] dark:text-[#F0F2FA]">{statusDisplayLabel(stage)}</span>
                   <span className="text-xs text-[#64748B]">({items.length})</span>
                 </div>
                 {stalled > 0 && (
