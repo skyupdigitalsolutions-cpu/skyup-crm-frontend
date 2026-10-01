@@ -60,6 +60,7 @@ const DeveloperCompanies         = lazy(() => import("./pages/developer/Companie
 const DeveloperCompanyDetails    = lazy(() => import("./pages/developer/CompanyDetails"));
 const DeveloperSubscriptions     = lazy(() => import("./pages/developer/Subscriptions"));
 const DeveloperPlanCustomization = lazy(() => import("./pages/developer/PlanCustomization"));
+const DeveloperCustomizeCRM     = lazy(() => import("./pages/developer/CustomizeCompanyPage"));
 const DeveloperAddonManager      = lazy(() => import("./pages/developer/AddonManagerPage"));
 
 // Auth pages
@@ -572,6 +573,13 @@ function AppInner() {
             }/>
             <Route path="/developer/plan-customization" element={
               <DeveloperRoute><DeveloperPlanCustomization /></DeveloperRoute>
+            }/>
+            {/* ── Customize CRM (developer only) — pick company → full editor ── */}
+            <Route path="/developer/customize" element={
+              <DeveloperRoute><DeveloperCustomizeCRM /></DeveloperRoute>
+            }/>
+            <Route path="/developer/customize/:id" element={
+              <DeveloperRoute><DeveloperCustomizeCRM /></DeveloperRoute>
             }/>
             <Route path="/developer/addons" element={
               <DeveloperRoute><DeveloperAddonManager /></DeveloperRoute>
