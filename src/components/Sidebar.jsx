@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import useEntitlements from "../hooks/useEntitlements";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import api, { clearAllCache } from "../data/axiosConfig";
-import { getToken, getUser, clearSession } from "../data/sessionStore";
+import { getToken, getUser, clearSession, getBrand } from "../data/sessionStore";
+import useCustomization from "../hooks/useCustomization";
 
 // ── Nav items for ADMIN ───────────────────────────────────────────────────────
 const ADMIN_NAV_ITEMS = [
   {
     to: "/dashboard",
     label: "Dashboard",
+    moduleKey: "dashboard",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -21,6 +23,8 @@ const ADMIN_NAV_ITEMS = [
   {
     to: "/leads",
     label: "Leads",
+    moduleKey: "leadManagement",
+    termKey: "leads",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -34,6 +38,7 @@ const ADMIN_NAV_ITEMS = [
     to: "/reportpage",
     label: "Report Page",
     featureKey: "basic-reports",
+    moduleKey: "basicReports",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -48,6 +53,7 @@ const ADMIN_NAV_ITEMS = [
     to: "/lead-intelligence",
     label: "Lead Intelligence",
     featureKey: "leadIntelligence",
+    moduleKey: "leadIntelligence",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -57,6 +63,7 @@ const ADMIN_NAV_ITEMS = [
   {
     to: "/campaigns",
     label: "Campaigns",
+    moduleKey: "campaigns",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
@@ -66,6 +73,7 @@ const ADMIN_NAV_ITEMS = [
   {
     to: "/communications",
     label: "Communications",
+    moduleKey: "communications",
     featureKeyAny: ["sms-blast", "whatsapp-blast", "email-blast"],
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -78,6 +86,7 @@ const ADMIN_NAV_ITEMS = [
     to: "/daily-report",
     label: "Daily Report",
     featureKey: "daily-report",
+    moduleKey: "dailyReport",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -91,6 +100,7 @@ const ADMIN_NAV_ITEMS = [
     to: "/nurture-sequence",
     label: "Lead Nurture",
     featureKey: "leadNurtureSequence",
+    moduleKey: "leadNurtureSequence",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M12 2a7 7 0 0 0-7 7c0 3 2 5 3 7l4 6 4-6c1-2 3-4 3-7a7 7 0 0 0-7-7z" />
@@ -101,6 +111,7 @@ const ADMIN_NAV_ITEMS = [
   {
     to: "/call-monitoring",
     label: "Call Monitoring",
+    moduleKey: "callMonitoring",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
@@ -113,6 +124,7 @@ const ADMIN_NAV_ITEMS = [
     to: "/attendance",
     label: "Attendance",
     featureKey: "attendance",
+    moduleKey: "attendance",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -124,6 +136,7 @@ const ADMIN_NAV_ITEMS = [
     ),
   },
 ];
+
 
 // ── Extra nav items for SUPERADMIN only ───────────────────────────────────────
 const SUPERADMIN_EXTRA_ITEMS = [
@@ -139,6 +152,7 @@ const SUPERADMIN_EXTRA_ITEMS = [
   {
     to: "/custom-reports",
     label: "Custom Reports",
+    moduleKey: "customReports",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M3 3v18h18" />
@@ -155,6 +169,7 @@ const USER_NAV_ITEMS = [
   {
     to: "/user/dashboard",
     label: "Dashboard",
+    moduleKey: "dashboard",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -167,6 +182,9 @@ const USER_NAV_ITEMS = [
   {
     to: "/leads",
     label: "My Leads",
+    moduleKey: "leadManagement",
+    termKey: "leads",
+    termPrefix: "My ",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -179,6 +197,7 @@ const USER_NAV_ITEMS = [
   {
     to: "/user/communications",
     label: "Communications",
+    moduleKey: "communications",
     featureKeyAny: ["sms-blast", "whatsapp-blast", "email-blast"],
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -190,6 +209,7 @@ const USER_NAV_ITEMS = [
   {
     to: "/daily-report",
     label: "Daily Report",
+    moduleKey: "dailyReport",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -209,6 +229,7 @@ const USER_NAV_ITEMS = [
     to: "/user/sheet-integration",
     label: "Excel / Google Sheet",
     featureKey: "googleSheetIntegrationEnabled",
+    moduleKey: "googleSheetIntegration",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -309,9 +330,13 @@ export function Sidebar() {
   const isSuperAdmin = role === "super_admin";
   const isDeveloper  = role === "developer";
 
-  // ── Sidebar branding is fixed — always shows SKYUP identity ─────────────
-  const companyName = "SKYUP";
-  const companyLogo = "/skyup_logo1.svg";
+  // ── Sidebar branding — SKYUP by default; a company that sets an app name in
+  //    Customize CRM → Branding sees its own name (and brand logo, if any). ──
+  const cust = useCustomization();
+  const _appName = cust.c?.general?.appName || "";
+  const _brand = getBrand();
+  const companyName = _appName || "SKYUP";
+  const companyLogo = (_appName && (_brand?.logoUrl || _brand?.headerLogoUrl)) || "/skyup_logo1.svg";
 
   // ── Entitlement-driven feature gating ────────────────────────────────────
   // Switched from usePlanFeatures to useEntitlements for richer helpers.
@@ -395,13 +420,26 @@ export function Sidebar() {
     isDeveloper  ? DEVELOPER_NAV_ITEMS :
     role === "user" ? USER_NAV_ITEMS :
     isSuperAdmin ? [...ADMIN_NAV_ITEMS, ...SUPERADMIN_EXTRA_ITEMS] :
-    ADMIN_NAV_ITEMS;
+    [...ADMIN_NAV_ITEMS];
 
+  // Company module switches + per-role visibility + renamed menu labels
+  // (Customize CRM → Modules / Terminology).
+  const navRole = role === "user" ? "employee" : "admin";
   const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => {
+    if (!isDeveloper && item.moduleKey && !cust.moduleVisibleFor(item.moduleKey, navRole)) return false;
     if (Array.isArray(item.featureKeyAny) && item.featureKeyAny.length) {
       return item.featureKeyAny.some(k => hasFeature(k));
     }
     return !item.featureKey || hasFeature(item.featureKey);
+  }).map(item => {
+    if (isDeveloper) return item;
+    const custom = item.moduleKey && cust.moduleLabel(item.moduleKey, "");
+    if (custom) return { ...item, label: custom };
+    if (item.termKey) {
+      const t = cust.term(item.termKey, "");
+      if (t) return { ...item, label: `${item.termPrefix || ""}${t}` };
+    }
+    return item;
   });
 
   const handleLogout = () => {
