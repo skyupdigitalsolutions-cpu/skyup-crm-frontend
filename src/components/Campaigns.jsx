@@ -11,6 +11,15 @@ import VoiceBotPanel from "./VoiceBotPanel";
 import GoogleAnalyticsConnect from "./GoogleAnalyticsConnect";
 import { io as socketIO } from "socket.io-client";
 import usePlanFeatures from "../hooks/usePlanFeatures";
+import { activeStatuses, list as custList } from "../data/customizationStore";
+import { statusConfigFor } from "../utils/statusConfig";
+import useCustomization from "../hooks/useCustomization";
+
+// Company-configured statuses for "Default Status" pickers (Customize CRM → Statuses).
+function StatusOptions() {
+  useCustomization();
+  return activeStatuses().map((s) => <option key={s.key} value={s.key}>{s.label}</option>);
+}
 
 // ── Channel / status style maps ───────────────────────────────────────────────
 const CHANNEL_STYLE = {
@@ -30,12 +39,8 @@ const STATUS_STYLE = {
   Draft: { bg: "bg-[#F1F5F9] dark:bg-[#1A1D27]", text: "text-[#8B92A9] dark:text-[#565C75]", dot: "#8B92A9" },
 };
 
-const LEAD_STATUS_STYLE = {
-  Converted: { bg: "bg-[#ECFDF5] dark:bg-[#052E1C]", text: "text-[#059669] dark:text-[#34D399]" },
-  "In Progress": { bg: "bg-[#FFFBEB] dark:bg-[#2D1F00]", text: "text-[#D97706] dark:text-[#FCD34D]" },
-  "Not Interested": { bg: "bg-[#FEF2F2] dark:bg-[#2D0A0A]", text: "text-[#DC2626] dark:text-[#F87171]" },
-  New: { bg: "bg-[#EEF3FF] dark:bg-[#1A2540]", text: "text-[#2563EB] dark:text-[#4F8EF7]" },
-};
+// Lead status badge colours come from Customize CRM → Statuses.
+const LEAD_STATUS_STYLE = new Proxy({}, { get: (_t, k) => (typeof k === "string" ? statusConfigFor(k) : undefined) });
 
 const LEAD_TEMP_STYLE = {
   Hot: { bg: "bg-[#FEF2F2] dark:bg-[#2D0A0A]", text: "text-[#DC2626] dark:text-[#F87171]", icon: "" },
@@ -95,16 +100,9 @@ const EyeOff = () => (
 );
 
 // ── Lead Nurture — canonical industry + service lists (must match templateNameResolver.js) ──
-const NURTURE_INDUSTRIES = [
-  "", "Healthcare", "Education", "Real Estate", "Logistics", "Finance",
-  "IT Solutions", "Digital Marketing", "Construction", "Local Business",
-  "Interior Designers", "Professional Services",
-];
-const NURTURE_SERVICES = [
-  "", "SEO", "Paid Ads", "Website Design & Development", "AI Automation",
-  "CRM", "Video Editing", "Graphic Design", "Social Media Marketing",
-  "AI Voice Agent",
-];
+// Industry + service lists come from Customize CRM → Lists (first entry = none).
+const NURTURE_INDUSTRIES = { map: (fn) => ["", ...custList("industries")].map(fn) };
+const NURTURE_SERVICES   = { map: (fn) => ["", ...custList("services")].map(fn) };
 
 // Auto-detect industry + service from a campaign name so dropdowns pre-select
 // on open. Checks for keywords case-insensitively; first match wins per field.
@@ -648,7 +646,7 @@ function CreateModal({ onClose, onCreated }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label>
-                  <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option></select>
+                  <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><StatusOptions /></select>
                 </div>
               </div>
               <div>
@@ -915,7 +913,7 @@ function EditMetaModal({ campaign, onClose, onUpdated }) {
             <div className="space-y-3">
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label><input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Summer Sale 2025" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option></select></div>
+                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><StatusOptions /></select></div>
               </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Ad Set Name <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label>
@@ -1094,7 +1092,7 @@ function EditGoogleModal({ campaign, onClose, onUpdated }) {
             <div className="space-y-3">
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label><input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Google Search — Branding Q2" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
+                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><StatusOptions /></select></div>
               </div>
             </div>
           </div>
@@ -1200,7 +1198,7 @@ function CreateGoogleModal({ onClose, onCreated }) {
             <div className="space-y-3">
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Campaign Name <span className="text-[#DC2626]">*</span></label><input type="text" value={form.campaignName} onChange={set("campaignName")} placeholder="e.g. Google Search — Branding Q2" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
+                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><StatusOptions /></select></div>
               </div>
             </div>
           </div>
@@ -1388,7 +1386,7 @@ window.dataLayer.push({
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Source Name <span className="text-[#DC2626]">*</span></label><input type="text" value={form.sourceName} onChange={set("sourceName")} placeholder="e.g. Contact Page, Homepage Form" className={FIELD_CLS} /></div>
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Contact Page URL <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label><input type="text" value={form.pageUrl} onChange={set("pageUrl")} placeholder="e.g. https://yourwebsite.com/contact" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
+                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><StatusOptions /></select></div>
               </div>
             </div>
           </div>
@@ -1513,7 +1511,7 @@ function CreateLinkedInModal({ onClose, onCreated }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label>
-                  <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option></select>
+                  <select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><StatusOptions /></select>
                 </div>
                 <div>
                   <label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Lead Type</label>
@@ -1652,7 +1650,7 @@ function EditWebsiteModal({ campaign, onClose, onUpdated }) {
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Source Name <span className="text-[#DC2626]">*</span></label><input type="text" value={form.sourceName} onChange={set("sourceName")} placeholder="e.g. Contact Page" className={FIELD_CLS} /></div>
               <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Contact Page URL <span className="text-[10px] font-normal text-[#8B92A9]">(optional)</span></label><input type="text" value={form.pageUrl} onChange={set("pageUrl")} placeholder="e.g. https://yourwebsite.com/contact" className={FIELD_CLS} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><option>New</option><option>In Progress</option><option>Converted</option><option>Not Interested</option></select></div>
+                <div><label className="block text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1.5">Default Status</label><select value={form.defaultStatus} onChange={set("defaultStatus")} className={FIELD_CLS}><StatusOptions /></select></div>
               </div>
             </div>
           </div>
@@ -2605,7 +2603,8 @@ function CampaignCard({ c, onSelect, onEdit, onToggle, onDelete, onQualification
 // ── Main Campaigns page ───────────────────────────────────────────────────────
 export default function Campaigns() {
   const { hasFeature } = usePlanFeatures();
-  const { getRole } = require("../data/dataService") ? (() => { try { return require("../data/dataService"); } catch { return {}; } })() : {};
+  // FIX: was `require("../data/dataService")` — `require` doesn't exist in the
+  // Vite/ESM browser bundle, so this threw "require is not defined" on render.
 
   // ── Role detection ──────────────────────────────────────────────────────────
   const isSuperAdmin = (() => {
@@ -2920,7 +2919,14 @@ export default function Campaigns() {
       setAssigningCampaign(null);
       fetchCampaigns();
     } catch (err) {
-      alert(err?.response?.data?.message || "Failed to assign ownership.");
+      // Show the REAL reason instead of a generic message, so a server/network
+      // problem (backend down, 502 from proxy, CORS) isn't mistaken for a bug here.
+      const r = err?.response;
+      const detail =
+        r?.data?.message ||
+        (typeof r?.data === "string" && r.data.trim() ? r.data.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160) : "") ||
+        (r ? `Server responded with HTTP ${r.status}.` : "Could not reach the server (backend down or network/CORS issue).");
+      alert(`Failed to assign ownership.\n${detail}`);
     } finally {
       setAssignLoading(false);
     }
