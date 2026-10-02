@@ -16,6 +16,7 @@ import { toIST } from "../utils/dateUtils";
 import IdleRemarkModal from "../components/IdleRemarkModal";
 // Company customization (Customize CRM): statuses, outcomes, qualities, lists.
 import useCustomization from "../hooks/useCustomization";
+import useTeamInfo from "../hooks/useTeamInfo";
 import {
   statusCategory, statusLabel, employeeStatuses, activeStatuses, activeOutcomes,
   activeTemperatures, getCustomization, list as custList,
@@ -1400,9 +1401,17 @@ function AddLeadModal({ onClose, onAdd }) {
     campaign:       "",
     status:         "",        // "" → company default status (server resolves)
     remark:         "",
+    assignTo:       "",        // Team Lead only: "" = me, else a team member id
   });
   const [errors,     setErrors]     = useState({});
   const [submitting, setSubmitting] = useState(false);
+
+  // Team Lead can add a lead straight into a team member's list.
+  const team = useTeamInfo();
+  const czAdd = useCustomization();
+  const [assignedMsg, setAssignedMsg] = useState("");
+  const canAssignTeam = !!team.isTeamLead && (team.members || []).length > 0
+    && czAdd.can("canReassignLeads", "teamLead");
 
   const set = (k, v) => {
     setForm(f => ({ ...f, [k]: v }));
@@ -1463,9 +1472,17 @@ function AddLeadModal({ onClose, onAdd }) {
         status:         form.status,
         date:           new Date(),
         remark:         form.remark.trim() || "Manually added",
+        ...(canAssignTeam && form.assignTo ? { user: form.assignTo } : {}),
       });
 
       const saved = res.data;
+      // Assigned to a team member → it lives in their list, not mine.
+      if (canAssignTeam && form.assignTo) {
+        const m = (team.members || []).find(x => String(x._id) === String(form.assignTo));
+        setAssignedMsg(`Lead added to ${m?.name || "team member"}'s list.`);
+        setTimeout(onClose, 1400);
+        return;
+      }
       onAdd({
         id:             String(saved._id),
         name:           saved.name,
@@ -1614,6 +1631,29 @@ function AddLeadModal({ onClose, onAdd }) {
               className={CLS("campaign")}
             />
           </div>
+
+          {assignedMsg && (
+            <div className="col-span-1 sm:col-span-2 px-3 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[13px] font-semibold">
+              ✓ {assignedMsg}
+            </div>
+          )}
+
+          {/* Assign to — Team Lead only */}
+          {canAssignTeam && (
+            <div className="col-span-1 sm:col-span-2 flex flex-col gap-1">
+              <label className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Assign to</label>
+              <select
+                value={form.assignTo}
+                onChange={e => set("assignTo", e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white focus:outline-none"
+              >
+                <option value="">Me (keep in my list)</option>
+                {(team.members || []).map(m => (
+                  <option key={m._id} value={m._id}>{m.name}{m.email ? ` (${m.email})` : ""}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Remark — spans full width */}
           <div className="col-span-1 sm:col-span-2 flex flex-col gap-1">
@@ -2219,7 +2259,13 @@ function TelegramSetupWidget({ user }) {
 }
 
 export default function UserDashboard() {
-  useCustomization(); // re-render when the company customization loads / changes
+  const czMain = useCustomization(); // re-render when the company customization loads / changes
+  // Team Lead: where a CSV import goes — "" = me, "team" = split across team,
+  // "team_me" = split across team + me, otherwise a single member's id.
+  const teamMain = useTeamInfo();
+  const canImportToTeam = !!teamMain.isTeamLead && (teamMain.members || []).length > 0
+    && czMain.can("canReassignLeads", "teamLead");
+  const [importTarget, setImportTarget] = useState("");
   const user     = getUser();
   const greeting = getGreeting();
   const [leads,         setLeads]         = useState([]);
@@ -2252,7 +2298,10 @@ export default function UserDashboard() {
     // for users with more than one page of leads, and so this logic isn't a
     // third independently-drifting copy of the same pattern.
     const PAGE_LIMIT = 200;
-    fetchAllPages((page) => api.get(`/lead/my-leads?page=${page}&limit=${PAGE_LIMIT}`))
+    fetchAllPages(
+      (page) => api.get(`/lead/my-leads?page=${page}&limit=${PAGE_LIMIT}`),
+      { onFirstPage: (items, pages) => { if (pages > 1) { setLeads(items.map(mapLead)); setLoading(false); } } }
+    )
       .then((raw) => {
         setLeads(raw.map(mapLead));
         setError("");
@@ -2480,7 +2529,12 @@ export default function UserDashboard() {
         return;
       }
 
-      const res = await api.post("/lead/import-csv", { leads: leadsToImport });
+      const target = canImportToTeam ? importTarget : "";
+      const assignBody = !target ? {}
+        : target === "team"    ? { assignMode: "team" }
+        : target === "team_me" ? { assignMode: "team", includeSelf: true }
+        : { assignMode: "member", assignTo: target };
+      const res = await api.post("/lead/import-csv", { leads: leadsToImport, ...assignBody });
       const imported = res.data.saved || [];
 
       setLeads(prev => [...imported.map(mapLead), ...prev]);
@@ -2498,6 +2552,7 @@ export default function UserDashboard() {
         errors:       allErrors.length,
         total:        leadsToImport.length + clientErrors.length,
         errorDetails: allErrors,
+        note:         target ? res.data.message : "",
       });
 
     } catch (err) {
@@ -2528,6 +2583,24 @@ export default function UserDashboard() {
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
               <span className="whitespace-nowrap">Add Lead</span>
             </button>
+
+            {/* Team Lead: choose who gets the imported leads */}
+            {canImportToTeam && (
+              <select
+                value={importTarget}
+                onChange={e => setImportTarget(e.target.value)}
+                disabled={csvImporting}
+                title="Who gets the imported leads"
+                className="px-2.5 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[11px] sm:text-[12px] font-semibold text-[#4B5168] dark:text-[#E5E7EB] focus:outline-none max-w-[190px]"
+              >
+                <option value="">Import to: Me</option>
+                <option value="team">Split equally: my team</option>
+                <option value="team_me">Split equally: team + me</option>
+                {(teamMain.members || []).map(m => (
+                  <option key={m._id} value={m._id}>Import to: {m.name}</option>
+                ))}
+              </select>
+            )}
 
             {/* CSV import / template */}
             <div className="flex items-center rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
@@ -2562,6 +2635,7 @@ export default function UserDashboard() {
                     ? csvResult.error
                     : `${csvResult.saved > 0 ? "✓ " : ""}${csvResult.saved}/${csvResult.total} imported${csvResult.errors > 0 ? ` · ${csvResult.errors} skipped` : ""}`}
                   </span>
+                  {csvResult.note && <span className="w-full font-normal break-words">{csvResult.note}</span>}
                   <button onClick={() => setCsvResult(null)} className="ml-1 opacity-70 hover:opacity-100 shrink-0">✕</button>
                 </div>
                 {csvResult.errorDetails?.length > 0 && (
