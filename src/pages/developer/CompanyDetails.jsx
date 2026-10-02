@@ -625,7 +625,7 @@ export default function CompanyDetails() {
 
       {/* ── STORAGE TAB ── */}
       {tab === "storage" && (
-        <CloudinaryPanel companyId={id} company={company} onRefresh={load} showToast={showToast} />
+        <CloudinaryPanel companyId={id} company={company} folderPath={data?.cloudinaryFolderPath} onRefresh={load} showToast={showToast} />
       )}
 
       {/* ── CUSTOMIZE CRM TAB — same editor the company super admin sees ── */}
@@ -893,13 +893,14 @@ function AiCreditsPanel({ companyId, usage, remaining, onRefresh, showToast }) {
 // Cloudinary account. When disabled or empty, the platform's global Cloudinary
 // is used. The apiSecret is never returned in full from the server (masked as
 // "********"); leaving it untouched while saving keeps the stored secret.
-function CloudinaryPanel({ companyId, company, onRefresh, showToast }) {
+function CloudinaryPanel({ companyId, company, folderPath, onRefresh, showToast }) {
   const existing = company?.cloudinaryConfig || {};
   const [form, setForm] = useState({
     enabled:   !!existing.enabled,
     cloudName: existing.cloudName || "",
     apiKey:    existing.apiKey || "",
     apiSecret: existing.apiSecret || "", // server sends "********" if a secret is set
+    folder:    existing.folder || "",
   });
   const [busy, setBusy] = useState(false);
 
@@ -912,6 +913,7 @@ function CloudinaryPanel({ companyId, company, onRefresh, showToast }) {
         enabled:   form.enabled,
         cloudName: form.cloudName.trim(),
         apiKey:    form.apiKey.trim(),
+        folder:    form.folder.trim(),
       };
       // Only send the secret if the user typed a new one (not the masked value).
       if (form.apiSecret && form.apiSecret !== "********") payload.apiSecret = form.apiSecret.trim();
@@ -931,9 +933,23 @@ function CloudinaryPanel({ companyId, company, onRefresh, showToast }) {
           <h3 className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Company Cloudinary (media storage)</h3>
         </div>
         <p className="text-[12px] text-[#8B92A9] mb-4">
-          Store this company's call recordings in its own Cloudinary account. When off (or fields empty),
-          recordings use the platform's shared Cloudinary.
+          Every company's media (call recordings, meeting files, logos, WhatsApp media) is stored in its
+          <strong> own folder</strong>. Keep the shared platform Cloudinary for many companies, or switch on
+          this company's own account below.
         </p>
+
+        {/* Folder — works for shared AND own account */}
+        <div className="mb-5">
+          <label className="block text-[11px] font-semibold text-[#6B7280] dark:text-[#565C75] uppercase tracking-wider mb-1.5">Folder name (optional)</label>
+          <input type="text" value={form.folder} maxLength={80}
+            onChange={e => setForm(p => ({ ...p, folder: e.target.value }))}
+            placeholder="Leave blank to use the company name automatically"
+            className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+          <p className="text-[11px] text-[#9DA3BB] mt-1.5">
+            Current folder: <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[#4B5168] dark:text-[#C8CCDC]">{(folderPath || "skyup-crm/<company>") + "/"}</code>
+            {" "}→ recordings/, meeting-docs/, logos/, whatsapp-inbound/ …
+          </p>
+        </div>
 
         {/* Enable toggle */}
         <label className="flex items-center gap-3 mb-4 cursor-pointer select-none">
@@ -982,7 +998,7 @@ function CloudinaryPanel({ companyId, company, onRefresh, showToast }) {
 
         <p className="text-[11px] text-[#9DA3BB] mt-3">
           The API secret is stored securely and never shown again — leave it blank when editing to keep the existing one.
-          Recordings already uploaded stay where they were; this affects new uploads.
+          Files already uploaded stay where they were; changes apply to new uploads.
         </p>
       </div>
     </div>

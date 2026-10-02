@@ -2063,8 +2063,16 @@ export default function AdminLeadsPage() {
       // Fetch every lead page (in parallel once the total is known, via the
       // shared fetchAllPages helper — see src/utils/fetchAllPages.js) at the
       // same time as the users list, rather than sequencing them.
+      // Page 1 is shown the moment it arrives; the rest fill in behind it.
       const [allRaw, usersRes] = await Promise.all([
-        fetchAllPages((page) => api.get(`/lead/admin/all?page=${page}&limit=${PAGE_LIMIT}`)),
+        fetchAllPages(
+          (page) => api.get(`/lead/admin/all?page=${page}&limit=${PAGE_LIMIT}`),
+          {
+            onFirstPage: (items, pages) => {
+              if (pages > 1) { setAllLeads(items.map(mapLead)); setLoading(false); }
+            },
+          }
+        ),
         api.get("/admin/company/users"),
       ]);
 

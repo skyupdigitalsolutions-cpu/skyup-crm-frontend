@@ -7,9 +7,15 @@ import { useState, useEffect } from "react";
 import api from "../data/axiosConfig";
 import { getUser } from "../data/sessionStore";
 
-// SECURITY FIX: in-memory cache instead of localStorage for plan_entitlements
+// ── Shared entitlement store ─────────────────────────────────────────────────
+// ONE cache + ONE in-flight request for the whole tab. Previously every
+// component using this hook fired its own /subscription/my/entitlements call,
+// and a "plan_updated" event made each of them refetch (and the Sidebar's
+// refresh re-dispatched "plan_updated" → endless request loop).
 const CACHE_TTL = 60 * 1000;
 let _memCache = null;
+let _inflight = null;
+const _listeners = new Set();
 
 function loadCache() {
   if (_memCache && Date.now() - _memCache.ts < CACHE_TTL) return _memCache.data;
@@ -20,12 +26,60 @@ function saveCache(data) {
   _memCache = { data, ts: Date.now() };
   try { localStorage.removeItem("plan_entitlements"); } catch (_) {}
   try { localStorage.removeItem("plan_features"); } catch (_) {}
+  _listeners.forEach((fn) => { try { fn(data); } catch (_) {} });
 }
 
 export function clearFeaturesCache() {
   _memCache = null;
   try { localStorage.removeItem("plan_entitlements"); } catch (_) {}
   try { localStorage.removeItem("plan_features"); } catch (_) {}
+}
+
+/**
+ * Fetch entitlements once for every caller. force=true skips the TTL cache
+ * but still shares a request that is already in flight.
+ */
+export function fetchEntitlements(force = false) {
+  if (!force) {
+    const cached = loadCache();
+    if (cached) return Promise.resolve(cached);
+  }
+  if (_inflight) return _inflight;
+  _inflight = api.get("/subscription/my/entitlements")
+    .then(({ data }) => {
+      const out = { entitlements: data?.entitlements ?? null, remaining: data?.remaining ?? null };
+      if (out.entitlements) saveCache(out);
+      return out;
+    })
+    .catch(() =>
+      api.get("/subscription/my/status").then(({ data }) => {
+        const features = data?.resolvedFeatures?.features || [];
+        const ent = { subscriptionStatus: data?.status, readOnly: data?.readOnly, plan: data?.plan || null };
+        for (const f of features) {
+          const mapped = FEATURE_KEY_MAP[f.key] || f.key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+          ent[mapped] = f.enabled;
+        }
+        const out = { entitlements: ent, remaining: null };
+        saveCache(out);
+        return out;
+      }).catch(() => null)
+    )
+    .finally(() => { _inflight = null; });
+  return _inflight;
+}
+
+// Global listeners — registered once per tab, not once per component.
+if (typeof window !== "undefined" && !window.__skyupEntListeners) {
+  window.__skyupEntListeners = true;
+  window.addEventListener("plan_updated", () => {
+    if (getUser()?.role === "developer") return;
+    clearFeaturesCache();
+    fetchEntitlements(true);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || getUser()?.role === "developer") return;
+    if (!loadCache() && _listeners.size) fetchEntitlements();
+  });
 }
 
 function getStoredRole() {
@@ -73,73 +127,24 @@ export default function usePlanFeatures() {
   const [loading,      setLoading]      = useState(!loadCache());
 
   useEffect(() => {
-    const role = getStoredRole();
-    if (role === "developer") {
+    let alive = true;
+    const onData = (d) => {
+      if (!alive || !d) return;
+      setEntitlements(d.entitlements ?? null);
+      setRemaining(d.remaining ?? null);
       setLoading(false);
-      return;
-    }
+    };
+    _listeners.add(onData);
 
-    const cached = loadCache();
-    if (cached) {
-      setEntitlements(cached.entitlements ?? null);
-      setRemaining(cached.remaining ?? null);
+    if (getStoredRole() === "developer") {
       setLoading(false);
-      return;
+    } else {
+      fetchEntitlements().then((d) => {
+        if (!alive) return;
+        if (d) onData(d); else { setEntitlements(null); setLoading(false); }
+      });
     }
-
-    api.get("/subscription/my/entitlements")
-      .then(({ data }) => {
-        const ent = data?.entitlements ?? null;
-        const rem = data?.remaining    ?? null;
-        setEntitlements(ent);
-        setRemaining(rem);
-        if (ent) saveCache({ entitlements: ent, remaining: rem });
-      })
-      .catch(() => {
-        api.get("/subscription/my/status")
-          .then(({ data }) => {
-            const features = data?.resolvedFeatures?.features || [];
-            const ent = {
-              subscriptionStatus: data?.status,
-              readOnly: data?.readOnly,
-              plan: data?.plan || null,
-            };
-            for (const f of features) {
-              const mapped = FEATURE_KEY_MAP[f.key] || f.key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-              ent[mapped] = f.enabled;
-            }
-            setEntitlements(ent);
-            saveCache({ entitlements: ent, remaining: null });
-          })
-          .catch(() => setEntitlements(null));
-      })
-      .finally(() => setLoading(false));
-
-    const handler = () => {
-      clearFeaturesCache();
-      api.get("/subscription/my/entitlements")
-        .then(({ data }) => {
-          const ent = data?.entitlements ?? null;
-          const rem = data?.remaining    ?? null;
-          setEntitlements(ent);
-          setRemaining(rem);
-          if (ent) saveCache({ entitlements: ent, remaining: rem });
-        })
-        .catch(() => {});
-    };
-
-    const visibilityHandler = () => {
-      if (document.visibilityState === "visible") {
-        if (!loadCache()) handler();
-      }
-    };
-
-    window.addEventListener("plan_updated", handler);
-    document.addEventListener("visibilitychange", visibilityHandler);
-    return () => {
-      window.removeEventListener("plan_updated", handler);
-      document.removeEventListener("visibilitychange", visibilityHandler);
-    };
+    return () => { alive = false; _listeners.delete(onData); };
   }, []);
 
   const hasFeature = (key) => {

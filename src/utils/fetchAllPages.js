@@ -39,26 +39,40 @@ function extractItems(data) {
 }
 
 /**
- * Fetches page 1, then (if more pages exist) fetches every remaining page
- * IN PARALLEL, and returns the combined, flattened item list.
+ * Fetches page 1, then (if more pages exist) fetches the remaining pages in
+ * parallel (max `concurrency` at a time) and returns the combined list.
+ *
+ * Options:
+ *   onFirstPage(items, totalPages) — called as soon as page 1 arrives so the
+ *     UI can render immediately instead of waiting for every page.
+ *   concurrency — parallel requests for the remaining pages (default 4), so a
+ *     big company doesn't fire 20+ requests at once and choke the server.
  *
  * @param {(page: number) => Promise<import('axios').AxiosResponse>} requestPage
+ * @param {{ onFirstPage?: Function, concurrency?: number }} [opts]
  * @returns {Promise<Array>}
  */
-export async function fetchAllPages(requestPage) {
+export async function fetchAllPages(requestPage, opts = {}) {
+  const { onFirstPage, concurrency = 4 } = opts;
   const first = await requestPage(1);
   const firstItems = extractItems(first.data);
   const totalPages = first.data?.pages ?? 1;
 
+  if (onFirstPage) { try { onFirstPage(firstItems, totalPages); } catch (_) { /* ignore */ } }
   if (totalPages <= 1) return firstItems;
 
-  const rest = await Promise.all(
-    Array.from({ length: totalPages - 1 }, (_, i) =>
-      requestPage(i + 2).then((r) => extractItems(r.data))
-    )
-  );
+  const results = new Array(totalPages - 1);
+  let next = 0;
+  const worker = async () => {
+    while (next < totalPages - 1) {
+      const idx = next++;
+      const r = await requestPage(idx + 2);
+      results[idx] = extractItems(r.data);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, totalPages - 1) }, worker));
 
-  return [firstItems, ...rest].flat();
+  return [firstItems, ...results].flat();
 }
 
 export default fetchAllPages;

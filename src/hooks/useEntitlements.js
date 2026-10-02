@@ -9,8 +9,7 @@
 //  6. All existing return values are unchanged — fully backward-compat
 
 import { useCallback } from "react";
-import usePlanFeatures, { clearFeaturesCache } from "./usePlanFeatures";
-import api from "../data/axiosConfig";
+import usePlanFeatures, { fetchEntitlements } from "./usePlanFeatures";
 
 export default function useEntitlements() {
   const {
@@ -21,34 +20,22 @@ export default function useEntitlements() {
     getRemainingUsage,
     hasFeature,
     loading,
-    setEntitlements,   // exposed by the updated usePlanFeatures
-    setRemaining,
     setLoading,
   } = usePlanFeatures();
 
   // ── refreshEntitlements — force re-fetch by clearing cache ─────────────────
   // Call this after: plan change, payment success, developer override, addon grant
+  // Shared + de-duplicated: every hook instance is updated through the store
+  // listeners. It must NOT dispatch "plan_updated" — the Sidebar listens to
+  // that event and calls this function, which used to loop forever.
   const refreshEntitlements = useCallback(async () => {
-    clearFeaturesCache();
     setLoading(true);
     try {
-      const { data } = await api.get("/subscription/my/entitlements");
-      const ent = data?.entitlements ?? null;
-      const rem = data?.remaining    ?? null;
-      if (ent) {
-        setEntitlements(ent);
-        setRemaining(rem);
-        // Save back to cache via usePlanFeatures
-        // SECURITY FIX: plan cache is in usePlanFeatures _memCache, not localStorage
-      }
-      // Notify all usePlanFeatures consumers in the same tab
-      window.dispatchEvent(new Event("plan_updated"));
-    } catch {
-      // ignore — stale data remains
+      await fetchEntitlements(true);
     } finally {
       setLoading(false);
     }
-  }, [setEntitlements, setRemaining, setLoading]);
+  }, [setLoading]);
 
   // ── readOnlyMode — alias for isReadOnly() to support both call styles ───────
   const readOnlyMode = isReadOnly();
