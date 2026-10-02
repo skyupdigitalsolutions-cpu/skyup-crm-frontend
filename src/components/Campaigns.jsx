@@ -6,7 +6,7 @@ import {
   Flame, Thermometer, Snowflake, ClipboardList, Inbox, Radio, CheckCircle2, AlertTriangle,
 } from "lucide-react";
 import api from "../data/axiosConfig";
-import { getUser } from "../data/sessionStore";
+import { getUser, getToken } from "../data/sessionStore";
 import VoiceBotPanel from "./VoiceBotPanel";
 import GoogleAnalyticsConnect from "./GoogleAnalyticsConnect";
 import { io as socketIO } from "socket.io-client";
@@ -2824,7 +2824,9 @@ export default function Campaigns() {
 
   useEffect(() => {
     const SOCKET_URL = import.meta.env.VITE_API_URL.replace("/api", "") 
-    const socket = socketIO(SOCKET_URL, { transports: ["websocket", "polling"] });
+    const socket = socketIO(SOCKET_URL, { transports: ["websocket", "polling"], auth: (cb) => cb({ token: getToken() }) });
+    // Server puts this socket in this company's admin room only.
+    socket.on("connect", () => socket.emit("company_admin_join"));
     socket.on("new_website_lead", () => { fetchCampaigns(); });
     return () => { socket.disconnect(); };
   }, [fetchCampaigns]);

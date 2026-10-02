@@ -904,6 +904,17 @@ function CloudinaryPanel({ companyId, company, folderPath, onRefresh, showToast 
   });
   const [busy, setBusy] = useState(false);
 
+  // Live preview of the exact Cloudinary folder (same rules as the backend:
+  // typed name, or "<company-name>-<last 6 of id>" when blank).
+  const slug = (v) => String(v || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  const typedFolder = form.folder.split("/").map(slug).filter(Boolean).join("/").slice(0, 80);
+  const rootFolder = (folderPath || "skyup-crm/").split("/")[0] || "skyup-crm";
+  const autoBase = `${slug(company?.name) || "company"}-${String(companyId || company?._id || "").slice(-6)}`;
+  const previewPath = typedFolder
+    ? `${rootFolder}/${typedFolder}`
+    : (folderPath && !existing.folder ? folderPath : `${rootFolder}/${autoBase}`);
+
   const hasSecretStored = existing.apiSecret === "********" || (existing.apiSecret && existing.apiSecret.length > 0);
 
   const save = async () => {
@@ -946,7 +957,7 @@ function CloudinaryPanel({ companyId, company, folderPath, onRefresh, showToast 
             placeholder="Leave blank to use the company name automatically"
             className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
           <p className="text-[11px] text-[#9DA3BB] mt-1.5">
-            Current folder: <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[#4B5168] dark:text-[#C8CCDC]">{(folderPath || "skyup-crm/<company>") + "/"}</code>
+            Folder: <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[#4B5168] dark:text-[#C8CCDC]">{previewPath}/</code>
             {" "}→ recordings/, meeting-docs/, logos/, whatsapp-inbound/ …
           </p>
         </div>

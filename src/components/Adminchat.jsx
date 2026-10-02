@@ -31,6 +31,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { io } from 'socket.io-client';
 import { getStoredUser, getRole } from '../data/dataService';
+import { getToken } from '../data/sessionStore';
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL.replace(/\/api$/, '')
@@ -112,7 +113,8 @@ export default function AdminChat() {
 
   // ── Socket setup ──────────────────────────────────────────────────────────
   useEffect(() => {
-    const socket = io(SOCKET_URL);
+    // Token is sent on every (re)connect — the server derives who you are from it.
+    const socket = io(SOCKET_URL, { auth: (cb) => cb({ token: getToken() }) });
     socketRef.current = socket;
 
     const doJoin = () => {
