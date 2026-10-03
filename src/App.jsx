@@ -69,7 +69,8 @@ const DeveloperAddonManager      = lazy(() => import("./pages/developer/AddonMan
 const AdminLogin      = lazy(() => import("./pages/UserLogin")); // /admin/login now redirects to the unified login
 const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
 const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
-// const CustomReports   = lazy(() => import("./pages/CustomReports"));  // page hidden
+const CustomReports   = lazy(() => import("./pages/CustomReports"));
+const InvoiceTest     = lazy(() => import("./pages/InvoiceTest"));
 
 // ── Page loader ───────────────────────────────────────────────────────────────
 function PageLoader() {
@@ -618,8 +619,9 @@ function AppInner() {
             }/>
 
             {/* ── Custom Reports — SuperAdmin only ── */}
-            {/* Hidden for everyone — opening the link goes to the dashboard. */}
-            <Route path="/custom-reports" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/custom-reports" element={
+              <SuperAdminRoute><FeatureGate featureKey="customReports"><CustomReports /></FeatureGate></SuperAdminRoute>
+            }/>
 
             {/* ── Communications ── */}
             <Route path="/communications" element={
@@ -658,6 +660,9 @@ function AppInner() {
 
           {/* ── Call recordings redirect to dashboard (page removed) ── */}
           <Route path="/call-recordings" element={<Navigate to="/dashboard" replace />} />
+
+          {/* ── Invoice receipt preview (TEMPORARY — remove when done testing) ── */}
+          <Route path="/invoice-test" element={<InvoiceTest />} />
 
 
           {/* ── Fallback ── */}
