@@ -57,7 +57,6 @@ const FEATURE_GROUPS = [
     { key: "communications",      label: "Communications page" },
     { key: "pipelineBoard",       label: "Pipeline Board" },
     { key: "clientMeetings",      label: "Client Meetings" },
-    { key: "festivalCampaigns",   label: "Festival Campaigns" },
     { key: "whatsappScreenshots", label: "WhatsApp Screenshot Proof" },
     { key: "projects",            label: "Projects" },
     { key: "tasks",               label: "Tasks" },
@@ -68,6 +67,8 @@ const FEATURE_GROUPS = [
   ]},
   { group: "Automation (single-company rollout)", items: [
     { key: "leadNurtureSequence", label: "Lead Nurture Sequence" },
+    { key: "festivalCampaigns",   label: "Festival Campaigns (off unless turned on here)" },
+    { key: "marketingDashboard",  label: "Digital Marketing Dashboard (off unless turned on here)" },
     { key: "callOutcomesReport",  label: "Call Outcomes Report (Answered/Not Answered)" },
     { key: "metaConversionSync",  label: "Meta Conversions API Send-Back (status → CAPI event)" },
     { key: "leadIntelligence",   label: "Lead Intelligence — AI-powered lead outcome analysis page" },
