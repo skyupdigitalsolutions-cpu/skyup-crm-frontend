@@ -100,11 +100,28 @@ export default function Companies() {
     return fd;
   };
 
+  // Same rules as the server (utils/passwordPolicy.js) — checked BEFORE the
+  // company is created, so a rejected password never leaves a half-made company.
+  const passwordProblem = (pw, name, mail) => {
+    const p = String(pw || "");
+    if (p.length < 12) return "Password must be at least 12 characters.";
+    const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((re) => re.test(p)).length;
+    if (classes < 3) return "Password must include at least three of: lowercase, uppercase, number, symbol.";
+    const lower = p.toLowerCase();
+    const local = String(mail || "").toLowerCase().split("@")[0];
+    if (local && local.length >= 3 && lower.includes(local)) return "Password must not contain the email address.";
+    const part = String(name || "").toLowerCase().split(/\s+/).find((w) => w.length >= 4 && lower.includes(w));
+    if (part) return `Password must not contain the admin's name ("${part}").`;
+    return null;
+  };
+
   const handleCreate = async () => {
     const { companyName, email, saName, saPassword } = form;
     if (!companyName || !email || !saName || !saPassword) {
       setError("Please fill all required fields."); return;
     }
+    const pwErr = passwordProblem(saPassword, saName, email);
+    if (pwErr) { setError(pwErr); return; }
     setSubmitting(true); setError("");
     try {
       const fd = buildFormData(form, {
@@ -118,7 +135,9 @@ export default function Companies() {
         name: saName, email, password: saPassword,
       });
 
-      setCompanies(prev => [...prev, { ...company, name: companyName }]);
+      setCompanies(prev => prev.some(c => c._id === company._id)
+        ? prev
+        : [...prev, { ...company, name: companyName }]);
       closeCreate();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create company.");
