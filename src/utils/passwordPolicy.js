@@ -44,13 +44,13 @@ export function validatePassword(password, context = {}) {
   if (/^(?:0123456789|abcdefghij|qwertyuiop)/i.test(pw)) errors.push("Password cannot be a simple sequence.");
   if (COMMON.has(pw.toLowerCase())) errors.push("This password is far too common — choose something less guessable.");
 
-  const { email, name } = context;
-  if (email && pw.toLowerCase().includes(String(email).split("@")[0].toLowerCase())) {
+  // Same email rule as the server (only when the part before @ is 3+ chars).
+  const { email } = context;
+  const local = String(email || "").split("@")[0].toLowerCase();
+  if (local && local.length >= 3 && pw.toLowerCase().includes(local)) {
     errors.push("Password cannot contain your email address.");
   }
-  if (name && pw.toLowerCase().includes(String(name).toLowerCase())) {
-    errors.push("Password cannot contain your name.");
-  }
+  // Name rule removed (matches the server) — passwords may contain your name.
 
   return { valid: errors.length === 0, errors };
 }
