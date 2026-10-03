@@ -110,8 +110,6 @@ export default function Companies() {
     const lower = p.toLowerCase();
     const local = String(mail || "").toLowerCase().split("@")[0];
     if (local && local.length >= 3 && lower.includes(local)) return "Password must not contain the email address.";
-    const part = String(name || "").toLowerCase().split(/\s+/).find((w) => w.length >= 4 && lower.includes(w));
-    if (part) return `Password must not contain the admin's name ("${part}").`;
     return null;
   };
 

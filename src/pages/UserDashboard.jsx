@@ -750,8 +750,14 @@ function ActivityItem({ lead, isLast }) {
     </div>
   );
 }
-function getTomorrowStr() { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0]; }
-function getTodayStr()    { return new Date().toISOString().split("T")[0]; }
+// LOCAL date/time strings for <input type="datetime-local"> (toISOString() is
+// UTC, which made "tomorrow" wrong before 5:30 AM IST and stored follow-ups at
+// 05:30 IST, so the reminder pinged at ~5:15 AM).
+const _pad = (n) => String(n).padStart(2, "0");
+const _localDT = (d) => `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}T${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
+function getTomorrowStr() { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0); return _localDT(d); }
+function getTodayStr()    { const d = new Date(); d.setSeconds(0, 0); return _localDT(d); }
+function toFollowUpISO(v) { const d = new Date(v); return Number.isNaN(d.getTime()) ? undefined : d.toISOString(); }
 
 // Kept in sync with the mobile app's OUTCOMES list (LeadDetailScreen.js) so the
 // same call-remark outcomes are available on web and mobile, and so they match the
@@ -800,7 +806,7 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects =
       const body = { status, remark, outcome, projects: selectedProjects };
       if (temp) { body.temperature = temp; body.Quality = temp; }
       const _oc = OUTCOMES.find(o => o.key === outcome);
-      if (status !== niStatus && (!_oc || _oc.followUp !== "none")) { body.followUpDate = followUpDate || getTomorrowStr(); }
+      if (status !== niStatus && (!_oc || _oc.followUp !== "none")) { body.followUpDate = toFollowUpISO(followUpDate || getTomorrowStr()); }
       const res = await api.patch(`/lead/${lead.id || lead._id}`, body);
       onSaved({
         ...lead,
@@ -887,8 +893,8 @@ function UpdateStatusModal({ lead, onClose, onSaved, onNotInterested, projects =
           {/* Follow-up Date */}
           {status !== niStatus && (
             <div>
-              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Follow-up Date</label>
-              <input type="date" value={followUpDate} min={getTodayStr()} onChange={e => setFollowUpDate(e.target.value)} className={CLS} />
+              <label className="block text-[11px] font-semibold text-[#8B92A9] mb-1 uppercase tracking-wide">Follow-up Date &amp; Time</label>
+              <input type="datetime-local" value={followUpDate} min={getTodayStr()} onChange={e => setFollowUpDate(e.target.value)} className={CLS} />
             </div>
           )}
         </div>
