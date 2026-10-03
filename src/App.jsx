@@ -69,8 +69,7 @@ const DeveloperAddonManager      = lazy(() => import("./pages/developer/AddonMan
 const AdminLogin      = lazy(() => import("./pages/UserLogin")); // /admin/login now redirects to the unified login
 const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
 const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
-const CustomReports   = lazy(() => import("./pages/CustomReports"));
-const InvoiceTest     = lazy(() => import("./pages/InvoiceTest"));
+// const CustomReports   = lazy(() => import("./pages/CustomReports"));  // page hidden
 
 // ── Page loader ───────────────────────────────────────────────────────────────
 function PageLoader() {
@@ -449,6 +448,10 @@ function AuthenticatedLayout() {
   return <AppLayout />;
 }
 
+// No plan / pricing info is shown in the app — /upgrade-plan shows a contact page.
+const ContactToUpgrade = lazy(() => import("./components/ContactToUpgrade"));
+
+// eslint-disable-next-line no-unused-vars
 function UpgradePlanWithMembers(props) {
   const [currentAdmins, setCurrentAdmins] = useState([]);
   const [currentUsers,  setCurrentUsers]  = useState([]);
@@ -611,13 +614,12 @@ function AppInner() {
 
             {/* ── Upgrade Plan — SuperAdmin only ── */}
             <Route path="/upgrade-plan" element={
-              <SuperAdminRoute><UpgradePlanWithMembers /></SuperAdminRoute>
+              <SuperAdminRoute><Suspense fallback={null}><ContactToUpgrade /></Suspense></SuperAdminRoute>
             }/>
 
             {/* ── Custom Reports — SuperAdmin only ── */}
-            <Route path="/custom-reports" element={
-              <SuperAdminRoute><FeatureGate featureKey="customReports"><CustomReports /></FeatureGate></SuperAdminRoute>
-            }/>
+            {/* Hidden for everyone — opening the link goes to the dashboard. */}
+            <Route path="/custom-reports" element={<Navigate to="/dashboard" replace />} />
 
             {/* ── Communications ── */}
             <Route path="/communications" element={
@@ -657,8 +659,6 @@ function AppInner() {
           {/* ── Call recordings redirect to dashboard (page removed) ── */}
           <Route path="/call-recordings" element={<Navigate to="/dashboard" replace />} />
 
-          {/* ── Invoice receipt preview (TEMPORARY — remove when done testing) ── */}
-          <Route path="/invoice-test" element={<InvoiceTest />} />
 
           {/* ── Fallback ── */}
           <Route path="*" element={<Navigate to="/login" replace />} />
