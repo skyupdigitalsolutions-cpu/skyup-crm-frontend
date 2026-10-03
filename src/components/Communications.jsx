@@ -11,6 +11,7 @@ import { getToken, getEntitlements } from "../data/sessionStore";
 import { sanitizeHtml } from "../utils/sanitizeHtml";
 import { AlertOctagon, Lightbulb, ClipboardList, BarChart3, RefreshCw, MessageCircle, Inbox, Smartphone, Target, FileText, Image as ImageIcon, Music, Video, MapPin, AlertTriangle, Zap, X, Check, Sparkles } from "lucide-react";
 import FestivalCampaignsModal from "./FestivalCampaigns";
+import usePlanFeatures from "../hooks/usePlanFeatures";
 
 const API_URL    = import.meta.env.VITE_API_URL;
 const SOCKET_URL = API_URL.replace("/api", "");
@@ -4391,6 +4392,9 @@ export default function Communications({ currentUser }) {
   const [showIntegrations,  setShowIntegrations]  = useState(false);
   const [showFestival,      setShowFestival]      = useState(false);
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "superadmin";
+  // Festival Campaigns: only for companies where the Developer panel turned it ON.
+  const { entitlements: _ent } = usePlanFeatures();
+  const festivalOn = _ent?.festivalCampaigns === true;
 
   return (
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] h-full font-poppins px-3 sm:px-6 py-3 sm:py-6 flex flex-col overflow-x-hidden">
@@ -4402,7 +4406,7 @@ export default function Communications({ currentUser }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <TabNav active={tab} onChange={(t) => { setTab(t); setShowSettings(false); }} showReports={isAdmin} />
-          {isAdmin && (
+          {isAdmin && festivalOn && (
             <button
               onClick={() => setShowFestival(true)}
               title="Festival Campaigns — schedule festive WhatsApp/Email templates for a specific date"
