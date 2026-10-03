@@ -864,6 +864,8 @@ export default function UserManagement({
   onMembersChange = null,
 }) {
   const { getLimit, getPlanLabel, hasAdminCapacity, hasUserCapacity, entitlements, planId } = useEntitlements();
+  // Digital Marketing Dashboard logins: only where the Developer panel turned it ON.
+  const marketingOn = entitlements?.marketingDashboard === true;
   const maxAdmins = getLimit("admins") ?? 1;
   const maxUsers  = getLimit("users")  ?? 5;
   const planLabel = getPlanLabel();
@@ -1368,7 +1370,7 @@ export default function UserManagement({
         </div>
 
         {/* Marketing Panel Access — super admin only */}
-        {isCompanySuperAdmin && <MarketingPanelSection />}
+        {isCompanySuperAdmin && marketingOn && <MarketingPanelSection />}
 
       </div>
     </div>
