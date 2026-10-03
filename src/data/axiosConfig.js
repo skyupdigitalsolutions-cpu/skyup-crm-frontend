@@ -136,7 +136,11 @@ api.interceptors.response.use(
       message.toLowerCase().includes("jwt")           ||
       message.toLowerCase().includes("no token");
 
-    if (status === 401 && (isAuthEndpoint || isInvalidToken)) {
+    // A 401 from a LOGIN endpoint just means wrong email/password — the login
+    // page shows the reason. Only a bad/expired token on any other call logs
+    // the user out (previously a wrong password also wiped the page and
+    // bounced to /login, so the real reason was never seen).
+    if (status === 401 && !isAuthEndpoint && isInvalidToken) {
       clearSession();    // wipes sessionStorage token/user + any localStorage remnants
       clearAllCache();
       window.dispatchEvent(new Event("user_changed"));
