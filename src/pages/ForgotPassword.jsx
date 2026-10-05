@@ -8,7 +8,8 @@ import api from "../data/axiosConfig";
 import toast from "react-hot-toast";
 // ISO/IEC 27001 A.5.17 — shared policy, kept in sync with the backend's
 // utils/passwordPolicy.js. See src/utils/passwordPolicy.js for details.
-import { validatePassword, passwordStrength, MIN_LENGTH } from "../utils/passwordPolicy";
+import { validatePassword } from "../utils/passwordPolicy";
+import PasswordRules, { PasswordMatch } from "../components/PasswordRules";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -31,7 +32,6 @@ export default function ForgotPassword() {
   const [showNew,         setShowNew]         = useState(false);
   const [showConfirm,     setShowConfirm]     = useState(false);
 
-  const pwStrength = passwordStrength(newPassword);
 
   // ── Step 1: Request OTP ───────────────────────────────────────────────────
   const handleRequestOtp = async (e) => {
@@ -284,7 +284,7 @@ export default function ForgotPassword() {
                 <input
                   type={showNew ? "text" : "password"}
                   className={`${inputCls} pr-11`}
-                  placeholder={`Min. ${MIN_LENGTH} characters, 3 of: lower/upper/number/symbol`}
+                  placeholder="Create a new password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
                   autoFocus
@@ -298,16 +298,7 @@ export default function ForgotPassword() {
                   }
                 </button>
               </div>
-              {/* Strength bar */}
-              {newPassword && (
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="flex-1 h-1 rounded-full bg-[#E4E7EF] dark:bg-[#1E2130] overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${pwStrength.color}`}
-                      style={{ width: `${pwStrength.score * 25}%` }} />
-                  </div>
-                  <span className="text-[10px] font-semibold text-[#8B92A9]">{pwStrength.label}</span>
-                </div>
-              )}
+              <PasswordRules password={newPassword} context={{ email }} className="mt-2" />
             </div>
 
             {/* Confirm Password */}
@@ -338,14 +329,7 @@ export default function ForgotPassword() {
                   }
                 </button>
               </div>
-              {confirmPassword && (
-                <p className={`text-[10px] mt-1 flex items-center gap-1 ${confirmPassword === newPassword ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-                  {confirmPassword === newPassword
-                    ? <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Passwords match</>
-                    : <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>Passwords do not match</>
-                  }
-                </p>
-              )}
+              <PasswordMatch password={newPassword} confirm={confirmPassword} />
             </div>
 
             <button type="submit" disabled={loading || newPassword !== confirmPassword || !validatePassword(newPassword, { email }).valid} className={btnCls}>
