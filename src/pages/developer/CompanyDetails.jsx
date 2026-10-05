@@ -22,6 +22,8 @@ import {
 import api from "../../data/axiosConfig";
 import AddonManager from "../../components/AddonManager";
 import CustomizeCRM from "./CustomizeCRM";
+import { SuperAdminsModal } from "./Companies";
+import { Users as UsersIcon } from "lucide-react";
 
 // ── Feature catalogue: entitlement (camelCase) key → label + group ────────────
 // Keys MUST match the entitlements object the backend returns. Each feature is
@@ -197,6 +199,7 @@ export default function CompanyDetails() {
   const [data,    setData]    = useState(null);   // full /details response
   const [loading, setLoading] = useState(true);
   const [tab,     setTab]     = useState("features");
+  const [showSuperAdmins, setShowSuperAdmins] = useState(false);
   const [toast,   setToast]   = useState(null);    // { msg, ok }
 
   const [featureState, setFeatureState]   = useState({});
@@ -374,7 +377,13 @@ export default function CompanyDetails() {
               <p className="text-[12px] text-[#8B92A9] truncate">{company.email}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setShowSuperAdmins(true)}
+              className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition"
+            >
+              <UsersIcon className="w-3.5 h-3.5" /> Super admins
+            </button>
             <span className="text-[11px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 capitalize">
               {company.plan || "trial"}
             </span>
@@ -397,6 +406,10 @@ export default function CompanyDetails() {
           </div>
         )}
       </div>
+
+      {showSuperAdmins && (
+        <SuperAdminsModal company={company} onClose={() => setShowSuperAdmins(false)} />
+      )}
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 mb-5">
