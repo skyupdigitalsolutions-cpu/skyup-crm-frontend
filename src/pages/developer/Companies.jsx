@@ -5,7 +5,7 @@ import {
   Building2, Plus, UploadCloud, X, ChevronRight,
   CheckCircle2, XCircle, ShieldCheck, Image, Loader2, Pencil, Layout, Settings,
   Receipt, CreditCard, Calendar, BadgeCheck, Clock, AlertCircle, Eye, EyeOff, Download, Trash2,
-  Users, UserPlus, Wand2, ChevronDown, Check, Copy,
+  Users, UserPlus, Wand2, ChevronDown, Check, Copy, RefreshCw,
 } from "lucide-react";
 import api from "../../data/axiosConfig";
 import InvoiceReceipt from "../../components/InvoiceReceipt";
@@ -1243,11 +1243,25 @@ function SuperAdminFields({ value, onChange, lockedEmail = null }) {
   );
 }
 
+// Turns an axios error into a message the developer can act on. A 404 with
+// no JSON body means the route itself is missing — the backend is older than
+// this frontend (new files not deployed, or the server not restarted).
+function apiErrorMessage(err, fallback) {
+  const status = err?.response?.status;
+  const data   = err?.response?.data;
+  const msg    = data && typeof data === "object" ? (data.message || data.error) : null;
+  if (msg) return msg;
+  if (status === 404) return "The server doesn't have this feature yet. Deploy the latest backend files (developerRoutes.js and developerController.js) and restart the server.";
+  if (!err?.response) return "Couldn't reach the server. Check your connection and try again.";
+  return `${fallback} (error ${status})`;
+}
+
 // ── Manage a company's super admins (list / add / remove) ─────────────────────
 function SuperAdminsModal({ company, onClose }) {
   const [list, setList]       = useState([]);
   const [max, setMax]         = useState(10);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(""); // list couldn't be loaded — don't pretend it's empty
   const [error, setError]     = useState("");
   const [added, setAdded]     = useState(null);  // { name, email, password } — shown once
   const [notice, setNotice]   = useState("");
@@ -1259,13 +1273,13 @@ function SuperAdminsModal({ company, onClose }) {
   const formRef = useRef(null);
 
   const load = async () => {
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setLoadError("");
     try {
       const { data } = await api.get(`/developer/companies/${company._id}/super-admins`);
       setList(data.superAdmins || []);
       if (data.max) setMax(data.max);
     } catch (err) {
-      setError(err.response?.data?.message || "Couldn't load super admins.");
+      setLoadError(apiErrorMessage(err, "Couldn't load super admins."));
     } finally {
       setLoading(false);
     }
@@ -1297,7 +1311,7 @@ function SuperAdminsModal({ company, onClose }) {
       setDraft(emptySuperAdmin());
       setAdding(false);
     } catch (err) {
-      setError(err.response?.data?.message || "Couldn't add the super admin.");
+      setError(apiErrorMessage(err, "Couldn't add the super admin."));
     } finally {
       setSaving(false);
     }
@@ -1311,7 +1325,7 @@ function SuperAdminsModal({ company, onClose }) {
       setList(prev => prev.filter(x => x._id !== sa._id));
       setNotice(`${sa.name} removed.`);
     } catch (err) {
-      setError(err.response?.data?.message || "Couldn't remove the super admin.");
+      setError(apiErrorMessage(err, "Couldn't remove the super admin."));
     } finally {
       setRemovingId(null);
     }
@@ -1354,7 +1368,7 @@ function SuperAdminsModal({ company, onClose }) {
               <X className="w-4 h-4" />
             </button>
           </div>
-          {!loading && (
+          {!loading && !loadError && (
             <div className="mt-4 flex items-center gap-3">
               <div className="flex-1 h-1.5 rounded-full bg-[#F0F2FA] dark:bg-[#262A38] overflow-hidden">
                 <div className="h-full rounded-full bg-amber-500 transition-all" style={{ width: `${Math.min(100, (list.length / max) * 100)}%` }} />
@@ -1371,6 +1385,22 @@ function SuperAdminsModal({ company, onClose }) {
           {loading ? (
             <div className="flex items-center justify-center gap-2 h-28 text-sm text-[#9DA3BB]">
               <Loader2 className="w-4 h-4 animate-spin" /> Loading super admins…
+            </div>
+          ) : loadError ? (
+            <div className="rounded-xl border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 px-4 py-4" role="alert">
+              <div className="flex items-start gap-2.5">
+                <XCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-red-700 dark:text-red-300">Couldn't load this company's super admins</p>
+                  <p className="text-[12px] text-red-600 dark:text-red-400 mt-0.5">{loadError}</p>
+                </div>
+              </div>
+              <button
+                onClick={load}
+                className="mt-3 ml-6 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-[#13161E] border border-red-200 dark:border-red-500/30 text-[12px] font-semibold text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/10 transition"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Try again
+              </button>
             </div>
           ) : list.length === 0 ? (
             <div className="rounded-xl border border-dashed border-[#E5E7EB] dark:border-[#262A38] px-4 py-6 text-center">
@@ -1451,7 +1481,7 @@ function SuperAdminsModal({ company, onClose }) {
             </div>
           )}
 
-          {!loading && adding && (
+          {!loading && !loadError && adding && (
             <div ref={formRef} className="rounded-xl border border-blue-200 dark:border-blue-500/30 px-4 pt-4 pb-5">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -1492,7 +1522,8 @@ function SuperAdminsModal({ company, onClose }) {
                 </button>
                 <button
                   onClick={startAdding}
-                  disabled={full}
+                  disabled={full || !!loadError}
+                  title={loadError ? "Load the current super admins first" : undefined}
                   className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition active:scale-95"
                 >
                   <UserPlus className="w-4 h-4" /> Add super admin
