@@ -1505,7 +1505,15 @@ function WaContactActions({ conv, isAdmin, mode, setMode, getAuthHeaders, onUpda
       if (data?.conversation) onUpdated(data.conversation);
       setMode(null);
     } catch (e) {
-      setErr(e?.response?.data?.message || e?.response?.data?.error || "Couldn't save. Please try again.");
+      const status = e?.response?.status;
+      const data   = e?.response?.data;
+      // A 404 with no JSON message means the route itself doesn't exist on the
+      // server — the backend is older than this frontend.
+      if (status === 404 && !(data && typeof data === "object" && data.message)) {
+        setErr("The server doesn't support this yet. Deploy the latest backend files and restart the server, then try again.");
+      } else {
+        setErr(data?.message || data?.error || "Couldn't save. Please try again.");
+      }
     } finally {
       setBusy(false);
     }
