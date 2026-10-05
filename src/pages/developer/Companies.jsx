@@ -1505,3 +1505,6 @@ function SuperAdminsModal({ company, onClose }) {
     </div>
   );
 }
+-e 
+// Also used by the company Manage page (CompanyDetails.jsx).
+export { SuperAdminsModal };
