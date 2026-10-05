@@ -5,6 +5,8 @@ import { EmployeeLanguages } from "./LanguageControls";
 import { getRole, getStoredUser } from "../data/dataService";
 import { BarChart3, Plus, Trash2, ToggleLeft, ToggleRight, Eye, EyeOff, Loader2, Copy, Check } from "lucide-react";
 import useEntitlements from "../hooks/useEntitlements";
+import PasswordRules, { PasswordMatch } from "./PasswordRules";
+import { validatePassword, generateStrongPassword } from "../utils/passwordPolicy";
 
 
 const PLANS = {
@@ -49,25 +51,6 @@ function EyeIcon({ open }) {
       <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.477 0-8.268-2.943-9.542-7a9.97 9.97 0 012.126-3.343M9.88 9.88a3 3 0 104.243 4.243M6.343 6.343A9.956 9.956 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.973 9.973 0 01-4.21 5.152M3 3l18 18"/>
     </svg>
   );
-}
-
-function passwordStrength(pwd) {
-  if (!pwd) return null;
-  let score = 0;
-  if (pwd.length >= 8)           score++;
-  if (pwd.length >= 12)          score++;
-  if (/[A-Z]/.test(pwd))         score++;
-  if (/[0-9]/.test(pwd))         score++;
-  if (/[^A-Za-z0-9]/.test(pwd))  score++;
-  if (score <= 1) return { label: "Weak",   color: "bg-red-500",    width: "w-1/4"  };
-  if (score <= 2) return { label: "Fair",   color: "bg-amber-500",  width: "w-2/4"  };
-  if (score <= 3) return { label: "Good",   color: "bg-blue-500",   width: "w-3/4"  };
-  return             { label: "Strong", color: "bg-emerald-500", width: "w-full" };
-}
-
-function generatePassword(length = 14) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
 // ── Delete Confirmation Modal ──────────────────────────────────────────────────
@@ -274,14 +257,18 @@ function AddMemberModal({ role, onClose, onAdd, adminList = [], isSuperAdmin = f
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const isAdmin = role === "admin";
-  const strength = passwordStrength(password);
-  const handleGenerate = () => setSuggestedPwd(generatePassword(14));
+  const pwContext = { email: email.trim(), name };
+  const pwValid = !!password && validatePassword(password, pwContext).valid;
+  const handleGenerate = () => setSuggestedPwd(generateStrongPassword(14, pwContext));
   const handleUseSuggestion = () => { setPassword(suggestedPwd); setConfirmPassword(suggestedPwd); setShowPwd(true); setSuggestedPwd(""); };
   const handleAdd = async () => {
     if (!name.trim()) return setError("Name is required.");
     if (!email.trim() || !email.includes("@")) return setError("Valid email is required.");
     if (!password) return setError("Password is required.");
-    if (password.length < 8) return setError("Password must be at least 8 characters.");
+    {
+      const { valid, errors } = validatePassword(password, pwContext);
+      if (!valid) return setError(errors[0]);
+    }
     if (password !== confirmPassword) return setError("Passwords do not match.");
     if (!isAdmin && isSuperAdmin && !assignedTo) return setError("Please select an admin to assign this employee to.");
     // Optional contacts-account email: only validate format if provided.
@@ -409,19 +396,15 @@ function AddMemberModal({ role, onClose, onAdd, adminList = [], isSuperAdmin = f
         <div className="flex flex-col gap-1 mb-1">
           <label className="text-[10px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Password *</label>
           <div className="relative">
-            <input type={showPwd ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter password"
-              className="w-full px-3 py-2 pr-9 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-xs text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition font-mono"
+            <input type={showPwd ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter password" autoComplete="new-password"
+              className={`w-full px-3 py-2 pr-9 rounded-xl border bg-white dark:bg-[#13161E] text-xs text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none transition font-mono ${
+                !password ? "border-[#E4E7EF] dark:border-[#262A38] focus:border-[#2563EB]"
+                : pwValid ? "border-emerald-400 focus:border-emerald-500"
+                : "border-red-400 focus:border-red-500"}`}
             />
             <button type="button" onClick={() => setShowPwd(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168] transition"><EyeIcon open={showPwd}/></button>
           </div>
-          {strength && (
-            <div className="mt-1.5 flex items-center gap-2">
-              <div className="flex-1 h-1.5 bg-[#E4E7EF] dark:bg-[#262A38] rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all duration-300 ${strength.color} ${strength.width}`}/>
-              </div>
-              <span className={`text-[10px] font-semibold ${strength.label==="Weak"?"text-red-500":strength.label==="Fair"?"text-amber-500":strength.label==="Good"?"text-blue-500":"text-emerald-600"}`}>{strength.label}</span>
-            </div>
-          )}
+          <PasswordRules password={password} context={pwContext} className="mt-1.5" />
         </div>
         <div className="flex flex-col gap-1 mt-3">
           <label className="text-[10px] font-semibold text-[#8B92A9] dark:text-[#565C75] uppercase tracking-wide">Confirm Password *</label>
@@ -434,18 +417,7 @@ function AddMemberModal({ role, onClose, onAdd, adminList = [], isSuperAdmin = f
             />
             <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B92A9] hover:text-[#4B5168] transition"><EyeIcon open={showConfirm}/></button>
           </div>
-          {confirmPassword && (
-            <p className={`text-[10px] mt-1 flex items-center gap-1 ${confirmPassword === password ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-              {confirmPassword === password
-                ? <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Passwords match</>
-                : <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>Passwords do not match</>
-              }
-            </p>
-          )}
-        </div>
-        <div className="mt-3 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex items-start gap-2">
-          <svg className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <p className="text-[11px] text-amber-700 dark:text-amber-400">Use 8+ characters with uppercase, numbers &amp; symbols.</p>
+          <PasswordMatch password={password} confirm={confirmPassword} />
         </div>
         <div className="flex gap-2 mt-5">
           <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-xs font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] transition">Cancel</button>
@@ -716,6 +688,10 @@ function MarketingPanelSection() {
 
   const create = async () => {
     if (!form.name.trim() || !form.email.trim() || !form.password) { setError("All fields are required."); return; }
+    {
+      const { valid, errors } = validatePassword(form.password, { email: form.email.trim(), name: form.name });
+      if (!valid) { setError(errors[0]); return; }
+    }
     setSaving(true); setError(""); setSuccess("");
     try {
       const { data } = await api.post("/superadmin/marketing-users", form);
@@ -790,7 +766,7 @@ function MarketingPanelSection() {
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B92A9] mb-1">Password</label>
                 <div className="relative">
-                  <input type={showPwd ? "text" : "password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 8 characters"
+                  <input type={showPwd ? "text" : "password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Create a password" autoComplete="new-password"
                     className="w-full text-[12px] px-3 py-2 pr-9 rounded-xl border border-[#E4E7EF] dark:border-[#1E2133] bg-white dark:bg-[#11131C] focus:outline-none focus:border-indigo-400 text-[#0F1117] dark:text-[#DDE1F5]" />
                   <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B92A9]">
                     {showPwd ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -798,6 +774,14 @@ function MarketingPanelSection() {
                 </div>
               </div>
             </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9]">Password rules</span>
+              <button type="button" onClick={() => { const pw = generateStrongPassword(14, { email: form.email.trim(), name: form.name }); setForm({ ...form, password: pw }); setShowPwd(true); }}
+                className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                Suggest a strong password
+              </button>
+            </div>
+            <PasswordRules password={form.password} context={{ email: form.email.trim(), name: form.name }} />
             <div className="flex gap-2 justify-end">
               <button onClick={() => { setShowForm(false); setError(""); }} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#DDE1F5]">Cancel</button>
               <button onClick={create} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[12px] font-bold">
