@@ -91,7 +91,19 @@ function formatTime(dateStr) {
 }
 
 function getInitials(name = "") {
-  return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "WA";
+  // Letters only — "Sir/Madam (9190…)" used to render as "S(" and a bare
+  // phone number as "91".
+  const words = String(name || "").split(/[\s/]+/).filter((w) => /^[\p{L}]/u.test(w));
+  return words.map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "WA";
+}
+
+// Name shown for a WhatsApp chat. Placeholder names carry the full number
+// ("Sir/Madam (919876543210)"), which bypassed phone masking — strip it.
+function waDisplayName(conv, showFullPhone, maskFn) {
+  const raw = String(conv?.contactName || conv?.lead?.name || "").trim();
+  const name = raw.replace(/\s*\(\s*\+?\d[\d\s-]{5,}\)\s*$/, "").trim();
+  if (name) return name;
+  return showFullPhone ? `+${conv?.waPhone || ""}` : maskFn(conv?.waPhone, false);
 }
 
 function sessionBanner(conv) {
@@ -2100,12 +2112,12 @@ function WhatsAppPanel({ currentUser }) {
             return (
               <div key={conv._id} onClick={() => selectConversation(conv)} className={`relative flex items-center gap-2.5 px-3 py-3 cursor-pointer border-b border-[#E4E7EF] dark:border-[#262A38] transition-colors group ${isActive ? "bg-[#f0fdf4] dark:bg-[#052e1c]" : "hover:bg-[#F8F9FC] dark:hover:bg-[#1A1D27]"}`}>
                 <div className="w-9 h-9 rounded-full bg-[#dcfce7] flex items-center justify-center font-semibold text-[13px] text-[#166534] shrink-0">
-                  {getInitials(conv.contactName || conv.lead?.name || conv.waPhone)}
+                  {getInitials(waDisplayName(conv, isSuperAdmin, maskPhone))}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-baseline">
                     <span className={`text-[12px] truncate max-w-[120px] ${hasUnread ? "font-semibold text-[#0F1117] dark:text-[#F0F2FA]" : "font-medium text-[#4B5168] dark:text-[#9DA3BB]"}`}>
-                      {conv.contactName || conv.lead?.name || `+${conv.waPhone}`}
+                      {waDisplayName(conv, isSuperAdmin, maskPhone)}
                     </span>
                     <span className="text-[10px] text-[#8B92A9] shrink-0">{timeAgo(conv.lastMessageAt)}</span>
                   </div>
@@ -2236,12 +2248,12 @@ function WhatsAppPanel({ currentUser }) {
               </svg>
             </button>
             <div className="w-9 h-9 rounded-full bg-[#dcfce7] flex items-center justify-center font-semibold text-[13px] text-[#166534] shrink-0">
-              {getInitials(selected.contactName || selected.lead?.name || selected.waPhone)}
+              {getInitials(waDisplayName(selected, isSuperAdmin, maskPhone))}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="font-semibold text-[14px] text-[#0F1117] dark:text-[#F0F2FA] truncate">
-                  {selected.contactName || selected.lead?.name || `+${selected.waPhone}`}
+                  {waDisplayName(selected, isSuperAdmin, maskPhone)}
                 </span>
                 <button
                   onClick={() => setContactMode(contactMode === "rename" ? null : "rename")}
