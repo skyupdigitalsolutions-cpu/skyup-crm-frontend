@@ -9,7 +9,7 @@ import axios from "axios";
 import api from "../data/axiosConfig";
 import { getToken, getEntitlements } from "../data/sessionStore";
 import { sanitizeHtml } from "../utils/sanitizeHtml";
-import { AlertOctagon, Lightbulb, ClipboardList, BarChart3, RefreshCw, MessageCircle, Inbox, Smartphone, Target, FileText, Image as ImageIcon, Music, Video, MapPin, AlertTriangle, Zap, X, Check, Sparkles } from "lucide-react";
+import { AlertOctagon, Lightbulb, ClipboardList, BarChart3, RefreshCw, MessageCircle, Inbox, Smartphone, Target, FileText, Image as ImageIcon, Music, Video, MapPin, AlertTriangle, Zap, X, Check, Sparkles, Pencil, UserPlus, Link2 } from "lucide-react";
 import FestivalCampaignsModal from "./FestivalCampaigns";
 import usePlanFeatures from "../hooks/usePlanFeatures";
 
@@ -1454,6 +1454,154 @@ function normalizeWaPhone(p) {
   return String(p || "").replace(/\D/g, "").replace(/^0+/, "");
 }
 
+// ── WhatsApp contact actions: rename / save as lead / assign ─────────────────
+// Replies to our templates don't auto-create a lead, so those chats arrive as
+// "Sir/Madam" with nothing attached. This strip under the chat header lets the
+// agent fix the name, save the chat as a lead and (admins) assign an employee.
+const isPlaceholderContact = (name) => {
+  const n = String(name || "").trim();
+  return !n || /^sir\s*\/\s*madam\b/i.test(n) || /^\+?\d[\d\s\-().]+$/.test(n) || /^whatsapp\s+\d+$/i.test(n);
+};
+
+function WaContactActions({ conv, isAdmin, mode, setMode, getAuthHeaders, onUpdated }) {
+  const API_URL = import.meta.env.VITE_API_URL || "";
+  const currentName = conv.contactName || conv.lead?.name || "";
+  const [name, setName]           = useState(isPlaceholderContact(currentName) ? "" : currentName);
+  const [employees, setEmployees] = useState(null); // null = not loaded yet
+  const [assignTo, setAssignTo]   = useState(conv.assignedAgent?._id || conv.assignedAgent || "");
+  const [busy, setBusy]           = useState(false);
+  const [err, setErr]             = useState("");
+  const nameRef = useRef(null);
+
+  // Reset when switching chats or modes.
+  useEffect(() => {
+    setName(isPlaceholderContact(currentName) ? "" : currentName);
+    setAssignTo(conv.assignedAgent?._id || conv.assignedAgent || "");
+    setErr("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conv._id, mode]);
+
+  useEffect(() => {
+    if ((mode === "rename" || mode === "save") && nameRef.current) nameRef.current.focus();
+  }, [mode]);
+
+  // Employee list for the picker (admins only; loaded the first time it's needed).
+  useEffect(() => {
+    if (!isAdmin || employees !== null || (mode !== "save" && mode !== "assign")) return;
+    api.get("/admin/company/users")
+      .then((res) => {
+        const raw = Array.isArray(res.data) ? res.data : (res.data?.users || []);
+        setEmployees(raw.filter((u) => u.isActive !== false));
+      })
+      .catch(() => setEmployees([]));
+  }, [isAdmin, employees, mode]);
+
+  if (!mode) return null;
+
+  const run = async (fn) => {
+    setBusy(true); setErr("");
+    try {
+      const { data } = await fn();
+      if (data?.conversation) onUpdated(data.conversation);
+      setMode(null);
+    } catch (e) {
+      setErr(e?.response?.data?.message || e?.response?.data?.error || "Couldn't save. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const nameOk = name.trim().length >= 2 && !isPlaceholderContact(name);
+
+  const submit = () => {
+    if (mode === "rename") {
+      if (!nameOk) { setErr("Enter the contact's name."); return; }
+      run(() => axios.patch(`${API_URL}/whatsapp/conversations/${conv._id}/contact`, { name: name.trim() }, getAuthHeaders()));
+    } else if (mode === "save") {
+      if (name.trim() && !nameOk) { setErr("Enter a real name, or leave it blank to save as Sir/Madam."); return; }
+      run(() => axios.post(`${API_URL}/whatsapp/conversations/${conv._id}/create-lead`,
+        { name: name.trim() || undefined, assignTo: isAdmin && assignTo ? assignTo : undefined },
+        getAuthHeaders()));
+    } else if (mode === "assign") {
+      if (!assignTo) { setErr("Choose an employee."); return; }
+      run(() => axios.patch(`${API_URL}/whatsapp/conversations/${conv._id}/assign`, { agentId: assignTo }, getAuthHeaders()));
+    }
+  };
+
+  const titles = { rename: "Edit contact name", save: "Save chat as lead", assign: "Assign to employee" };
+  const actionLabel = { rename: "Save name", save: "Save lead", assign: "Assign" };
+  const showName = mode === "rename" || mode === "save";
+  const showEmployee = isAdmin && (mode === "save" || mode === "assign");
+  const inputCls = "w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-500/20";
+
+  return (
+    <div className="px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38] bg-[#F8FAFF] dark:bg-[#151821]">
+      <form
+        onSubmit={(e) => { e.preventDefault(); submit(); }}
+        className="flex flex-col sm:flex-row sm:items-end gap-2.5"
+      >
+        <p className="sm:hidden text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{titles[mode]}</p>
+        {showName && (
+          <label className="flex-1 min-w-0">
+            <span className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
+              {mode === "save" ? "Lead name" : "Contact name"}
+            </span>
+            <input
+              ref={nameRef}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Ravi Kumar"
+              maxLength={120}
+              className={inputCls}
+            />
+          </label>
+        )}
+        {showEmployee && (
+          <label className="flex-1 min-w-0">
+            <span className="block text-[11px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] mb-1">
+              {mode === "save" ? "Assign to employee (optional)" : "Employee"}
+            </span>
+            <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)} className={inputCls} disabled={employees === null}>
+              <option value="">{employees === null ? "Loading employees…" : mode === "save" ? "Leave unassigned" : "Choose an employee"}</option>
+              {(employees || []).map((u) => (
+                <option key={u._id} value={u._id}>{u.name}{u.email ? ` (${u.email})` : ""}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <div className="flex gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMode(null)}
+            className="px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-white dark:hover:bg-[#1A1D27] transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={busy || (mode === "rename" && !nameOk) || (mode === "assign" && !assignTo)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2563EB] hover:bg-blue-700 text-white text-[12px] font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            {actionLabel[mode]}
+          </button>
+        </div>
+      </form>
+      {mode === "save" && (
+        <p className="mt-2 text-[11px] text-[#8B92A9]">
+          Leave the name blank to save as Sir/Madam. {isAdmin ? "" : "The lead will be assigned to you. "}
+          If a lead with this number already exists, the chat is linked to it instead of creating a duplicate.
+        </p>
+      )}
+      {err && (
+        <p className="mt-2 flex items-center gap-1.5 text-[12px] text-[#DC2626]" role="alert">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {err}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function WhatsAppPanel({ currentUser }) {
   const socketRef  = useRef(null);
   const bottomRef  = useRef(null);
@@ -1495,6 +1643,14 @@ function WhatsAppPanel({ currentUser }) {
     return { headers: { Authorization: `Bearer ${tok}` } };
   };
   const authHeaders = getAuthHeaders(); // for props passed to child modals
+  const [contactMode, setContactMode] = useState(null); // "rename" | "save" | "assign" | null
+  const applyConvUpdate = (conv) => {
+    if (!conv?._id) return;
+    setConversations((prev) => prev.map((c) => (String(c._id) === String(conv._id) ? { ...c, ...conv } : c)));
+    setSelected((prev) => (prev && String(prev._id) === String(conv._id) ? { ...prev, ...conv } : prev));
+  };
+  // Close the contact action strip when switching to another chat.
+  useEffect(() => { setContactMode(null); }, [selected?._id]);
 
 
   const handleNewConversation = (conv) => {
@@ -1966,16 +2122,7 @@ function WhatsAppPanel({ currentUser }) {
                   </div>
                   {isAdmin && conv.assignedAgent?.name && <div className="text-[10px] text-[#8B92A9] mt-0.5">{conv.assignedAgent.name}</div>}
                 </div>
-                {/* Delete button — only visible on hover for zombie conversations */}
-                {isZombie && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); deleteConversation(conv._id); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[#FEF2F2] dark:bg-[#2D0A0A] flex items-center justify-center text-[#DC2626] hover:bg-[#fee2e2] transition"
-                    title="Delete this failed conversation"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                  </button>
-                )}
+                {/* Delete button removed: deleteConversation() is disabled and there is no delete route, so clicking it threw a ReferenceError. */}
               </div>
             );
           })}
@@ -2083,9 +2230,24 @@ function WhatsAppPanel({ currentUser }) {
             <div className="w-9 h-9 rounded-full bg-[#dcfce7] flex items-center justify-center font-semibold text-[13px] text-[#166534] shrink-0">
               {getInitials(selected.contactName || selected.lead?.name || selected.waPhone)}
             </div>
-            <div className="flex-1">
-              <div className="font-semibold text-[14px] text-[#0F1117] dark:text-[#F0F2FA]">
-                {selected.contactName || selected.lead?.name || `+${selected.waPhone}`}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="font-semibold text-[14px] text-[#0F1117] dark:text-[#F0F2FA] truncate">
+                  {selected.contactName || selected.lead?.name || `+${selected.waPhone}`}
+                </span>
+                <button
+                  onClick={() => setContactMode(contactMode === "rename" ? null : "rename")}
+                  title="Edit contact name"
+                  aria-label="Edit contact name"
+                  className="w-6 h-6 flex items-center justify-center rounded-md text-[#8B92A9] hover:text-[#2563EB] hover:bg-gray-100 dark:hover:bg-[#262A38] shrink-0 transition"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                {selected.lead && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#EEF4FF] dark:bg-blue-500/10 text-[10px] font-semibold text-[#2563EB] shrink-0" title="This chat is linked to a lead">
+                    <Link2 className="w-3 h-3" /> Lead
+                  </span>
+                )}
               </div>
               <div className="text-[11px] text-[#8B92A9] font-mono">
                 {isSuperAdmin ? `+${selected.waPhone}` : maskPhone(selected.waPhone, false)}
@@ -2093,6 +2255,28 @@ function WhatsAppPanel({ currentUser }) {
                 {isAdmin && selected.assignedAgent?.name ? ` · Employee: ${selected.assignedAgent.name}` : ""}
               </div>
             </div>
+            {!selected.lead && (
+              <button
+                onClick={() => setContactMode(contactMode === "save" ? null : "save")}
+                className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12px] font-semibold shrink-0 transition ${
+                  contactMode === "save" ? "bg-[#166534] text-white" : "bg-[#dcfce7] text-[#166534] hover:bg-[#bbf7d0]"
+                }`}
+                title="Save this chat as a lead"
+              >
+                <Check className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Save as lead</span><span className="sm:hidden">Save</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setContactMode(contactMode === "assign" ? null : "assign")}
+                className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[12px] font-semibold shrink-0 transition ${
+                  contactMode === "assign" ? "border-[#2563EB] bg-[#2563EB] text-white" : "border-[#E4E7EF] dark:border-[#262A38] text-[#4B5168] dark:text-[#9DA3BB] hover:bg-gray-100 dark:hover:bg-[#262A38]"
+                }`}
+                title={selected.assignedAgent?.name ? `Assigned to ${selected.assignedAgent.name}` : "Assign to an employee"}
+              >
+                <UserPlus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{selected.assignedAgent?.name ? "Reassign" : "Assign"}</span>
+              </button>
+            )}
             <button
               onClick={refreshSelected}
               disabled={refreshing}
@@ -2102,6 +2286,15 @@ function WhatsAppPanel({ currentUser }) {
               <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
             </button>
           </div>
+
+          <WaContactActions
+            conv={selected}
+            isAdmin={isAdmin}
+            mode={contactMode}
+            setMode={setContactMode}
+            getAuthHeaders={getAuthHeaders}
+            onUpdated={applyConvUpdate}
+          />
 
           {session && (
             <div className={`px-4 py-2 text-[11px] border-b border-[#E4E7EF] dark:border-[#262A38] ${session.expired ? "bg-[#FEF2F2] text-[#DC2626]" : "bg-[#FFFBEB] text-[#D97706]"}`}>
