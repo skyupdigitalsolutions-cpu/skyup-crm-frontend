@@ -196,6 +196,9 @@ export function moduleVisibleFor(key, role, c = getCustomization()) {
   const m = c?.modules?.[key];
   if (!m) return true;
   if (m.enabled === false) return false;
+  // The company owner (super admin) sees every module that's switched on,
+  // even ones hidden from admins (e.g. Call Monitoring for owners only).
+  if (role === "super_admin" || role === "superadmin") return true;
   return role === "employee" ? m.employee !== false : m.admin !== false;
 }
 
