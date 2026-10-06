@@ -207,6 +207,22 @@ export function NotificationProvider({ children }) {
         });
     }
 
+    // ── SuperAdmin: pending lead-export approval requests ─────────────────────
+    if (isSuperAdmin) {
+      api.get('/lead/export-requests')
+        .then(res => {
+          (res.data?.pending || []).forEach(r => handleUpsert({
+            id:        `export-req-${r._id}`,
+            type:      'export_request',
+            title:     'Export approval needed',
+            body:      `${r.adminName || 'An admin'} wants to export leads${r.reason ? ` — "${r.reason}"` : ''}`,
+            timestamp: r.createdAt || new Date().toISOString(),
+            urgent:    false,
+          }, setNotifications, setUnreadCount));
+        })
+        .catch(() => {});
+    }
+
     // ── SuperAdmin: Fetch expiring subscriptions on mount ─────────────────────
     if (isSuperAdmin) {
       api.get('/superadmin/expiring-subscriptions?days=30')
@@ -368,6 +384,34 @@ export function NotificationProvider({ children }) {
         urgent:    isOverdue,
       };
       handleUpsert(notif, setNotifications, setUnreadCount);
+    });
+
+    // Lead export approvals — super admin gets requests, admin gets decisions.
+    socket.on('export_request', ({ requestId, adminName, reason, timestamp }) => {
+      handleUpsert({
+        id:        `export-req-${requestId}`,
+        type:      'export_request',
+        title:     'Export approval needed',
+        body:      `${adminName || 'An admin'} wants to export leads${reason ? ` — "${reason}"` : ''}`,
+        timestamp: timestamp || new Date().toISOString(),
+        urgent:    false,
+      }, setNotifications, setUnreadCount);
+      window.dispatchEvent(new Event('export-request-new'));
+    });
+    socket.on('export_request_decided', ({ requestId, status, decidedByName, expiresAt, rejectReason, timestamp }) => {
+      const approved = status === 'approved';
+      const until = expiresAt ? new Date(expiresAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : 'midnight';
+      handleUpsert({
+        id:        `export-dec-${requestId}`,
+        type:      'export_decision',
+        title:     approved ? 'Export approved' : 'Export request rejected',
+        body:      approved
+          ? `${decidedByName || 'Super admin'} approved one export. Use it before ${until} today.`
+          : `${decidedByName || 'Super admin'} rejected your request${rejectReason ? `: ${rejectReason}` : '.'}`,
+        timestamp: timestamp || new Date().toISOString(),
+        urgent:    false,
+      }, setNotifications, setUnreadCount);
+      window.dispatchEvent(new Event('export-request-decided'));
     });
 
     socket.on('lead_reassigned_notify', ({ leadId, leadName, fromAdminName, toUserName, reason, timestamp }) => {
@@ -652,6 +696,14 @@ export function NotificationBell() {
 
       // Subscription alerts → no navigation (super admin UI only)
       case 'subscription_expiry':
+        break;
+
+      // Lead export approvals
+      case 'export_request':
+        navigate('/leads?exportRequests=1');
+        break;
+      case 'export_decision':
+        navigate('/leads');
         break;
 
       // Meeting permission → attendance or employee management
