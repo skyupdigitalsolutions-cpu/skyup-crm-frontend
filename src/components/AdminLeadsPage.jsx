@@ -11,6 +11,7 @@ import { normalizePhone } from "../utils/normalizePhone";
 import { getLeadDisplayStatus, statusConfigFor, statusDisplayLabel, temperatureStyle, outcomeStyle } from "../utils/statusConfig";
 // Company customization (Customize CRM): statuses, qualities, sources, fields, workflows.
 import useCustomization from "../hooks/useCustomization";
+import { ImportAssignmentChooser, UnassignedLeadsModal, AssignmentSettingsModal, useAssignmentOptions } from "./LeadAssignment";
 import CustomFieldsEditor from "./CustomFieldsEditor";
 import { missingRequiredCustomFields } from "../utils/customFields";
 import {
@@ -1666,10 +1667,24 @@ function AddLeadModal({ onClose, onAdd, isSuperAdmin }) {
 }
 
 // ── Import CSV Modal ──────────────────────────────────────────────────────────
-function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
+function ImportCSVModal({ onClose, onImported, existingLeads = [], isSuperAdmin = false }) {
   const importRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [result,    setResult]    = useState(null);
+  // Assignment: Automatic (company default) or Manual (shared pool of admins).
+  const { options: asgOptions, error: asgError } = useAssignmentOptions();
+  const [asg, setAsg] = useState({ mode: "auto", admins: [] });
+  useEffect(() => {
+    if (asgOptions?.importStrategy === "manual") setAsg((a) => ({ ...a, mode: "manual" }));
+  }, [asgOptions]);
+  const autoMode = asgOptions?.importStrategy && asgOptions.importStrategy !== "manual" ? asgOptions.importStrategy : "round_robin";
+  const chooseFile = () => {
+    if (asg.mode === "manual" && isSuperAdmin && asg.admins.length === 0) {
+      setResult({ savedCount: 0, errorCount: 1, errors: [{ message: "Tick at least one admin for manual assignment." }], message: "Nothing imported." });
+      return;
+    }
+    importRef.current?.click();
+  };
 
   const downloadTemplate = () => {
     const headers = "Name,Primary Number,Secondary Number,Email,Source,Campaign,Status,Remark";
@@ -1746,7 +1761,13 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
         setResult({ savedCount: 0, errorCount: clientErrors.length, errors: clientErrors, message: "No valid rows found." });
         return;
       }
-      const { data } = await api.post("/lead/admin/import-csv", { leads: leadsToImport });
+      // Super admins have their own route (protectSuperAdmin), admins use /admin/.
+      const importUrl = isSuperAdmin ? "/lead/superadmin/import-csv" : "/lead/admin/import-csv";
+      const { data } = await api.post(importUrl, {
+        leads: leadsToImport,
+        assignMode: asg.mode === "manual" ? "manual" : autoMode,
+        poolAdmins: asg.mode === "manual" ? asg.admins : [],
+      });
       const allErrors = [...clientErrors, ...(data.errors || [])];
       setResult({ savedCount: data.savedCount, errorCount: (data.errorCount || 0) + clientErrors.length, errors: allErrors, message: data.message });
       if (data.savedCount > 0) onImported();
@@ -1778,16 +1799,20 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
                 Optional: <code className="font-mono bg-white dark:bg-[#0D0F14] px-1 rounded">Secondary Number</code>, Email, Source, Campaign, Status, Remark
               </p>
               <p className="text-[13px] text-[#8B92A9] mt-2">
-                Duplicate numbers (primary or secondary, with or without +91) are automatically skipped. Leads round-robin assigned to your team.
+                Duplicate numbers (primary or secondary, with or without +91) are automatically skipped.
               </p>
             </div>
+            <ImportAssignmentChooser options={asgOptions} error={asgError} value={asg} onChange={setAsg} />
+            {asg.mode === "manual" && !isSuperAdmin && asg.admins.length === 0 && (
+              <p className="-mt-3 mb-4 text-[12px] text-[#8B92A9]">No admin ticked: the leads stay unassigned for you to assign.</p>
+            )}
             <div className="flex gap-2">
               <button onClick={downloadTemplate}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[15px] font-semibold text-[#7C3AED] dark:text-[#A78BFA] hover:bg-purple-50 dark:hover:bg-purple-950/30 transition">
                 <Download className="w-4 h-4" /> Download Template
               </button>
               <input ref={importRef} type="file" accept=".csv" className="hidden" onChange={handleFile} />
-              <button onClick={() => importRef.current?.click()} disabled={importing}
+              <button onClick={chooseFile} disabled={importing}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#7C3AED] text-white text-[15px] font-semibold hover:bg-violet-700 disabled:opacity-50 transition">
                 {importing ? <><Spinner /> Importing…</> : <><Upload className="w-4 h-4" /> Choose CSV File</>}
               </button>
@@ -1820,7 +1845,7 @@ function ImportCSVModal({ onClose, onImported, existingLeads = [] }) {
             )}
             <div className="flex gap-2">
               {result.savedCount === 0 && (
-                <button onClick={() => { setResult(null); importRef.current?.click(); }}
+                <button onClick={() => { setResult(null); }}
                   className="flex-1 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[15px] font-semibold text-[#4B5168] hover:bg-[#F1F4FF] transition">
                   Try Again
                 </button>
@@ -1920,6 +1945,15 @@ export default function AdminLeadsPage() {
   const [selected,   setSelected]   = useState(null);
   const [showAdd,    setShowAdd]    = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showUnassigned, setShowUnassigned] = useState(false);
+  const [showAsgSettings, setShowAsgSettings] = useState(false);
+  const [unassignedCount, setUnassignedCount] = useState(null);
+  const refreshUnassigned = useCallback(() => {
+    api.get("/lead/assignment/unassigned")
+      .then((r) => setUnassignedCount(r.data?.total ?? 0))
+      .catch(() => setUnassignedCount(null));
+  }, []);
+  useEffect(() => { refreshUnassigned(); }, [refreshUnassigned]);
 
   const [recordingsLead, setRecordingsLead] = useState(null);
 
@@ -2232,7 +2266,9 @@ export default function AdminLeadsPage() {
     <div className="bg-[#F8F9FC] dark:bg-[#0D0F14] min-h-screen px-3 py-4 md:px-6 md:py-8 overflow-x-hidden">
 
       {showAdd    && <AddLeadModal   onClose={() => setShowAdd(false)}    onAdd={handleAdd}    isSuperAdmin={isSuperAdmin} />}
-      {showImport && <ImportCSVModal onClose={() => setShowImport(false)} onImported={fetchLeads} existingLeads={allLeads} />}
+      {showImport && <ImportCSVModal onClose={() => { setShowImport(false); refreshUnassigned(); }} onImported={() => { fetchLeads(); refreshUnassigned(); }} existingLeads={allLeads} isSuperAdmin={isSuperAdmin} />}
+      {showUnassigned && <UnassignedLeadsModal onClose={() => { setShowUnassigned(false); refreshUnassigned(); }} onAssigned={() => { fetchLeads(); refreshUnassigned(); }} />}
+      {showAsgSettings && <AssignmentSettingsModal onClose={() => setShowAsgSettings(false)} />}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -2249,10 +2285,21 @@ export default function AdminLeadsPage() {
               <Plus className="w-3.5 h-3.5" /> Add Lead
             </button>
           )}
-          {!isSuperAdmin && (
-            <button onClick={() => setShowImport(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#7C3AED] text-white text-[14px] font-semibold hover:bg-violet-700 transition">
-              <Upload className="w-3.5 h-3.5" /> Import CSV
+          <button onClick={() => setShowImport(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#7C3AED] text-white text-[14px] font-semibold hover:bg-violet-700 transition">
+            <Upload className="w-3.5 h-3.5" /> Import CSV
+          </button>
+          <button onClick={() => setShowUnassigned(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
+            Unassigned
+            {unassignedCount > 0 && (
+              <span className="min-w-[20px] px-1.5 py-0.5 rounded-full bg-[#7C3AED] text-white text-[11px] font-bold leading-none">{unassignedCount > 999 ? "999+" : unassignedCount}</span>
+            )}
+          </button>
+          {isSuperAdmin && (
+            <button onClick={() => setShowAsgSettings(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
+              Assignment settings
             </button>
           )}
           {isSuperAdmin && (
