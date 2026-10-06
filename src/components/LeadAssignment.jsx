@@ -5,7 +5,8 @@
 //     shown in the CSV import window.
 //   • UnassignedLeadsModal    — leads with no employee; tick and assign.
 //     Pool leads are shared: the first admin to assign one takes it.
-//   • AssignmentSettingsModal — super admin: company default + admin groups.
+//   • AssignmentSettingsModal — super admin: default for imports (Leads page).
+//   • AdminGroupsModal        — super admin: admin groups (User Management).
 // Backend: /api/lead/assignment/* (controllers/leadAssignmentController.js)
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -287,10 +288,78 @@ export function UnassignedLeadsModal({ onClose, onAssigned }) {
   );
 }
 
-// ── Super admin: company default + admin groups ─────────────────────────────
+// ── Shared modal frame ──────────────────────────────────────────────────────
+function ModalFrame({ title, subtitle, onClose, children }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl w-full max-w-2xl shadow-2xl max-h-[92vh] overflow-y-auto">
+        <div className="flex items-start justify-between px-6 pt-5 pb-3">
+          <div>
+            <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{title}</h2>
+            {subtitle && <p className="text-[13px] text-[#8B92A9] mt-0.5">{subtitle}</p>}
+          </div>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]" aria-label="Close">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-6 pb-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Super admin: lead assignment default (Leads page) ───────────────────────
 export function AssignmentSettingsModal({ onClose }) {
   const { options, reload } = useAssignmentOptions();
-  const [savingMode, setSavingMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const saveMode = async (mode) => {
+    setSaving(true); setErr(""); setMsg("");
+    try {
+      await api.put("/lead/assignment/settings", { importStrategy: mode });
+      setMsg("Default saved.");
+      reload();
+    } catch (e) { setErr(errMsg(e, "Couldn't save the default.")); }
+    finally { setSaving(false); }
+  };
+
+  const current = options?.importStrategy || "round_robin";
+  const modes = [
+    ["round_robin", "Round robin", "Shared evenly across employees"],
+    ["least_loaded", "Least loaded", "To whoever has the fewest open leads"],
+    ["manual", "Manual", "Choose admins; they assign later"],
+  ];
+
+  return (
+    <ModalFrame title="Lead assignment" subtitle="How imported leads are assigned by default. It can still be changed for each import." onClose={onClose}>
+      <div className="grid sm:grid-cols-3 gap-2">
+        {modes.map(([key, title, sub]) => (
+          <button
+            key={key}
+            type="button"
+            disabled={saving || !options}
+            onClick={() => saveMode(key)}
+            className={`text-left px-3 py-2.5 rounded-xl border transition disabled:opacity-60 ${
+              current === key ? "border-[#7C3AED] bg-purple-50 dark:bg-purple-950/30" : "border-[#E4E7EF] dark:border-[#262A38] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]"
+            }`}
+          >
+            <span className="flex items-center gap-1.5 text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+              {current === key && <Check className="w-3.5 h-3.5 text-[#7C3AED]" />} {title}
+            </span>
+            <span className="block text-[12px] text-[#8B92A9] mt-0.5">{sub}</span>
+          </button>
+        ))}
+      </div>
+      {msg && <p className="mt-3 text-[13px] text-emerald-600">{msg}</p>}
+      {err && <p className="mt-3 flex items-center gap-1.5 text-[13px] text-red-600"><AlertTriangle className="w-3.5 h-3.5" /> {err}</p>}
+    </ModalFrame>
+  );
+}
+
+// ── Super admin: admin groups (User Management) ─────────────────────────────
+export function AdminGroupsModal({ onClose }) {
   const [groups, setGroups] = useState(null);
   const [admins, setAdmins] = useState([]);
   const [editing, setEditing] = useState(null); // { _id?, name, admins:Set }
@@ -303,16 +372,6 @@ export function AssignmentSettingsModal({ onClose }) {
       .catch((e) => setErr(errMsg(e, "Couldn't load admin groups.")));
   }, []);
   useEffect(() => { loadGroups(); }, [loadGroups]);
-
-  const saveMode = async (mode) => {
-    setSavingMode(true); setErr(""); setMsg("");
-    try {
-      await api.put("/lead/assignment/settings", { importStrategy: mode });
-      setMsg("Default saved.");
-      reload();
-    } catch (e) { setErr(errMsg(e, "Couldn't save the default.")); }
-    finally { setSavingMode(false); }
-  };
 
   const saveGroup = async () => {
     if (!editing) return;
@@ -332,127 +391,100 @@ export function AssignmentSettingsModal({ onClose }) {
     catch (e) { setErr(errMsg(e, "Couldn't delete the group.")); }
   };
 
-  const current = options?.importStrategy || "round_robin";
-  const modes = [
-    ["round_robin", "Round robin", "Shared evenly across employees"],
-    ["least_loaded", "Least loaded", "To whoever has the fewest open leads"],
-    ["manual", "Manual", "Choose admins; they assign later"],
-  ];
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl w-full max-w-2xl shadow-2xl max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 pt-5 pb-3">
-          <h2 className="text-[18px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Lead assignment</h2>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]" aria-label="Close">
-            <X className="w-4 h-4" />
+    <ModalFrame
+      title="Admin groups"
+      subtitle="Admins in a group share their leads: each can see and assign the leads of every admin in the group and of their employees."
+      onClose={onClose}
+    >
+      {!editing && (
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={() => setEditing({ name: "", admins: new Set() })}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#7C3AED] text-white text-[13px] font-semibold hover:bg-violet-700 transition"
+          >
+            <Plus className="w-3.5 h-3.5" /> New group
           </button>
         </div>
+      )}
 
-        <div className="px-6 pb-6 space-y-6">
-          <section>
-            <p className="text-[13px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Default for imports</p>
-            <p className="text-[13px] text-[#8B92A9] mb-3">Pre-selected in the import window. It can still be changed for each import.</p>
-            <div className="grid sm:grid-cols-3 gap-2">
-              {modes.map(([key, title, sub]) => (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={savingMode || !options}
-                  onClick={() => saveMode(key)}
-                  className={`text-left px-3 py-2.5 rounded-xl border transition disabled:opacity-60 ${
-                    current === key ? "border-[#7C3AED] bg-purple-50 dark:bg-purple-950/30" : "border-[#E4E7EF] dark:border-[#262A38] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]"
-                  }`}
-                >
-                  <span className="flex items-center gap-1.5 text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
-                    {current === key && <Check className="w-3.5 h-3.5 text-[#7C3AED]" />} {title}
-                  </span>
-                  <span className="block text-[12px] text-[#8B92A9] mt-0.5">{sub}</span>
-                </button>
+      {editing && (
+        <div className="rounded-xl border border-[#7C3AED]/40 p-3 mb-3">
+          <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mb-2">{editing._id ? "Edit group" : "New group"}</p>
+          <input
+            value={editing.name}
+            onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+            placeholder="Group name, e.g. North region"
+            maxLength={80}
+            className="w-full px-3 py-2 mb-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#7C3AED]"
+          />
+          {admins.length === 0 ? (
+            <p className="px-3 py-2 text-[13px] text-[#8B92A9]">No admins yet. Add admins first.</p>
+          ) : (
+            <div className="max-h-56 overflow-y-auto">
+              {admins.map((a) => (
+                <Checkbox
+                  key={a._id}
+                  checked={editing.admins.has(String(a._id))}
+                  onChange={() => {
+                    const next = new Set(editing.admins);
+                    next.has(String(a._id)) ? next.delete(String(a._id)) : next.add(String(a._id));
+                    setEditing({ ...editing, admins: next });
+                  }}
+                  label={a.name}
+                  sub={a.email}
+                />
               ))}
             </div>
-          </section>
-
-          <section>
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[13px] font-bold text-[#8B92A9] uppercase tracking-widest">Admin groups</p>
-              {!editing && (
-                <button onClick={() => setEditing({ name: "", admins: new Set() })} className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#7C3AED]">
-                  <Plus className="w-3.5 h-3.5" /> New group
-                </button>
-              )}
+          )}
+          <div className="flex items-center justify-between gap-2 mt-2">
+            <span className="text-[12px] text-[#8B92A9]">{editing.admins.size} selected · at least 2 needed</span>
+            <div className="flex gap-2">
+              <button onClick={() => setEditing(null)} className="px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">Cancel</button>
+              <button
+                onClick={saveGroup}
+                disabled={!editing.name.trim() || editing.admins.size < 2}
+                className="px-3.5 py-2 rounded-lg bg-[#7C3AED] text-white text-[13px] font-semibold disabled:opacity-50"
+              >
+                Save group
+              </button>
             </div>
-            <p className="text-[13px] text-[#8B92A9] mb-3">
-              Admins in a group share their leads: each can see and assign the leads of every admin in the group and of their employees.
-            </p>
-
-            {editing && (
-              <div className="rounded-xl border border-[#7C3AED]/40 p-3 mb-3">
-                <input
-                  value={editing.name}
-                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                  placeholder="Group name, e.g. North region"
-                  maxLength={80}
-                  className="w-full px-3 py-2 mb-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#7C3AED]"
-                />
-                <div className="max-h-48 overflow-y-auto">
-                  {admins.map((a) => (
-                    <Checkbox
-                      key={a._id}
-                      checked={editing.admins.has(String(a._id))}
-                      onChange={() => {
-                        const next = new Set(editing.admins);
-                        next.has(String(a._id)) ? next.delete(String(a._id)) : next.add(String(a._id));
-                        setEditing({ ...editing, admins: next });
-                      }}
-                      label={a.name}
-                      sub={a.email}
-                    />
-                  ))}
-                </div>
-                <div className="flex justify-end gap-2 mt-2">
-                  <button onClick={() => setEditing(null)} className="px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] text-[13px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">Cancel</button>
-                  <button
-                    onClick={saveGroup}
-                    disabled={!editing.name.trim() || editing.admins.size < 2}
-                    title={editing.admins.size < 2 ? "Tick at least two admins" : ""}
-                    className="px-3.5 py-2 rounded-lg bg-[#7C3AED] text-white text-[13px] font-semibold disabled:opacity-50"
-                  >
-                    Save group
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {groups === null ? (
-              <p className="text-[14px] text-[#8B92A9]">Loading…</p>
-            ) : groups.length === 0 ? (
-              <p className="text-[14px] text-[#8B92A9]">No groups yet.</p>
-            ) : (
-              <ul className="space-y-2">
-                {groups.map((g) => (
-                  <li key={g._id} className="flex items-start gap-3 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-3 py-2.5">
-                    <Users className="w-4 h-4 text-[#7C3AED] mt-0.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{g.name}</p>
-                      <p className="text-[12px] text-[#8B92A9]">{(g.admins || []).map((a) => a.name).join(", ")}</p>
-                    </div>
-                    <button onClick={() => setEditing({ _id: g._id, name: g.name, admins: new Set((g.admins || []).map((a) => String(a._id))) })} className="p-1.5 rounded-lg text-[#8B92A9] hover:text-[#7C3AED]" aria-label={`Edit ${g.name}`}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => removeGroup(g)} className="p-1.5 rounded-lg text-[#8B92A9] hover:text-red-600" aria-label={`Delete ${g.name}`}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {msg && <p className="text-[13px] text-emerald-600">{msg}</p>}
-          {err && <p className="flex items-center gap-1.5 text-[13px] text-red-600"><AlertTriangle className="w-3.5 h-3.5" /> {err}</p>}
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+
+      {groups === null ? (
+        <p className="text-[14px] text-[#8B92A9]">Loading…</p>
+      ) : groups.length === 0 ? (
+        !editing && (
+          <div className="flex flex-col items-center justify-center py-8 text-center rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
+            <Users className="w-7 h-7 text-[#C4C9DA] mb-2" />
+            <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">No groups yet</p>
+            <p className="text-[13px] text-[#8B92A9]">Create one to let admins share leads.</p>
+          </div>
+        )
+      ) : (
+        <ul className="space-y-2">
+          {groups.map((g) => (
+            <li key={g._id} className="flex items-start gap-3 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] px-3 py-2.5">
+              <Users className="w-4 h-4 text-[#7C3AED] mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{g.name}</p>
+                <p className="text-[12px] text-[#8B92A9]">{(g.admins || []).map((a) => a.name).join(", ")}</p>
+              </div>
+              <button onClick={() => setEditing({ _id: g._id, name: g.name, admins: new Set((g.admins || []).map((a) => String(a._id))) })} className="p-1.5 rounded-lg text-[#8B92A9] hover:text-[#7C3AED]" aria-label={`Edit ${g.name}`}>
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => removeGroup(g)} className="p-1.5 rounded-lg text-[#8B92A9] hover:text-red-600" aria-label={`Delete ${g.name}`}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {msg && <p className="mt-3 text-[13px] text-emerald-600">{msg}</p>}
+      {err && <p className="mt-3 flex items-center gap-1.5 text-[13px] text-red-600"><AlertTriangle className="w-3.5 h-3.5" /> {err}</p>}
+    </ModalFrame>
   );
 }
