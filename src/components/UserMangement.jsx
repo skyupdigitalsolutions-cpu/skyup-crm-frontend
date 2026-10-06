@@ -7,6 +7,7 @@ import { BarChart3, Plus, Trash2, ToggleLeft, ToggleRight, Eye, EyeOff, Loader2,
 import useEntitlements from "../hooks/useEntitlements";
 import PasswordRules, { PasswordMatch } from "./PasswordRules";
 import { validatePassword, generateStrongPassword } from "../utils/passwordPolicy";
+import { AdminGroupsModal } from "./LeadAssignment";
 
 
 const PLANS = {
@@ -862,6 +863,7 @@ export default function UserManagement({
   const navigate = useNavigate();
 
   const role = getRole();
+  const [showAdminGroups, setShowAdminGroups] = useState(false);
   const isCompanySuperAdmin =
     getStoredUser()?.isCompanySuperAdmin === true || role === "superadmin";
 
@@ -1222,6 +1224,8 @@ export default function UserManagement({
         </div>
       </div>
 
+      {showAdminGroups && isCompanySuperAdmin && <AdminGroupsModal onClose={() => setShowAdminGroups(false)} />}
+
       {/* Member lists */}
       <div className={`grid grid-cols-1 gap-4 ${isCompanySuperAdmin ? "lg:grid-cols-2" : ""}`}>
 
@@ -1236,13 +1240,23 @@ export default function UserManagement({
                 </div>
                 <SlotBar used={regularAdminCount} max={maxAdmins ?? cfg.maxAdmins} isAdmin/>
               </div>
-              <button
-                onClick={() => tryAdd("admin")}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] dark:text-blue-400 hover:bg-blue-100"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
-                Add Admin
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowAdminGroups(true)}
+                  title="Groups of admins who share their leads"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition bg-purple-50 dark:bg-purple-950/40 text-[#7C3AED] dark:text-purple-300 hover:bg-purple-100"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H2v-2a4 4 0 015-3.87m6-4a4 4 0 11-8 0 4 4 0 018 0zm6 2a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  Admin groups
+                </button>
+                <button
+                  onClick={() => tryAdd("admin")}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] dark:text-blue-400 hover:bg-blue-100"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+                  Add Admin
+                </button>
+              </div>
             </div>
             <div className="px-5 py-2 max-h-80 overflow-y-auto">
               {admins.length === 0
