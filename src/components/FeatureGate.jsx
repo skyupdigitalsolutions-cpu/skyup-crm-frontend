@@ -191,7 +191,7 @@ export default function FeatureGate({
   const companyOff = (k) => {
     const mk = entKeyOf(k);
     if (!cust.c?.modules?.[mk]) return false;
-    return !cust.moduleVisibleFor(mk, _isEmployee ? "employee" : "admin");
+    return !cust.moduleVisibleFor(mk, _isEmployee ? "employee" : _isOwner ? "super_admin" : "admin");
   };
 
   const handleGoToPlans = onGoToPlans || (() => navigate("/upgrade-plan"));
