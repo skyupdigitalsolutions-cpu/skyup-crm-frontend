@@ -870,12 +870,14 @@ function HistoryTab({ query, refreshKey, isSuperAdmin, recordingsOnly = false, i
       const logs = [first, ...rest].flatMap((r) => r.data.logs || []);
       downloadCSV(
         `call-history_${query.startDate}_to_${query.endDate}${callType ? "_" + callType : ""}.csv`,
-        ["Date & time", "Employee", "Phone", "Contact name", "Lead", "Call type", "Duration (s)", "Duration", "Recordings"],
+        ["Date & time", "Employee", "Phone", "Contact name", "Lead", "Call type", "Duration (s)", "Duration", "Remark", "Remark source", "Recordings"],
         logs.map((l) => [
           new Date(l.timestamp).toLocaleString("en-IN"),
           l.user?.name || "",
           isSuperAdmin ? l.phoneNumber : maskPhone(l.phoneNumber),
-          l.name || "", l.matchedLead?.name || "", l.callType, l.duration || 0, fmtHMS(l.duration), (l.recordings || []).length,
+          l.name || "", l.matchedLead?.name || "", l.callType, l.duration || 0, fmtHMS(l.duration),
+          l.remark || l.leadRemark || "", l.remark ? "This call" : l.leadRemark ? "Lead's latest remark" : "",
+          (l.recordings || []).length,
         ]),
       );
     } catch {
@@ -962,6 +964,7 @@ function HistoryTab({ query, refreshKey, isSuperAdmin, recordingsOnly = false, i
                     <th className={`${th} text-left`}>Contact</th>
                     <th className={`${th} text-left`}>Type</th>
                     <th className={`${th} text-right`}>Duration</th>
+                    <th className={`${th} text-left`}>Remark</th>
                     <th className={`${th} text-left`}>Recording</th>
                   </tr>
                 </thead>
@@ -981,6 +984,17 @@ function HistoryTab({ query, refreshKey, isSuperAdmin, recordingsOnly = false, i
                       </td>
                       <td className={td}><CallTypeBadge type={l.callType} /></td>
                       <td className={`${td} text-right font-mono tabular-nums`}>{l.duration ? fmtHMS(l.duration) : <span className="text-[#8B92A9]">—</span>}</td>
+                      <td className={`${td} max-w-[260px]`}>
+                        {l.remark ? (
+                          <p className="text-[13px] line-clamp-2" title={l.remark}>{l.remark}</p>
+                        ) : l.leadRemark ? (
+                          <p className="text-[13px] text-[#8B92A9] italic line-clamp-2" title={`Lead's latest remark (not linked to this call): ${l.leadRemark}`}>
+                            <span className="not-italic font-semibold">Lead:</span> {l.leadRemark}
+                          </p>
+                        ) : (
+                          <span className="text-[13px] text-[#8B92A9]">—</span>
+                        )}
+                      </td>
                       <td className={td}>
                         {l.recordings?.length ? (
                           <div className="space-y-1.5">
