@@ -25,7 +25,8 @@ import UpgradePromptHost from "./components/UpgradePrompt";
 function ModuleRoute({ moduleKey, fallbackTo, children }) {
   const { moduleVisibleFor, loaded } = useCustomization();
   const role = String(getUser()?.role || "user").toLowerCase();
-  const asRole = role === "user" || role === "employee" ? "employee" : "admin";
+  const asRole = role === "user" || role === "employee" ? "employee"
+    : role === "super_admin" || role === "superadmin" ? "super_admin" : "admin";
   if (loaded && !moduleVisibleFor(moduleKey, asRole)) return <Navigate to={fallbackTo} replace />;
   return children;
 }
