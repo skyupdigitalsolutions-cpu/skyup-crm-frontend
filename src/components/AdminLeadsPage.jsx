@@ -12,6 +12,8 @@ import { getLeadDisplayStatus, statusConfigFor, statusDisplayLabel, temperatureS
 // Company customization (Customize CRM): statuses, qualities, sources, fields, workflows.
 import useCustomization from "../hooks/useCustomization";
 import { ImportAssignmentChooser, UnassignedLeadsModal, AssignmentSettingsModal, useAssignmentOptions } from "./LeadAssignment";
+import { AdminExportButton, ExportRequestsModal, usePendingExportCount } from "./LeadExport";
+import { useLocation } from "react-router-dom";
 import CustomFieldsEditor from "./CustomFieldsEditor";
 import { missingRequiredCustomFields } from "../utils/customFields";
 import {
@@ -1947,6 +1949,7 @@ export default function AdminLeadsPage() {
   const [showImport, setShowImport] = useState(false);
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [showAsgSettings, setShowAsgSettings] = useState(false);
+  const [showExportReqs, setShowExportReqs] = useState(false);
   const [unassignedCount, setUnassignedCount] = useState(null);
   const refreshUnassigned = useCallback(() => {
     api.get("/lead/assignment/unassigned")
@@ -1984,6 +1987,12 @@ export default function AdminLeadsPage() {
 
   const role         = getRole();
   const isSuperAdmin = role === "superadmin";
+  // Export approvals: super admin badge + open from the bell (?exportRequests=1).
+  const { count: pendingExports, refresh: refreshPendingExports } = usePendingExportCount(isSuperAdmin);
+  const location = useLocation();
+  useEffect(() => {
+    if (isSuperAdmin && new URLSearchParams(location.search).get("exportRequests") === "1") setShowExportReqs(true);
+  }, [isSuperAdmin, location.search]);
 
   const [revealedPhone, setRevealedPhone] = useState(null);
   const [revealedEmail, setRevealedEmail] = useState(null);
@@ -2269,6 +2278,7 @@ export default function AdminLeadsPage() {
       {showImport && <ImportCSVModal onClose={() => { setShowImport(false); refreshUnassigned(); }} onImported={() => { fetchLeads(); refreshUnassigned(); }} existingLeads={allLeads} isSuperAdmin={isSuperAdmin} />}
       {showUnassigned && <UnassignedLeadsModal onClose={() => { setShowUnassigned(false); refreshUnassigned(); }} onAssigned={() => { fetchLeads(); refreshUnassigned(); }} />}
       {showAsgSettings && <AssignmentSettingsModal onClose={() => setShowAsgSettings(false)} />}
+      {showExportReqs && isSuperAdmin && <ExportRequestsModal onClose={() => { setShowExportReqs(false); refreshPendingExports(); }} onChanged={refreshPendingExports} />}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -2300,6 +2310,16 @@ export default function AdminLeadsPage() {
             <button onClick={() => setShowAsgSettings(true)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
               Assignment settings
+            </button>
+          )}
+          {!isSuperAdmin && <AdminExportButton />}
+          {isSuperAdmin && (
+            <button onClick={() => setShowExportReqs(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[14px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
+              Export requests
+              {pendingExports > 0 && (
+                <span className="min-w-[20px] px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[11px] font-bold leading-none">{pendingExports}</span>
+              )}
             </button>
           )}
           {isSuperAdmin && (
