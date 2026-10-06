@@ -453,7 +453,7 @@ export function Sidebar() {
 
   // Company module switches + per-role visibility + renamed menu labels
   // (Customize CRM → Modules / Terminology).
-  const navRole = role === "user" ? "employee" : "admin";
+  const navRole = role === "user" ? "employee" : isSuperAdmin ? "super_admin" : "admin";
   const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => {
     if (item.teamLeadOnly && !teamInfo.isTeamLead) return false;
     if (!isDeveloper && item.moduleKey && !cust.moduleVisibleFor(item.moduleKey, navRole)) return false;
