@@ -452,6 +452,34 @@ export default function ClientMeetingTab({ lead, isAdmin = false, onSaved }) {
   const [showShotForm, setShowShotForm] = useState(false);
   const [localRemarks, setLocalRemarks] = useState(null);
   const [localShots, setLocalShots]     = useState(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError]     = useState("");
+
+  // Load the full meeting history + screenshots when the tab opens.
+  // The admin Leads list leaves these out to stay fast, so without this the
+  // tab was always empty for admins / super admins even though employees had
+  // logged meetings. Employees get fresh data too (another device may have
+  // added entries since their list loaded).
+  const leadId = lead?._id || lead?.id;
+  useEffect(() => {
+    if (!leadId) return undefined;
+    let cancelled = false;
+    const base = isAdmin ? `/lead/admin/${leadId}` : `/lead/${leadId}`;
+    setLoadingHistory(true);
+    setHistoryError("");
+    Promise.allSettled([
+      api.get(`${base}/meeting-remarks`),
+      api.get(`${base}/whatsapp-screenshots`),
+    ]).then(([remarksRes, shotsRes]) => {
+      if (cancelled) return;
+      if (remarksRes.status === "fulfilled") setLocalRemarks(remarksRes.value.data?.meetingRemarks || []);
+      if (shotsRes.status === "fulfilled") setLocalShots(shotsRes.value.data?.screenshots || []);
+      if (remarksRes.status === "rejected" || shotsRes.status === "rejected") {
+        setHistoryError("Couldn't load the full meeting history. Showing what's available.");
+      }
+    }).finally(() => { if (!cancelled) setLoadingHistory(false); });
+    return () => { cancelled = true; };
+  }, [leadId, isAdmin]);
 
   const visits = [...(localRemarks || lead?.meetingRemarks || [])].sort(
     (a, b) => new Date(b.metAt) - new Date(a.metAt)
@@ -499,8 +527,13 @@ export default function ClientMeetingTab({ lead, isAdmin = false, onSaved }) {
         />
       )}
 
+      {historyError && <p className="text-[11px] text-amber-600 mb-2">{historyError}</p>}
       {visits.length > 0 ? (
         visits.map((v, i) => <MeetingCard key={v._id || i} visit={v} />)
+      ) : loadingHistory ? (
+        <div className="flex items-center justify-center gap-2 py-10 text-[12px] text-[#8B92A9]">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading meeting history…
+        </div>
       ) : !showLogForm ? (
         <div className="flex flex-col items-center justify-center py-10 gap-2 bg-[#F8F9FC] dark:bg-[#13161E] rounded-xl border border-dashed border-[#E4E7EF] dark:border-[#262A38]">
           <span className="text-[#8B92A9]"><NotebookPen className="w-7 h-7" strokeWidth={1.5} /></span>
