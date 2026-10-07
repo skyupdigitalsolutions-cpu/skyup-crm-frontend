@@ -16,7 +16,7 @@
 // (UserLeadsPage) — pass isAdmin to pick the right API base.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays,
   Paperclip, Mic, Map as MapIcon, NotebookPen, Plus, X, FileText,
@@ -313,60 +313,133 @@ function LogMeetingForm({ leadId, isAdmin, onSaved, onClose }) {
 }
 
 // ── WhatsApp screenshot upload form ────────────────────────────────────────────
+// Several screenshots can be picked at once. The server takes one image per
+// request, so they upload one after another; the note applies to all of them.
+const SHOT_MAX_MB = 15;   // server limit (meetingRemarkController screenshotUpload)
+const SHOT_MAX_FILES = 20;
+
 function ScreenshotUploadForm({ leadId, isAdmin, onSaved, onClose }) {
-  const [file, setFile]     = useState(null);
+  const [items, setItems]   = useState([]);   // [{ id, file, preview, error }]
   const [note, setNote]     = useState("");
   const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError]   = useState("");
 
   const base = isAdmin ? `/lead/admin/${leadId}` : `/lead/${leadId}`;
 
+  // Free thumbnail URLs when the form closes.
+  useEffect(() => () => items.forEach((it) => it.preview && URL.revokeObjectURL(it.preview)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []);
+
+  const addFiles = (fileList) => {
+    const picked = Array.from(fileList || []);
+    if (!picked.length) return;
+    const notes = [];
+    const ok = [];
+    for (const f of picked) {
+      if (!f.type.startsWith("image/")) { notes.push(`${f.name} is not an image`); continue; }
+      if (f.size > SHOT_MAX_MB * 1024 * 1024) { notes.push(`${f.name} is over ${SHOT_MAX_MB}MB`); continue; }
+      ok.push(f);
+    }
+    setItems((prev) => {
+      const room = Math.max(0, SHOT_MAX_FILES - prev.length);
+      if (ok.length > room) notes.push(`only ${SHOT_MAX_FILES} screenshots can be uploaded at once`);
+      const added = ok.slice(0, room).map((file) => ({
+        id: `${file.name}_${file.size}_${Math.random().toString(36).slice(2, 7)}`,
+        file, preview: URL.createObjectURL(file), error: "",
+      }));
+      return [...prev, ...added];
+    });
+    setError(notes.length ? `Skipped: ${notes.join("; ")}.` : "");
+  };
+
+  const removeItem = (id) => setItems((prev) => {
+    const it = prev.find((x) => x.id === id);
+    if (it?.preview) URL.revokeObjectURL(it.preview);
+    return prev.filter((x) => x.id !== id);
+  });
+
   const handleSubmit = async () => {
     setError("");
-    if (!file) return setError("Choose a screenshot image first.");
+    if (!items.length) return setError("Choose at least one screenshot image.");
     setSaving(true);
-    try {
-      const fd = new FormData();
-      fd.append("screenshot", file);
-      if (note.trim()) fd.append("note", note.trim());
-      const { data } = await api.post(`${base}/whatsapp-screenshot`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      onSaved(data.screenshot);
-      onClose();
-    } catch (e) {
-      setError(e?.response?.data?.message || "Could not upload screenshot.");
-    } finally {
-      setSaving(false);
+    const saved = [];
+    const failed = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      setProgress({ done: i, total: items.length });
+      try {
+        const fd = new FormData();
+        fd.append("screenshot", it.file);
+        if (note.trim()) fd.append("note", note.trim());
+        const { data } = await api.post(`${base}/whatsapp-screenshot`, fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        saved.push(data.screenshot);
+        if (it.preview) URL.revokeObjectURL(it.preview);
+      } catch (e) {
+        failed.push({ ...it, error: e?.response?.data?.message || "Upload failed" });
+      }
     }
+    setProgress(null);
+    setSaving(false);
+    if (saved.length) onSaved(saved);
+    if (!failed.length) { onClose(); return; }
+    // Keep only the ones that failed so they can be retried.
+    setItems(failed);
+    setError(`${saved.length} uploaded, ${failed.length} failed. Fix or remove them and press Upload again.`);
   };
 
   return (
     <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] p-4 mb-4 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[12.5px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Upload WhatsApp screenshot</p>
-        <button onClick={onClose} className="text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]">
+        <p className="text-[12.5px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Upload WhatsApp screenshots</p>
+        <button onClick={onClose} disabled={saving} className="text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#F0F2FA]" aria-label="Close">
           <X className="w-4 h-4" />
         </button>
       </div>
-      <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[#E4E7EF] dark:border-[#262A38] cursor-pointer hover:border-[#2563EB]/40 transition">
+      <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[#E4E7EF] dark:border-[#262A38] transition ${saving ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-[#2563EB]/40"}`}>
         <ImageIcon className="w-3.5 h-3.5 text-[#8B92A9]" />
-        <span className="text-[11px] text-[#8B92A9] truncate">{file ? file.name : "Choose an image"}</span>
-        <input type="file" className="hidden" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        <span className="text-[11px] text-[#8B92A9] truncate">
+          {items.length ? `${items.length} selected · add more` : "Choose images (you can select several)"}
+        </span>
+        <input type="file" multiple className="hidden" accept="image/*" disabled={saving}
+          onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
       </label>
+
+      {items.length > 0 && (
+        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+          {items.map((it) => (
+            <div key={it.id} className={`relative rounded-lg overflow-hidden border ${it.error ? "border-red-400" : "border-[#E4E7EF] dark:border-[#262A38]"}`} title={it.error || it.file.name}>
+              <img src={it.preview} alt={it.file.name} className="w-full h-16 object-cover" />
+              {!saving && (
+                <button onClick={() => removeItem(it.id)} aria-label={`Remove ${it.file.name}`}
+                  className="absolute top-0.5 right-0.5 w-5 h-5 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+              {it.error && <span className="absolute bottom-0 inset-x-0 bg-red-600/90 text-white text-[9px] px-1 truncate">{it.error}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
       <input
         className="w-full px-3 py-2 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[12px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30"
-        placeholder="Note (optional) — e.g. confirmed pricing over WhatsApp"
-        value={note} onChange={(e) => setNote(e.target.value)}
+        placeholder="Note (optional, added to every screenshot) — e.g. confirmed pricing over WhatsApp"
+        value={note} onChange={(e) => setNote(e.target.value)} disabled={saving}
       />
       {error ? <p className="text-[11px] text-red-500">{error}</p> : null}
       <div className="flex justify-end gap-2">
-        <button onClick={onClose} className="px-3 py-1.5 rounded-lg text-[11.5px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition">
+        <button onClick={onClose} disabled={saving} className="px-3 py-1.5 rounded-lg text-[11.5px] font-semibold text-[#8B92A9] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition disabled:opacity-50">
           Cancel
         </button>
-        <button onClick={handleSubmit} disabled={saving}
+        <button onClick={handleSubmit} disabled={saving || !items.length}
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11.5px] font-semibold bg-[#2563EB] text-white hover:bg-[#1D4ED8] transition disabled:opacity-50">
-          {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading...</> : "Upload"}
+          {saving
+            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading {progress ? `${progress.done + 1} of ${progress.total}` : ""}…</>
+            : items.length > 1 ? `Upload ${items.length}` : "Upload"}
         </button>
       </div>
     </div>
@@ -393,8 +466,10 @@ export default function ClientMeetingTab({ lead, isAdmin = false, onSaved }) {
     onSaved?.({ ...lead, meetingRemarks: next });
   };
 
-  const handleShotSaved = (savedShot) => {
-    const next = [...(localShots || lead?.whatsappScreenshots || []), savedShot];
+  // Accepts one screenshot or several (multi-upload).
+  const handleShotSaved = (savedShots) => {
+    const added = Array.isArray(savedShots) ? savedShots : [savedShots];
+    const next = [...(localShots || lead?.whatsappScreenshots || []), ...added.filter(Boolean)];
     setLocalShots(next);
     onSaved?.({ ...lead, whatsappScreenshots: next });
   };
