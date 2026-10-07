@@ -2144,14 +2144,21 @@ function WhatsAppPanel({ currentUser }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-baseline">
-                    <span className={`text-[12px] truncate max-w-[120px] ${hasUnread ? "font-semibold text-[#0F1117] dark:text-[#F0F2FA]" : "font-medium text-[#4B5168] dark:text-[#9DA3BB]"}`}>
-                      {waDisplayName(conv, isSuperAdmin, maskPhone)}
+                    <span className="flex items-center gap-1 min-w-0">
+                      <span className={`text-[12px] truncate max-w-[120px] ${hasUnread ? "font-semibold text-[#0F1117] dark:text-[#F0F2FA]" : "font-medium text-[#4B5168] dark:text-[#9DA3BB]"}`}>
+                        {waDisplayName(conv, isSuperAdmin, maskPhone)}
+                      </span>
+                      {!conv.lead && (
+                        <span className="shrink-0 px-1 py-px rounded bg-amber-50 dark:bg-amber-950/30 text-[9px] font-bold text-amber-700 dark:text-amber-400" title="New chat: not saved as a lead yet. Open it and use Save as lead.">
+                          Not saved
+                        </span>
+                      )}
                     </span>
                     <span className="text-[10px] text-[#8B92A9] shrink-0">{timeAgo(conv.lastMessageAt)}</span>
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
                     <span className={`text-[11px] truncate max-w-[130px] ${isZombie ? "text-[#DC2626]" : "text-[#8B92A9]"}`}>
-                      {isZombie ? <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Template failed — tap to delete</span> : conv.lastMessage || "No messages yet"}
+                      {isZombie ? <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Template failed</span> : conv.lastMessage || "No messages yet"}
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span
