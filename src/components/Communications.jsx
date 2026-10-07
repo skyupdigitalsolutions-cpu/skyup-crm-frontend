@@ -1724,6 +1724,16 @@ function WhatsAppPanel({ currentUser }) {
     try {
       const { data } = await axios.get(`${API_URL}/whatsapp/conversations/${conv._id}/messages`, authHeaders);
       setMessages(data.messages || []);
+      // Opening the chat marks it read on the server — tell the sidebar so its
+      // Communications badge drops right away (it only counts chats linked to
+      // a lead), then re-syncs with the server.
+      if (conv.unreadCount > 0) {
+        try {
+          window.dispatchEvent(new CustomEvent("wa_unread_refresh", {
+            detail: { cleared: conv.lead ? conv.unreadCount : 0 },
+          }));
+        } catch (_) { /* ignore */ }
+      }
       // Sync the fresh conversation data (sessionExpiresAt, status, etc.) into both
       // the selected state and the conversations list. Without this, the 24h session
       // banner never shows for expired sessions because selected.sessionExpiresAt is stale.
@@ -1951,21 +1961,15 @@ function WhatsAppPanel({ currentUser }) {
   // this; this page didn't). Ported the same pattern: multipart upload to
   // /whatsapp/send-media, optimistic bubble while it uploads, current text
   // used as the caption.
-  const sendMedia = useCallback(async (file) => {
-    if (!file || !selected?._id) return;
-
-    const MAX_MB = 16; // WhatsApp's media ceiling (documents can go higher, but keep this safe)
-    if (file.size > MAX_MB * 1024 * 1024) {
-      setError(`File is too large (${(file.size / 1048576).toFixed(1)}MB). WhatsApp allows up to ${MAX_MB}MB.`);
-      return;
-    }
+  // Sends ONE file. `caption` is passed in (multi-file sends put the typed
+  // text on the first file only). Returns true on success.
+  const sendMedia = useCallback(async (file, caption = "") => {
+    if (!file || !selected?._id) return false;
 
     setUploading(true);
-    setError("");
-    const caption = text.trim();
     const isImg   = file.type.startsWith("image/") && file.type !== "image/gif";
     const optimistic = {
-      _id: `opt_${Date.now()}`,
+      _id: `opt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       direction: "outbound",
       body: caption || file.name,
       messageType: isImg ? "image" : file.type.startsWith("video/") || file.type === "image/gif" ? "video"
@@ -1976,7 +1980,6 @@ function WhatsAppPanel({ currentUser }) {
       sentBy: { name: currentUser?.name },
     };
     setMessages((prev) => [...prev, optimistic]);
-    setText("");
 
     try {
       const fd = new FormData();
@@ -1986,24 +1989,49 @@ function WhatsAppPanel({ currentUser }) {
       const { data } = await axios.post(`${API_URL}/whatsapp/send-media`, fd, authHeaders);
       const sentMsg = data?.message || data;
       setMessages((prev) => prev.map((m) => (m._id === optimistic._id ? { ...optimistic, ...sentMsg } : m)));
+      return true;
     } catch (err) {
       setMessages((prev) => prev.map((m) => (m._id === optimistic._id ? { ...m, status: "failed" } : m)));
       const code = err.response?.data?.code;
       setError(
         code === "SESSION_EXPIRED"
           ? "24-hour session expired — send a template to re-engage before sending files."
-          : err.response?.data?.error || "Failed to send attachment"
+          : `${file.name}: ${err.response?.data?.error || "Failed to send attachment"}`
       );
+      return code !== "SESSION_EXPIRED"; // stop the batch if the session is closed
     } finally {
       setUploading(false);
     }
-  }, [selected, text, currentUser, authHeaders]);
+  }, [selected, currentUser, authHeaders]);
 
-  const handleFilePicked = useCallback((e) => {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-picking the same file
-    if (file) sendMedia(file);
-  }, [sendMedia]);
+  // Several files can be picked at once. WhatsApp sends one file per message,
+  // so they go one after another, in the order picked. Typed text becomes
+  // the caption of the FIRST file only.
+  const handleFilePicked = useCallback(async (e) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = ""; // allow re-picking the same files
+    if (!picked.length) return;
+
+    const MAX_MB = 16; // WhatsApp's media ceiling
+    const MAX_FILES = 10;
+    const tooBig = picked.filter((f) => f.size > MAX_MB * 1024 * 1024);
+    let files = picked.filter((f) => f.size <= MAX_MB * 1024 * 1024);
+    const notes = [];
+    if (tooBig.length) notes.push(`${tooBig.map((f) => f.name).join(", ")} ${tooBig.length === 1 ? "is" : "are"} over ${MAX_MB}MB and ${tooBig.length === 1 ? "was" : "were"} skipped.`);
+    if (files.length > MAX_FILES) {
+      notes.push(`Only the first ${MAX_FILES} files were sent (${files.length} picked).`);
+      files = files.slice(0, MAX_FILES);
+    }
+    setError(notes.join(" "));
+    if (!files.length) return;
+
+    const caption = text.trim();
+    setText("");
+    for (let i = 0; i < files.length; i++) {
+      const okToContinue = await sendMedia(files[i], i === 0 ? caption : "");
+      if (!okToContinue) break;
+    }
+  }, [sendMedia, text]);
 
   // FIX (admin Communications page media): a message the LEAD sent (inbound
   // image/video/audio/document) arrives with a private Meta link the browser
@@ -2427,8 +2455,8 @@ function WhatsAppPanel({ currentUser }) {
             <div className="px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38] flex gap-2 items-end bg-white dark:bg-[#1A1D27]">
               {/* FIX (admin Communications page media): attach buttons — this
                   page previously had no way to send anything but plain text. */}
-              <input ref={imageInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFilePicked} />
-              <input ref={docInputRef}   type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,application/*,text/*" className="hidden" onChange={handleFilePicked} />
+              <input ref={imageInputRef} type="file" multiple accept="image/*,video/*" className="hidden" onChange={handleFilePicked} />
+              <input ref={docInputRef}   type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,application/*,text/*" className="hidden" onChange={handleFilePicked} />
               <button
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
