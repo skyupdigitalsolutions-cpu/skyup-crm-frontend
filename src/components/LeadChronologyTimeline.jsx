@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import {
   Sparkles, Phone, CalendarClock, MessageSquare, Send, Bell,
   RefreshCw, Handshake, ChevronDown, ChevronUp, AlertTriangle, Eye, X,
+  FileText, Image as ImageIcon, ExternalLink,
 } from "lucide-react";
 import api from "../data/axiosConfig";
 
@@ -73,6 +74,19 @@ const EVENT_META = {
     title: (ev) => `${ev.meetingType || "Meeting"} by ${ev.employeeName || "Employee"}${ev.outcome ? ` — ${ev.outcome}` : ""}`,
     subtitle: (ev) => ev.followUpDate ? `Next follow-up: ${fmtDateTime(ev.followUpDate)}` : "",
     body: (ev) => ev.remark,
+  },
+  PROPOSAL_SENT: {
+    icon: FileText, color: "#7C3AED",
+    title: (ev) => `Proposal sent by ${ev.employeeName || "Employee"}`,
+    subtitle: (ev) => ev.meetingType ? `During: ${ev.meetingType} meeting` : "",
+    body: (ev) => ev.note,
+  },
+  WHATSAPP_SCREENSHOT: {
+    icon: ImageIcon, color: "#16A34A",
+    title: (ev) => `WhatsApp chat screenshot uploaded by ${ev.employeeName || "Employee"}`,
+    subtitle: (ev) => ev.note ? `Note: ${ev.note}` : "",
+    // The summary is the body; the full chat renders below it.
+    body: (ev) => ev.chatStatus === "done" ? ev.summary : "",
   },
   STAGE_CHANGE: {
     icon: RefreshCw, color: "#8B92A9",
@@ -211,7 +225,97 @@ function TemplateViewModal({ ev, onClose }) {
   );
 }
 
-function TimelineEvent({ ev }) {
+const SENTIMENT_STYLE = {
+  POSITIVE: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400",
+  NEGATIVE: "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400",
+  NEUTRAL:  "bg-gray-100 text-gray-600 dark:bg-[#262A38] dark:text-[#9DA3BB]",
+};
+
+// Chat read from a WhatsApp screenshot: status, topics, bubbles, actions.
+function ScreenshotChat({ ev, leadId, isAdmin, onChanged }) {
+  const [open, setOpen] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [err, setErr] = useState("");
+  const msgs = ev.messages || [];
+
+  const read = async () => {
+    setReading(true); setErr("");
+    try {
+      const base = isAdmin ? `/lead/admin/${leadId}` : `/lead/${leadId}`;
+      await api.post(`${base}/whatsapp-screenshots/${ev.referenceId}/read`);
+      onChanged?.();
+    } catch (e) {
+      setErr(e?.response?.data?.message || "Couldn't read this screenshot.");
+    } finally { setReading(false); }
+  };
+
+  const status = ev.chatStatus;
+  return (
+    <div className="mt-1.5 space-y-1.5">
+      {status === "done" && (ev.sentiment || (ev.keyTopics || []).length > 0) && (
+        <div className="flex flex-wrap items-center gap-1">
+          {ev.sentiment && (
+            <span className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold ${SENTIMENT_STYLE[ev.sentiment] || SENTIMENT_STYLE.NEUTRAL}`}>
+              {ev.sentiment.charAt(0) + ev.sentiment.slice(1).toLowerCase()}
+            </span>
+          )}
+          {(ev.keyTopics || []).map((t) => (
+            <span key={t} className="px-1.5 py-0.5 rounded bg-[#F1F4FF] dark:bg-[#262A38] text-[9.5px] text-[#4B5168] dark:text-[#9DA3BB]">{t}</span>
+          ))}
+        </div>
+      )}
+      {status === "pending" && (
+        <p className="flex items-center gap-1 text-[11px] text-[#8B92A9]"><RefreshCw className="w-3 h-3 animate-spin" /> Reading the chat from the image…</p>
+      )}
+      {status === "failed" && <p className="text-[11px] text-red-500">Couldn't read the chat{ev.chatError ? `: ${ev.chatError}` : "."}</p>}
+      {status === "unavailable" && <p className="text-[11px] text-[#8B92A9]">Chat reading isn't set up on the server.</p>}
+      {err && <p className="text-[11px] text-red-500">{err}</p>}
+
+      <div className="flex flex-wrap items-center gap-3">
+        {status === "done" && msgs.length > 0 && (
+          <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-[10.5px] font-semibold text-[#16A34A] hover:underline">
+            <MessageSquare className="w-3 h-3" /> {open ? "Hide chat" : `View chat (${msgs.length} messages)`}
+          </button>
+        )}
+        {status !== "done" && status !== "pending" && status !== "unavailable" && (
+          <button onClick={read} disabled={reading} className="flex items-center gap-1 text-[10.5px] font-semibold text-[#2563EB] hover:underline disabled:opacity-50">
+            {reading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            {reading ? "Reading…" : status === "failed" ? "Try reading again" : "Read chat"}
+          </button>
+        )}
+        {ev.url && (
+          <a href={ev.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10.5px] font-semibold text-[#8B92A9] hover:text-[#2563EB]">
+            <ExternalLink className="w-3 h-3" /> View image
+          </a>
+        )}
+      </div>
+
+      {open && (
+        <div className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-[#EFEAE2] dark:bg-[#0B141A] p-2 space-y-1 max-h-80 overflow-y-auto">
+          {msgs.map((m, i) => {
+            const out = m.direction === "outbound";
+            return (
+              <div key={i} className={`flex ${out ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[80%] rounded-lg px-2 py-1 shadow-sm ${out ? "bg-[#D9FDD3] dark:bg-[#005C4B]" : "bg-white dark:bg-[#202C33]"}`}>
+                  {m.date && i > 0 && msgs[i - 1].date === m.date ? null : m.date ? (
+                    <p className="text-[9px] font-semibold text-[#667781] mb-0.5">{m.date}</p>
+                  ) : null}
+                  <p className="text-[11.5px] text-[#111B21] dark:text-[#E9EDEF] whitespace-pre-wrap">
+                    {m.messageType && m.messageType !== "text" && !m.text ? `[${m.messageType}]` : m.text}
+                  </p>
+                  {m.time && <p className="text-[9px] text-[#667781] text-right">{m.time}</p>}
+                </div>
+              </div>
+            );
+          })}
+          <p className="text-[9px] text-center text-[#667781] pt-1">Read from the screenshot by AI. Check the image if anything looks wrong.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimelineEvent({ ev, leadId, isAdmin, onChanged }) {
   const [expanded, setExpanded] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const meta = EVENT_META[ev.type] || {
@@ -265,6 +369,19 @@ function TimelineEvent({ ev }) {
             )}
           </div>
         )}
+        {ev.type === "PROPOSAL_SENT" && (ev.documents || []).length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {ev.documents.map((d, i) => (
+              <a key={i} href={d.url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-950/30 text-[10.5px] font-semibold text-[#7C3AED] hover:underline">
+                <FileText className="w-3 h-3" /> {d.name || "Proposal"}
+              </a>
+            ))}
+          </div>
+        )}
+        {ev.type === "WHATSAPP_SCREENSHOT" && (
+          <ScreenshotChat ev={ev} leadId={leadId} isAdmin={isAdmin} onChanged={onChanged} />
+        )}
         {isTemplate && !body && (
           <button
             onClick={() => setViewOpen(true)}
@@ -287,6 +404,8 @@ const FILTERS = [
   { k: "CALL",                  l: "Calls" },
   { k: "FOLLOW_UP",             l: "Follow-ups" },
   { k: "WHATSAPP",              l: "WhatsApp" },
+  { k: "PROPOSAL_SENT",         l: "Proposals" },
+  { k: "WHATSAPP_SCREENSHOT",   l: "Screenshots" },
 ];
 
 // isAdmin: which auth context is calling this (drives which route/middleware
@@ -304,11 +423,20 @@ export default function LeadChronologyTimeline({ leadId, isAdmin = true }) {
   // always "New Lead Arrived", reading down through the whole story in the
   // order it actually happened.
   const [oldestFirst, setOldestFirst] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const reload = () => setReloadKey((k) => k + 1);
+
+  // While any screenshot is still being read, check again shortly.
+  useEffect(() => {
+    if (!(timeline || []).some((ev) => ev.type === "WHATSAPP_SCREENSHOT" && ev.chatStatus === "pending")) return undefined;
+    const t = setTimeout(reload, 8000);
+    return () => clearTimeout(t);
+  }, [timeline]);
 
   useEffect(() => {
     if (!leadId) return;
     let cancelled = false;
-    setLoading(true);
+    if (timeline === null) setLoading(true);
     setError("");
     const base = isAdmin ? `/lead/admin/${leadId}/timeline` : `/lead/${leadId}/timeline`;
     api.get(base)
@@ -316,7 +444,7 @@ export default function LeadChronologyTimeline({ leadId, isAdmin = true }) {
       .catch((e) => { if (!cancelled) setError(e?.response?.data?.message || "Could not load lead journey."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [leadId, isAdmin]);
+  }, [leadId, isAdmin, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -365,7 +493,7 @@ export default function LeadChronologyTimeline({ leadId, isAdmin = true }) {
       ) : (
         <div className="max-h-[520px] overflow-y-auto pr-1">
           {ordered.map((ev, i) => (
-            <TimelineEvent key={`${ev.type}-${i}-${ev.date}`} ev={ev} />
+            <TimelineEvent key={`${ev.type}-${i}-${ev.date}`} ev={ev} leadId={leadId} isAdmin={isAdmin} onChanged={reload} />
           ))}
         </div>
       )}
