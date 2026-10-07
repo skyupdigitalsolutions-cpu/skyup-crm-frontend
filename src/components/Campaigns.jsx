@@ -1908,25 +1908,28 @@ function QualificationModal({ adSet, onClose, onSaved }) {
 
     const fetchData = async () => {
       try {
-        // Try to fetch existing qualification rules for this ad set
+        // Fetch existing qualification rules and the lead form questions IN
+        // PARALLEL — they're independent (formId comes from the adSet prop), so
+        // running them one after another just doubled the network wait.
+        const [rulesSettled, formSettled] = await Promise.allSettled([
+          api.get(`/meta-qualification/${adSet._id}`),
+          adSet.formId
+            ? api.get(`/meta-config/${adSet._id}/form-questions`)
+            : Promise.resolve(null),
+        ]);
+
+        // No rules yet (request failed / 404) — that's fine
         let existing = null;
-        try {
-          const rulesRes = await api.get(`/meta-qualification/${adSet._id}`);
+        if (rulesSettled.status === "fulfilled") {
+          const rulesRes = rulesSettled.value;
           existing = rulesRes.data?.data || rulesRes.data || null;
-        } catch (_) {
-          // No rules yet — that's fine
         }
 
-        // Fetch lead form questions via the formId saved on the ad set
+        // formId present but questions not fetchable (token issues etc.) → []
         let formQuestions = [];
-        if (adSet.formId) {
-          try {
-            const formRes = await api.get(`/meta-config/${adSet._id}/form-questions`);
-            formQuestions = formRes.data?.questions || formRes.data || [];
-          } catch (_) {
-            // formId present but questions not fetchable (token issues etc.)
-            formQuestions = [];
-          }
+        if (formSettled.status === "fulfilled" && formSettled.value) {
+          const formRes = formSettled.value;
+          formQuestions = formRes.data?.questions || formRes.data || [];
         }
 
         setQuestions(formQuestions);
