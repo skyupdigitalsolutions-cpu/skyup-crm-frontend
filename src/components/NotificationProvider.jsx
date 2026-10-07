@@ -931,7 +931,6 @@ function NotificationItem({ notif, onOpen }) {
               )}
             </div>
           )}
-
           <p className="text-[10px] text-[#8B92A9] dark:text-[#565C75] mt-1">
             {timeLabel(notif.timestamp)}
           </p>
