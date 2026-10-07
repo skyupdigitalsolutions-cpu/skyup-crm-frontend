@@ -325,7 +325,18 @@ export function AssignmentSettingsModal({ onClose }) {
     finally { setSaving(false); }
   };
 
+  const saveAutoLead = async (value) => {
+    setSaving(true); setErr(""); setMsg("");
+    try {
+      await api.put("/lead/assignment/settings", { whatsappAutoLead: value });
+      setMsg("Saved.");
+      reload();
+    } catch (e) { setErr(errMsg(e, "Couldn't save the setting.")); }
+    finally { setSaving(false); }
+  };
+
   const current = options?.importStrategy || "round_robin";
+  const autoLead = options?.whatsappAutoLead === true;
   const modes = [
     ["round_robin", "Round robin", "Shared evenly across employees"],
     ["least_loaded", "Least loaded", "To whoever has the fewest open leads"],
@@ -333,7 +344,9 @@ export function AssignmentSettingsModal({ onClose }) {
   ];
 
   return (
-    <ModalFrame title="Lead assignment" subtitle="How imported leads are assigned by default. It can still be changed for each import." onClose={onClose}>
+    <ModalFrame title="Lead assignment" subtitle="How new leads are assigned and created." onClose={onClose}>
+      <p className="text-[13px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">Default for imports</p>
+      <p className="text-[13px] text-[#8B92A9] mb-3">Pre-selected in the import window. It can still be changed for each import.</p>
       <div className="grid sm:grid-cols-3 gap-2">
         {modes.map(([key, title, sub]) => (
           <button
@@ -352,6 +365,31 @@ export function AssignmentSettingsModal({ onClose }) {
           </button>
         ))}
       </div>
+
+      <p className="mt-6 text-[13px] font-bold text-[#8B92A9] uppercase tracking-widest mb-1">New WhatsApp chats</p>
+      <p className="text-[13px] text-[#8B92A9] mb-3">When someone new messages your WhatsApp number (not a reply to something you sent).</p>
+      <div className="grid sm:grid-cols-2 gap-2">
+        {[
+          [false, "Keep in inbox until saved", "Shows in Communications only. Becomes a lead (and gets nurture templates) only after someone uses Save as lead."],
+          [true,  "Create a lead automatically", "Every new chat is added to the Leads page straight away."],
+        ].map(([val, title, sub]) => (
+          <button
+            key={String(val)}
+            type="button"
+            disabled={saving || !options}
+            onClick={() => saveAutoLead(val)}
+            className={`text-left px-3 py-2.5 rounded-xl border transition disabled:opacity-60 ${
+              autoLead === val ? "border-[#7C3AED] bg-purple-50 dark:bg-purple-950/30" : "border-[#E4E7EF] dark:border-[#262A38] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]"
+            }`}
+          >
+            <span className="flex items-center gap-1.5 text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+              {autoLead === val && <Check className="w-3.5 h-3.5 text-[#7C3AED]" />} {title}
+            </span>
+            <span className="block text-[12px] text-[#8B92A9] mt-0.5">{sub}</span>
+          </button>
+        ))}
+      </div>
+
       {msg && <p className="mt-3 text-[13px] text-emerald-600">{msg}</p>}
       {err && <p className="mt-3 flex items-center gap-1.5 text-[13px] text-red-600"><AlertTriangle className="w-3.5 h-3.5" /> {err}</p>}
     </ModalFrame>
