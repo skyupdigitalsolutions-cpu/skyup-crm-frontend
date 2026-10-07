@@ -1953,26 +1953,12 @@ export default function UserLeadCommunication() {
   // The file is POSTed as multipart to /whatsapp/send-media; the backend uploads
   // it to Cloudinary (WhatsApp needs a public HTTPS URL) and forwards it to the
   // lead. Any text currently typed is used as the caption.
-  const handleFilePicked = useCallback(async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-picking the same file later
-    if (!file || !conversation?._id) return;
-
-    // WhatsApp media ceiling is ~16MB (documents up to 100MB, but keep it safe).
-    const MAX_MB = 16;
-    if (file.size > MAX_MB * 1024 * 1024) {
-      setSendError(`File is too large (${(file.size / 1048576).toFixed(1)}MB). WhatsApp allows up to ${MAX_MB}MB.`);
-      return;
-    }
-
-    setShowAttachMenu(false);
+  // Sends ONE file; returns false if the batch should stop (session closed).
+  const sendOneFile = useCallback(async (file, caption) => {
     setUploading(true);
-    setSendError("");
-
-    const caption = msgText.trim();
     const isImg   = file.type.startsWith("image/") && file.type !== "image/gif";
     const optimistic = {
-      _id: `opt_${Date.now()}`,
+      _id: `opt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       direction: "outbound",
       body: caption || file.name,
       messageType: isImg ? "image" : file.type.startsWith("video/") || file.type === "image/gif" ? "video"
@@ -1982,7 +1968,6 @@ export default function UserLeadCommunication() {
       status: "pending",
     };
     setMessages((prev) => [...prev, optimistic]);
-    setMsgText("");
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
 
     try {
@@ -1998,18 +1983,50 @@ export default function UserLeadCommunication() {
           prev.map((m) => (m._id === optimistic._id ? { ...optimistic, ...sentMsg } : m))
         )
       );
+      return true;
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
       const code = err.response?.data?.code;
       setSendError(
         code === "SESSION_EXPIRED"
           ? "24-hour session expired. Send a template to re-engage before sending files."
-          : err.response?.data?.error || "Failed to send attachment"
+          : `${file.name}: ${err.response?.data?.error || "Failed to send attachment"}`
       );
+      return code !== "SESSION_EXPIRED";
     } finally {
       setUploading(false);
     }
-  }, [conversation, msgText]);
+  }, [conversation]);
+
+  // Several files can be picked at once. WhatsApp sends one file per message,
+  // so they go one after another, in the order picked. Typed text becomes
+  // the caption of the FIRST file only.
+  const handleFilePicked = useCallback(async (e) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = ""; // allow re-picking the same files later
+    if (!picked.length || !conversation?._id) return;
+    setShowAttachMenu(false);
+
+    const MAX_MB = 16;    // WhatsApp media ceiling
+    const MAX_FILES = 10;
+    const tooBig = picked.filter((f) => f.size > MAX_MB * 1024 * 1024);
+    let files = picked.filter((f) => f.size <= MAX_MB * 1024 * 1024);
+    const notes = [];
+    if (tooBig.length) notes.push(`${tooBig.map((f) => f.name).join(", ")} ${tooBig.length === 1 ? "is" : "are"} over ${MAX_MB}MB and ${tooBig.length === 1 ? "was" : "were"} skipped.`);
+    if (files.length > MAX_FILES) {
+      notes.push(`Only the first ${MAX_FILES} files were sent (${files.length} picked).`);
+      files = files.slice(0, MAX_FILES);
+    }
+    setSendError(notes.join(" "));
+    if (!files.length) return;
+
+    const caption = msgText.trim();
+    setMsgText("");
+    for (let i = 0; i < files.length; i++) {
+      const okToContinue = await sendOneFile(files[i], i === 0 ? caption : "");
+      if (!okToContinue) break;
+    }
+  }, [conversation, msgText, sendOneFile]);
 
   // Insert an emoji at the end of the current message text.
   const addEmoji = useCallback((emo) => {
@@ -2512,10 +2529,10 @@ export default function UserLeadCommunication() {
                     </div>
                   )}
                   {/* Hidden file inputs driven by the + menu */}
-                  <input ref={imageInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFilePicked} />
-                  <input ref={docInputRef}   type="file" className="hidden" onChange={handleFilePicked}
+                  <input ref={imageInputRef} type="file" multiple accept="image/*,video/*" className="hidden" onChange={handleFilePicked} />
+                  <input ref={docInputRef}   type="file" multiple className="hidden" onChange={handleFilePicked}
                          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,application/*,text/*" />
-                  <input ref={gifInputRef}   type="file" accept="image/gif" className="hidden" onChange={handleFilePicked} />
+                  <input ref={gifInputRef}   type="file" multiple accept="image/gif" className="hidden" onChange={handleFilePicked} />
 
                   {/* ── Emoji picker ── */}
                   {showEmoji && !isClosed && (
