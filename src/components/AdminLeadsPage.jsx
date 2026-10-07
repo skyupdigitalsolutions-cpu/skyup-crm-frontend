@@ -47,6 +47,7 @@ import {
   Filter,
   Megaphone,
   Lock,
+  FileText,
 } from "lucide-react";
 
 const crm = new CRMEncryption();
@@ -1913,7 +1914,16 @@ function mapLead(l) {
     createdAt:      l.createdAt      || l.date || null,
     _raw_date:      l.date           || l.createdAt || null,
     callHistory,
-    meetingRemarks: Array.isArray(l.meetingRemarks) ? l.meetingRemarks : [],
+    // The list only carries each meeting's proposal markers — derive the
+    // flag + latest date, and don't pass the partial meetings on (the
+    // Client Meeting tab loads the full history itself).
+    ...(() => {
+      const mrs = Array.isArray(l.meetingRemarks) ? l.meetingRemarks : [];
+      const sent = mrs.filter((m) => m && (m.proposalSent || (m.documents || []).some((d) => d && d.type === "proposal")));
+      const last = sent.map((m) => m.proposalSentAt || m.metAt).filter(Boolean).sort().pop() || null;
+      return { proposalSent: sent.length > 0, proposalSentAt: last, proposalCount: sent.length };
+    })(),
+    meetingRemarks: [],
     whatsappScreenshots: Array.isArray(l.whatsappScreenshots) ? l.whatsappScreenshots : [],
     initialRemark:  l.initialRemark || "",
     scheduledCalls: Array.isArray(l.scheduledCalls) ? l.scheduledCalls : [],
@@ -1976,6 +1986,7 @@ export default function AdminLeadsPage() {
   const [filterTemp,  setFilterTemp]  = useState("All");
   const [filterProject, setFilterProject] = useState("All");
   const [filterLang,    setFilterLang]    = useState("");
+  const [filterProposal, setFilterProposal] = useState("All"); // All | sent | not_sent
   const [projects,      setProjects]      = useState([]);
   const [dateFrom,    setDateFrom]    = useState("");
   const [dateTo,      setDateTo]      = useState("");
@@ -2202,12 +2213,13 @@ export default function AdminLeadsPage() {
         );
 
       const matchLang   = !filterLang ? true : (filterLang === "none" ? !l.language : l.language === filterLang);
+      const matchProposal = filterProposal === "All" || (filterProposal === "sent" ? l.proposalSent : !l.proposalSent);
 
       let matchDate = true;
       if (dateFrom) matchDate = matchDate && new Date(l._raw_date) >= new Date(dateFrom);
       if (dateTo)   matchDate = matchDate && new Date(l._raw_date) <= new Date(dateTo + "T23:59:59");
 
-      return matchSearch && matchSt && matchAgent && matchSrc && matchTemp && matchDate && matchProject && matchLang;
+      return matchSearch && matchSt && matchAgent && matchSrc && matchTemp && matchDate && matchProject && matchLang && matchProposal;
     });
     return res.slice().sort((a, b) => {
       if (sortBy === "date_desc") return new Date(b._raw_date || 0) - new Date(a._raw_date || 0);
@@ -2216,7 +2228,8 @@ export default function AdminLeadsPage() {
       if (sortBy === "status")    return a.status.localeCompare(b.status);
       return 0;
     });
-  }, [allLeads, search, filterSt, filterAgent, filterSrc, filterTemp, dateFrom, dateTo, sortBy, filterProject, filterLang]);
+  }, [allLeads, search, filterSt, filterAgent, filterSrc, filterTemp, dateFrom, dateTo, sortBy, filterProject, filterLang, filterProposal]);
+  const proposalCount = useMemo(() => allLeads.filter((l) => l.proposalSent).length, [allLeads]);
 
   const totalPages = Math.ceil(displayed.length / PER_PAGE);
   // Never get stuck on an empty page: when filters shrink the list below the
@@ -2227,7 +2240,7 @@ export default function AdminLeadsPage() {
 
   const clearFilters = () => {
     setSearch(""); setFilterSt("All"); setFilterAgent("All"); setFilterSrc("All");
-    setFilterTemp("All"); setFilterProject("All"); setFilterLang(""); setDateFrom(""); setDateTo(""); setPage(1);
+    setFilterTemp("All"); setFilterProject("All"); setFilterLang(""); setFilterProposal("All"); setDateFrom(""); setDateTo(""); setPage(1);
     scrollPageTop();
     setShowMoreFilters(false);
   };
@@ -2380,6 +2393,13 @@ export default function AdminLeadsPage() {
             {activeTemperatures().map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
 
+          {/* Proposal — always visible */}
+          <select value={filterProposal} onChange={e => { setFilterProposal(e.target.value); setPage(1); }} className={INP} title="Filter by whether a proposal was sent">
+            <option value="All">All proposals</option>
+            <option value="sent">Proposal sent ({proposalCount})</option>
+            <option value="not_sent">No proposal yet ({Math.max(0, allLeads.length - proposalCount)})</option>
+          </select>
+
           {/* Sort — always visible on desktop, hidden on mobile (in secondary panel) */}
           <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={`${INP} hidden sm:block`}>
             <option value="date_desc">Newest first</option>
@@ -2425,7 +2445,7 @@ export default function AdminLeadsPage() {
           </button>
 
           {/* Clear button */}
-          {(search || filterSt !== "All" || filterAgent !== "All" || filterSrc !== "All" || filterTemp !== "All" || filterProject !== "All" || dateFrom || dateTo) && (
+          {(search || filterSt !== "All" || filterAgent !== "All" || filterSrc !== "All" || filterTemp !== "All" || filterProject !== "All" || filterProposal !== "All" || dateFrom || dateTo) && (
             <button onClick={clearFilters}
               className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-500 text-[14px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition">
               <span className="flex items-center gap-1"><X className="w-3 h-3" /> Clear</span>
@@ -2597,6 +2617,14 @@ export default function AdminLeadsPage() {
                             <div className="min-w-0">
                               <p className="font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate text-[14px]">{l.name}</p>
                               <p className="text-[11px] text-[#8B92A9]">{daysSince(l._raw_date) || "—"}</p>
+                              {l.proposalSent && (
+                                <span
+                                  className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/30 text-[10px] font-semibold text-[#7C3AED]"
+                                  title={l.proposalSentAt ? `Proposal sent ${new Date(l.proposalSentAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}` : "Proposal sent"}
+                                >
+                                  <FileText className="w-3 h-3" /> Proposal{l.proposalCount > 1 ? ` ×${l.proposalCount}` : ""}
+                                </span>
+                              )}
                               {l.leadScore != null && (
                                 <div className="mt-0.5">
                                   <QualificationScore lead={l} showCategory={false} />
@@ -2820,6 +2848,7 @@ export default function AdminLeadsPage() {
           onToast={showToast}
         />
       )}
+
       {/* Toast */}
       {toast && (
         <Toast
