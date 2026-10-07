@@ -161,6 +161,14 @@ function ScreenshotCard({ shot }) {
       </div>
       <p className="mt-1 text-[10px] text-[#8B92A9] truncate">{fmtDateTime(shot.uploadedAt)}</p>
       {shot.note ? <p className="text-[10px] text-[#4B5168] dark:text-[#9DA3BB] truncate italic">"{shot.note}"</p> : null}
+      {/* AI-read chat summary (full chat is in the Lead Journey) */}
+      {shot.chat?.status === "done" && shot.chat.summary ? (
+        <p className="mt-0.5 text-[10px] text-[#166534] dark:text-emerald-400 line-clamp-2" title={shot.chat.summary}>{shot.chat.summary}</p>
+      ) : shot.chat?.status === "pending" ? (
+        <p className="mt-0.5 text-[10px] text-[#8B92A9]">Reading chat…</p>
+      ) : shot.chat?.status === "failed" ? (
+        <p className="mt-0.5 text-[10px] text-red-500">Couldn't read chat (retry in Lead Journey)</p>
+      ) : null}
     </a>
   );
 }
