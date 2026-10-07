@@ -2820,7 +2820,6 @@ export default function AdminLeadsPage() {
           onToast={showToast}
         />
       )}
-
       {/* Toast */}
       {toast && (
         <Toast
