@@ -414,10 +414,20 @@ export function Sidebar() {
     };
     fetchUnread();
     const interval = setInterval(fetchUnread, 60 * 1000);
-    const onWaMessage = () => fetchUnread();
+    let syncTimer = null;
+    const onWaMessage = (e) => {
+      // A chat was just opened: drop the badge immediately, then re-check.
+      // The server clears the count in the background, so re-checking at
+      // once could still return the old number — wait a moment first.
+      const cleared = Number(e?.detail?.cleared) || 0;
+      if (cleared > 0) setWaUnread((n) => Math.max(0, n - cleared));
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(fetchUnread, cleared > 0 ? 1500 : 0);
+    };
     window.addEventListener("wa_unread_refresh", onWaMessage);
     return () => {
       clearInterval(interval);
+      clearTimeout(syncTimer);
       window.removeEventListener("wa_unread_refresh", onWaMessage);
     };
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
