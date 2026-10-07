@@ -258,7 +258,6 @@ export function ExportRequestsModal({ onClose, onChanged }) {
                   </ul>
                 )}
               </section>
-
               <section>
                 <p className="text-[13px] font-bold text-[#8B92A9] uppercase tracking-widest mb-2">Last 30 days</p>
                 {data.recent.length === 0 ? (
