@@ -384,6 +384,25 @@ export function AdminGroupsModal({ onClose }) {
     } catch (e) { setErr(errMsg(e, "Couldn't save the group.")); }
   };
 
+  // Remove one admin from a group. A group needs at least two admins, so
+  // removing from a two-person group offers to delete the group instead.
+  const removeMember = async (g, admin) => {
+    const remaining = (g.admins || []).filter((a) => String(a._id) !== String(admin._id));
+    setErr(""); setMsg("");
+    if (remaining.length < 2) {
+      if (!window.confirm(`Removing ${admin.name} leaves only one admin in "${g.name}", and a group needs at least two. Delete the group instead?`)) return;
+      try { await api.delete(`/lead/assignment/groups/${g._id}`); setMsg(`Group "${g.name}" deleted.`); loadGroups(); }
+      catch (e) { setErr(errMsg(e, "Couldn't delete the group.")); }
+      return;
+    }
+    if (!window.confirm(`Remove ${admin.name} from "${g.name}"? They will stop seeing the group's leads.`)) return;
+    try {
+      await api.put(`/lead/assignment/groups/${g._id}`, { name: g.name, admins: remaining.map((a) => String(a._id)) });
+      setMsg(`${admin.name} removed from "${g.name}".`);
+      loadGroups();
+    } catch (e) { setErr(errMsg(e, "Couldn't remove the admin.")); }
+  };
+
   const removeGroup = async (g) => {
     if (!window.confirm(`Delete the group "${g.name}"? Its admins will stop sharing leads.`)) return;
     setErr(""); setMsg("");
@@ -470,7 +489,21 @@ export function AdminGroupsModal({ onClose }) {
               <Users className="w-4 h-4 text-[#7C3AED] mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{g.name}</p>
-                <p className="text-[12px] text-[#8B92A9]">{(g.admins || []).map((a) => a.name).join(", ")}</p>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {(g.admins || []).map((a) => (
+                    <span key={a._id} className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[#F1F4FF] dark:bg-[#262A38] text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+                      {a.name}
+                      <button
+                        onClick={() => removeMember(g, a)}
+                        className="w-4 h-4 flex items-center justify-center rounded-full text-[#8B92A9] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
+                        aria-label={`Remove ${a.name} from ${g.name}`}
+                        title={`Remove ${a.name} from this group`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
               </div>
               <button onClick={() => setEditing({ _id: g._id, name: g.name, admins: new Set((g.admins || []).map((a) => String(a._id))) })} className="p-1.5 rounded-lg text-[#8B92A9] hover:text-[#7C3AED]" aria-label={`Edit ${g.name}`}>
                 <Pencil className="w-3.5 h-3.5" />
