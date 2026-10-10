@@ -2,18 +2,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Performance Marketing — business-outcome dashboard (v2).
 //
-//   Overview · Paid Media (Meta | Google) · Creatives · Leads & Pipeline ·
+//   Overview · Paid Media (Meta | Google — click an ad to see its creative) · Leads & Pipeline ·
 //   Reports · Data Health
 //
 // One persistent global filter bar (Date · Compare · Channel · Campaign ·
-// Salesperson), one sync control ("Sync: Manual · Last updated …"), and a
+// Salesperson), automatic background sync ("Last updated …", every 15 min), and a
 // lead drill-down drawer behind every number. All tabs read the same backend
 // dataset (/api/marketing-panel/v2/*) so their numbers reconcile.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  BarChart3, Megaphone, Image as ImageIcon, Users, FileText, Activity, RefreshCw, Sun, Moon, LogOut, Sparkles,
+  BarChart3, Megaphone, Users, FileText, Activity, Sun, Moon, LogOut, Sparkles,
   SlidersHorizontal, X, Loader2,
 } from "lucide-react";
 import mktApi from "./mktApi";
@@ -22,7 +22,6 @@ import { MktCtx, ago, fmtRange, Badge, ErrorBox, CHANNEL_LABEL } from "./mkt/ui"
 import LeadDrawer from "./mkt/LeadDrawer";
 import Overview from "./mkt/tabs/Overview";
 import PaidMedia from "./mkt/tabs/PaidMedia";
-import Creatives from "./mkt/tabs/Creatives";
 import Pipeline from "./mkt/tabs/Pipeline";
 import Reports from "./mkt/tabs/Reports";
 import DataHealth from "./mkt/tabs/DataHealth";
@@ -45,11 +44,12 @@ const COMPARE = [["previous", "vs previous period"], ["prev_7", "vs previous 7 d
 const TABS = [
   ["overview", "Overview", BarChart3],
   ["paid", "Paid Media", Megaphone],
-  ["creatives", "Creatives", ImageIcon],
   ["pipeline", "Leads & Pipeline", Users],
   ["reports", "Reports", FileText],
   ["health", "Data Health", Activity],
 ];
+
+const AUTO_SYNC_MIN = 15;   // minutes between automatic syncs
 
 const sel = "rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[13px] text-slate-800 focus:border-violet-400 focus:outline-none dark:border-[#1F2533] dark:bg-[#0F131B] dark:text-slate-100";
 
@@ -124,7 +124,7 @@ export default function MarketingDashboard() {
 
   const [refreshKey, setRefreshKey] = useState(0);
   const [lastSync, setLastSync] = useState(() => new Date());
-  const [autoMin, setAutoMin] = useState(0);
+  const lastSyncAt = useRef(0);   // when data was last (re)loaded — drives auto-sync (stamped on mount / filter change / sync)
   const [, setTick] = useState(0);
   const forceRefresh = useRef(false);
 
@@ -161,16 +161,34 @@ export default function MarketingDashboard() {
     forceRefresh.current = force;
     setRefreshKey((k) => k + 1);
     setLastSync(new Date());
+    lastSyncAt.current = Date.now();
     setTimeout(() => { forceRefresh.current = false; }, 3000);
   }, []);
-  useEffect(() => { if (!autoMin) return undefined; const t = setInterval(() => refresh(true), autoMin * 60000); return () => clearInterval(t); }, [autoMin, refresh]);
-  useEffect(() => { setLastSync(new Date()); }, [params]);
+  // ── Automatic sync ─────────────────────────────────────────────────────────
+  // There is no manual sync button: every AUTO_SYNC_MIN minutes the dashboard
+  // re-pulls fresh platform data (bypassing the server cache). It only runs while
+  // the tab is visible, and catches up as soon as you come back to a stale tab.
+  useEffect(() => {
+    const check = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastSyncAt.current >= AUTO_SYNC_MIN * 60000) refresh(true);
+    };
+    const t = setInterval(check, 60000);
+    document.addEventListener("visibilitychange", check);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", check); };
+  }, [refresh]);
+  // Changing a filter reloads the data too, so that counts as a fresh sync.
+  useEffect(() => { setLastSync(new Date()); lastSyncAt.current = Date.now(); }, [params]);
 
   const openDrill = useCallback((p, title) => setDrill({ params: p || {}, title: title || "Leads" }), []);
   const bump = useCallback(() => refresh(false), [refresh]);
   const ctx = useMemo(() => ({ params, refreshKey, forceRefresh, openDrill, dict, bump, range: { from, to } }), [params, refreshKey, openDrill, dict, bump, from, to]);
 
-  const onNav = useCallback((t, sub) => { setTab(t); if (sub) setPaidSub(sub); window.scrollTo({ top: 0, behavior: "smooth" }); }, []);
+  const onNav = useCallback((t, sub) => {
+    // The standalone Creatives page is gone — creatives now open from the ad itself
+    // in Paid Media → Meta. (The "creative fatigue" alert still links here.)
+    if (t === "creatives") { t = "paid"; sub = sub || "meta"; }
+    setTab(t); if (sub) setPaidSub(sub); window.scrollTo({ top: 0, behavior: "smooth" }); }, []);
   const logout = () => { clearMktSession(); nav("/marketing/login"); };
   const campaignsForChannel = opts.campaigns.filter((c) => !channel || channel === "paid" || c.channel === channel);
   const activeFilters = [channel, campaign, salesperson, status, qualification].filter(Boolean).length;
@@ -253,14 +271,7 @@ export default function MarketingDashboard() {
               {activeFilters > 0 && <button onClick={() => { setChannel(""); setCampaign(""); setSalesperson(""); setStatus(""); setQualification(""); }} className="text-[13px] font-medium text-violet-700 hover:underline dark:text-violet-300">Clear filters</button>}
 
               <div className="ml-auto flex items-center gap-2">
-                <select aria-label="Sync mode" value={autoMin} onChange={(e) => setAutoMin(Number(e.target.value))} className={sel}>
-                  <option value={0}>Sync: Manual</option>
-                  <option value={15}>Sync: Auto every 15 min</option>
-                  <option value={30}>Sync: Auto every 30 min</option>
-                  <option value={60}>Sync: Auto every hour</option>
-                </select>
-                <span className="hidden text-[12px] text-slate-500 md:inline">Last updated {ago(lastSync)}</span>
-                <button onClick={() => refresh(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-violet-700"><RefreshCw className="h-4 w-4" />Sync now</button>
+                <span className="hidden text-[12px] text-slate-500 md:inline" title={`Data refreshes automatically every ${AUTO_SYNC_MIN} minutes`}>Auto-sync · Last updated {ago(lastSync)}</span>
               </div>
             </div>
             {advanced && (
@@ -283,7 +294,6 @@ export default function MarketingDashboard() {
         <main className="mx-auto max-w-[1440px] px-4 py-5 md:px-6">
           {tab === "overview" && <Overview onNav={onNav} />}
           {tab === "paid" && <PaidMedia sub={paidSub} setSub={setPaidSub} />}
-          {tab === "creatives" && <Creatives />}
           {tab === "pipeline" && <Pipeline />}
           {tab === "reports" && <Reports />}
           {tab === "health" && <DataHealth />}

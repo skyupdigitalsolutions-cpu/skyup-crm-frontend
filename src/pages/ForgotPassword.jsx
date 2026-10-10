@@ -11,7 +11,9 @@ import toast from "react-hot-toast";
 import { validatePassword } from "../utils/passwordPolicy";
 import PasswordRules, { PasswordMatch } from "../components/PasswordRules";
 
-export default function ForgotPassword() {
+// `returnTo` = where "Back to login" and the post-reset redirect go. The CRM uses /login;
+// the Marketing and Finance panels pass their own sign-in page.
+export default function ForgotPassword({ returnTo = "/login" }) {
   const navigate = useNavigate();
 
   // ── Shared state ──────────────────────────────────────────────────────────
@@ -115,7 +117,7 @@ export default function ForgotPassword() {
         newPassword,
       });
       toast.success("Password reset successfully! Please log in.");
-      navigate("/login");
+      navigate(returnTo);
     } catch (err) {
       const msg = err.response?.data?.message || "Failed to reset password.";
       // If OTP is wrong/expired, send user back to OTP step
@@ -343,7 +345,7 @@ export default function ForgotPassword() {
 
         {/* ── Back to login ── */}
         <div className="mt-6 pt-5 border-t border-[#E4E7EF] dark:border-[#1E2130] text-center">
-          <Link to="/login" className="text-[12px] text-[#8B92A9] hover:text-blue-600 dark:hover:text-blue-400 transition">
+          <Link to={returnTo} className="text-[12px] text-[#8B92A9] hover:text-blue-600 dark:hover:text-blue-400 transition">
             ← Back to login
           </Link>
         </div>

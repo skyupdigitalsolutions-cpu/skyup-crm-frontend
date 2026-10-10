@@ -3,7 +3,7 @@
 // when the Developer has enabled the Finance Dashboard for the company).
 // Creates / suspends / removes the logins used at /finance/login.
 import { useState, useEffect } from "react";
-import { Wallet, Plus, Trash2, ToggleLeft, ToggleRight, Eye, EyeOff, Loader2, Copy, Check } from "lucide-react";
+import { Wallet, Plus, Trash2, ToggleLeft, ToggleRight, Eye, EyeOff, Loader2, Copy, Check, KeyRound } from "lucide-react";
 import api from "../data/axiosConfig";
 import PasswordRules from "../components/PasswordRules";
 import { validatePassword, generateStrongPassword } from "../utils/passwordPolicy";
@@ -23,6 +23,10 @@ export default function FinancePanelSection() {
   const [deleting, setDeleting] = useState(null);
   const [copied, setCopied] = useState(null);
   const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [resetId, setResetId] = useState(null);     // user whose password is being reset
+  const [resetPwd, setResetPwd] = useState("");
+  const [showReset, setShowReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const loginUrl = `${window.location.origin}/finance/login`;
 
   const load = async () => {
@@ -64,6 +68,19 @@ export default function FinancePanelSection() {
     try { await api.delete(`/superadmin/finance-users/${id}`); setUsers((u) => u.filter((m) => m._id !== id)); }
     catch (e) { setError(e?.response?.data?.message || "Failed."); }
     finally { setDeleting(null); }
+  };
+
+  const resetPassword = async (u) => {
+    const { valid, errors } = validatePassword(resetPwd, { email: u.email, name: u.name });
+    if (!valid) { setError(errors[0]); return; }
+    setResetting(true); setError(""); setSuccess("");
+    try {
+      await api.patch(`/superadmin/finance-users/${u._id}/password`, { password: resetPwd });
+      setResetId(null); setResetPwd(""); setShowReset(false);
+      setSuccess(`Password updated for ${u.name}. Share it with them securely — they've been signed out of any open sessions.`);
+      setTimeout(() => setSuccess(""), 8000);
+    } catch (e) { setError(e?.response?.data?.message || "Failed to reset password."); }
+    finally { setResetting(false); }
   };
 
   const copy = (text, key) => {
@@ -126,7 +143,8 @@ export default function FinancePanelSection() {
         ) : (
           <div className="space-y-2">
             {users.map((u) => (
-              <div key={u._id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133]">
+              <div key={u._id}>
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#F8F9FC] dark:bg-[#0D0F14] border border-[#E4E7EF] dark:border-[#1E2133]">
                 <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center shrink-0 text-emerald-600 font-bold text-[12px]">{(u.name || "U").charAt(0).toUpperCase()}</div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold text-[#0F1117] dark:text-[#DDE1F5] truncate">{u.name}</p>
@@ -137,6 +155,7 @@ export default function FinancePanelSection() {
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${u.financeAccess ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400" : "bg-slate-100 text-slate-500 dark:bg-white/5"}`}>{u.financeAccess ? "Active" : "Suspended"}</span>
                 <button onClick={() => copy(loginUrl, `url-${u._id}`)} className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline shrink-0 hidden sm:block">{copied === `url-${u._id}` ? "Copied!" : "Copy login URL"}</button>
+                <button onClick={() => { setResetId(resetId === u._id ? null : u._id); setResetPwd(""); setShowReset(false); setError(""); }} title="Reset password" className="text-[#8B92A9] hover:text-emerald-600 shrink-0"><KeyRound className="w-4 h-4" /></button>
                 <button onClick={() => toggle(u._id)} disabled={toggling === u._id} title={u.financeAccess ? "Suspend" : "Enable"} className="text-[#8B92A9] hover:text-emerald-600 shrink-0 disabled:opacity-50">
                   {toggling === u._id ? <Loader2 className="w-5 h-5 animate-spin" /> : u.financeAccess ? <ToggleRight className="w-5 h-5 text-emerald-600" /> : <ToggleLeft className="w-5 h-5" />}
                 </button>
@@ -144,10 +163,31 @@ export default function FinancePanelSection() {
                   {deleting === u._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 </button>
               </div>
+              {resetId === u._id && (
+                <div className="mt-2 border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-xl p-4 space-y-3">
+                  <p className="text-[12px] font-bold text-[#0F1117] dark:text-[#DDE1F5]">Set a new password for {u.name}</p>
+                  <div className="relative">
+                    <input type={showReset ? "text" : "password"} value={resetPwd} onChange={(e) => setResetPwd(e.target.value)} placeholder="New password" autoComplete="new-password" className={`${input} pr-9`} />
+                    <button type="button" onClick={() => setShowReset(!showReset)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B92A9]">{showReset ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</button>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B92A9]">Password rules</span>
+                    <button type="button" onClick={() => { setResetPwd(generateStrongPassword(14, { email: u.email, name: u.name })); setShowReset(true); }} className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">Suggest a strong password</button>
+                  </div>
+                  <PasswordRules password={resetPwd} context={{ email: u.email, name: u.name }} />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => { setResetId(null); setResetPwd(""); setError(""); }} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-[#8B92A9] hover:text-[#0F1117] dark:hover:text-[#DDE1F5]">Cancel</button>
+                    <button onClick={() => resetPassword(u)} disabled={resetting || !resetPwd} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[12px] font-bold">
+                      {resetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />} Update password
+                    </button>
+                  </div>
+                </div>
+              )}
+              </div>
             ))}
           </div>
         )}
-        <p className="text-[11px] text-[#8B92A9]">These users can only sign in to the <strong>Finance Panel</strong> — they cannot open the main CRM. Suspend to block sign-in immediately without deleting the account.</p>
+        <p className="text-[11px] text-[#8B92A9]">These users can only sign in to the <strong>Finance Panel</strong> — they cannot open the main CRM. Suspend to block sign-in immediately without deleting the account. Users can also reset their own password with “Forgot password?” on the sign-in page.</p>
       </div>
     </div>
   );

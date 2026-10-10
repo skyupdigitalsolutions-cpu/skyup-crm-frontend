@@ -529,6 +529,9 @@ function AppInner() {
           {/* ── Marketing Panel — fully standalone, no CRM auth guards ──── */}
           <Route path="/marketing/login" element={<Suspense fallback={null}><MktLogin /></Suspense>} />
           <Route path="/marketing" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"/></div>}><MktDashboard /></Suspense>} />
+          {/* Password reset for the standalone panels — returns to the panel's own sign-in */}
+          <Route path="/marketing/forgot-password" element={<Suspense fallback={null}><ForgotPassword returnTo="/marketing/login" /></Suspense>} />
+          <Route path="/finance/forgot-password" element={<Suspense fallback={null}><ForgotPassword returnTo="/finance/login" /></Suspense>} />
           {/* Standalone Finance Panel — own sign-in, own session (like /marketing) */}
           <Route path="/finance/login" element={<Suspense fallback={null}><FinanceLogin /></Suspense>} />
           <Route path="/finance" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"/></div>}><FinancePanel /></Suspense>} />

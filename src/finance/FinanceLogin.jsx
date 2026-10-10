@@ -1,7 +1,7 @@
 // src/finance/FinanceLogin.jsx — NEW FILE
 // Sign-in page for the standalone Finance Panel (/finance/login).
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Loader2, Eye, EyeOff, Wallet, AlertCircle } from "lucide-react";
 import { financeAuthApi } from "./financeApi";
 import { setFinanceSession } from "./financeSessionStore";
@@ -60,6 +60,9 @@ export default function FinanceLogin() {
                   {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+            <div className="text-right -mt-1">
+              <Link to="/finance/forgot-password" className="text-[12px] font-medium text-emerald-300 hover:text-white transition-colors">Forgot password?</Link>
             </div>
             <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:opacity-60 text-white font-bold text-[14px] transition-all shadow-lg shadow-emerald-500/25 mt-2 flex items-center justify-center gap-2">
               {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</> : "Sign in"}

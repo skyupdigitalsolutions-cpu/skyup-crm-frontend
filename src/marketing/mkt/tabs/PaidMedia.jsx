@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Users, X } from "lucide-react";
 import useReport from "../useReport";
+import CreativeModal from "../CreativeModal";
 import mktApi from "../../mktApi";
 import {
   useMkt, Panel, Loader, ErrorBox, Empty, DataTable, DrillNum, Badge, Segmented, MetricInfo, SyncNote, HBars,
@@ -99,6 +100,7 @@ function MetaPanel() {
   const [cols, visible, setVisible] = useColumns("meta_hier", META_COLS);
   const [open, setOpen] = useState({});
   const [aud, setAud] = useState(null);
+  const [creative, setCreative] = useState(null);   // ad row whose creative is open
 
   if (loading && !data) return <Loader label="Fetching Meta campaigns…" />;
   if (error) return <ErrorBox msg={error} onRetry={reload} />;
@@ -114,14 +116,20 @@ function MetaPanel() {
   const exportRows = [];
   data.campaigns.forEach((cp) => { exportRows.push({ level: "Campaign", name: cp.name, ...cp }); cp.adsets.forEach((a) => { exportRows.push({ level: "Ad set", name: `${cp.name} › ${a.name}`, ...a }); a.ads.forEach((ad) => exportRows.push({ level: "Ad", name: `${cp.name} › ${a.name} › ${ad.name}`, ...ad })); }); });
 
-  const Row = ({ r, depth, k, drillBase, title, hasChildren, extra }) => (
+  const Row = ({ r, depth, k, drillBase, title, hasChildren, extra }) => {
+    const isAd = depth === 2;   // ad rows: the creative (thumbnail + name) opens the creative detail
+    return (
     <tr className={`border-t border-slate-100 dark:border-[#1A2030] ${depth === 0 ? "bg-white dark:bg-[#121620]" : depth === 1 ? "bg-slate-50/60 dark:bg-white/[0.015]" : "bg-slate-50 dark:bg-white/[0.03]"}`}>
       <td className="sticky left-0 z-[1] min-w-[260px] max-w-[340px] bg-inherit px-3 py-2">
         <div className="flex items-start gap-1.5" style={{ paddingLeft: depth * 18 }}>
           {hasChildren ? <button onClick={() => toggle(k)} aria-expanded={!!open[k]} className="mt-0.5 text-slate-400 hover:text-slate-700">{open[k] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button> : <span className="w-4" />}
-          {r.creative && r.creative.thumbnail && <img src={r.creative.thumbnail} alt="" loading="lazy" className="h-8 w-8 shrink-0 rounded object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />}
+          {r.creative && r.creative.thumbnail && (isAd
+            ? <button type="button" onClick={() => setCreative(r)} aria-label={`View creative · ${r.name}`} title="View creative" className="shrink-0 rounded ring-violet-400 hover:ring-2 focus:outline-none focus-visible:ring-2"><img src={r.creative.thumbnail} alt="" loading="lazy" className="h-8 w-8 rounded object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} /></button>
+            : <img src={r.creative.thumbnail} alt="" loading="lazy" className="h-8 w-8 shrink-0 rounded object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />)}
           <div className="min-w-0">
-            <p className={`truncate ${depth === 0 ? "font-semibold" : "font-medium"} text-slate-900 dark:text-slate-100`} title={r.name}>{r.name}</p>
+            {isAd
+              ? <button type="button" onClick={() => setCreative(r)} title="View creative" className="block max-w-full truncate text-left font-medium text-slate-900 hover:text-violet-700 hover:underline dark:text-slate-100 dark:hover:text-violet-300">{r.name}</button>
+              : <p className={`truncate ${depth === 0 ? "font-semibold" : "font-medium"} text-slate-900 dark:text-slate-100`} title={r.name}>{r.name}</p>}
             <div className="mt-0.5 flex flex-wrap items-center gap-1">
               {r.status && <Badge tone={statusTone(r.status)}>{r.status.toLowerCase().replace(/_/g, " ")}</Badge>}
               {r.notInPlatform && <Badge tone="warn">no delivery in range</Badge>}
@@ -132,7 +140,8 @@ function MetaPanel() {
       </td>
       {cols.map((col) => <td key={col.key} className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-800 dark:text-slate-200">{cell(r, col, drillBase, title)}</td>)}
     </tr>
-  );
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -204,6 +213,7 @@ function MetaPanel() {
       </Panel>
       <SyncNote sync={data.sync} />
       {aud && <AudienceModal configId={aud.id} title={aud.title} onClose={() => setAud(null)} />}
+      {creative && <CreativeModal platform="meta" row={creative} onClose={() => setCreative(null)} />}
     </div>
   );
 }
@@ -228,6 +238,8 @@ function GooglePanel() {
   const ag = useMemo(() => {
     const m = {}; (data ? data.adGroups : []).forEach((c) => { m[c.id] = c.name; }); return m;
   }, [data]);
+
+  const [creative, setCreative] = useState(null);   // Google ad row whose creative is open
 
   if (loading && !data) return <Loader label="Fetching Google Ads…" />;
   if (error) return <ErrorBox msg={error} onRetry={reload} />;
@@ -278,7 +290,7 @@ function GooglePanel() {
         </Panel>) : <Empty>Search-term data needs the Google Ads API connection.</Empty>)}
 
       {view === "ads" && (api ? <DataTable id="g_ads" rows={data.ads} rowKey={(r) => r.id}
-        columns={[{ key: "name", label: "Ad", always: true, render: (r) => <div className="max-w-md"><p className="font-medium">{r.creative.headline || r.name}</p><p className="line-clamp-2 text-[12px] text-slate-500">{r.creative.body}</p><p className="text-[12px] text-slate-400">{ag[r.adGroupId] || ""}</p></div> }, { key: "spend", label: "Spend", align: "right", format: "inr" }, ...plat]} /> : <Empty>Ad data needs the Google Ads API connection.</Empty>)}
+        columns={[{ key: "name", label: "Ad", always: true, render: (r) => <div className="max-w-md"><button type="button" onClick={() => setCreative(r)} title="View creative" className="block max-w-full text-left font-medium hover:text-violet-700 hover:underline dark:hover:text-violet-300">{r.creative.headline || r.name}</button><p className="line-clamp-2 text-[12px] text-slate-500">{r.creative.body}</p><p className="text-[12px] text-slate-400">{ag[r.adGroupId] || ""}</p></div> }, { key: "spend", label: "Spend", align: "right", format: "inr" }, ...plat]} /> : <Empty>Ad data needs the Google Ads API connection.</Empty>)}
 
       {view === "devices" && (api ? <DataTable id="g_dev" search={false} rows={data.devices} rowKey={(r) => r.device}
         columns={[{ key: "device", label: "Device", always: true, render: (r) => String(r.device).toLowerCase().replace(/_/g, " ") }, { key: "spend", label: "Spend", align: "right", format: "inr" }, { key: "impressions", label: "Impr.", align: "right", format: "num" }, { key: "clicks", label: "Clicks", align: "right", format: "num" }, { key: "ctr", label: "CTR", align: "right", format: "pct" }, { key: "platformConversions", label: "Google conv.", align: "right", format: "dec" }]} /> : <Empty>Device data needs the Google Ads API connection.</Empty>)}
@@ -294,6 +306,7 @@ function GooglePanel() {
 
       {Object.keys(data.apiErrors || {}).length > 0 && <p className="text-[12px] text-amber-700 dark:text-amber-300">Some Google sections couldn't load: {Object.entries(data.apiErrors).map(([k, v]) => `${k} (${v})`).join("; ")}</p>}
       <SyncNote sync={data.sync} />
+      {creative && <CreativeModal platform="google" row={creative} onClose={() => setCreative(null)} />}
     </div>
   );
 }

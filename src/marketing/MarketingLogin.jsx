@@ -1,6 +1,6 @@
 // src/marketing/MarketingLogin.jsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { mktAuthApi } from "./mktApi";
 import { setMktSession } from "./mktSessionStore";
 import { Loader2, Eye, EyeOff, BarChart3, AlertCircle } from "lucide-react";
@@ -77,6 +77,9 @@ export default function MarketingLogin() {
                   {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+            <div className="text-right -mt-1">
+              <Link to="/marketing/forgot-password" className="text-[12px] font-medium text-indigo-300 hover:text-white transition-colors">Forgot password?</Link>
             </div>
             <button type="submit" disabled={loading}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 disabled:opacity-60 text-white font-bold text-[14px] transition-all shadow-lg shadow-indigo-500/25 mt-2 flex items-center justify-center gap-2">
