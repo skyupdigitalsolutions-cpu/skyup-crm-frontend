@@ -10,7 +10,7 @@
 // Backend: /api/lead/assignment/* (controllers/leadAssignmentController.js)
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { X, Check, Users, UserPlus, Trash2, Plus, Pencil, RefreshCw, AlertTriangle, Inbox } from "lucide-react";
+import { X, Check, Users, UserPlus, Trash2, Plus, Pencil, RefreshCw, AlertTriangle, Inbox, Search, Loader2 } from "lucide-react";
 import api from "../data/axiosConfig";
 
 const errMsg = (e, fallback) => e?.response?.data?.message || fallback;
@@ -135,15 +135,105 @@ export function ImportAssignmentChooser({ options, error, value, onChange }) {
   );
 }
 
+
+// ── Bulk assign: pick ONE employee → every selected lead goes to them ───────
+// Used by the Leads page bulk bar and the Unassigned window. Clicking an
+// employee assigns immediately (in chunks of 1,000 — the API limit).
+export async function bulkAssignLeads(leadIds, userId) {
+  const ids = [...new Set((leadIds || []).map(String))];
+  let claimed = 0, skipped = 0;
+  for (let i = 0; i < ids.length; i += 1000) {
+    const { data } = await api.post("/lead/assignment/claim", { leadIds: ids.slice(i, i + 1000), userId });
+    claimed += data.claimed || 0;
+    skipped += data.skipped || 0;
+  }
+  return { claimed, skipped };
+}
+
+export function EmployeePickerModal({ leadIds, onClose, onDone }) {
+  const { options, error } = useAssignmentOptions();
+  const [q, setQ] = useState("");
+  const [busyId, setBusyId] = useState(null);
+  const [err, setErr] = useState("");
+  const count = (leadIds || []).length;
+
+  const employees = useMemo(() => {
+    const list = options?.employees || [];
+    const t = q.trim().toLowerCase();
+    return t ? list.filter((u) => `${u.name || ""} ${u.email || ""}`.toLowerCase().includes(t)) : list;
+  }, [options, q]);
+
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape" && !busyId) onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose, busyId]);
+
+  const pick = async (u) => {
+    if (busyId) return;
+    setBusyId(u._id); setErr("");
+    try {
+      const r = await bulkAssignLeads(leadIds, u._id);
+      onDone?.({ ...r, employee: u });
+    } catch (e) {
+      setErr(errMsg(e, "Couldn't assign. Please try again."));
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => !busyId && onClose()}>
+      <div role="dialog" aria-label="Assign leads to an employee" onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl w-full max-w-md shadow-2xl max-h-[85vh] flex flex-col">
+        <div className="flex items-start justify-between px-5 pt-5 pb-3">
+          <div>
+            <h2 className="text-[17px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">Assign {count} lead{count === 1 ? "" : "s"}</h2>
+            <p className="text-[13px] text-[#8B92A9]">Click an employee — all selected leads go to them.</p>
+          </div>
+          <button onClick={onClose} disabled={!!busyId} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F1F4FF] dark:hover:bg-[#262A38] text-[#8B92A9]" aria-label="Close"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="px-5 pb-3">
+          <label className="relative block">
+            <Search className="w-4 h-4 text-[#8B92A9] absolute left-3 top-1/2 -translate-y-1/2" />
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search employee"
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#7C3AED]" />
+          </label>
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 pb-3 min-h-[120px]">
+          {error && <p className="px-2 text-[13px] text-red-600">{error}</p>}
+          {!options && !error && <p className="px-2 text-[13px] text-[#8B92A9]">Loading employees…</p>}
+          {options && employees.length === 0 && <p className="px-2 py-6 text-center text-[13px] text-[#8B92A9]">No employees match.</p>}
+          <ul>
+            {employees.map((u) => (
+              <li key={u._id}>
+                <button onClick={() => pick(u)} disabled={!!busyId}
+                  className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-left hover:bg-[#F5F3FF] dark:hover:bg-[#1E1B2E] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED]">
+                  <span className="w-8 h-8 rounded-full bg-[#EDE9FE] dark:bg-[#2A2340] text-[#6D28D9] dark:text-[#C4B5FD] text-[13px] font-bold flex items-center justify-center shrink-0">
+                    {(u.name || "?").charAt(0).toUpperCase()}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] truncate">{u.name}</span>
+                    {u.email && <span className="block text-[12px] text-[#8B92A9] truncate">{u.email}</span>}
+                  </span>
+                  {busyId === u._id ? <Loader2 className="w-4 h-4 animate-spin text-[#7C3AED]" /> : <UserPlus className="w-4 h-4 text-[#8B92A9]" />}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {err && <p className="px-5 pb-4 text-[13px] text-red-600">{err}</p>}
+      </div>
+    </div>
+  );
+}
+
 // ── Unassigned leads: tick and assign ────────────────────────────────────────
 export function UnassignedLeadsModal({ onClose, onAssigned }) {
-  const { options, error: optErr } = useAssignmentOptions();
   const [leads, setLeads]     = useState(null);
   const [total, setTotal]     = useState(0);
   const [loadErr, setLoadErr] = useState("");
   const [picked, setPicked]   = useState(new Set());
-  const [employee, setEmployee] = useState("");
-  const [busy, setBusy]       = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [notice, setNotice]   = useState("");
   const [query, setQuery]     = useState("");
 
@@ -173,19 +263,13 @@ export function UnassignedLeadsModal({ onClose, onAssigned }) {
     setPicked(next);
   };
 
-  const assign = async () => {
-    if (!picked.size || !employee) return;
-    setBusy(true); setNotice("");
-    try {
-      const { data } = await api.post("/lead/assignment/claim", { leadIds: [...picked], userId: employee });
-      setNotice(data.message || "Assigned.");
-      load();
-      onAssigned?.();
-    } catch (e) {
-      setNotice(errMsg(e, "Couldn't assign. Please try again."));
-    } finally {
-      setBusy(false);
-    }
+  const afterAssign = ({ claimed, skipped, employee }) => {
+    setPickerOpen(false);
+    setNotice(skipped
+      ? `${claimed} assigned to ${employee.name}. ${skipped} were already taken by someone else.`
+      : `${claimed} lead${claimed === 1 ? "" : "s"} assigned to ${employee.name}.`);
+    load();
+    onAssigned?.();
   };
 
   const fmt = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "");
@@ -261,29 +345,16 @@ export function UnassignedLeadsModal({ onClose, onAssigned }) {
 
         <div className="px-6 py-4 border-t border-[#F0F2FA] dark:border-[#1E2130] space-y-2">
           {notice && <p className="text-[13px] text-[#4B5168] dark:text-[#9DA3BB]">{notice}</p>}
-          {optErr && <p className="text-[13px] text-red-600">{optErr}</p>}
-          <div className="flex flex-col sm:flex-row gap-2">
-            <select
-              value={employee}
-              onChange={(e) => setEmployee(e.target.value)}
-              disabled={!options}
-              className="flex-1 px-3 py-2.5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[14px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#7C3AED]"
-            >
-              <option value="">{options ? "Choose an employee" : "Loading employees…"}</option>
-              {(options?.employees || []).map((u) => (
-                <option key={u._id} value={u._id}>{u.name}{u.email ? ` (${u.email})` : ""}</option>
-              ))}
-            </select>
-            <button
-              onClick={assign}
-              disabled={busy || !picked.size || !employee}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#7C3AED] text-white text-[14px] font-semibold hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              <UserPlus className="w-4 h-4" /> {busy ? "Assigning…" : `Assign ${picked.size || ""}`.trim()}
-            </button>
-          </div>
+          <button
+            onClick={() => setPickerOpen(true)}
+            disabled={!picked.size}
+            className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#7C3AED] text-white text-[14px] font-semibold hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            <UserPlus className="w-4 h-4" /> {picked.size ? `Assign ${picked.size} lead${picked.size === 1 ? "" : "s"}` : "Select leads to assign"}
+          </button>
         </div>
       </div>
+      {pickerOpen && <EmployeePickerModal leadIds={[...picked]} onClose={() => setPickerOpen(false)} onDone={afterAssign} />}
     </div>
   );
 }

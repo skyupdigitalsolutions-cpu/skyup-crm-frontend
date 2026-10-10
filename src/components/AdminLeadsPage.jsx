@@ -11,7 +11,7 @@ import { normalizePhone } from "../utils/normalizePhone";
 import { getLeadDisplayStatus, statusConfigFor, statusDisplayLabel, temperatureStyle, outcomeStyle } from "../utils/statusConfig";
 // Company customization (Customize CRM): statuses, qualities, sources, fields, workflows.
 import useCustomization from "../hooks/useCustomization";
-import { ImportAssignmentChooser, UnassignedLeadsModal, AssignmentSettingsModal, useAssignmentOptions } from "./LeadAssignment";
+import { ImportAssignmentChooser, UnassignedLeadsModal, AssignmentSettingsModal, useAssignmentOptions, EmployeePickerModal } from "./LeadAssignment";
 import { AdminExportButton, ExportRequestsModal, usePendingExportCount } from "./LeadExport";
 import { useLocation } from "react-router-dom";
 import CustomFieldsEditor from "./CustomFieldsEditor";
@@ -1898,6 +1898,8 @@ function mapLead(l) {
     service:        l.service        || "",
     services:       Array.isArray(l.services) ? l.services : [],
     agent:          l.user?.name || l.assignedTo?.name || l.agent || "Unassigned",
+    // Bulk assign: only open leads with no employee can be ticked.
+    unassigned:     !l.user && !l.assignedTo && !l.mergedInto && !l.isClosed,
     language:       l.language       || "",
     status:         l.status         || "New",
     Quality:        l.temperature || l.Quality || null,
@@ -1967,6 +1969,14 @@ export default function AdminLeadsPage() {
       .catch(() => setUnassignedCount(null));
   }, []);
   useEffect(() => { refreshUnassigned(); }, [refreshUnassigned]);
+
+  // ── Bulk assign (unassigned leads) ─────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [showPicker, setShowPicker] = useState(false);
+  const toggleSelected = useCallback((id) => {
+    setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }, []);
+  const clearSelected = useCallback(() => setSelectedIds(new Set()), []);
 
   const [recordingsLead, setRecordingsLead] = useState(null);
 
@@ -2135,7 +2145,8 @@ export default function AdminLeadsPage() {
       const userList = Array.isArray(usersRes.data)
         ? usersRes.data
         : (usersRes.data?.users || []);
-      setAgents(userList.map(u => u.name).filter(Boolean));
+      // "Unassigned" first so the employee filter can show only unassigned leads.
+      setAgents(["Unassigned", ...userList.map(u => u.name).filter(Boolean)]);
     } catch {
       setError("Failed to load leads. Please refresh.");
     }
@@ -2238,6 +2249,25 @@ export default function AdminLeadsPage() {
   useEffect(() => { scrollPageTop(); }, [page]);
   const paged      = displayed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
+  // Bulk-assign helpers — only unassigned leads are selectable.
+  const unassignedInView = useMemo(() => displayed.filter((l) => l.unassigned), [displayed]);
+  const unassignedOnPage = paged.filter((l) => l.unassigned);
+  const pageAllSelected  = unassignedOnPage.length > 0 && unassignedOnPage.every((l) => selectedIds.has(l.id));
+  const togglePage = () => setSelectedIds((prev) => {
+    const n = new Set(prev);
+    unassignedOnPage.forEach((l) => (pageAllSelected ? n.delete(l.id) : n.add(l.id)));
+    return n;
+  });
+  // Drop selections for leads that are no longer unassigned (after a reload).
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (!prev.size) return prev;
+      const still = new Set(allLeads.filter((l) => l.unassigned).map((l) => l.id));
+      const n = new Set([...prev].filter((id) => still.has(id)));
+      return n.size === prev.size ? prev : n;
+    });
+  }, [allLeads]);
+
   const clearFilters = () => {
     setSearch(""); setFilterSt("All"); setFilterAgent("All"); setFilterSrc("All");
     setFilterTemp("All"); setFilterProject("All"); setFilterLang(""); setFilterProposal("All"); setDateFrom(""); setDateTo(""); setPage(1);
@@ -2289,6 +2319,33 @@ export default function AdminLeadsPage() {
 
       {showAdd    && <AddLeadModal   onClose={() => setShowAdd(false)}    onAdd={handleAdd}    isSuperAdmin={isSuperAdmin} />}
       {showImport && <ImportCSVModal onClose={() => { setShowImport(false); refreshUnassigned(); }} onImported={() => { fetchLeads(); refreshUnassigned(); }} existingLeads={allLeads} isSuperAdmin={isSuperAdmin} />}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-xl">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#0F1117] dark:bg-[#F0F2FA] text-white dark:text-[#0F1117] shadow-2xl">
+            <span className="text-[14px] font-semibold">{selectedIds.size} lead{selectedIds.size === 1 ? "" : "s"} selected</span>
+            <button onClick={clearSelected} className="text-[13px] opacity-70 hover:opacity-100 underline">Clear</button>
+            <button onClick={() => setShowPicker(true)}
+              className="ml-auto inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#7C3AED] text-white text-[14px] font-semibold hover:bg-violet-700">
+              Assign to employee
+            </button>
+          </div>
+        </div>
+      )}
+      {showPicker && (
+        <EmployeePickerModal
+          leadIds={[...selectedIds]}
+          onClose={() => setShowPicker(false)}
+          onDone={({ claimed, skipped, employee }) => {
+            setShowPicker(false);
+            clearSelected();
+            showToast(skipped
+              ? `${claimed} assigned to ${employee.name}. ${skipped} were already assigned by someone else.`
+              : `${claimed} lead${claimed === 1 ? "" : "s"} assigned to ${employee.name}.`);
+            fetchLeads();
+            refreshUnassigned();
+          }}
+        />
+      )}
       {showUnassigned && <UnassignedLeadsModal onClose={() => { setShowUnassigned(false); refreshUnassigned(); }} onAssigned={() => { fetchLeads(); refreshUnassigned(); }} />}
       {showAsgSettings && <AssignmentSettingsModal onClose={() => setShowAsgSettings(false)} />}
       {showExportReqs && isSuperAdmin && <ExportRequestsModal onClose={() => { setShowExportReqs(false); refreshPendingExports(); }} onChanged={refreshPendingExports} />}
@@ -2536,6 +2593,19 @@ export default function AdminLeadsPage() {
         </div>
       )}
 
+      {/* Bulk-assign hint / select-all for unassigned leads */}
+      {!loading && unassignedInView.length > 0 && (filterAgent === "Unassigned" || selectedIds.size > 0) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F5F3FF] dark:bg-[#1E1B2E] border border-[#DDD6FE] dark:border-[#3B2F63] text-[13px] text-[#4C1D95] dark:text-[#DDD6FE]">
+          <span>{selectedIds.size} of {unassignedInView.length} unassigned lead{unassignedInView.length === 1 ? "" : "s"} selected.</span>
+          {selectedIds.size < unassignedInView.length && (
+            <button onClick={() => setSelectedIds(new Set(unassignedInView.map((l) => l.id)))} className="font-semibold underline">
+              Select all {unassignedInView.length}
+            </button>
+          )}
+          {selectedIds.size > 0 && <button onClick={clearSelected} className="font-semibold underline">Clear selection</button>}
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] rounded-2xl overflow-hidden">
         {loading ? (
@@ -2567,6 +2637,7 @@ export default function AdminLeadsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-[14px] table-fixed">
                 <colgroup>
+                  <col className="w-[40px]" />
                   <col className="w-[160px]" />
                   <col className="w-[140px]" />
                   <col className="w-[110px]" />
@@ -2580,6 +2651,13 @@ export default function AdminLeadsPage() {
                 </colgroup>
                 <thead>
                   <tr className="bg-[#F8F9FC] dark:bg-[#13161E] border-b border-[#E4E7EF] dark:border-[#262A38]">
+                    <th className="pl-3 pr-1 py-2.5 text-left">
+                      <input type="checkbox" checked={pageAllSelected} onChange={togglePage}
+                        disabled={unassignedOnPage.length === 0}
+                        title={unassignedOnPage.length ? "Select the unassigned leads on this page" : "No unassigned leads on this page"}
+                        aria-label="Select unassigned leads on this page"
+                        className="w-4 h-4 accent-[#7C3AED] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" />
+                    </th>
                     {[
                       "Lead",
                       "Contact",
@@ -2605,9 +2683,15 @@ export default function AdminLeadsPage() {
 
                     return (
                       <tr key={l.id}
-                        className="hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition cursor-pointer group"
+                        className={`${selectedIds.has(l.id) ? "bg-[#F5F3FF] dark:bg-[#1E1B2E]" : ""} hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition cursor-pointer group`}
                         onClick={() => setSelected(l)}
                       >
+                        <td className="pl-3 pr-1 py-2.5" onClick={(e) => e.stopPropagation()}>
+                          {l.unassigned && (
+                            <input type="checkbox" checked={selectedIds.has(l.id)} onChange={() => toggleSelected(l.id)}
+                              aria-label={`Select ${l.name}`} className="w-4 h-4 accent-[#7C3AED] cursor-pointer" />
+                          )}
+                        </td>
                         <td className="px-2.5 py-2.5">
                           <div className="flex items-center gap-2">
                             <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0"
