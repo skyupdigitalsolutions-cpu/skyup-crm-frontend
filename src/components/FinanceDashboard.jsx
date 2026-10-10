@@ -5,15 +5,19 @@
 //   • Admin / super admin page   → <FinanceDashboard />                (/api/finance)
 //   • Developer → company tab    → <FinanceDashboard basePath=… />     (per company)
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, createContext, useContext } from "react";
 import toast from "react-hot-toast";
 import {
   Search, Plus, X, Loader2, IndianRupee, CalendarClock, AlertTriangle, CheckCircle2,
   Wallet, FileText, Trash2, Pencil, Settings as SettingsIcon, RefreshCw, Ban, RotateCcw, ChevronLeft, ChevronRight,
 } from "lucide-react";
-import api from "../data/axiosConfig";
+import defaultApi from "../data/axiosConfig";
 
 import { inr, fmtDay, fmtDateTime, toInputDay, todayInput, errMsg } from "../utils/financeFormat";
+
+// The Finance Panel signs in separately from the CRM, so it passes its own axios
+// client; the Developer → Company → Finance tab uses the normal CRM session.
+const ApiCtx = createContext(defaultApi);
 
 const METHODS = ["Cash", "UPI", "Bank transfer", "Cheque", "Card", "Other"];
 
@@ -85,6 +89,7 @@ function AssigneeSelect({ value, onChange, assignees }) {
 
 // ── Create invoice ───────────────────────────────────────────────────────────
 function CreateInvoiceModal({ base, assignees, onClose, onCreated }) {
+  const api = useContext(ApiCtx);
   const [f, setF] = useState({
     customerName: "", businessName: "", service: "", description: "", totalAmount: "", installmentsPlanned: "",
     conversionDate: todayInput(), invoiceNumber: "", assignedTo: "", nextFollowUpDate: "", remark: "",
@@ -141,6 +146,7 @@ function CreateInvoiceModal({ base, assignees, onClose, onCreated }) {
 
 // ── Invoice detail drawer ────────────────────────────────────────────────────
 function InvoiceDrawer({ id, base, assignees, onClose, onChanged }) {
+  const api = useContext(ApiCtx);
   const [inv, setInv] = useState(null);
   const [busy, setBusy] = useState("");
   const [edit, setEdit] = useState(null);                 // null | draft object
@@ -151,7 +157,7 @@ function InvoiceDrawer({ id, base, assignees, onClose, onChanged }) {
   const load = useCallback(async () => {
     try { const { data } = await api.get(`${base}/${id}`); setInv(data.invoice); setFu({ date: toInputDay(data.invoice.nextFollowUpDate), remark: "" }); }
     catch (e) { toast.error(errMsg(e, "Could not load invoice")); onClose(); }
-  }, [base, id, onClose]);
+  }, [api, base, id, onClose]);
   useEffect(() => { load(); }, [load]);
 
   const run = async (key, fn, okMsg) => {
@@ -310,9 +316,10 @@ function InvoiceDrawer({ id, base, assignees, onClose, onChanged }) {
 
 // ── Settings (invoice prefix) ────────────────────────────────────────────────
 function SettingsModal({ base, onClose }) {
+  const api = useContext(ApiCtx);
   const [prefix, setPrefix] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { api.get(`${base}/settings`).then(({ data }) => setPrefix(data.settings.invoicePrefix)).catch(() => {}); }, [base]);
+  useEffect(() => { api.get(`${base}/settings`).then(({ data }) => setPrefix(data.settings.invoicePrefix)).catch(() => {}); }, [api, base]);
   return (
     <Modal title="Finance settings" onClose={onClose}>
       <Field label="Invoice number prefix" hint="New invoices are numbered PREFIX-0001, PREFIX-0002… Existing invoice numbers don't change.">
@@ -332,7 +339,8 @@ const STATUS_TABS = [
   ["overdue", "Overdue"], ["due_today", "Due today"], ["cancelled", "Cancelled"],
 ];
 
-export default function FinanceDashboard({ basePath = "/finance", embedded = false }) {
+export default function FinanceDashboard({ basePath = "/finance", embedded = false, client = null }) {
+  const api = client || defaultApi;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -359,9 +367,9 @@ export default function FinanceDashboard({ basePath = "/finance", embedded = fal
     try { const { data: d } = await api.get(basePath, { params }); setData(d); }
     catch (e) { setError(errMsg(e, "Could not load the Finance Dashboard")); }
     finally { setLoading(false); }
-  }, [basePath, params]);
+  }, [api, basePath, params]);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { api.get(`${basePath}/assignees`).then(({ data: d }) => setAssignees(d.assignees || [])).catch(() => {}); }, [basePath]);
+  useEffect(() => { api.get(`${basePath}/assignees`).then(({ data: d }) => setAssignees(d.assignees || [])).catch(() => {}); }, [api, basePath]);
 
   const s = data?.summary;
   const setFilter = (k, v) => setF((p) => ({ ...p, [k]: v, page: 1 }));
@@ -371,6 +379,7 @@ export default function FinanceDashboard({ basePath = "/finance", embedded = fal
   }
 
   return (
+    <ApiCtx.Provider value={api}>
     <div className={embedded ? "space-y-4" : "p-4 sm:p-6 space-y-4 max-w-[1400px] mx-auto"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -459,5 +468,6 @@ export default function FinanceDashboard({ basePath = "/finance", embedded = fal
       {creating && <CreateInvoiceModal base={basePath} assignees={assignees} onClose={() => setCreating(false)} onCreated={(inv) => { setCreating(false); load(); setOpenId(inv._id); }} />}
       {settings && <SettingsModal base={basePath} onClose={() => setSettings(false)} />}
     </div>
+    </ApiCtx.Provider>
   );
 }

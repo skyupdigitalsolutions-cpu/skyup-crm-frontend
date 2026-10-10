@@ -83,7 +83,8 @@ const AdminLogin      = lazy(() => import("./pages/UserLogin")); // /admin/login
 const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
 const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
 const CustomReports   = lazy(() => import("./pages/CustomReports"));
-const FinanceDashboard = lazy(() => import("./components/FinanceDashboard"));
+const FinanceLogin = lazy(() => import("./finance/FinanceLogin"));   // standalone Finance Panel — sign-in
+const FinancePanel = lazy(() => import("./finance/FinancePanel"));   // standalone Finance Panel
 const UserPaymentFollowUps = lazy(() => import("./pages/UserPaymentFollowUps"));
 const InvoiceTest     = lazy(() => import("./pages/InvoiceTest"));
 
@@ -528,6 +529,9 @@ function AppInner() {
           {/* ── Marketing Panel — fully standalone, no CRM auth guards ──── */}
           <Route path="/marketing/login" element={<Suspense fallback={null}><MktLogin /></Suspense>} />
           <Route path="/marketing" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"/></div>}><MktDashboard /></Suspense>} />
+          {/* Standalone Finance Panel — own sign-in, own session (like /marketing) */}
+          <Route path="/finance/login" element={<Suspense fallback={null}><FinanceLogin /></Suspense>} />
+          <Route path="/finance" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"/></div>}><FinancePanel /></Suspense>} />
 
           {/* ── CRM routes ─────────────────────────────────────────────────────── */}
 
@@ -663,10 +667,8 @@ function AppInner() {
             }/>
 
             {/* ── Lead nurture sequence — admin only, single-company rollout ── */}
-            {/* Finance Dashboard — only reachable when the Developer enabled it for the company */}
-            <Route path="/finance" element={
-              <AdminRoute><FinanceGate><FinanceDashboard /></FinanceGate></AdminRoute>
-            } />
+            {/* Employees' payment follow-ups (only when the Developer enabled Finance for the company).
+                The Finance Panel itself is standalone — see /finance and /finance/login below. */}
             <Route path="/user/payment-followups" element={
               <UserRoute><FinanceGate><UserPaymentFollowUps /></FinanceGate></UserRoute>
             } />

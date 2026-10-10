@@ -148,18 +148,6 @@ const ADMIN_NAV_ITEMS = [
       </svg>
     ),
   },
-  {
-    to: "/finance",
-    label: "Finance",
-    requiresEntitlement: "financeDashboard",   // hidden unless the Developer enabled it for this company
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-        <rect x="2" y="5" width="20" height="14" rx="2" />
-        <path d="M2 10h20" />
-        <path d="M6 15h4" />
-      </svg>
-    ),
-  },
 ];
 
 

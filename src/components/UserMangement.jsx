@@ -8,6 +8,7 @@ import useEntitlements from "../hooks/useEntitlements";
 import PasswordRules, { PasswordMatch } from "./PasswordRules";
 import { validatePassword, generateStrongPassword } from "../utils/passwordPolicy";
 import { AdminGroupsModal } from "./LeadAssignment";
+import FinancePanelSection from "../finance/FinancePanelSection";
 
 
 const PLANS = {
@@ -851,6 +852,8 @@ export default function UserManagement({
   const { getLimit, getPlanLabel, hasAdminCapacity, hasUserCapacity, entitlements, planId } = useEntitlements();
   // Digital Marketing Dashboard logins: only where the Developer panel turned it ON.
   const marketingOn = entitlements?.marketingDashboard === true;
+  // Finance Panel logins: only where the Developer panel turned the Finance Dashboard ON.
+  const financeOn = entitlements?.financeDashboard === true;
   const maxAdmins = getLimit("admins") ?? 1;
   const maxUsers  = getLimit("users")  ?? 5;
   const planLabel = getPlanLabel();
@@ -1369,6 +1372,9 @@ export default function UserManagement({
 
         {/* Marketing Panel Access — super admin only */}
         {isCompanySuperAdmin && marketingOn && <MarketingPanelSection />}
+
+        {/* Finance Panel Access — super admin only */}
+        {isCompanySuperAdmin && financeOn && <FinancePanelSection />}
 
       </div>
     </div>
