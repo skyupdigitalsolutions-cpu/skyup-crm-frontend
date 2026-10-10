@@ -30,7 +30,7 @@ function Card({ inv, onUpdated }) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{inv.customerName}</p>
-          <p className="text-[11px] text-[#8B92A9]">{inv.invoiceNumber}{inv.businessName ? ` · ${inv.businessName}` : ""} · converted {fmtDay(inv.conversionDate)}</p>
+          <p className="text-[11px] text-[#8B92A9]">{inv.invoiceNumber || "No invoice no. yet"}{inv.service ? ` · ${inv.service}` : ""}{inv.businessName ? ` · ${inv.businessName}` : ""} · converted {fmtDay(inv.conversionDate)}</p>
         </div>
         <StatusBadge inv={inv} />
       </div>
