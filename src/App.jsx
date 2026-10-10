@@ -18,6 +18,7 @@ import TelegramSettings from "./components/TelegramSettings";
 import DailyReportTelegramSettings from "./components/DailyReportTelegramSettings";
 import { isChunkLoadError, reloadOnceForChunkError } from "./utils/chunkReload";
 import useCustomization from "./hooks/useCustomization";
+import useEntitlements from "./hooks/useEntitlements";
 import UpgradePromptHost from "./components/UpgradePrompt";
 
 // ── Module route — sends the user elsewhere when the company has switched a
@@ -28,6 +29,17 @@ function ModuleRoute({ moduleKey, fallbackTo, children }) {
   const asRole = role === "user" || role === "employee" ? "employee"
     : role === "super_admin" || role === "superadmin" ? "super_admin" : "admin";
   if (loaded && !moduleVisibleFor(moduleKey, asRole)) return <Navigate to={fallbackTo} replace />;
+  return children;
+}
+
+// ── Finance Dashboard gate — redirects when the module isn't enabled ──────────
+function FinanceGate({ children }) {
+  const { entitlements, loading } = useEntitlements();
+  const role = String(getUser()?.role || "").toLowerCase();
+  if (loading && !entitlements) return null;
+  if (entitlements?.financeDashboard !== true) {
+    return <Navigate to={role === "user" || role === "employee" ? "/user/dashboard" : "/dashboard"} replace />;
+  }
   return children;
 }
 
@@ -71,6 +83,8 @@ const AdminLogin      = lazy(() => import("./pages/UserLogin")); // /admin/login
 const SuperAdminLogin = lazy(() => import("./pages/SuperAdminLogin"));
 const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
 const CustomReports   = lazy(() => import("./pages/CustomReports"));
+const FinanceDashboard = lazy(() => import("./components/FinanceDashboard"));
+const UserPaymentFollowUps = lazy(() => import("./pages/UserPaymentFollowUps"));
 const InvoiceTest     = lazy(() => import("./pages/InvoiceTest"));
 
 // ── Page loader ───────────────────────────────────────────────────────────────
@@ -649,6 +663,13 @@ function AppInner() {
             }/>
 
             {/* ── Lead nurture sequence — admin only, single-company rollout ── */}
+            {/* Finance Dashboard — only reachable when the Developer enabled it for the company */}
+            <Route path="/finance" element={
+              <AdminRoute><FinanceGate><FinanceDashboard /></FinanceGate></AdminRoute>
+            } />
+            <Route path="/user/payment-followups" element={
+              <UserRoute><FinanceGate><UserPaymentFollowUps /></FinanceGate></UserRoute>
+            } />
             <Route path="/nurture-sequence" element={
               <AdminRoute><FeatureGate featureKey="leadNurtureSequence"><NurtureSequenceBuilder /></FeatureGate></AdminRoute>
             }/>

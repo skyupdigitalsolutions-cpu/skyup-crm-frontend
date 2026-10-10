@@ -148,6 +148,18 @@ const ADMIN_NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    to: "/finance",
+    label: "Finance",
+    requiresEntitlement: "financeDashboard",   // hidden unless the Developer enabled it for this company
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <path d="M2 10h20" />
+        <path d="M6 15h4" />
+      </svg>
+    ),
+  },
 ];
 
 
@@ -252,6 +264,18 @@ const USER_NAV_ITEMS = [
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <circle cx="12" cy="5" r="2.5" /><circle cx="5" cy="17" r="2.5" /><circle cx="19" cy="17" r="2.5" />
         <path d="M12 7.5v4M12 11.5l-6 3M12 11.5l6 3" />
+      </svg>
+    ),
+  },
+  {
+    to: "/user/payment-followups",
+    label: "Payment Follow-ups",
+    requiresEntitlement: "financeDashboard",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <path d="M2 10h20" />
+        <path d="M6 15h4" />
       </svg>
     ),
   },
@@ -371,6 +395,7 @@ export function Sidebar() {
   // hasFeature() behaviour is unchanged — sidebar items are filtered by plan.
   // readOnlyMode adds a visual indicator in the footer area.
   const {
+    entitlements,
     hasFeature,
     readOnlyMode,
     subscriptionStatus,
@@ -466,6 +491,8 @@ export function Sidebar() {
   const navRole = role === "user" ? "employee" : isSuperAdmin ? "super_admin" : "admin";
   const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => {
     if (item.teamLeadOnly && !teamInfo.isTeamLead) return false;
+    // Opt-in modules (Finance) stay hidden until the Developer turns them on
+    if (!isDeveloper && item.requiresEntitlement && entitlements?.[item.requiresEntitlement] !== true) return false;
     if (!isDeveloper && item.moduleKey && !cust.moduleVisibleFor(item.moduleKey, navRole)) return false;
     return true;
   }).map(item => {

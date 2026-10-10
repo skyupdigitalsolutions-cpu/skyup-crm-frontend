@@ -22,6 +22,7 @@ import {
 import api from "../../data/axiosConfig";
 import AddonManager from "../../components/AddonManager";
 import CustomizeCRM from "./CustomizeCRM";
+import FinanceDashboard from "../../components/FinanceDashboard";
 import { SuperAdminsModal } from "./Companies";
 import { Users as UsersIcon } from "lucide-react";
 
@@ -71,6 +72,7 @@ const FEATURE_GROUPS = [
     { key: "leadNurtureSequence", label: "Lead Nurture Sequence" },
     { key: "festivalCampaigns",   label: "Festival Campaigns (off unless turned on here)" },
     { key: "marketingDashboard",  label: "Digital Marketing Dashboard (off unless turned on here)" },
+    { key: "financeDashboard",    label: "Finance Dashboard — converted-lead invoices, part-payments & payment follow-ups (off unless turned on here)" },
     { key: "callOutcomesReport",  label: "Call Outcomes Report (Answered/Not Answered)" },
     { key: "metaConversionSync",  label: "Meta Conversions API Send-Back (status → CAPI event)" },
     { key: "leadIntelligence",   label: "Lead Intelligence — AI-powered lead outcome analysis page" },
@@ -124,6 +126,7 @@ const TABS = [
   { id: "credits",       label: "AI Credits",    icon: Sparkles },
   { id: "storage",       label: "Storage",       icon: HardDrive },
   { id: "daily-report",  label: "Daily Report",  icon: BarChart2 },
+  { id: "finance",       label: "Finance",       icon: ToggleLeft },
   { id: "customize",     label: "Customize CRM", icon: Sliders },
   { id: "activity",      label: "Activity",      icon: ScrollText },
 ];
@@ -645,6 +648,19 @@ export default function CompanyDetails() {
       {/* ── CUSTOMIZE CRM TAB — same editor the company super admin sees ── */}
       {tab === "customize" && (
         <CustomizeCRM companyId={id} embedded />
+      )}
+
+      {/* ── FINANCE TAB — developer can view / create invoices for this company ── */}
+      {tab === "finance" && (
+        <div className="space-y-3">
+          {!ent?.financeDashboard && (
+            <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-50 dark:bg-[#2D1F00] border border-amber-200 dark:border-amber-900 text-[12px] text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>Finance Dashboard is <strong>disabled</strong> for this company, so their team can't see it. Turn it on in the Features tab (set <em>Finance Dashboard</em> to On, then Save). You can still manage invoices here.</span>
+            </div>
+          )}
+          <FinanceDashboard embedded basePath={`/developer/companies/${id}/finance`} />
+        </div>
       )}
 
       {/* ── DAILY REPORT TAB ── */}

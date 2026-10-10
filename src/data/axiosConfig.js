@@ -33,6 +33,8 @@ const NO_CACHE = [
   // driven by the socket directly and never makes an HTTP call.
   "unread-counts",
   "/whatsapp/conversations",
+  // Finance Dashboard — money data must always be fresh after a save
+  "/finance",
 ];
 
 function isCacheable(url = "") {
