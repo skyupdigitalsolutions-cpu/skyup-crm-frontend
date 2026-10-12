@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { AlertCircle, AlertTriangle, Info, ChevronRight } from "lucide-react";
 import useReport from "../useReport";
+import MetaPerformance from "../MetaPerformance";
 import {
   useMkt, Panel, MetricCell, Loader, ErrorBox, Empty, TrendChart, FunnelChart, DataTable, DrillNum, Badge,
   CHANNEL_LABEL, inr, pct, num, mins, businessColumns, fmtRange,
@@ -53,6 +54,9 @@ export default function Overview({ onNav }) {
           {data.efficiency.map((m) => <MetricCell key={m.key} m={m} />)}
         </div>
       </section>
+
+      {/* Meta Ads performance — Ads Manager's campaign numbers as charts, with its own date range */}
+      <MetaPerformance />
 
       {/* Action Center */}
       <Panel title="Needs attention" subtitle="Operational issues ranked by severity. Click to see the leads or the page.">

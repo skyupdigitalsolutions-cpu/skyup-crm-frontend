@@ -26,7 +26,9 @@ const statsFor = (platform, m) => (platform === "meta"
 
 const Dot = ({ cls }) => <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${cls}`} />;
 
-export default function CreativeModal({ platform = "meta", row, onClose }) {
+// zClass: stacking level. 55 sits below the lead drawer (60) so numbers inside this pop-up can open it;
+// the lead drawer passes a higher one so the ad opens above it.
+export default function CreativeModal({ platform = "meta", row, onClose, zClass = "z-[55]" }) {
   const { params } = useMkt();
   const [ad, setAd] = useState(null);          // scored version of this ad, if available
   const [loading, setLoading] = useState(true);
@@ -51,10 +53,11 @@ export default function CreativeModal({ platform = "meta", row, onClose }) {
   const name = (ad && ad.name) || row.name || cr.headline || "Ad";
   const metrics = (ad && ad.metrics) || row;          // the table row carries the same metric keys
   const stats = statsFor(platform, metrics);
+  const hasMetrics = !!ad || row.spend != null;
   const status = (ad && ad.status) || row.status;
 
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+    <div className={`fixed inset-0 ${zClass} flex items-center justify-center bg-slate-900/50 p-4`} onClick={onClose}>
       <div role="dialog" aria-label={`Creative · ${name}`} className="max-h-[88vh] w-full max-w-2xl overflow-auto rounded-xl bg-white shadow-2xl dark:bg-[#121620]" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white px-5 py-3 dark:border-[#1A2030] dark:bg-[#121620]">
           <div className="min-w-0">
@@ -94,14 +97,14 @@ export default function CreativeModal({ platform = "meta", row, onClose }) {
           </div>
 
           {/* metrics */}
-          <dl className="grid grid-cols-3 overflow-hidden rounded-lg border border-slate-100 text-[12px] sm:grid-cols-6 dark:border-[#1A2030]">
+          {hasMetrics && <dl className="grid grid-cols-3 overflow-hidden rounded-lg border border-slate-100 text-[12px] sm:grid-cols-6 dark:border-[#1A2030]">
             {stats.map(([l, v, k]) => (
               <div key={l} className="px-3 py-2"><dt className="flex items-center gap-1 text-slate-500">{l}<MetricInfo k={k} /></dt><dd className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">{v}</dd></div>
             ))}
-          </dl>
+          </dl>}
 
           {loading && <Loader label="Loading rating…" />}
-          {!loading && !ad && <p className="text-[12px] text-slate-500">{failed ? "Couldn't load the rating for this ad." : "No rating for this ad in the selected period (no delivery, or it isn't tracked)."}</p>}
+          {!loading && !ad && <p className="text-[12px] text-slate-500">{failed ? "Couldn't load the rating for this ad." : "No rating or preview for this ad in the selected period (it had no delivery in these dates, or it isn't tracked)."}</p>}
 
           {ad && (
             <>
