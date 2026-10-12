@@ -20,7 +20,7 @@ import { useState, useEffect } from "react";
 import {
   Handshake, MapPin, Monitor, Video, Phone, CalendarClock, CalendarDays,
   Paperclip, Mic, Map as MapIcon, NotebookPen, Plus, X, FileText,
-  CheckCircle2, Image as ImageIcon, Upload, Loader2,
+  CheckCircle2, Image as ImageIcon, ImageOff, Upload, Loader2,
 } from "lucide-react";
 import api from "../data/axiosConfig";
 import { list as custList } from "../data/customizationStore";
@@ -154,10 +154,22 @@ function MeetingCard({ visit }) {
 
 // ── WhatsApp screenshot card ───────────────────────────────────────────────────
 function ScreenshotCard({ shot }) {
+  // Screenshot images are deleted after 7 days (Auto WhatsApp Screenshot AI). The chat the AI read from
+  // them — summary, messages, analysis — is kept, so show that instead of a broken image.
+  const gone = !!shot.deletedAt;
+  const Wrap = gone ? "div" : "a";
+  const wrapProps = gone ? { className: "block" } : { href: shot.url, target: "_blank", rel: "noopener noreferrer", className: "block group" };
   return (
-    <a href={shot.url} target="_blank" rel="noopener noreferrer" className="block group">
+    <Wrap {...wrapProps}>
       <div className="rounded-lg overflow-hidden border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E]">
-        <img src={shot.url} alt={shot.name || "WhatsApp screenshot"} className="w-full h-28 object-cover group-hover:opacity-90 transition" />
+        {gone ? (
+          <div className="w-full h-28 flex flex-col items-center justify-center gap-1 px-2 text-center text-[10px] text-[#8B92A9]">
+            <ImageOff className="w-4 h-4" />
+            Image deleted after 7 days
+          </div>
+        ) : (
+          <img src={shot.url} alt={shot.name || "WhatsApp screenshot"} className="w-full h-28 object-cover group-hover:opacity-90 transition" />
+        )}
       </div>
       <p className="mt-1 text-[10px] text-[#8B92A9] truncate">{fmtDateTime(shot.uploadedAt)}</p>
       {shot.note ? <p className="text-[10px] text-[#4B5168] dark:text-[#9DA3BB] truncate italic">"{shot.note}"</p> : null}
@@ -169,7 +181,7 @@ function ScreenshotCard({ shot }) {
       ) : shot.chat?.status === "failed" ? (
         <p className="mt-0.5 text-[10px] text-red-500">Couldn't read chat (retry in Lead Journey)</p>
       ) : null}
-    </a>
+    </Wrap>
   );
 }
 
@@ -495,6 +507,24 @@ export default function ClientMeetingTab({ lead, isAdmin = false, onSaved }) {
   const shots = [...(localShots || lead?.whatsappScreenshots || [])].sort(
     (a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)
   );
+
+  // After an upload the AI reads each screenshot in the background and summarises it. Check back every
+  // few seconds until the summaries are in, so they appear without reloading (stops after ~90 s).
+  const hasPendingShots = shots.some((s) => s.chat?.status === "pending");
+  useEffect(() => {
+    if (!leadId || !hasPendingShots) return undefined;
+    const base = isAdmin ? `/lead/admin/${leadId}` : `/lead/${leadId}`;
+    let tries = 0;
+    const t = setInterval(async () => {
+      tries += 1;
+      try {
+        const { data } = await api.get(`${base}/whatsapp-screenshots`);
+        setLocalShots(data?.screenshots || []);
+      } catch { /* try again on the next tick */ }
+      if (tries >= 30) clearInterval(t);
+    }, 3000);
+    return () => clearInterval(t);
+  }, [leadId, isAdmin, hasPendingShots]);
 
   const handleMeetingSaved = (savedRemark) => {
     const next = [...(localRemarks || lead?.meetingRemarks || []), savedRemark];

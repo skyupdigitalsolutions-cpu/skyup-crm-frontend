@@ -37,6 +37,9 @@ const NO_CACHE = [
   "/finance",
   // AI Intelligence status is live (pending → processing → done); a cached copy would keep showing "in progress"
   "/ai-analysis",
+  // Screenshot reading is live too (pending → done), and the Lead Journey timeline shows it
+  "/whatsapp-screenshots",
+  "/timeline",
 ];
 
 function isCacheable(url = "") {

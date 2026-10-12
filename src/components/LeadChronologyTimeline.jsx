@@ -308,7 +308,11 @@ function ScreenshotChat({ ev, leadId, isAdmin, onChanged }) {
               </div>
             );
           })}
-          <p className="text-[9px] text-center text-[#667781] pt-1">Read from the screenshot by AI. Check the image if anything looks wrong.</p>
+          <p className="text-[9px] text-center text-[#667781] pt-1">
+            {ev.imageDeleted
+              ? "Read from the screenshot by AI. The image itself was deleted after 7 days — this extracted chat is kept."
+              : "Read from the screenshot by AI. Check the image if anything looks wrong."}
+          </p>
         </div>
       )}
     </div>
