@@ -3,14 +3,21 @@
 // with the exact leads behind it. Each lead shows its channel and campaign and, where the
 // platform recorded it, the AD SET and the exact AD it came from. Click the ad to see its creative.
 import { useEffect, useState } from "react";
-import { X, Download } from "lucide-react";
+import { X, Download, Loader2, Search } from "lucide-react";
 import mktApi from "../mktApi";
 import CreativeModal from "./CreativeModal";
 import { useMkt, Badge, stageTone, STAGE_LABEL, CHANNEL_LABEL, fmtDateTime, inr, mins, num, Loader, ErrorBox, downloadCSV } from "./ui";
 
 // Ad set + ad under a lead's campaign. Meta leads can carry the exact ad; Google leads carry the
 // ad group and keyword (Google doesn't pass a single ad).
-function AdTrail({ l, onOpenAd }) {
+// Why a Meta lead has no ad, in plain words (the server works out which case it is).
+const WHY = {
+  form: "Look up in Meta",
+  form_no_id: "Meta lead id wasn't saved",
+  manual: "not from a Meta lead form",
+};
+
+function AdTrail({ l, onOpenAd, onLookup, busy }) {
   const google = l.channel === "google";
   const lbl = "text-slate-400 dark:text-slate-500";
   if (l.channel !== "meta" && !google) return null;                 // website / WhatsApp / organic: no ad to show
@@ -32,9 +39,14 @@ function AdTrail({ l, onOpenAd }) {
       {l.metaAdId
         ? <p className="truncate text-[12px]"><span className={lbl}>Ad</span>{" "}
             <button type="button" onClick={() => onOpenAd(l)} title="View this ad's creative" className="max-w-[210px] truncate align-bottom font-medium text-violet-700 hover:underline dark:text-violet-300">{l.adName || `Ad #${l.metaAdId}`}</button></p>
-        : <p className="text-[12px] text-slate-400" title="This lead has no Meta ad ID on record — it didn't arrive through an ad lead form, or it was added before ad details were captured.">
+        : (
+          <p className="text-[12px] text-slate-400" title={l.adReason === "form" ? "This lead came from a Meta lead form, so Meta can tell us which ad." : l.adReason === "form_no_id" ? "It is linked to a Meta form, but its Meta lead id was not saved, so Meta can't be asked." : "Added by hand, imported or started on WhatsApp — Meta never sent an ad id for it."}>
             {l.adSet ? "Exact ad not recorded" : "Ad not recorded"}
-          </p>}
+            {l.adReason && (l.canFetch
+              ? <> · <button type="button" disabled={busy} onClick={() => onLookup([l._id])} className="inline-flex items-center gap-0.5 font-medium text-violet-700 hover:underline disabled:opacity-50 dark:text-violet-300"><Search className="h-3 w-3" />{WHY[l.adReason]}</button></>
+              : <> · {WHY[l.adReason]}</>)}
+          </p>
+        )}
     </>
   );
 }
@@ -45,6 +57,9 @@ export default function LeadDrawer({ drill, onClose }) {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
   const [adOpen, setAdOpen] = useState(null);       // lead whose ad creative is open
+  const [tick, setTick] = useState(0);              // bump to reload the list
+  const [looking, setLooking] = useState(false);    // asking Meta for ad details
+  const [lookup, setLookup] = useState(null);       // what the last lookup found
 
   useEffect(() => {
     if (!drill) return;
@@ -53,7 +68,18 @@ export default function LeadDrawer({ drill, onClose }) {
       .then((r) => setData(r.data))
       .catch((e) => setErr(e?.response?.data?.message || "Couldn't load leads."))
       .finally(() => setLoading(false));
-  }, [drill, params]);
+  }, [drill, params, tick]);
+
+  // Ask Meta which ad the lead-form leads came from (all that can be looked up, or just the given ones).
+  const runLookup = async (ids) => {
+    setLooking(true); setLookup(null);
+    try {
+      const { data: r } = await mktApi.post("/v2/backfill-ads", ids && ids.length ? { ids } : {}, { timeout: 120000 });
+      setLookup({ ok: true, ...r });
+      if (r.updated) setTick((t) => t + 1);
+    } catch (e) { setLookup({ ok: false, message: e?.response?.data?.message || "Couldn't reach Meta. Try again in a moment." }); }
+    finally { setLooking(false); }
+  };
 
   useEffect(() => {
     // Esc closes the ad creative first, then the drawer
@@ -80,6 +106,12 @@ export default function LeadDrawer({ drill, onClose }) {
               <h2 className="truncate text-[16px] font-semibold text-slate-900 dark:text-slate-50">{drill.title || "Leads"}</h2>
               {data && <p className="text-[12px] text-slate-500">{num(data.total)} leads · {num(data.summary.qualified)} qualified · {num(data.summary.won)} won · {inr(data.summary.revenue)} revenue{data.total > data.leads.length ? ` · showing latest ${data.leads.length}` : ""}{cov && cov.metaLeads > 0 ? ` · exact ad known for ${num(cov.withAd)} of ${num(cov.metaLeads)} Meta leads` : ""}</p>}
             </div>
+            {cov && cov.fetchable > 0 && (
+              <button type="button" onClick={() => runLookup()} disabled={looking} title="Ask Meta which ad each lead-form lead came from"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-2.5 py-1.5 text-[12px] font-semibold text-white hover:bg-violet-700 disabled:opacity-60">
+                {looking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}Find ad details from Meta ({num(cov.fetchable)})
+              </button>
+            )}
             {data && data.leads.length > 0 && (
               <button onClick={() => downloadCSV(`leads_${Date.now()}.csv`, cols, data.leads)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 dark:border-[#1F2533] dark:text-slate-200 dark:hover:bg-white/5">
                 <Download className="h-3.5 w-3.5" />Export CSV
@@ -87,6 +119,20 @@ export default function LeadDrawer({ drill, onClose }) {
             )}
             <button onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5"><X className="h-5 w-5" /></button>
           </header>
+          {lookup && (
+            <div role="status" className={`flex items-start justify-between gap-3 border-b px-5 py-2.5 text-[12.5px] ${lookup.ok && lookup.updated ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200" : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"}`}>
+              <p>
+                {!lookup.ok ? lookup.message : (<>
+                  {lookup.updated ? `Found the ad for ${num(lookup.updated)} of ${num(lookup.checked)} lead${lookup.checked === 1 ? "" : "s"}. ` : `Checked ${num(lookup.checked)} lead${lookup.checked === 1 ? "" : "s"} — no ad found. `}
+                  {lookup.noData > 0 && `${num(lookup.noData)} had no ad information in Meta (organic, or a test lead). `}
+                  {lookup.tooOld > 0 && `${num(lookup.tooOld)} ${lookup.tooOld === 1 ? "is" : "are"} older than 90 days — Meta no longer keeps lead details that long. `}
+                  {lookup.failed > 0 && `${num(lookup.failed)} couldn't be checked${lookup.error ? ` — Meta said: “${lookup.error}”` : ""}. `}
+                  {lookup.remaining > 0 && `${num(lookup.remaining)} more to look up — click the button again.`}
+                </>)}
+              </p>
+              <button type="button" onClick={() => setLookup(null)} aria-label="Dismiss" className="shrink-0 rounded p-0.5 hover:bg-black/5"><X className="h-4 w-4" /></button>
+            </div>
+          )}
           <div className="flex-1 overflow-auto">
             {loading && <Loader />}
             {err && <div className="p-4"><ErrorBox msg={err} /></div>}
@@ -102,7 +148,7 @@ export default function LeadDrawer({ drill, onClose }) {
                       <td className="max-w-[280px] px-3 py-2">
                         <p className="text-slate-700 dark:text-slate-300">{CHANNEL_LABEL[l.channel] || l.channel}</p>
                         <p className="truncate text-[12px] text-slate-500" title={l.campaign}>{l.campaign || "—"}</p>
-                        <AdTrail l={l} onOpenAd={setAdOpen} />
+                        <AdTrail l={l} onOpenAd={setAdOpen} onLookup={runLookup} busy={looking} />
                         {l.attributionMethod === "name" && <Badge tone="warn">name-matched</Badge>}{l.attributionMethod === "none" && <Badge tone="bad">unattributed</Badge>}
                       </td>
                       <td className="px-3 py-2"><p className="text-slate-700 dark:text-slate-300">{l.statusLabel}</p><Badge tone={stageTone(l.stage)}>{STAGE_LABEL[l.stage] || l.stage}</Badge></td>

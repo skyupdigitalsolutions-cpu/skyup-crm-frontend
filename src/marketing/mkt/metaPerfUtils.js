@@ -51,11 +51,31 @@ export const METRICS = {
 };
 export const METRIC_ORDER = ["spend", "leads", "cpl", "impressions", "reach", "cpm", "linkCtr", "frequency"];
 
-// Metrics are picked two at a time for the trend chart: the first draws bars, the second a line.
-// Picking a third drops the oldest; clicking a picked one removes it (there is always at least one).
-export function pickMetric(selected, key) {
+// The trend chart can show ANY number of metrics at once (they are just lines). There is always at least one,
+// so un-picking the last one does nothing. New picks keep the chips' normal order.
+export function toggleMetric(selected, key) {
   if (selected.includes(key)) return selected.length > 1 ? selected.filter((k) => k !== key) : selected;
-  return [...selected, key].slice(-2);
+  return METRIC_ORDER.filter((k) => k === key || selected.includes(k));
+}
+
+// How the lines share the chart: one metric = real axis; two = left + right axes; three or more = each line is
+// scaled to its own peak (different units can't share one axis) and the tooltip gives the real numbers.
+export const trendScale = (count) => (count <= 1 ? "shared" : count === 2 ? "dual" : "own");
+
+// ── Campaign-wise trend: one line per campaign ───────────────────────────────
+export const CAMPAIGN_COLORS = ["#6366F1", "#10B981", "#F59E0B", "#EC4899", "#06B6D4", "#8B5CF6", "#F97316", "#3B82F6", "#84CC16", "#E11D48", "#14B8A6", "#A855F7"];
+export const TOP_CAMPAIGNS = 5;
+
+// Which campaigns are drawn at first: the ones you filtered to, otherwise the biggest spenders (32 lines is unreadable).
+export function defaultVisible(campaigns, selectedIds) {
+  if (selectedIds && selectedIds.length) return campaigns.filter((c) => selectedIds.includes(c.id)).map((c) => c.id);
+  return campaigns.slice(0, TOP_CAMPAIGNS).map((c) => c.id);
+}
+
+// Chart rows: one per day, one column per visible campaign (keyed by campaign id) for the chosen metric.
+export function campaignPoints(days, campaigns, visibleIds, metric) {
+  const vis = campaigns.filter((c) => visibleIds.includes(c.id));
+  return days.map((t, i) => { const row = { t }; vis.forEach((c) => { row[c.id] = c.points[i] ? c.points[i][metric] : null; }); return row; });
 }
 
 // ── Colour rules ─────────────────────────────────────────────────────────────
@@ -116,3 +136,34 @@ export function spendShare(campaigns, top = 5) {
   if (rest > 0) head.push({ key: "others", label: `Others (${withSpend.length - top})`, value: Math.round(rest * 100) / 100, color: "#94A3B8" });
   return head;
 }
+
+// ── Campaign filter ──────────────────────────────────────────────────────────
+export const MAX_SELECTED = 50;
+
+export function toggleId(list, id) {
+  if (list.includes(id)) return list.filter((x) => x !== id);
+  return list.length >= MAX_SELECTED ? list : [...list, id];
+}
+
+// Campaign picker search: case-insensitive "contains", biggest spend first.
+export function filterOptions(campaigns, query) {
+  const q = String(query || "").trim().toLowerCase();
+  return campaigns.filter((c) => !q || String(c.name).toLowerCase().includes(q)).slice().sort((a, b) => (b.spend || 0) - (a.spend || 0));
+}
+
+// What the donut / comparison / scorecard are built from:
+//   nothing picked      → every campaign
+//   several picked      → just those campaigns
+//   exactly one picked  → that campaign's AD SETS (a single slice or bar would say nothing)
+export function viewRows(data, selectedIds) {
+  const campaigns = (data && data.campaigns) || [];
+  const adsets = (data && data.adsets) || [];
+  const ids = selectedIds || [];
+  if (!ids.length) return { level: "campaign", rows: campaigns };
+  if (ids.length === 1 && adsets.length) return { level: "adset", rows: adsets };
+  const set = new Set(ids);
+  return { level: "campaign", rows: campaigns.filter((c) => set.has(c.id)) };
+}
+
+export const LEVEL_WORD = { campaign: ["campaign", "campaigns", "Campaign"], adset: ["ad set", "ad sets", "Ad set"] };
+export const pluralize = (level, n) => `${n} ${LEVEL_WORD[level][n === 1 ? 0 : 1]}`;

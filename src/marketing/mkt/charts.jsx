@@ -1,6 +1,5 @@
 // src/marketing/mkt/charts.jsx — NEW FILE
-// A small chart kit for the Marketing panel: sparkline, dual-axis combo chart (bars + line with
-// hover tooltip), ranked bars and a donut. Plain SVG + Tailwind, so it follows dark mode and needs no
+// A small chart kit for the Marketing panel: sparkline, multi-line chart (hover tooltip), ranked bars and a donut. Plain SVG + Tailwind, so it follows dark mode and needs no
 // extra library.
 import { useEffect, useId, useRef, useState } from "react";
 import { useWidth, niceTicks, monotonePath, runs } from "./chartUtils";
@@ -27,91 +26,110 @@ export function Sparkline({ values, color = "#6366F1", height = 30, width = 96 }
   );
 }
 
-// ── Combo chart: first series as bars (left axis), second as a line (right axis) ──
-// points: [{ t: "2026-10-01", <key>: number|null }]
-// series: [{ key, label, color, fmt, tick }]   fmt = tooltip text, tick = short axis text
-export function ComboChart({ points, series, height = 270, xLabel }) {
+// ── Line chart: any number of lines ──────────────────────────────────────────
+// points: [{ t: "2026-10-01", <key>: number|null }]      (null = no value that day → the line breaks)
+// series: [{ key, label, color, fmt, tick }]              fmt = tooltip text, tick = short axis text
+// scale:  "shared" – one axis for every line (same units, e.g. campaigns)
+//         "dual"   – first series on the left axis, second on the right (two metrics, different units)
+//         "own"    – each line scaled to ITS OWN peak so many different metrics can be compared by shape
+//                    (no axis numbers; hover for the real values)
+// highlight: series key to emphasise (others fade)
+export function LineChart({ points, series, scale = "shared", height = 280, highlight = null, xLabel }) {
   const wrap = useRef(null);
   const width = useWidth(wrap);
   const [hover, setHover] = useState(null);
   const [shown, setShown] = useState(false);
-  const uid = `cc${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const uid = `lc${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   useEffect(() => { const t = requestAnimationFrame(() => setShown(true)); return () => cancelAnimationFrame(t); }, []);
 
-  const bars = series[0], line = series[1];
-  const M = { l: 54, r: line ? 54 : 14, t: 14, b: 30 };
-  const W = Math.max(width, 280), iw = W - M.l - M.r, ih = height - M.t - M.b;
   const n = points.length;
-  if (!n) return <div ref={wrap} className="flex h-[200px] items-center justify-center text-[13px] text-slate-500">No data for this period.</div>;
+  const axes = scale === "own" ? "none" : scale === "dual" && series.length > 1 ? "dual" : "left";
+  const M = { l: axes === "none" ? 14 : 54, r: axes === "dual" ? 54 : 14, t: 14, b: 30 };
+  const W = Math.max(width, 280), iw = W - M.l - M.r, ih = height - M.t - M.b, PAD = 10;
+  if (!n || !series.length) return <div ref={wrap} className="flex h-[200px] items-center justify-center text-[13px] text-slate-500">{n ? "Pick at least one line to show." : "No data for this period."}</div>;
 
   const val = (p, s) => (p[s.key] == null || Number.isNaN(Number(p[s.key])) ? null : Number(p[s.key]));
-  const maxOf = (s) => Math.max(0, ...points.map((p) => val(p, s) || 0));
-  const L = niceTicks(maxOf(bars)), R = line ? niceTicks(maxOf(line)) : null;
-  const bw = iw / n, cx = (i) => M.l + bw * (i + 0.5);
-  const yL = (v) => M.t + ih - (v / L.max) * ih, yR = (v) => M.t + ih - (v / R.max) * ih;
-  const barW = Math.max(3, Math.min(34, bw * 0.62));
+  const maxOf = (list) => Math.max(0, ...list.flatMap((s) => points.map((p) => val(p, s) || 0)));
+  const shared = niceTicks(maxOf(series));
+  const left = axes === "dual" ? niceTicks(maxOf([series[0]])) : shared;
+  const right = axes === "dual" ? niceTicks(maxOf([series[1]])) : null;
+  const own = {}; if (scale === "own") series.forEach((s) => { own[s.key] = maxOf([s]) || 1; });
+  const yOf = (s, v) => {
+    if (scale === "own") return M.t + ih - (v / own[s.key]) * ih;
+    if (axes === "dual") return M.t + ih - (v / (s === series[0] ? left.max : right.max)) * ih;
+    return M.t + ih - (v / shared.max) * ih;
+  };
+  const x = (i) => M.l + PAD + (n === 1 ? (iw - 2 * PAD) / 2 : (i * (iw - 2 * PAD)) / (n - 1));
   const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(iw / 64))));
-  const lineSegs = line ? runs(points.map((p, i) => (val(p, line) == null ? null : { x: cx(i), y: yR(val(p, line)) }))) : [];
   const dayLabel = (t) => { const s = String(t).slice(0, 10).split("-"); return s.length < 3 ? String(t) : `${Number(s[2])} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(s[1]) - 1]}`; };
+  const gridTicks = scale === "own" ? [0, 0.25, 0.5, 0.75, 1].map((f) => ({ v: f, y: M.t + ih - f * ih })) : left.ticks.map((v) => ({ v, y: M.t + ih - (v / left.max) * ih }));
+  const single = series.length === 1;
+  const strokeW = series.length >= 5 ? 1.9 : 2.4;
+  const showDots = series.length <= 3 && n <= 45;
 
   const onMove = (e) => {
     const r = e.currentTarget.getBoundingClientRect();
-    const i = Math.min(n - 1, Math.max(0, Math.floor((e.clientX - r.left - M.l) / bw)));
-    setHover(i);
+    const step = n === 1 ? 1 : (iw - 2 * PAD) / (n - 1);
+    setHover(Math.min(n - 1, Math.max(0, Math.round((e.clientX - r.left - M.l - PAD) / step))));
   };
   const hp = hover == null ? null : points[hover];
-  const tipLeft = hover == null ? 0 : Math.min(Math.max(cx(hover) - 80, 4), W - 172);
+  const rowsAt = hp ? series.map((s) => ({ s, v: val(hp, s) })).sort((a, b) => (scale === "shared" ? (b.v == null ? -1 : b.v) - (a.v == null ? -1 : a.v) : 0)) : [];
+  const MAXROWS = 12;
+  const tipLeft = hover == null ? 0 : Math.min(Math.max(x(hover) - 96, 4), W - 204);
 
   return (
-    <div ref={wrap} className="relative w-full">
-      <svg width={W} height={height} viewBox={`0 0 ${W} ${height}`} role="img" aria-label={`${bars.label}${line ? ` and ${line.label}` : ""} by day`} className="block select-none">
+    <div ref={wrap} data-scale={scale} className="relative w-full">
+      <svg width={W} height={height} viewBox={`0 0 ${W} ${height}`} role="img" aria-label={`${series.map((s) => s.label).slice(0, 4).join(", ")}${series.length > 4 ? " and more" : ""} by day`} className="block select-none">
         <defs>
-          <linearGradient id={`${uid}b`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={bars.color} stopOpacity="0.95" /><stop offset="1" stopColor={bars.color} stopOpacity="0.45" /></linearGradient>
-          {line && <linearGradient id={`${uid}l`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={line.color} stopOpacity="0.22" /><stop offset="1" stopColor={line.color} stopOpacity="0" /></linearGradient>}
+          {series.map((s) => <linearGradient key={s.key} id={`${uid}${s.key}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={s.color} stopOpacity="0.22" /><stop offset="1" stopColor={s.color} stopOpacity="0" /></linearGradient>)}
         </defs>
-        {/* grid + left axis */}
-        {L.ticks.map((tv) => (
-          <g key={tv}>
-            <line x1={M.l} x2={W - M.r} y1={yL(tv)} y2={yL(tv)} className="stroke-slate-100 dark:stroke-[#1A2030]" strokeDasharray={tv === 0 ? undefined : "3 4"} />
-            <text x={M.l - 8} y={yL(tv) + 4} textAnchor="end" className="fill-slate-500 text-[11px] dark:fill-slate-400">{bars.tick ? bars.tick(tv) : tv}</text>
-          </g>
-        ))}
-        {R && R.ticks.map((tv) => <text key={tv} x={W - M.r + 8} y={yR(tv) + 4} className="text-[11px]" style={{ fill: line.color }}>{line.tick ? line.tick(tv) : tv}</text>)}
-        {/* x labels */}
-        {points.map((p, i) => (i % every === 0 ? <text key={i} x={cx(i)} y={height - 9} textAnchor="middle" className="fill-slate-500 text-[11px] dark:fill-slate-400">{xLabel ? xLabel(p.t) : dayLabel(p.t)}</text> : null))}
-        {/* bars */}
-        <g style={{ transformBox: "fill-box", transformOrigin: "50% 100%", transform: shown ? "scaleY(1)" : "scaleY(0.02)", transition: "transform 650ms cubic-bezier(.2,.8,.2,1)" }}>
-          {points.map((p, i) => {
-            const v = val(p, bars) || 0, h = Math.max(v > 0 ? 2 : 0, (v / L.max) * ih);
-            return <rect key={i} data-bar={i} x={cx(i) - barW / 2} y={M.t + ih - h} width={barW} height={h} rx={Math.min(5, barW / 2)} fill={`url(#${uid}b)`} opacity={hover == null || hover === i ? 1 : 0.55} />;
-          })}
-        </g>
-        {/* line */}
-        {lineSegs.map((sg, i) => (
+        {gridTicks.map((g, i) => (
           <g key={i}>
-            {sg.length > 1 && <path d={`${monotonePath(sg)}L${sg[sg.length - 1].x},${M.t + ih}L${sg[0].x},${M.t + ih}Z`} fill={`url(#${uid}l)`} />}
-            <path d={monotonePath(sg)} fill="none" stroke={line.color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-            {sg.length === 1 && <circle cx={sg[0].x} cy={sg[0].y} r="3.5" fill={line.color} />}
+            <line x1={M.l} x2={W - M.r} y1={g.y} y2={g.y} className="stroke-slate-100 dark:stroke-[#1A2030]" strokeDasharray={g.v === 0 ? undefined : "3 4"} />
+            {axes !== "none" && <text x={M.l - 8} y={g.y + 4} textAnchor="end" className="fill-slate-500 text-[11px] dark:fill-slate-400" style={axes === "dual" ? { fill: series[0].color } : undefined}>{series[0].tick ? series[0].tick(g.v) : g.v}</text>}
           </g>
         ))}
-        {/* hover guide + dots */}
+        {axes === "dual" && right.ticks.map((tv) => <text key={tv} x={W - M.r + 8} y={M.t + ih - (tv / right.max) * ih + 4} className="text-[11px]" style={{ fill: series[1].color }}>{series[1].tick ? series[1].tick(tv) : tv}</text>)}
+        {points.map((p, i) => (i % every === 0 ? <text key={i} x={x(i)} y={height - 9} textAnchor="middle" className="fill-slate-500 text-[11px] dark:fill-slate-400">{xLabel ? xLabel(p.t) : dayLabel(p.t)}</text> : null))}
+
+        {series.map((s) => {
+          const segs = []; let cur = [];
+          points.forEach((p, i) => { const v = val(p, s); if (v == null) { if (cur.length) { segs.push(cur); cur = []; } } else cur.push({ x: x(i), y: yOf(s, v) }); });
+          if (cur.length) segs.push(cur);
+          const faded = highlight && highlight !== s.key;
+          return (
+            <g key={s.key} opacity={faded ? 0.15 : 1} style={{ transition: "opacity 150ms" }}>
+              {segs.map((sg, i) => (
+                <g key={i}>
+                  {single && sg.length > 1 && <path d={`${monotonePath(sg)}L${sg[sg.length - 1].x},${M.t + ih}L${sg[0].x},${M.t + ih}Z`} fill={`url(#${uid}${s.key})`} />}
+                  <path data-line={s.key} d={monotonePath(sg)} fill="none" stroke={s.color} strokeWidth={highlight === s.key ? strokeW + 1 : strokeW} strokeLinecap="round" strokeLinejoin="round"
+                    pathLength="1" style={{ strokeDasharray: 1, strokeDashoffset: shown ? 0 : 1, transition: "stroke-dashoffset 800ms cubic-bezier(.2,.8,.2,1)" }} />
+                  {sg.length === 1 && <circle cx={sg[0].x} cy={sg[0].y} r="3.5" fill={s.color} />}
+                  {showDots && sg.length > 1 && sg.map((pt, j) => <circle key={j} cx={pt.x} cy={pt.y} r="2.4" fill="white" stroke={s.color} strokeWidth="1.6" className="dark:fill-[#121620]" />)}
+                </g>
+              ))}
+            </g>
+          );
+        })}
+
         {hover != null && (
           <g pointerEvents="none">
-            <line x1={cx(hover)} x2={cx(hover)} y1={M.t} y2={M.t + ih} className="stroke-slate-300 dark:stroke-slate-600" strokeDasharray="3 3" />
-            {line && val(hp, line) != null && <circle cx={cx(hover)} cy={yR(val(hp, line))} r="5" fill="white" stroke={line.color} strokeWidth="2.5" />}
+            <line x1={x(hover)} x2={x(hover)} y1={M.t} y2={M.t + ih} className="stroke-slate-300 dark:stroke-slate-600" strokeDasharray="3 3" />
+            {series.map((s) => (val(hp, s) == null ? null : <circle key={s.key} data-dot={s.key} cx={x(hover)} cy={yOf(s, val(hp, s))} r="4.5" fill="white" stroke={s.color} strokeWidth="2.4" className="dark:fill-[#121620]" />))}
           </g>
         )}
         <rect data-hit x={M.l} y={M.t} width={iw} height={ih} fill="transparent" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
       </svg>
       {hp && (
-        <div role="tooltip" className="pointer-events-none absolute top-1 z-10 w-[168px] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-[12px] shadow-lg backdrop-blur dark:border-[#262E40] dark:bg-[#171C28]/95" style={{ left: tipLeft }}>
+        <div role="tooltip" className="pointer-events-none absolute top-1 z-10 w-[200px] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-[12px] shadow-lg backdrop-blur dark:border-[#262E40] dark:bg-[#171C28]/95" style={{ left: tipLeft }}>
           <p className="mb-1 font-semibold text-slate-900 dark:text-slate-100">{xLabel ? xLabel(hp.t) : dayLabel(hp.t)}</p>
-          {series.map((s) => (
+          {rowsAt.slice(0, MAXROWS).map(({ s, v }) => (
             <p key={s.key} className="flex items-center justify-between gap-2 text-slate-600 dark:text-slate-300">
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: s.color }} />{s.label}</span>
-              <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">{val(hp, s) == null ? "—" : s.fmt(val(hp, s))}</span>
+              <span className="flex min-w-0 items-center gap-1.5"><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: s.color }} /><span className="truncate">{s.label}</span></span>
+              <span className="shrink-0 font-semibold tabular-nums text-slate-900 dark:text-slate-100">{v == null ? "—" : s.fmt(v)}</span>
             </p>
           ))}
+          {rowsAt.length > MAXROWS && <p className="mt-0.5 text-[11px] text-slate-400">+{rowsAt.length - MAXROWS} more</p>}
         </div>
       )}
     </div>
