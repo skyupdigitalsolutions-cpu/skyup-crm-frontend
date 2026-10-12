@@ -985,10 +985,13 @@ export default function LeadJourneyDrawer({ lead, onClose, isSuperAdmin = false,
                     leadId={String(lead._id)}
                     leadName={lead.name || ""}
                     mode="panel"
-                    onImported={({ imported }) => {
+                    onImported={({ imported, analysisQueued, duplicate }) => {
                       setScreenshotImported(true);
                       setShowScreenshot(false);
-                      if (onToast) onToast(`${imported} message${imported !== 1 ? "s" : ""} imported — click Re-analyze on AI Intelligence to include them`);
+                      if (!onToast) return;
+                      if (duplicate) onToast("This screenshot was already imported — nothing new was added");
+                      else if (analysisQueued) onToast(`${imported} message${imported !== 1 ? "s" : ""} imported — AI analysis started automatically`);
+                      else onToast(`${imported} message${imported !== 1 ? "s" : ""} imported — click Re-analyze on AI Intelligence to include them`);
                     }}
                   />
                 </div>

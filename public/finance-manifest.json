@@ -1,0 +1,21 @@
+{
+  "id": "/finance",
+  "name": "SkyUp Finance Panel",
+  "short_name": "Finance",
+  "description": "Invoices, payments and collections for your company.",
+  "start_url": "/finance",
+  "scope": "/finance",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B1210",
+  "theme_color": "#059669",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "categories": ["finance", "business", "productivity"],
+  "icons": [
+    { "src": "/finance-icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/finance-icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/finance-icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/finance-icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

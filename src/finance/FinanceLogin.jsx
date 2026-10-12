@@ -5,9 +5,12 @@ import { useNavigate, Link } from "react-router-dom";
 import { Loader2, Eye, EyeOff, Wallet, AlertCircle } from "lucide-react";
 import { financeAuthApi } from "./financeApi";
 import { setFinanceSession } from "./financeSessionStore";
+import InstallApp from "./InstallApp";
+import { useFinancePwa } from "./pwa";
 
 export default function FinanceLogin() {
   const nav = useNavigate();
+  const pwa = useFinancePwa();                 // makes this page installable as the Finance app
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
@@ -73,6 +76,7 @@ export default function FinanceLogin() {
             CRM admin and employee accounts can't sign in here.
           </p>
         </div>
+        <div className="mt-5 flex justify-center"><InstallApp pwa={pwa} variant="login" /></div>
         <p className="text-center text-[11px] text-emerald-400/50 mt-6">SkyUp CRM · Finance Panel</p>
       </div>
     </div>

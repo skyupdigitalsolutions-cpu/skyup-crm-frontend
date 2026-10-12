@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from "react";
-import { Brain, RefreshCw, Loader2, AlertTriangle, Zap } from "lucide-react";
+import { Brain, RefreshCw, Loader2, AlertTriangle, Zap, Sparkles } from "lucide-react";
 import api from "../../data/axiosConfig";
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -147,6 +147,9 @@ export default function LeadAIIntelligence({ leadId, isAdmin }) {
   const [loading,  setLoading]  = useState(true);
   const [acting,   setActing]   = useState(false); // analyze / re-analyze in flight
   const [error,    setError]    = useState("");
+  // Companies with "Auto AI Intelligence" on (Developer → Company → Features): the server starts and
+  // refreshes the analysis by itself whenever a lead is opened or has new activity — no button needed.
+  const [auto,     setAuto]     = useState(false);
 
   // ── Fetch stored analysis ───────────────────────────────────────────────────
   const fetchAnalysis = useCallback(async (silent = false) => {
@@ -157,6 +160,7 @@ export default function LeadAIIntelligence({ leadId, isAdmin }) {
         ? `/lead/admin/${leadId}/ai-analysis`
         : `/lead/${leadId}/ai-analysis`;
       const res = await api.get(endpoint);
+      setAuto(!!res.data.auto);
       if (res.data.hasAnalysis) {
         setAnalysis(res.data.analysis);
         setStatus(res.data.analysis.status);
@@ -233,7 +237,7 @@ export default function LeadAIIntelligence({ leadId, isAdmin }) {
       <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
         <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />
         <div>
-          <p className="text-[12px] font-semibold text-blue-700 dark:text-blue-300">Analysis in progress…</p>
+          <p className="text-[12px] font-semibold text-blue-700 dark:text-blue-300">{auto ? "Analysing this lead automatically…" : "Analysis in progress…"}</p>
           <p className="text-[11px] text-blue-500 dark:text-blue-400">Usually takes 10–30 seconds. This panel updates automatically.</p>
         </div>
       </div>
@@ -349,6 +353,11 @@ export default function LeadAIIntelligence({ leadId, isAdmin }) {
         <p className="text-[10px] text-[#8B92A9] text-right">
           Last analysed: {fmtDate(a.generatedAt)}
           {a.model && <span className="ml-1 opacity-60">· {a.model}</span>}
+        </p>
+      )}
+      {auto && (
+        <p className="text-[10px] text-[#7C3AED] text-right flex items-center justify-end gap-1">
+          <Sparkles className="w-3 h-3" /> Updates automatically when there is new activity
         </p>
       )}
     </div>

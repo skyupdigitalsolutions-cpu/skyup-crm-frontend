@@ -8,5 +8,7 @@ export const fmtDateTime = (d) => (d ? new Date(d).toLocaleString("en-IN", { day
 // <input type="date"> value (YYYY-MM-DD) in IST
 export const toInputDay = (d) => (d ? new Date(d).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) : "");
 export const todayInput = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-export const errMsg = (e, fallback = "Something went wrong") => e?.response?.data?.message || fallback;
+export const errMsg = (e, fallback = "Something went wrong") =>
+  e?.response?.data?.message ||
+  (e && !e.response && typeof navigator !== "undefined" && navigator.onLine === false ? "You're offline. Reconnect and try again." : fallback);
 

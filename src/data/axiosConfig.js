@@ -35,6 +35,8 @@ const NO_CACHE = [
   "/whatsapp/conversations",
   // Finance Dashboard — money data must always be fresh after a save
   "/finance",
+  // AI Intelligence status is live (pending → processing → done); a cached copy would keep showing "in progress"
+  "/ai-analysis",
 ];
 
 function isCacheable(url = "") {

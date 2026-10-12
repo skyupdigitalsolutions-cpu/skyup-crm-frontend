@@ -15,6 +15,7 @@ import {
   Download, RefreshCw, Eye, EyeOff,
 } from "lucide-react";
 import api from "../data/axiosConfig";
+import useEntitlements from "../hooks/useEntitlements";
 
 // ── localStorage helpers ───────────────────────────────────────────────────────
 const LS_PREFIX = "wa_screenshot_extract_";
@@ -149,6 +150,12 @@ export default function WhatsAppScreenshotUploader({
   const [imported, setImported] = useState(null);
   const [showAll,  setShowAll]  = useState(false);
   const [showImg,  setShowImg]  = useState(false);
+  const [info,     setInfo]     = useState(null);   // server reply after an import (summary, duplicate, analysisQueued…)
+
+  // Companies with "Auto WhatsApp Screenshot AI" on (Developer → Company → Features): choosing a
+  // screenshot reads it, saves it into the chat and starts the AI analysis — no review/import clicks.
+  const { entitlements } = useEntitlements();
+  const auto = entitlements?.autoScreenshotAI === true && !!leadId;
 
   // ── Restore from localStorage on mount ───────────────────────────────────────
   useEffect(() => {
@@ -192,6 +199,7 @@ export default function WhatsAppScreenshotUploader({
     setImported(null);
     setShowAll(false);
     setShowImg(false);
+    setInfo(null);
   }, [leadId]);
 
   // ── Handle file selection ─────────────────────────────────────────────────────
@@ -200,6 +208,27 @@ export default function WhatsAppScreenshotUploader({
     setStep("extracting");
     setError(null);
     setResult(null);
+    setInfo(null);
+
+    // ── Automatic mode: one call reads, saves and queues the AI analysis ──────
+    if (auto) {
+      try { setPreview(await fileToDataUrl(f)); } catch { /* preview optional */ }
+      try {
+        const form = new FormData();
+        form.append("screenshot", f);
+        form.append("leadId", leadId);
+        const res = await api.post("/whatsapp/screenshot/import", form, { headers: { "Content-Type": "multipart/form-data" } });
+        if (!res.data.success) throw new Error(res.data.message || "Import failed");
+        setInfo({ ...res.data, auto: true });
+        setImported(res.data.imported);
+        setStep("done");
+        if (onImported) onImported({ imported: res.data.imported, conversationId: res.data.conversationId, summary: res.data.summary, analysisQueued: !!res.data.analysisQueued, duplicate: !!res.data.duplicate });
+      } catch (err) {
+        setError(err.response?.data?.message || err.message || "Import failed");
+        setStep("error");
+      }
+      return;
+    }
 
     // Convert to data URL immediately so we can store it
     let dataUrl = null;
@@ -226,7 +255,7 @@ export default function WhatsAppScreenshotUploader({
       setError(err.response?.data?.message || err.message || "Extraction failed");
       setStep("error");
     }
-  }, [leadId]);
+  }, [leadId, auto, onImported]);
 
   // ── Import into conversation ───────────────────────────────────────────────────
   const handleImport = async () => {
@@ -252,6 +281,7 @@ export default function WhatsAppScreenshotUploader({
 
       lsClear(leadId); // clear after successful import
       setImported(res.data.imported);
+      setInfo(res.data);
       setStep("done");
 
       if (onImported) {
@@ -259,6 +289,8 @@ export default function WhatsAppScreenshotUploader({
           imported:       res.data.imported,
           conversationId: res.data.conversationId,
           summary:        res.data.summary,
+          analysisQueued: !!res.data.analysisQueued,
+          duplicate:      !!res.data.duplicate,
         });
       }
     } catch (err) {
@@ -294,7 +326,15 @@ export default function WhatsAppScreenshotUploader({
 
       {/* Drop zone */}
       {step === "idle" && (
-        <DropZone onFile={handleFile} disabled={false} />
+        <>
+          <DropZone onFile={handleFile} disabled={false} />
+          {auto && (
+            <p className="text-[11px] text-[#8B92A9] text-center flex items-center justify-center gap-1.5">
+              <Sparkles size={11} className="text-[#7C3AED]" />
+              Automatic: the screenshot is read, saved to this lead's chat and AI-analysed as soon as you add it.
+            </p>
+          )}
+        </>
       )}
 
       {/* Extracting */}
@@ -306,7 +346,9 @@ export default function WhatsAppScreenshotUploader({
           <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
             Reading screenshot with AI…
           </p>
-          <p className="text-[12px] text-[#8B92A9]">Extracting messages, sentiment, and context</p>
+          <p className="text-[12px] text-[#8B92A9]">
+            {auto ? "Reading it, saving the messages to the chat and starting the AI analysis" : "Extracting messages, sentiment, and context"}
+          </p>
           {preview && (
             <img src={preview} alt="Screenshot" className="w-32 rounded-xl opacity-40 border border-[#E4E7EF]" />
           )}
@@ -335,16 +377,57 @@ export default function WhatsAppScreenshotUploader({
           <div className="w-12 h-12 rounded-2xl bg-[#ECFDF5] flex items-center justify-center">
             <Check size={22} className="text-[#059669]" />
           </div>
-          <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
-            {imported} message{imported !== 1 ? "s" : ""} imported
-          </p>
-          <p className="text-[12px] text-[#8B92A9]">
-            Visible in the WhatsApp chat for{" "}
-            <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{leadName}</span>
-          </p>
+          {info?.duplicate ? (
+            <>
+              <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Already imported</p>
+              <p className="text-[12px] text-[#8B92A9] text-center px-4">This screenshot was imported before, so nothing new was added.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-[14px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">
+                {imported} message{imported !== 1 ? "s" : ""} imported
+              </p>
+              <p className="text-[12px] text-[#8B92A9]">
+                Visible in the WhatsApp chat for{" "}
+                <span className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{leadName}</span>
+              </p>
+            </>
+          )}
+
+          {/* What the AI found — shown in automatic mode, where there is no review step */}
+          {info?.auto && !info.duplicate && (
+            <div className="w-full rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] p-4 text-left flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles size={13} className="text-[#7C3AED]" />
+                <span className="text-[12px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">AI read this screenshot automatically</span>
+                {(() => { const sv = SENTIMENT[info.customerSentiment] || SENTIMENT.NEUTRAL; return (
+                  <span className={`ml-auto px-2.5 py-0.5 rounded-full text-[11px] font-bold ${sv.bg} ${sv.text}`}>{sv.label}</span>
+                ); })()}
+              </div>
+              {info.summary && <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] leading-relaxed">{info.summary}</p>}
+              {(info.keyTopics || []).length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {info.keyTopics.map((t, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB]">{t}</span>
+                  ))}
+                </div>
+              )}
+              {info.hasUnreplied && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#FFF7ED] dark:bg-[#2D1300] text-[#9A3412] w-fit">
+                  ⚠ Customer's last message is unanswered
+                </span>
+              )}
+              {info.analysisQueued && (
+                <p className="text-[11px] text-[#7C3AED] font-semibold">
+                  AI analysis of this lead started automatically — it will be ready in AI Intelligence in a few minutes.
+                </p>
+              )}
+            </div>
+          )}
+
           <button
             onClick={reset}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:border-[#2563EB] transition"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] transition"
           >
             <Upload size={12} /> Upload another
           </button>

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#059669" />
+  <title>Finance Panel — offline</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box;
+           font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #F6F7F9; color: #0F172A; }
+    .card { max-width: 380px; text-align: center; }
+    .logo { width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 18px; display: block; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    p { margin: 0 0 20px; color: #64748B; line-height: 1.5; font-size: 14px; }
+    button { font: inherit; font-weight: 600; font-size: 14px; padding: 10px 20px; border: 0; border-radius: 12px; background: #059669; color: #fff; cursor: pointer; }
+    @media (prefers-color-scheme: dark) { body { background: #0B0E14; color: #E5E7EB; } p { color: #94A3B8; } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="/finance-icons/icon-192.png" alt="" />
+    <h1>You're offline</h1>
+    <p>The Finance Panel needs an internet connection to show your invoices and record payments. Reconnect and try again.</p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

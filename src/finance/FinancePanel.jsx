@@ -6,11 +6,14 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Wallet, Sun, Moon, LogOut } from "lucide-react";
 import FinanceDashboard from "../components/FinanceDashboard";
+import InstallApp from "./InstallApp";
+import { useFinancePwa } from "./pwa";
 import financeApi from "./financeApi";
 import { getFinanceToken, getFinanceUser, clearFinanceSession } from "./financeSessionStore";
 
 export default function FinancePanel() {
   const nav = useNavigate();
+  const pwa = useFinancePwa();                 // installable app + online/offline state
   const token = getFinanceToken();
   const user = getFinanceUser() || {};
   const [dark, setDark] = useState(() => localStorage.getItem("fin_dark") === "true");
@@ -40,6 +43,7 @@ export default function FinancePanel() {
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <InstallApp pwa={pwa} variant="header" />
             <button onClick={() => setDark(!dark)} aria-label="Toggle dark mode" className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:text-slate-900 dark:border-[#1F2533] dark:hover:text-white">
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
@@ -51,6 +55,11 @@ export default function FinancePanel() {
           </div>
         </div>
       </header>
+      {!pwa.online && (
+        <div role="status" className="bg-amber-100 px-4 py-2 text-center text-[12px] font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          You're offline. You're seeing the last loaded screen — reconnect to see new data or save changes.
+        </div>
+      )}
       <main className="mx-auto max-w-[1440px] px-4 py-5 md:px-6">
         <FinanceDashboard embedded basePath="" client={financeApi} />
       </main>

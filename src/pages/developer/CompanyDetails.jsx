@@ -73,6 +73,8 @@ const FEATURE_GROUPS = [
     { key: "festivalCampaigns",   label: "Festival Campaigns (off unless turned on here)" },
     { key: "marketingDashboard",  label: "Digital Marketing Dashboard (off unless turned on here)" },
     { key: "financeDashboard",    label: "Finance Dashboard — converted-lead invoices, part-payments & payment follow-ups (off unless turned on here)" },
+    { key: "autoLeadAnalysis",    label: "Auto AI Intelligence — analyse leads automatically (when opened + a background sweep); no Analyse / Re-analyse click needed (off unless turned on here)" },
+    { key: "autoScreenshotAI",    label: "Auto WhatsApp Screenshot AI — read, save and AI-analyse chat screenshots automatically, no manual clicks (off unless turned on here)" },
     { key: "callOutcomesReport",  label: "Call Outcomes Report (Answered/Not Answered)" },
     { key: "metaConversionSync",  label: "Meta Conversions API Send-Back (status → CAPI event)" },
     { key: "leadIntelligence",   label: "Lead Intelligence — AI-powered lead outcome analysis page" },
