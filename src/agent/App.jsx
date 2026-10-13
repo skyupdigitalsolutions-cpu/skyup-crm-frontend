@@ -8,13 +8,17 @@
 import { useEffect, useRef } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AGENT_ROLES } from './api.js';
+import { AlertsProvider } from './alerts.jsx';
 import { AttendanceProvider } from './attendance.jsx';
 import { AuthProvider, useAuth } from './auth.jsx';
 import { LeadsProvider } from './leads.jsx';
+import LiveEvents from './LiveEvents.jsx';
 import { clearPendingCall, takePendingCall } from './pendingCall.js';
 import { useAgentPwa } from './pwa.js';
+import { SocketProvider } from './socket.jsx';
 import { BottomNav } from './components/Shell.jsx';
 import { ToastProvider } from './components/Toast.jsx';
+import Calls from './pages/Calls.jsx';
 import ClockInGate from './pages/ClockInGate.jsx';
 import Home from './pages/Home.jsx';
 import LeadDetail from './pages/LeadDetail.jsx';
@@ -49,15 +53,19 @@ function PendingCallResumer() {
 function SignedInApp({ user }) {
   return (
     <TermsGate>
+      <SocketProvider userId={user._id}>
+      <AlertsProvider>
       <AttendanceProvider>
         <ClockInGate>
           <LeadsProvider userId={user._id || user.email}>
             <PendingCallResumer />
+            <LiveEvents />
             <div className="frame">
               <Routes>
                 <Route index element={<Home />} />
                 <Route path="leads" element={<Leads />} />
                 <Route path="leads/:id" element={<LeadDetail />} />
+                <Route path="calls" element={<Calls />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="*" element={<Navigate to="/agent" replace />} />
               </Routes>
@@ -66,6 +74,8 @@ function SignedInApp({ user }) {
           </LeadsProvider>
         </ClockInGate>
       </AttendanceProvider>
+      </AlertsProvider>
+      </SocketProvider>
     </TermsGate>
   );
 }

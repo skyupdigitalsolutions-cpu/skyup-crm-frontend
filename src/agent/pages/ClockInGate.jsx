@@ -3,6 +3,8 @@ import { attendance as A } from '../api.js';
 import { useAttendance } from '../attendance.jsx';
 import { useAuth } from '../auth.jsx';
 import Sheet from '../components/Sheet.jsx';
+import { useAlerts } from '../alerts.jsx';
+import { useSocketEvent } from '../socket.jsx';
 
 // Same as the app: you must be clocked in to use the CRM.
 export default function ClockInGate({ children }) {
@@ -12,6 +14,19 @@ export default function ClockInGate({ children }) {
   const [error, setError] = useState(null); // { text, remote? }
   const [remote, setRemote] = useState('idle'); // idle | pending | approved | denied
   const [showRemote, setShowRemote] = useState(false);
+  const { notify } = useAlerts();
+
+  // Admin answered the remote clock-in request (live).
+  useSocketEvent('meeting_permission_response', ({ approved, adminName } = {}) => {
+    setRemote(approved ? 'approved' : 'denied');
+    notify({
+      title: approved ? 'Remote clock-in approved' : 'Remote clock-in declined',
+      body: approved ? `${adminName || 'Your admin'} approved it. You can clock in now.`
+        : `${adminName || 'Your admin'} declined it. Clock in from the office.`,
+      tone: approved ? 'green' : 'red',
+      tag: 'remote-clockin',
+    });
+  });
 
   const checkRemote = useCallback(async () => {
     try {

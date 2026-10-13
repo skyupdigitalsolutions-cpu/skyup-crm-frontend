@@ -48,9 +48,14 @@ export function LeadsProvider({ userId, children }) {
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...changes } : l)));
   }, []);
 
+  // Insert or replace one lead (used when a live "new lead" event arrives).
+  const upsertLead = useCallback((lead) => {
+    setLeads((prev) => [lead, ...prev.filter((l) => l.id !== lead.id)]);
+  }, []);
+
   const value = useMemo(
-    () => ({ leads, loading, error, loadedAt, refresh, patchLocal }),
-    [leads, loading, error, loadedAt, refresh, patchLocal],
+    () => ({ leads, loading, error, loadedAt, refresh, patchLocal, upsertLead }),
+    [leads, loading, error, loadedAt, refresh, patchLocal, upsertLead],
   );
   return <LeadsCtx.Provider value={value}>{children}</LeadsCtx.Provider>;
 }

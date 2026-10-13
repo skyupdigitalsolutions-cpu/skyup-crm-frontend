@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { IconBack, IconHome, IconUser, IconUsers } from './icons.jsx';
+import { IconBack, IconCalls, IconHome, IconUser, IconUsers } from './icons.jsx';
 
 // `back` is the path the back arrow goes to (explicit, so it never depends on
 // browser history — the CRM's nav guard also manipulates history).
@@ -24,6 +24,7 @@ export function BottomNav() {
       <div className="bottomnav-inner">
         <NavLink to="/agent" end><IconHome />Home</NavLink>
         <NavLink to="/agent/leads"><IconUsers />Leads</NavLink>
+        <NavLink to="/agent/calls"><IconCalls />Calls</NavLink>
         <NavLink to="/agent/profile"><IconUser />Profile</NavLink>
       </div>
     </nav>

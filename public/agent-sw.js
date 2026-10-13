@@ -14,7 +14,7 @@
  *
  * Bump VERSION to force every device to drop its old caches.
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `agent-shell-${VERSION}`;
 const ASSET_CACHE = `agent-assets-${VERSION}`;
 const SHELL_KEY   = "/__agent-shell";          // where the SPA's index.html is kept
@@ -84,4 +84,21 @@ self.addEventListener("fetch", (event) => {
   if (PRECACHE.includes(url.pathname)) {
     event.respondWith(caches.match(req).then((hit) => hit || fetch(req)));
   }
+});
+
+// Tapping a SkyUp CRM notification opens (or focuses) the app on the right page.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/agent";
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of all) {
+      if (new URL(c.url).pathname.startsWith("/agent")) {
+        await c.focus();
+        if ("navigate" in c) { try { await c.navigate(target); } catch (e) { /* ignore */ } }
+        return;
+      }
+    }
+    await self.clients.openWindow(target);
+  })());
 });

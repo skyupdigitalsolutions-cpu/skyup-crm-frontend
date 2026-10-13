@@ -156,9 +156,14 @@ export function formatLead(lead) {
   const isLogEntry = (h) => !h || h.callType != null || h.duration != null || h.timestamp != null ||
     (typeof h.remark === 'string' && /call from mobile app/i.test(h.remark));
   let manual = '';
+  let manualAt = 0;
   for (let i = callHistory.length - 1; i >= 0; i--) {
     const h = callHistory[i];
-    if (h?.remark && String(h.remark).trim() && !isLogEntry(h)) { manual = String(h.remark).trim(); break; }
+    if (h?.remark && String(h.remark).trim() && !isLogEntry(h)) {
+      manual = String(h.remark).trim();
+      manualAt = h.calledAt ? new Date(h.calledAt).getTime() || 0 : 0;
+      break;
+    }
   }
   const phone = lead?.primaryPhone || lead?.mobile || lead?.phone || '';
   const created = lead?.date ? new Date(lead.date).getTime() : 0;
@@ -177,6 +182,7 @@ export function formatLead(lead) {
     date: lead?.date,
     sortAt: Math.max(created, lastAt) || created,
     remark: manual || (lead?.remark ? String(lead.remark).trim() : ''),
+    lastManualRemarkAt: manualAt,
     initialRemark: lead?.initialRemark || '',
     followUpDate: lead?.followUpDate || (Array.isArray(lead?.scheduledCalls)
       ? lead.scheduledCalls.filter((s) => s && !s.done && s.scheduledAt).map((s) => s.scheduledAt)
@@ -188,6 +194,28 @@ export function formatLead(lead) {
     lastCalledAt: lastCall?.calledAt || null,
     isClosed: !!lead?.isClosed,
   };
+}
+
+// True for history entries written by the call-log sync rather than an agent.
+export const isAutoCallEntry = (h) => !h || h.callType != null || h.duration != null || h.timestamp != null ||
+  (typeof h.remark === 'string' && /call from mobile app/i.test(h.remark));
+
+// ── Call logs (synced by the Android app) — same endpoints as its Calls screen
+const LOG_PAGE = 500;
+export async function getCallLogsForDay(dateStr, tzOffset) {
+  const base = `/call-logs?date=${dateStr}&tzOffset=${tzOffset}&limit=${LOG_PAGE}`;
+  const first = await api.get(`${base}&page=1`, { timeout: 30000 });
+  let logs = first?.logs || [];
+  const pages = Math.min(first?.totalPages || 1, 20);
+  for (let p = 2; p <= pages; p++) {
+    const r = await api.get(`${base}&page=${p}`, { timeout: 30000 });
+    logs = logs.concat(r?.logs || []);
+  }
+  return logs;
+}
+export async function getUncalledLeads(dateStr, tzOffset, limit = 100) {
+  const r = await api.get(`/call-logs/uncalled?date=${dateStr}&tzOffset=${tzOffset}&page=1&limit=${limit}`);
+  return { leads: r?.leads || [], total: Number(r?.total) || (r?.leads || []).length };
 }
 
 // ── Attendance ───────────────────────────────────────────────────────────────

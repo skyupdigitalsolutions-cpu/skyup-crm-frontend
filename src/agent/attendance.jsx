@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { attendance as A } from './api.js';
 import { getPosition } from './location.js';
+import { useSocketEvent } from './socket.jsx';
 
 const Ctx = createContext(null);
 
@@ -33,6 +34,15 @@ export function AttendanceProvider({ children }) {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // Server pushed a change (break auto-started, admin edit, other device…).
+  useSocketEvent('attendance:updated', (rec) => {
+    if (!rec || typeof rec !== 'object') return;
+    setRecord(rec);
+    const isIn = !!rec.loginTime && !rec.logoutTime;
+    known.current = isIn;
+    setState(isIn ? 'in' : 'out');
+  });
 
   // Activity ping every 60s while the app is open and clocked in — this is
   // what the backend uses to tell "active" from "idle", same as the app.
