@@ -20,7 +20,8 @@ const MARK = "data-finance-pwa";
 // ── <head> tags (added only on Finance pages) ────────────────────────────────
 const TAGS = [
   ["link", { rel: "manifest", href: "/finance-manifest.json" }],
-  ["link", { rel: "apple-touch-icon", href: "/finance-icons/apple-touch-icon.png" }],
+  ["link", { rel: "apple-touch-icon", href: "/finance-icons/skyup-finance-apple-touch-180.png" }],
+  ["link", { rel: "icon", type: "image/png", sizes: "192x192", href: "/finance-icons/skyup-finance-192.png" }],
   ["meta", { name: "theme-color", content: "#059669" }],
   ["meta", { name: "mobile-web-app-capable", content: "yes" }],
   ["meta", { name: "apple-mobile-web-app-capable", content: "yes" }],

@@ -14,12 +14,12 @@
  *
  * Bump VERSION to force every device to drop its old caches.
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `finance-shell-${VERSION}`;
 const ASSET_CACHE = `finance-assets-${VERSION}`;
 const SHELL_KEY   = "/__finance-shell";          // where the SPA's index.html is kept
 const OFFLINE_URL = "/finance-offline.html";
-const PRECACHE    = [OFFLINE_URL, "/finance-manifest.json", "/finance-icons/icon-192.png", "/finance-icons/icon-512.png", "/finance-icons/apple-touch-icon.png"];
+const PRECACHE    = [OFFLINE_URL, "/finance-manifest.json", "/finance-icons/skyup-finance-192.png", "/finance-icons/skyup-finance-512.png", "/finance-icons/skyup-finance-apple-touch-180.png"];
 const MAX_ASSET_ENTRIES = 80;                    // keep the asset cache from growing forever
 
 self.addEventListener("install", (event) => {
