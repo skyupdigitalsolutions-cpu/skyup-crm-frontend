@@ -7,11 +7,14 @@
 # after testing with the real production build (npm run preview), matching
 # the same opt-in caution the backend applies via ENABLE_CSP.
 
+# geolocation=(self): clock-in location (CRM ClockInGate / AttendancePage and the
+# /agent app) needs the browser's location API on this site only. It stays blocked
+# for third-party frames. Previously geolocation=() blocked it everywhere.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Permissions-Policy: geolocation=(self), microphone=(), camera=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
 
 # ── Caching — prevents the "stale deploy" chunk errors ────────────────────────
@@ -35,4 +38,14 @@
 /finance-offline.html
   Cache-Control: no-cache
 /finance-icons/*
+  Cache-Control: public, max-age=604800
+
+# ── Agent app PWA (/agent) ────────────────────────────────────────────────────
+/agent-sw.js
+  Cache-Control: no-cache
+/agent-manifest.json
+  Cache-Control: public, max-age=3600
+/agent-offline.html
+  Cache-Control: no-cache
+/agent-icons/*
   Cache-Control: public, max-age=604800

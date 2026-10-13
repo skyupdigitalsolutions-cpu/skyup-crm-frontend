@@ -1,0 +1,359 @@
+/* src/agent/styles.css — Agent app (/agent).
+ * Everything is scoped under .agent-app so nothing leaks into the CRM.
+ * Colour tokens follow the mobile app (src/theme/tokens.js there); dark mode
+ * follows the CRM's own theme toggle (html.dark). */
+.agent-app {
+  --bg: #F8F9FC;
+  --surface: #FFFFFF;
+  --surface-alt: #F1F3F8;
+  --border: #E4E7EF;
+  --text: #0F1117;
+  --text-sec: #5B6178;
+  --text-muted: #8A90A6;
+  --blue: #2563EB;
+  --blue-ink: #1D4ED8;
+  --blue-bg: #EAF0FE;
+  --orange: #F7931E;           /* from the SkyUp logo */
+  --orange-bg: #FEF1DF;
+  --green: #059669;
+  --green-bg: #E3F6EF;
+  --amber: #B45309;
+  --amber-bg: #FDF2DC;
+  --red: #DC2626;
+  --red-bg: #FDE8E8;
+  --purple: #7C3AED;
+  --purple-bg: #F0E9FE;
+  --on-green: #FFFFFF;
+  --shadow-sheet: 0 -8px 30px rgba(15, 17, 23, 0.14);
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 20px;
+  --font: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --nav-h: 64px;
+  color-scheme: light;
+
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+html.dark .agent-app {
+  --bg: #0D0F14; --surface: #1A1D27; --surface-alt: #13161E; --border: #262A38;
+  --text: #F0F2FA; --text-sec: #9DA3BB; --text-muted: #6B718A;
+  --blue: #4F8EF7; --blue-ink: #7FAEFA; --blue-bg: #1A2540;
+  --orange-bg: #33230C; --green: #34D399; --green-bg: #052E1C;
+  --amber: #FCD34D; --amber-bg: #2D1F00; --red: #F87171; --red-bg: #2D0A0A;
+  --purple: #A78BFA; --purple-bg: #2E1065; --on-green: #052E1C;
+  --shadow-sheet: 0 -8px 30px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+body.agent-body { background: #F8F9FC; overscroll-behavior-y: none; }
+html.dark body.agent-body { background: #0D0F14; }
+
+:where(.agent-app) *, :where(.agent-app) *::before, :where(.agent-app) *::after { box-sizing: border-box; }
+:where(.agent-app) :is(button, input, select, textarea) { font: inherit; color: inherit; }
+:where(.agent-app) button { cursor: pointer; }
+:where(.agent-app) a { color: var(--blue); text-decoration: none; }
+.agent-app :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .agent-app *, .agent-app *::before, .agent-app *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ── App frame ───────────────────────────────────────────────────────────── */
+.agent-app .frame {
+  max-width: 560px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+}
+.agent-app .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 12px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+.agent-app .topbar h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-app .icon-btn {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: inline-grid; place-items: center;
+  border: 0; background: transparent; color: var(--text);
+}
+.agent-app .icon-btn:active { background: var(--surface-alt); }
+.agent-app .icon-btn svg { width: 22px; height: 22px; }
+
+.agent-app .bottomnav {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 30;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.agent-app .bottomnav-inner { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); height: var(--nav-h); }
+.agent-app .bottomnav a {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  color: var(--text-muted); font-size: 12px; font-weight: 600;
+}
+.agent-app .bottomnav a svg { width: 24px; height: 24px; }
+.agent-app .bottomnav a.active { color: var(--blue); }
+
+.agent-app .page { padding: 16px; }
+.agent-app .section { margin-top: 24px; }
+.agent-app .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 0 0 10px; }
+.agent-app .section-head h2 { font-size: 17px; font-weight: 700; margin: 0; }
+.agent-app .section-head a, .agent-app .section-head button { font-size: 14px; font-weight: 600; color: var(--blue); background: none; border: 0; padding: 0; }
+.agent-app .muted { color: var(--text-sec); }
+.agent-app .small { font-size: 13px; }
+
+/* ── Buttons & inputs ────────────────────────────────────────────────────── */
+.agent-app .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 0 20px;
+  border-radius: var(--radius-m);
+  border: 1px solid transparent;
+  font-weight: 700; font-size: 16px;
+  background: var(--blue); color: #fff;
+  transition: transform 0.08s ease, opacity 0.15s;
+}
+.agent-app .btn:active { transform: scale(0.98); }
+.agent-app .btn:disabled { opacity: 0.55; }
+.agent-app .btn svg { width: 20px; height: 20px; }
+.agent-app .btn.block { width: 100%; }
+.agent-app .btn.ghost { background: var(--surface); color: var(--text); border-color: var(--border); }
+.agent-app .btn.danger { background: var(--red-bg); color: var(--red); }
+.agent-app .btn.green { background: var(--green); color: var(--on-green); }
+.agent-app .btn, .agent-app .btn:hover { text-decoration: none; }
+.agent-app .btn.sm { min-height: 38px; padding: 0 14px; font-size: 14px; border-radius: var(--radius-s); }
+
+.agent-app .field { display: block; margin-bottom: 14px; }
+.agent-app .field > span { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; color: var(--text-sec); }
+.agent-app .input, .agent-app .textarea, .agent-app .select {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 16px; /* 16px stops iOS zooming into inputs */
+}
+.agent-app .textarea { min-height: 96px; resize: vertical; }
+.agent-app .input:focus, .agent-app .textarea:focus, .agent-app .select:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+
+.agent-app .search {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m);
+  padding: 0 12px; min-height: 46px;
+}
+.agent-app .search svg { width: 20px; height: 20px; color: var(--text-muted); flex: none; }
+.agent-app .search input { flex: 1; border: 0; background: transparent; font-size: 16px; min-width: 0; outline: none; }
+
+/* ── Chips ───────────────────────────────────────────────────────────────── */
+.agent-app .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0; scrollbar-width: none; }
+.agent-app .chips::-webkit-scrollbar { display: none; }
+.agent-app .chip {
+  flex: none;
+  min-height: 36px; padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-sec);
+  font-size: 14px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.agent-app .chip.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+.agent-app .chip-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.agent-app .tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 700;
+  padding: 3px 9px; border-radius: 999px;
+  white-space: nowrap;
+}
+.agent-app .tone-blue { background: var(--blue-bg); color: var(--blue); }
+.agent-app .tone-amber { background: var(--amber-bg); color: var(--amber); }
+.agent-app .tone-green { background: var(--green-bg); color: var(--green); }
+.agent-app .tone-purple { background: var(--purple-bg); color: var(--purple); }
+.agent-app .tone-red { background: var(--red-bg); color: var(--red); }
+.agent-app .tone-muted { background: var(--surface-alt); color: var(--text-muted); }
+.agent-app .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+/* ── Shift panel (Home) — the one bold element ───────────────────────────── */
+.agent-app .shift {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  padding: 18px 18px 16px;
+}
+.agent-app .shift-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.agent-app .shift-status { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 14px; }
+.agent-app .shift-status .dot { width: 10px; height: 10px; }
+.agent-app .shift-clock {
+  font-size: 52px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  margin: 16px 0 6px;
+}
+.agent-app .shift-sub { font-size: 14px; color: var(--text-sec); }
+.agent-app .ribbon {
+  position: relative;
+  height: 10px;
+  margin: 18px 0 6px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  overflow: hidden;
+}
+.agent-app .ribbon-work { position: absolute; top: 0; bottom: 0; left: 0; background: var(--blue); border-radius: 999px; }
+.agent-app .ribbon-break { position: absolute; top: 0; bottom: 0; background: var(--orange); }
+.agent-app .ribbon-scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.agent-app .ribbon-key { display: flex; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--text-sec); }
+.agent-app .ribbon-key i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.agent-app .shift-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+
+/* ── Stats strip ─────────────────────────────────────────────────────────── */
+.agent-app .stats { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--border); border-radius: var(--radius-m); background: var(--surface); }
+.agent-app .stat { padding: 12px 12px; text-align: left; border: 0; background: transparent; }
+.agent-app .stat + .stat { border-left: 1px solid var(--border); }
+.agent-app .stat b { display: block; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.agent-app .stat span { font-size: 13px; color: var(--text-sec); }
+
+/* ── Lead rows ───────────────────────────────────────────────────────────── */
+.agent-app .list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m); overflow: hidden; }
+.agent-app .row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  color: var(--text);
+  border-top: 1px solid var(--border);
+  position: relative;
+}
+.agent-app .row:first-child { border-top: 0; }
+.agent-app .row:has(.row-link:active) { background: var(--surface-alt); }
+.agent-app .row-link { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; color: inherit; }
+.agent-app .row-main { display: block; }
+.agent-app .avatar {
+  width: 42px; height: 42px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  background: var(--blue-bg); color: var(--blue);
+  font-weight: 800; font-size: 15px;
+}
+.agent-app .row-main { flex: 1; min-width: 0; }
+.agent-app .row-title { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 16px; }
+.agent-app .row-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-app .row-sub { font-size: 13px; color: var(--text-sec); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+.agent-app .row-meta { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.agent-app .row-call {
+  width: 44px; height: 44px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  background: var(--green-bg); color: var(--green); border: 0;
+}
+.agent-app .row-call svg { width: 21px; height: 21px; }
+.agent-app .temp-mark { position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; }
+
+/* ── Lead detail ─────────────────────────────────────────────────────────── */
+.agent-app .lead-head { text-align: center; padding: 8px 0 4px; }
+.agent-app .lead-head .avatar { width: 68px; height: 68px; font-size: 24px; margin: 0 auto 10px; }
+.agent-app .lead-head h2 { font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.01em; }
+.agent-app .lead-head .muted { margin-top: 2px; }
+.agent-app .lead-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+.agent-app .kv { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m); }
+.agent-app .kv-row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 14px; border-top: 1px solid var(--border); font-size: 15px; }
+.agent-app .kv-row:first-child { border-top: 0; }
+.agent-app .kv-row dt { color: var(--text-sec); flex: none; }
+.agent-app .kv-row dd { margin: 0; text-align: right; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.agent-app .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; background: var(--surface-alt); padding: 4px; border-radius: var(--radius-m); }
+.agent-app .seg button { min-height: 40px; border: 0; border-radius: var(--radius-s); background: transparent; font-weight: 700; color: var(--text-sec); }
+.agent-app .seg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(15, 17, 23, 0.12); }
+.agent-app .seg button.on.t-Hot { color: var(--red); }
+.agent-app .seg button.on.t-Warm { color: var(--amber); }
+.agent-app .seg button.on.t-Cold { color: var(--blue); }
+
+.agent-app .timeline { list-style: none; margin: 0; padding: 0; }
+.agent-app .timeline li { position: relative; padding: 0 0 18px 22px; }
+.agent-app .timeline li::before { content: ''; position: absolute; left: 4px; top: 7px; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); }
+.agent-app .timeline li::after { content: ''; position: absolute; left: 8px; top: 18px; bottom: 0; width: 1px; background: var(--border); }
+.agent-app .timeline li:last-child::after { display: none; }
+.agent-app .timeline .t-when { font-size: 13px; color: var(--text-muted); }
+.agent-app .timeline .t-what { font-weight: 700; }
+.agent-app .timeline .t-note { color: var(--text-sec); margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ── Sheet (bottom modal) ────────────────────────────────────────────────── */
+.agent-app .sheet-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(13, 15, 20, 0.45);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: agent-fade 0.18s ease;
+}
+.agent-app .sheet {
+  width: 100%; max-width: 560px;
+  max-height: 92vh; overflow-y: auto;
+  background: var(--bg);
+  border-radius: var(--radius-l) var(--radius-l) 0 0;
+  box-shadow: var(--shadow-sheet);
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  animation: agent-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.agent-app .sheet-grip { width: 40px; height: 5px; border-radius: 3px; background: var(--border); margin: 4px auto 12px; }
+.agent-app .sheet h3 { font-size: 20px; font-weight: 800; margin: 0 0 4px; }
+.agent-app .sheet .group-label { font-size: 14px; font-weight: 700; color: var(--text-sec); margin: 16px 0 8px; }
+@keyframes agent-rise { from { transform: translateY(40px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+@keyframes agent-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Gate screens (login / clock-in / terms) ─────────────────────────────── */
+.agent-app .gate {
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 440px; margin: 0 auto;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 32px) 24px calc(env(safe-area-inset-bottom, 0px) + 32px);
+}
+.agent-app .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+.agent-app .brand img { width: 52px; height: 52px; border-radius: 14px; }
+.agent-app .brand b { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; display: block; }
+.agent-app .gate h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 8px; }
+.agent-app .gate p.lead-in { color: var(--text-sec); margin: 0 0 28px; font-size: 16px; }
+.agent-app .alert { padding: 12px 14px; border-radius: var(--radius-m); font-size: 14px; margin-bottom: 14px; }
+.agent-app .alert.error { background: var(--red-bg); color: var(--red); }
+.agent-app .alert.info { background: var(--blue-bg); color: var(--blue-ink); }
+.agent-app .alert.ok { background: var(--green-bg); color: var(--green); }
+.agent-app .terms-body { flex: 1; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 16px; max-height: 55vh; }
+.agent-app .terms-body p { margin: 0 0 12px; }
+.agent-app .check { display: flex; gap: 10px; align-items: flex-start; margin: 16px 0; font-size: 15px; }
+.agent-app .check input { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--blue); }
+
+/* ── Misc ────────────────────────────────────────────────────────────────── */
+.agent-app .empty { text-align: center; padding: 36px 16px; color: var(--text-sec); }
+.agent-app .empty b { display: block; color: var(--text); font-size: 17px; margin-bottom: 4px; }
+.agent-app .spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--blue); animation: agent-spin 0.8s linear infinite; margin: 40px auto; }
+@keyframes agent-spin { to { transform: rotate(360deg); } }
+.agent-app .toast {
+  position: fixed; left: 50%; z-index: 60;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+  transform: translateX(-50%);
+  background: var(--text); color: var(--bg);
+  padding: 11px 16px; border-radius: var(--radius-m);
+  font-weight: 600; font-size: 14px;
+  max-width: calc(100% - 32px);
+  animation: agent-fade 0.18s ease;
+}
+.agent-app .install-tip { display: flex; gap: 12px; align-items: flex-start; background: var(--blue-bg); color: var(--blue-ink); border-radius: var(--radius-m); padding: 12px 14px; font-size: 14px; margin-bottom: 16px; }
+.agent-app .install-tip button { margin-left: auto; background: none; border: 0; color: inherit; font-weight: 700; padding: 0; }
+.agent-app .profile-card { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 16px; }
+.agent-app .profile-card .avatar { width: 56px; height: 56px; font-size: 20px; }
+.agent-app .settings { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m); }
+.agent-app .settings > * { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border-top: 1px solid var(--border); width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; font-size: 15px; }
+.agent-app .settings > *:first-child { border-top: 0; }

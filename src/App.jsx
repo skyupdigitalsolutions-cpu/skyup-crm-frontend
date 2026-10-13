@@ -85,6 +85,7 @@ const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
 const CustomReports   = lazy(() => import("./pages/CustomReports"));
 const FinanceLogin = lazy(() => import("./finance/FinanceLogin"));   // standalone Finance Panel — sign-in
 const FinancePanel = lazy(() => import("./finance/FinancePanel"));   // standalone Finance Panel
+const AgentApp     = lazy(() => import("./agent/App"));             // Agent app (installable PWA for sales employees) — /agent
 const UserPaymentFollowUps = lazy(() => import("./pages/UserPaymentFollowUps"));
 const InvoiceTest     = lazy(() => import("./pages/InvoiceTest"));
 
@@ -170,6 +171,8 @@ function useAuthNavGuard() {
   useEffect(() => {
     const { token } = getStoredAuth();
     if (!token) return;
+    // The /agent app is a standalone phone app with its own navigation.
+    if (location.pathname.startsWith("/agent")) return;
 
     window.history.pushState({ appGuard: true }, "", window.location.href);
 
@@ -533,6 +536,10 @@ function AppInner() {
           <Route path="/marketing/forgot-password" element={<Suspense fallback={null}><ForgotPassword returnTo="/marketing/login" /></Suspense>} />
           <Route path="/finance/forgot-password" element={<Suspense fallback={null}><ForgotPassword returnTo="/finance/login" /></Suspense>} />
           {/* Standalone Finance Panel — own sign-in, own session (like /marketing) */}
+          {/* ── Agent app (/agent) — standalone phone PWA for sales employees ─ */}
+          <Route path="/agent/forgot-password" element={<Suspense fallback={null}><ForgotPassword returnTo="/agent" /></Suspense>} />
+          <Route path="/agent/*" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"/></div>}><AgentApp /></Suspense>} />
+
           <Route path="/finance/login" element={<Suspense fallback={null}><FinanceLogin /></Suspense>} />
           <Route path="/finance" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"/></div>}><FinancePanel /></Suspense>} />
 
