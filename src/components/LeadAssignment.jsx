@@ -236,11 +236,13 @@ export function UnassignedLeadsModal({ onClose, onAssigned }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [notice, setNotice]   = useState("");
   const [query, setQuery]     = useState("");
+  const [countInput, setCountInput] = useState("");   // "select the first N" — how many
+  const [countNote, setCountNote]   = useState("");   // what the last "Select" did (or why it could not)
 
   const load = useCallback(() => {
     setLoadErr("");
     api.get("/lead/assignment/unassigned")
-      .then((r) => { setLeads(r.data.leads || []); setTotal(r.data.total || 0); setPicked(new Set()); })
+      .then((r) => { setLeads(r.data.leads || []); setTotal(r.data.total || 0); setPicked(new Set()); setCountNote(""); })
       .catch((e) => setLoadErr(errMsg(e, "Couldn't load unassigned leads.")));
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -256,12 +258,29 @@ export function UnassignedLeadsModal({ onClose, onAssigned }) {
     const next = new Set(picked);
     shown.forEach((l) => (allShownPicked ? next.delete(String(l._id)) : next.add(String(l._id))));
     setPicked(next);
+    setCountNote("");
   };
   const toggle = (id) => {
     const next = new Set(picked);
     next.has(id) ? next.delete(id) : next.add(id);
     setPicked(next);
+    setCountNote("");
   };
+
+  // "Select the first N": exactly the first N leads of what is shown (the list is newest first, and respects the
+  // search box). It REPLACES the current selection, so typing 50 and then 20 gives 20 — never 70. Asking for more
+  // than there are selects them all and says so, instead of quietly selecting fewer.
+  const wanted = /^\d+$/.test(countInput.trim()) ? parseInt(countInput.trim(), 10) : 0;
+  const canSelectN = wanted >= 1;
+  const selectFirst = () => {
+    if (!canSelectN) return;
+    const take = shown.slice(0, wanted);
+    setPicked(new Set(take.map((l) => String(l._id))));
+    setCountNote(wanted > shown.length
+      ? `Only ${shown.length} available — selected all of them.`
+      : `Selected the first ${take.length}${query.trim() ? ` of the ${shown.length} shown` : ""} (newest first).`);
+  };
+  const clearPicked = () => { setPicked(new Set()); setCountNote(""); };
 
   const afterAssign = ({ claimed, skipped, employee }) => {
     setPickerOpen(false);
@@ -315,10 +334,37 @@ export function UnassignedLeadsModal({ onClose, onAssigned }) {
             </div>
           ) : (
             <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] overflow-hidden">
-              <label className="flex items-center gap-3 px-3 py-2 bg-[#F8F9FC] dark:bg-[#13161E] text-[12px] font-semibold text-[#8B92A9] uppercase tracking-wider cursor-pointer">
-                <input type="checkbox" checked={allShownPicked} onChange={toggleAll} className="w-4 h-4 accent-[#7C3AED]" />
-                Select all ({shown.length})
-              </label>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 bg-[#F8F9FC] dark:bg-[#13161E]">
+                <label className="flex items-center gap-3 text-[12px] font-semibold text-[#8B92A9] uppercase tracking-wider cursor-pointer">
+                  <input type="checkbox" checked={allShownPicked} onChange={toggleAll} className="w-4 h-4 accent-[#7C3AED]" />
+                  Select all ({shown.length})
+                </label>
+                <div className="flex items-center gap-2 ml-auto">
+                  <span className="text-[12px] font-semibold text-[#8B92A9]">or select first</span>
+                  <input
+                    value={countInput}
+                    onChange={(e) => { setCountInput(e.target.value.replace(/\D/g, "").slice(0, 5)); setCountNote(""); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); selectFirst(); } }}
+                    inputMode="numeric"
+                    placeholder="e.g. 50"
+                    aria-label="How many leads to select"
+                    className="w-20 px-2 py-1 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] text-center focus:outline-none focus:border-[#7C3AED]"
+                  />
+                  <button
+                    onClick={selectFirst}
+                    disabled={!canSelectN}
+                    className="px-3 py-1 rounded-lg bg-[#7C3AED] text-white text-[12px] font-semibold hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  >
+                    Select
+                  </button>
+                </div>
+                {(picked.size > 0 || countNote) && (
+                  <div className="w-full flex items-center justify-between gap-3 text-[12px]">
+                    <span className="text-[#4B5168] dark:text-[#9DA3BB]">{countNote || `${picked.size} selected`}</span>
+                    {picked.size > 0 && <button onClick={clearPicked} className="font-semibold text-[#7C3AED] hover:underline shrink-0">Clear selection</button>}
+                  </div>
+                )}
+              </div>
               <ul className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
                 {shown.map((l) => (
                   <li key={l._id}>
