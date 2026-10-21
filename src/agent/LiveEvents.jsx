@@ -33,6 +33,7 @@ export default function LiveEvents() {
       to: payload.leadId ? `/agent/leads/${payload.leadId}` : '/agent/leads',
       tag: `lead-${payload.leadId || Date.now()}`,
       tone: 'green',
+      serverPushed: true,
     });
   });
 

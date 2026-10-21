@@ -1,12 +1,15 @@
 // Calls by day — the web version of the mobile app's "Calls" screen.
-// Calls come from the server (synced by the agent's Android app). Remarks saved
-// on leads that day are listed too, so iPhone / web-only agents still see their day.
+// Calls come from the server: synced by the agent's Android app, or — on iPhone —
+// logged by this app for calls made with its Call button (see appCallLog.js).
+// Remarks saved on leads that day are listed too.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getCallLogsForDay, getUncalledLeads, isAutoCallEntry } from '../api.js';
 import { fmtTime, initials, maskPhone, telHref } from '../format.js';
 import { useLeads } from '../leads.jsx';
 import { savePendingCall } from '../pendingCall.js';
+import { approx } from '../appCallLog.js';
+import { isIOS } from '../pwa.js';
 import { TopBar } from '../components/Shell.jsx';
 import { IconBack, IconPhone, IconRefresh } from '../components/icons.jsx';
 
@@ -112,6 +115,7 @@ export default function Calls() {
     incoming: logs.filter((l) => l.callType === 'incoming').length,
     missed: logs.filter((l) => l.callType === 'missed' || l.callType === 'rejected').length,
     talk: logs.reduce((s, l) => s + (Number(l.duration) || 0), 0),
+    talkEstimated: logs.some((l) => l.durationEstimated && Number(l.duration) > 0),
   }), [logs]);
 
   const shown = useMemo(() => logs.filter((l) =>
@@ -151,7 +155,7 @@ export default function Calls() {
           <div className="stat"><b>{stats.total}</b><span>Calls</span></div>
           <div className="stat"><b>{stats.outgoing}</b><span>Outgoing</span></div>
           <div className="stat"><b>{stats.missed}</b><span>Missed</span></div>
-          <div className="stat"><b className="stat-sm">{fmtTalk(stats.talk)}</b><span>Talk time</span></div>
+          <div className="stat"><b className="stat-sm">{stats.talkEstimated ? '≈ ' : ''}{fmtTalk(stats.talk)}</b><span>Talk time</span></div>
         </div>
 
         <div className="chips" style={{ marginTop: 14 }} role="group" aria-label="Filter calls">
@@ -178,7 +182,7 @@ export default function Calls() {
               ) : (
                 <div className="list empty">
                   <b>{logs.length ? 'No calls match this filter' : 'No calls logged'}</b>
-                  {logs.length ? 'Choose All to see every call.' : 'Calls appear here when the SkyUp Android app syncs them. Calls from an iPhone can’t be logged automatically.'}
+                  {logs.length ? 'Choose All to see every call.' : (isIOS() ? 'Calls you make with the Call button in this app are logged here. iPhone doesn’t let apps see other calls, so calls made from the Phone app or received calls won’t appear.' : 'Calls appear here when the SkyUp Android app syncs them.')}
                 </div>
               )}
             </div>
@@ -223,7 +227,7 @@ export default function Calls() {
                         </Link>
                         {tel ? (
                           <a className="row-call" href={tel} aria-label={`Call ${u.name || 'lead'}`}
-                            onClick={() => savePendingCall({ id, name: u.name })}><IconPhone /></a>
+                            onClick={() => savePendingCall({ id, name: u.name, phone })}><IconPhone /></a>
                         ) : null}
                       </div>
                     );
@@ -248,7 +252,7 @@ function CallRow({ log, lead, pending, done }) {
       <span className="row-main">
         <span className="row-title"><span>{name}</span></span>
         <span className="row-sub" style={{ display: 'block' }}>
-          {t.label}, {fmtTime(log._ts)}{Number(log.duration) > 0 ? `, ${fmtTalk(log.duration)}` : ''}
+          {t.label}, {fmtTime(log._ts)}{Number(log.duration) > 0 ? `, ${approx(log)}${fmtTalk(log.duration)}` : ''}
         </span>
         {pending ? <span className="row-meta"><span className="tag tone-amber">Remark pending</span></span> : null}
         {done ? <span className="row-meta"><span className="tag tone-green">Remark added</span></span> : null}

@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
-import { addCallRemark, markNotInterested } from '../api.js';
+import { addCallRemark, logAppCall, markNotInterested } from '../api.js';
+import { appCallPayload, sendAppCall, shouldLogAppCalls } from '../appCallLog.js';
+import { clearReturnedCall } from '../pendingCall.js';
 import { OUTCOMES_ANSWERED, OUTCOMES_NOT_ANSWERED, autoStatusForOutcome } from '../constants.js';
 import { toLocalInput } from '../format.js';
 import Sheet from './Sheet.jsx';
 
 const NEEDS_FOLLOWUP = ['Call Back Later', 'Interested', 'Client Meeting', 'Proposal Sent'];
 
-export default function RemarkSheet({ open, onClose, lead, afterCall, onSaved }) {
+// `call`: the call the employee just came back from (pendingCall.js), or null. On iPhone the saved remark also
+// completes that call's log record (appCallLog.js).
+export default function RemarkSheet({ open, onClose, lead, afterCall, call, onSaved }) {
   const [outcome, setOutcome] = useState('');
   const [remark, setRemark] = useState('');
   const [followUp, setFollowUp] = useState('');
@@ -45,6 +49,10 @@ export default function RemarkSheet({ open, onClose, lead, afterCall, onSaved })
           lastOutcome: outcome, remark: text,
           ...(status ? { status } : {}), ...(followUpDate ? { followUpDate } : {}),
         });
+      }
+      if (call) {
+        if (shouldLogAppCalls()) sendAppCall(logAppCall, appCallPayload(call, { outcome, remark: text }));   // kept and retried if offline
+        clearReturnedCall();
       }
       onClose();
     } catch (e) {

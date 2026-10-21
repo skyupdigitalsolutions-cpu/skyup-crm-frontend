@@ -25,6 +25,7 @@ export default function ClockInGate({ children }) {
         : `${adminName || 'Your admin'} declined it. Clock in from the office.`,
       tone: approved ? 'green' : 'red',
       tag: 'remote-clockin',
+      serverPushed: true,
     });
   });
 

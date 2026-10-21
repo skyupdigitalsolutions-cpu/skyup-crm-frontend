@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { disablePhoneAlerts, enablePhoneAlerts, notificationPermission, phoneAlertsOn } from '../alerts.jsx';
+import { pushActive } from '../push.js';
 import { isIOS, isStandalone } from '../pwa.js';
 import { useAttendance } from '../attendance.jsx';
 import { useAuth } from '../auth.jsx';
@@ -47,13 +48,14 @@ export default function Profile() {
         <div className="section">
           <div className="section-head"><h2>About this version</h2></div>
           <p className="small muted" style={{ margin: 0 }}>
-            This web app covers leads, remarks, follow-ups, calls by day and attendance. Calls are logged
-            automatically only by the Android app. For security you’re signed out when you close the app.
+            This web app covers leads, remarks, follow-ups, calls by day and attendance. On iPhone, calls you make
+            with the Call button here are logged with an approximate length; attach the call recording to get the exact
+            length. You stay signed in on this phone until you sign out.
           </p>
         </div>
 
         <div className="section">
-          <button className="btn block danger" onClick={() => { if (window.confirm('Sign out of SkyUp CRM?')) logout(); }}>
+          <button className="btn block danger" onClick={() => { if (window.confirm('Sign out of SkyUp CRM on this phone? You will need your email and password to sign in again.')) logout(); }}>
             Sign out
           </button>
         </div>
@@ -74,7 +76,8 @@ function PhoneAlerts() {
     setOn(r === 'granted');
   };
 
-  let note = 'Get a phone notification for new leads and follow-ups while SkyUp CRM is open in the background.';
+  let note = 'Get a phone notification for new leads, follow-ups, call-backs and remote clock-in, even when SkyUp CRM is closed.';
+  if (on && !pushActive()) note = 'Notifications arrive only while SkyUp CRM is open in the background. To get them when it is closed, turn this off and on again.';
   if (perm === 'unsupported' && needsInstall) note = 'On iPhone, add SkyUp CRM to your Home Screen first (Share → Add to Home Screen), then turn this on.';
   else if (perm === 'unsupported') note = 'This browser can’t show notifications. Alerts still appear inside the app.';
   else if (perm === 'denied') note = 'Notifications are blocked for this site. Allow them in your browser or phone settings, then try again.';

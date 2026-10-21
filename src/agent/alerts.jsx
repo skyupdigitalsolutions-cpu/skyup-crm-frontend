@@ -3,10 +3,11 @@
 // allowed notifications and the app is in the background (switched away, screen
 // off for a short while). Notifications are shown through the /agent service
 // worker so they work in the installed app on Android and iPhone (iOS 16.4+).
-// Note: they can't arrive once the phone has fully closed/suspended the app —
-// that needs server push (see README).
+// When the app is closed, the server sends the same alerts as web push (push.js); the
+// app then skips its own copy of those alerts so a phone never shows one twice.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { pushActive, removePushSubscription, syncPushSubscription } from './push.js';
 
 const PREF_KEY = 'agent_phone_alerts'; // '1' = user turned phone notifications on
 const Ctx = createContext({ notify: () => {} });
@@ -22,10 +23,12 @@ export async function enablePhoneAlerts() {
   if (!notificationsSupported()) return 'unsupported';
   const result = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
   try { localStorage.setItem(PREF_KEY, result === 'granted' ? '1' : '0'); } catch { /* ignore */ }
+  if (result === 'granted') await syncPushSubscription();     // closed-app notifications (push.js)
   return result;
 }
 export function disablePhoneAlerts() {
   try { localStorage.setItem(PREF_KEY, '0'); } catch { /* ignore */ }
+  removePushSubscription();
 }
 
 async function showPhoneNotification({ title, body, to, tag }) {
@@ -49,7 +52,8 @@ export function AlertsProvider({ children }) {
     const a = { id: `${Date.now()}-${Math.random()}`, ...alert };
     setQueue((q) => [...q.filter((x) => !a.tag || x.tag !== a.tag), a].slice(-5));
     try { navigator.vibrate?.(150); } catch { /* ignore */ }
-    if (document.visibilityState === 'hidden') showPhoneNotification(a);
+    // serverPushed: the server also sends this alert as web push — when that is on, don't show a second copy
+    if (document.visibilityState === 'hidden' && !(a.serverPushed && pushActive())) showPhoneNotification(a);
   }, []);
 
   const dismiss = useCallback(() => setQueue((q) => q.slice(1)), []);
@@ -60,6 +64,9 @@ export function AlertsProvider({ children }) {
     timer.current = setTimeout(dismiss, 7000);
     return () => clearTimeout(timer.current);
   }, [current, dismiss]);
+
+  // Keep this phone's push subscription current (new sign-in, renewed subscription, changed server keys).
+  useEffect(() => { if (phoneAlertsOn()) syncPushSubscription(); }, []);
 
   const value = useMemo(() => ({ notify }), [notify]);
   return (

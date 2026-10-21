@@ -30,6 +30,7 @@ export default function Login() {
       </div>
       <h1>Sign in</h1>
       <p className="lead-in">Use the same email and password as the SkyUp CRM app.</p>
+      <p className="muted small" style={{ marginTop: -6 }}>You stay signed in on this phone until you sign out.</p>
       {error ? <div className="alert error" role="alert">{error}</div> : null}
       <form onSubmit={submit} noValidate>
         <label className="field">

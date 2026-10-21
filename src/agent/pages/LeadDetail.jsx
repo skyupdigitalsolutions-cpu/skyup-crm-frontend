@@ -4,7 +4,8 @@ import { getLead, updateLead } from '../api.js';
 import { STATUS_OPTIONS, STATUS_TONE, TEMPERATURES } from '../constants.js';
 import { fmtDate, fmtRelativeDay, initials, maskPhone, telHref, whatsappHref } from '../format.js';
 import { useLeads } from '../leads.jsx';
-import { savePendingCall } from '../pendingCall.js';
+import { peekReturnedCall, savePendingCall } from '../pendingCall.js';
+import AttachRecording from '../components/AttachRecording.jsx';
 import RemarkSheet from '../components/RemarkSheet.jsx';
 import { TopBar } from '../components/Shell.jsx';
 import { useToast } from '../components/Toast.jsx';
@@ -21,6 +22,7 @@ export default function LeadDetail() {
   const [error, setError] = useState('');
   const [sheet, setSheet] = useState(false);
   const [afterCall, setAfterCall] = useState(false);
+  const [call, setCall] = useState(null);           // the call just made to this lead (pendingCall.js), if any
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -31,11 +33,11 @@ export default function LeadDetail() {
   // Opened from the "you just finished a call" flow (see PendingCallResumer).
   useEffect(() => {
     if (params.get('remark') === '1') {
-      setAfterCall(true); setSheet(true);
+      setAfterCall(true); setCall(peekReturnedCall(id)); setSheet(true);
       const next = new URLSearchParams(params); next.delete('remark');
       setParams(next, { replace: true });
     }
-  }, [params, setParams]);
+  }, [params, setParams, id]);
 
   const change = async (field, value, label) => {
     const prev = lead[field];
@@ -85,9 +87,10 @@ export default function LeadDetail() {
           ) : <button className="btn" disabled>No number</button>}
           {wa ? <a className="btn ghost" href={wa} target="_blank" rel="noreferrer"><IconChat />WhatsApp</a> : null}
         </div>
-        <button className="btn block ghost" style={{ marginTop: 10 }} onClick={() => { setAfterCall(false); setSheet(true); }}>
+        <button className="btn block ghost" style={{ marginTop: 10 }} onClick={() => { setAfterCall(false); setCall(peekReturnedCall(id)); setSheet(true); }}>
           <IconEdit />Add remark
         </button>
+        <AttachRecording lead={lead} onAttached={() => { toast('Recording attached'); load(); }} />
 
         <div className="section">
           <div className="section-head"><h2>Temperature</h2></div>
@@ -129,8 +132,9 @@ export default function LeadDetail() {
               {history.map((h, i) => (
                 <li key={h._id || i}>
                   <div className="t-when">{fmtRelativeDay(h.calledAt || h.timestamp)}</div>
-                  <div className="t-what">{h.outcome || (h.callType ? `${h.callType} call` : 'Note')}</div>
+                  <div className="t-what">{h.outcome || (h.callType ? `${h.callType} call` : h.recordingUrl ? 'Call recording' : 'Note')}</div>
                   {h.remark ? <div className="t-note">{h.remark}</div> : null}
+                  {h.recordingUrl ? <div className="t-note">Recording attached</div> : null}
                 </li>
               ))}
             </ul>
@@ -143,6 +147,7 @@ export default function LeadDetail() {
         onClose={() => setSheet(false)}
         lead={lead}
         afterCall={afterCall}
+        call={call}
         onSaved={(changes) => { patchLocal(id, changes); toast('Remark saved'); load(); }}
       />
     </>

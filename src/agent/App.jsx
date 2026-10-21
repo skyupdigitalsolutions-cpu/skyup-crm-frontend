@@ -7,13 +7,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
-import { AGENT_ROLES } from './api.js';
+import { AGENT_ROLES, logAppCall } from './api.js';
+import { COLD_START_MAX_MS, MIN_AWAY_MS, appCallPayload, flushAppCallQueue, sendAppCall, shouldLogAppCalls } from './appCallLog.js';
 import { AlertsProvider } from './alerts.jsx';
 import { AttendanceProvider } from './attendance.jsx';
 import { AuthProvider, useAuth } from './auth.jsx';
 import { LeadsProvider } from './leads.jsx';
 import LiveEvents from './LiveEvents.jsx';
-import { clearPendingCall, takePendingCall } from './pendingCall.js';
+import { clearPendingCall, saveReturnedCall, takePendingCall } from './pendingCall.js';
 import { useAgentPwa } from './pwa.js';
 import { SocketProvider } from './socket.jsx';
 import { BottomNav } from './components/Shell.jsx';
@@ -30,22 +31,43 @@ import './styles.css';
 
 // When the user returns from the phone dialer (app was hidden 5+ seconds),
 // open that lead with the remark sheet — the web version of the mobile app's
-// post-call remark popup.
+// post-call remark popup. On iPhone it also logs the call (see appCallLog.js).
 function PendingCallResumer() {
   const nav = useNavigate();
   const hiddenAt = useRef(0);
   useEffect(() => {
+    const returned = (p, returnedAt) => {
+      clearPendingCall();
+      const call = saveReturnedCall(p, returnedAt);
+      if (shouldLogAppCalls()) sendAppCall(logAppCall, appCallPayload(call));   // kept and retried if offline
+      nav(`/agent/leads/${p.leadId}?remark=1`);
+    };
+
+    // iOS often closes an installed web app during a long call. When it is opened again soon after,
+    // treat that as the return from the call (the real length is unknown then, so none is sent).
+    const cold = takePendingCall();
+    if (cold) {
+      const age = Date.now() - cold.at;
+      if (age >= MIN_AWAY_MS && age <= COLD_START_MAX_MS) returned(cold, null);
+      else if (age > COLD_START_MAX_MS) clearPendingCall();
+    }
+
+    // iPhone call logs that failed offline: send them now and whenever the phone is back online / app reopened
+    const flush = () => flushAppCallQueue(logAppCall);
+    flush();
+    window.addEventListener('online', flush);
+
     const onVis = () => {
       if (document.visibilityState === 'hidden') { hiddenAt.current = Date.now(); return; }
+      flush();
       const away = hiddenAt.current ? Date.now() - hiddenAt.current : 0;
       hiddenAt.current = 0;
       const p = takePendingCall();
-      if (!p || away < 5000) return;
-      clearPendingCall();
-      nav(`/agent/leads/${p.leadId}?remark=1`);
+      if (!p || away < MIN_AWAY_MS) return;
+      returned(p, Date.now());
     };
     document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
+    return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('online', flush); };
   }, [nav]);
   return null;
 }

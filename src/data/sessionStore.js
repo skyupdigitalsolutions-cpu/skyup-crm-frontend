@@ -120,6 +120,8 @@ export function clearSession() {
   _mem.brand        = null;
   // Purge any lingering localStorage values
   [
+    "agent_session_v1",   // the /agent app's "stay signed in" copy (src/agent/persist.js): signing out anywhere clears it
+    "skyup_pending_call", "skyup_returned_call", "skyup_call_log_queue",   // /agent: the call in progress (src/agent/pendingCall.js) belongs to this user only
     "token", "user",
     "company_brand", "company_branding",
     "plan_entitlements", "plan_features",

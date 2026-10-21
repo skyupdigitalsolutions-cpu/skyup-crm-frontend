@@ -2,16 +2,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Same endpoints and payloads as the SkyUp CRM mobile app.
 //
-// Session: shares the CRM session (src/data/sessionStore.js — sessionStorage,
-// cleared when the tab/app is closed). Signing in here also signs you in to the
-// CRM in this tab, and an employee already signed in to the CRM opens /agent
-// without signing in again. Nothing is written to localStorage.
+// Session: shares the CRM session (src/data/sessionStore.js — sessionStorage).
+// Signing in here also signs you in to the CRM in this tab, and an employee
+// already signed in to the CRM opens /agent without signing in again.
+// Employees also stay signed in after the app is closed: a copy of the session
+// is kept in localStorage until Sign out (see persist.js).
 //
 // Uses its own fetch client instead of axiosConfig.js on purpose: that client
 // caches GETs for 30s, and attendance/leads here must always be live.
 // ─────────────────────────────────────────────────────────────────────────────
 import { clearSession as clearCrmSession, getToken, getUser, setSession } from '../data/sessionStore';
 import { clearAllCache } from '../data/axiosConfig';
+import { clearSaved, needsRefresh, restoreSession, saveSession } from './persist.js';
+import { removePushSubscription } from './push.js';
 
 const BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 
@@ -19,8 +22,19 @@ export const AGENT_ROLES = ['user', 'employee'];
 export { getToken };
 export const getStoredUser = () => (getToken() ? getUser() : null);
 
+// ── Stay signed in (see persist.js) ──────────────────────────────────────────
+// The tab's own session (sessionStorage) is gone when the installed app was closed. Put the saved employee session
+// back BEFORE anything reads it. When the tab does have a session, keep the saved copy in step with it.
+restoreSession({ getToken, setSession, roles: AGENT_ROLES });
+(function syncSavedSession() {
+  const token = getToken();
+  const user = token ? getUser() : null;
+  if (user && AGENT_ROLES.includes(String(user.role || '').toLowerCase())) saveSession(token, user);
+})();
+
 export function clearSession() {
   clearCrmSession();
+  clearSaved();                       // also forget the copy kept for "stay signed in"
   clearAllCache();
   window.dispatchEvent(new Event('user_changed'));
 }
@@ -103,7 +117,8 @@ export const api = {
 // ── Auth ─────────────────────────────────────────────────────────────────────
 // Same request and session shape as the CRM's UserLogin.jsx.
 export async function login(email, password) {
-  const data = await api.post('/auth/login', { email, password });
+  // client:'agent-pwa' asks the server for the long-lived (30-day) employee token — see loginUnified in authController.js.
+  const data = await api.post('/auth/login', { email, password, client: 'agent-pwa' });
   const token = data?.token;
   if (!token) throw new ApiError('Sign-in response was incomplete. Contact your admin.', 0);
   const role = data.role || 'employee';
@@ -113,9 +128,56 @@ export async function login(email, password) {
   };
   clearAllCache();
   setSession(token, user);
+  if (AGENT_ROLES.includes(String(role).toLowerCase())) saveSession(token, user);   // stay signed in until Sign out
   window.dispatchEvent(new Event('user_changed'));
   return user;
 }
+
+let lastRefreshTry = 0;
+/**
+ * Asks the server for a fresh 30-day token while the app is in use, so the sign-in never reaches its expiry.
+ * Does nothing unless the current token is older than 12 hours (and at most one try every 10 minutes).
+ * Never throws: when offline or the server has a problem the current token simply stays. A real rejection
+ * (cancelled / expired token) is handled by request(), which signs the employee out.
+ */
+export async function refreshSession({ force = false } = {}) {
+  const token = getToken();
+  if (!token) return false;
+  const now = Date.now();
+  if (!force && (!needsRefresh(token, now) || now - lastRefreshTry < 10 * 60 * 1000)) return false;
+  lastRefreshTry = now;
+  try {
+    const data = await request('POST', '/auth/refresh', {}, { timeout: 15000, retries: 0 });
+    if (!data?.token || getToken() !== token) return false;     // signed out (or switched account) while waiting
+    const user = getUser();
+    setSession(data.token, user);
+    if (user && AGENT_ROLES.includes(String(user.role || '').toLowerCase())) saveSession(data.token, user);
+    return true;
+  } catch { return false; }
+}
+
+/**
+ * Sign out: clears this phone at once (works offline), then tells the server to cancel the token so a copy of it
+ * cannot be used afterwards. The server call is best-effort and never blocks or fails the sign-out.
+ */
+export function logoutEverywhere() {
+  const token = getToken();
+  clearSession();
+  if (!token) return;
+  // stop closed-app notifications to this phone first (needs the token before logout cancels it), then cancel the token
+  removePushSubscription(token).finally(() => {
+    try {
+      fetch(BASE + '/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, keepalive: true }).catch(() => {});
+    } catch { /* ignore */ }
+  });
+}
+
+// ── iPhone call log (see appCallLog.js) ─────────────────────────────────────
+export const logAppCall = (body) => api.post('/call-logs/app-call', body, { timeout: 15000 });
+
+// ── Recordings ───────────────────────────────────────────────────────────────
+// Manual upload for phones that cannot sync call logs (iPhone). The form comes from buildRecordingForm().
+export const uploadRecording = (form) => api.post('/call-logs/recording', form, { timeout: 5 * 60 * 1000 });
 
 // ── Leads ────────────────────────────────────────────────────────────────────
 export async function getMyLeads() {

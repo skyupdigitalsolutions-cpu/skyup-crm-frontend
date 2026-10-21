@@ -4,6 +4,8 @@
  *   • Caches the app shell and the hashed build files (/assets/*) so the app
  *     opens fast and still opens with no signal.
  *   • Shows /agent-offline.html if the shell has never been cached.
+ *   • Shows closed-app notifications pushed by the server (web push), and opens
+ *     the right page when one is tapped.
  *
  * What it deliberately does NOT do
  *   • It never touches API calls or any other origin. Leads, attendance and
@@ -84,6 +86,21 @@ self.addEventListener("fetch", (event) => {
   if (PRECACHE.includes(url.pathname)) {
     event.respondWith(caches.match(req).then((hit) => hit || fetch(req)));
   }
+});
+
+// Closed-app notifications (web push from the server — see src/agent/push.js and services/agentPushService.js).
+// Every push shows a notification: iPhone and Chrome stop delivering pushes to sites that receive them silently.
+self.addEventListener("push", (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch (e) { d = { body: event.data ? event.data.text() : "" }; }
+  const url = typeof d.url === "string" && d.url.startsWith("/agent") ? d.url : "/agent";
+  event.waitUntil(self.registration.showNotification(d.title || "SkyUp CRM", {
+    body: d.body || "",
+    tag: d.tag || undefined,
+    icon: "/agent-icons/icon-192.png",
+    badge: "/agent-icons/icon-192.png",
+    data: { url },
+  }));
 });
 
 // Tapping a SkyUp CRM notification opens (or focuses) the app on the right page.
