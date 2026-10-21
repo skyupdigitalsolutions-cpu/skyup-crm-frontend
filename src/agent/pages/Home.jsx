@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { getCallLogsForDay } from '../api.js';
+import { approx } from '../appCallLog.js';
 import { Link } from 'react-router-dom';
 import { computeWorkedSecs, useAttendance } from '../attendance.jsx';
 import { useAuth } from '../auth.jsx';
 import { useLeads } from '../leads.jsx';
-import { fmtDuration, fmtTime } from '../format.js';
+import { fmtDuration, fmtTalk, fmtTime } from '../format.js';
 import LeadRow from '../components/LeadRow.jsx';
 import { TopBar } from '../components/Shell.jsx';
 import { useToast } from '../components/Toast.jsx';
 import InstallTip from '../components/InstallTip.jsx';
+import ConfirmSheet from '../components/ConfirmSheet.jsx';
 
 const STATUS = {
   active: { label: 'Working', color: 'var(--green)' },
@@ -28,6 +31,7 @@ function ShiftPanel() {
   const toast = useToast();
   const now = useNow();
   const [busy, setBusy] = useState(false);
+  const [askClockOut, setAskClockOut] = useState(false);
 
   const st = STATUS[record?.status] || STATUS.active;
   const onBreak = record?.status === 'on_break' || record?.status === 'idle';
@@ -79,12 +83,54 @@ function ShiftPanel() {
         <button
           className="btn danger"
           disabled={busy}
-          onClick={() => { if (window.confirm('Clock out for today?')) act(clockOut); }}
+          onClick={() => setAskClockOut(true)}
         >
           Clock out
         </button>
       </div>
+      <ConfirmSheet
+        open={askClockOut}
+        title="Clock out for today?"
+        body={`You’ve worked ${fmtDuration(worked)} today.`}
+        confirmLabel="Clock out"
+        busy={busy}
+        onConfirm={() => act(clockOut).finally(() => setAskClockOut(false))}
+        onClose={() => setAskClockOut(false)}
+      />
     </section>
+  );
+}
+
+// Today's calls at a glance — taps through to the Calls tab.
+function TodayCalls() {
+  const [logs, setLogs] = useState(null);
+  const load = useCallback(async () => {
+    const d = new Date();
+    const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    let rows = null;
+    try { rows = await getCallLogsForDay(ymd, -d.getTimezoneOffset()); } catch { /* keep what is shown */ }
+    setLogs((l) => rows || l || []);
+  }, []);
+  useEffect(() => {
+    load();
+    const onVis = () => { if (document.visibilityState === 'visible') setTimeout(load, 1500); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [load]);
+
+  const list = logs || [];
+  const talk = list.reduce((s, l) => s + (Number(l.duration) || 0), 0);
+  const est = list.some((l) => l.durationEstimated && Number(l.duration) > 0);
+  const connected = list.filter((l) => Number(l.duration) > 0).length;
+  return (
+    <Link to="/agent/calls" className="card-link" aria-label="Open today's call log">
+      <span className="card-link-head"><b>Today’s calls</b><span className="chev" aria-hidden="true" /></span>
+      <span className="mini-stats">
+        <span><b>{logs ? list.length : '–'}</b>Calls</span>
+        <span><b>{logs ? connected : '–'}</b>Connected</span>
+        <span><b>{logs ? `${est ? approx({ durationEstimated: true }) : ''}${fmtTalk(talk)}` : '–'}</b>Talk time</span>
+      </span>
+    </Link>
   );
 }
 
@@ -116,6 +162,10 @@ export default function Home() {
       <div className="page">
         <InstallTip />
         <ShiftPanel />
+
+        <div className="section">
+          <TodayCalls />
+        </div>
 
         <div className="section">
           <div className="stats">

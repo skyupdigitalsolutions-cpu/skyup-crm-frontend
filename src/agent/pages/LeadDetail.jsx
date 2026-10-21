@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { getLead, updateLead } from '../api.js';
+import { getLead, getLeadCallLogs, updateLead } from '../api.js';
+import { isIOS } from '../pwa.js';
+import CallLogList from '../components/CallLogList.jsx';
 import { STATUS_OPTIONS, STATUS_TONE, TEMPERATURES } from '../constants.js';
 import { fmtDate, fmtRelativeDay, initials, maskPhone, telHref, whatsappHref } from '../format.js';
 import { useLeads } from '../leads.jsx';
@@ -29,6 +31,19 @@ export default function LeadDetail() {
     try { setLead(await getLead(id)); } catch (e) { setError(e.message); } finally { setLoading(false); }
   }, [id]);
   useEffect(() => { load(); }, [load]);
+
+  // Call log for this lead — refreshed when the employee comes back from a call.
+  const [calls, setCalls] = useState(null);
+  const [allCalls, setAllCalls] = useState(false);
+  const loadCalls = useCallback(async () => {
+    try { setCalls(await getLeadCallLogs(id)); } catch { setCalls((c) => c || []); }
+  }, [id]);
+  useEffect(() => {
+    loadCalls();
+    const onVis = () => { if (document.visibilityState === 'visible') setTimeout(loadCalls, 1500); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [loadCalls]);
 
   // Opened from the "you just finished a call" flow (see PendingCallResumer).
   useEffect(() => {
@@ -85,12 +100,29 @@ export default function LeadDetail() {
           {tel ? (
             <a className="btn green" href={tel} onClick={() => savePendingCall(lead)}><IconPhone />Call</a>
           ) : <button className="btn" disabled>No number</button>}
-          {wa ? <a className="btn ghost" href={wa} target="_blank" rel="noreferrer"><IconChat />WhatsApp</a> : null}
+          {wa ? <a className="btn wa" href={wa} target="_blank" rel="noreferrer"><IconChat />WhatsApp</a> : null}
         </div>
         <button className="btn block ghost" style={{ marginTop: 10 }} onClick={() => { setAfterCall(false); setCall(peekReturnedCall(id)); setSheet(true); }}>
           <IconEdit />Add remark
         </button>
-        <AttachRecording lead={lead} onAttached={() => { toast('Recording attached'); load(); }} />
+        <AttachRecording lead={lead} onAttached={() => { toast('Recording attached'); load(); loadCalls(); }} />
+
+        <div className="section">
+          <div className="section-head">
+            <h2>Call log</h2>
+            {calls && calls.length > 3 ? (
+              <button onClick={() => setAllCalls((v) => !v)}>{allCalls ? 'Show less' : `Show all ${calls.length}`}</button>
+            ) : null}
+          </div>
+          {calls === null ? <div className="spinner" /> : calls.length ? (
+            <CallLogList logs={allCalls ? calls : calls.slice(0, 3)} />
+          ) : (
+            <div className="list empty">
+              <b>No calls logged yet</b>
+              {isIOS() ? 'Tap Call above. Calls made from this app are logged here automatically.' : 'Calls appear here after the SkyUp Android app syncs them.'}
+            </div>
+          )}
+        </div>
 
         <div className="section">
           <div className="section-head"><h2>Temperature</h2></div>
@@ -126,7 +158,7 @@ export default function LeadDetail() {
         </div>
 
         <div className="section">
-          <div className="section-head"><h2>History</h2></div>
+          <div className="section-head"><h2>Remarks &amp; history</h2></div>
           {history.length ? (
             <ul className="timeline">
               {history.map((h, i) => (
@@ -148,7 +180,7 @@ export default function LeadDetail() {
         lead={lead}
         afterCall={afterCall}
         call={call}
-        onSaved={(changes) => { patchLocal(id, changes); toast('Remark saved'); load(); }}
+        onSaved={(changes) => { patchLocal(id, changes); toast('Remark saved'); load(); setTimeout(loadCalls, 800); }}
       />
     </>
   );

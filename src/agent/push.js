@@ -13,6 +13,7 @@
 // (public/agent-sw.js) shows the pushed notification.
 // ────────────────────────────────────────────
 import { getToken } from '../data/sessionStore';
+import { getAlertPrefs } from './alertPrefs.js';
 
 const BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 const ACTIVE_KEY = 'agent_push_active';            // '1' while this phone has a server subscription
@@ -77,7 +78,7 @@ export async function syncPushSubscription() {
     }
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(cfg.publicKey) });
     const j = sub.toJSON();
-    await call('POST', '/agent-push/subscribe', { endpoint: j.endpoint, keys: j.keys });
+    await call('POST', '/agent-push/subscribe', { endpoint: j.endpoint, keys: j.keys, prefs: getAlertPrefs() });
     setActive(true);
     return 'on';
   } catch {
@@ -97,4 +98,36 @@ export async function removePushSubscription(token = getToken()) {
     if (token) await call('POST', '/agent-push/unsubscribe', { endpoint }, token).catch(() => {});
     await sub.unsubscribe().catch(() => {});
   } catch { /* ignore */ }
+}
+
+async function currentEndpoint() {
+  if (!pushSupported()) return null;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/agent');
+    const sub = reg && reg.pushManager ? await reg.pushManager.getSubscription() : null;
+    return sub ? sub.endpoint : null;
+  } catch { return null; }
+}
+
+/** Send changed alert settings to the server so closed-app notifications follow them. Never throws. */
+export async function savePushPrefs() {
+  if (!pushActive()) return;
+  const endpoint = await currentEndpoint();
+  if (!endpoint) return;
+  try { await call('POST', '/agent-push/prefs', { endpoint, prefs: getAlertPrefs() }); }
+  catch { syncPushSubscription(); }          // not known to the server any more: subscribe again (sends the settings too)
+}
+
+/** "Send test notification": the server pushes one to this phone. Returns a short result for the screen. */
+export async function sendTestPush() {
+  const endpoint = await currentEndpoint();
+  if (!endpoint) return { ok: false, message: 'This phone isn’t set up for notifications yet. Turn Phone notifications off and on again.' };
+  try {
+    const r = await call('POST', '/agent-push/test', { endpoint });
+    return r && r.sent > 0
+      ? { ok: true, message: 'Sent. It should appear in a few seconds — lock the phone to see it like a real alert.' }
+      : { ok: false, message: 'The server couldn’t reach this phone. Turn Phone notifications off and on again.' };
+  } catch (e) {
+    return { ok: false, message: e.message || 'Couldn’t send a test notification.' };
+  }
 }

@@ -7,6 +7,7 @@
   --surface: #FFFFFF;
   --surface-alt: #F1F3F8;
   --border: #E4E7EF;
+  --border-strong: #CBD1DE;
   --text: #0F1117;
   --text-sec: #5B6178;
   --text-muted: #8A90A6;
@@ -44,7 +45,7 @@
   -webkit-text-size-adjust: 100%;
 }
 html.dark .agent-app {
-  --bg: #0D0F14; --surface: #1A1D27; --surface-alt: #13161E; --border: #262A38;
+  --bg: #0D0F14; --surface: #1A1D27; --surface-alt: #13161E; --border: #262A38; --border-strong: #3A4054;
   --text: #F0F2FA; --text-sec: #9DA3BB; --text-muted: #6B718A;
   --blue: #4F8EF7; --blue-ink: #7FAEFA; --blue-bg: #1A2540;
   --orange-bg: #33230C; --green: #34D399; --green-bg: #052E1C;
@@ -93,6 +94,7 @@ html.dark body.agent-body { background: #0D0F14; }
   border: 0; background: transparent; color: var(--text);
 }
 .agent-app .icon-btn:active { background: var(--surface-alt); }
+.agent-app .topbar .icon-btn { background: var(--surface); border: 1px solid var(--border); }
 .agent-app .icon-btn svg { width: 22px; height: 22px; }
 
 .agent-app .bottomnav {
@@ -127,15 +129,23 @@ html.dark body.agent-body { background: #0D0F14; }
   border: 1px solid transparent;
   font-weight: 700; font-size: 16px;
   background: var(--blue); color: #fff;
-  transition: transform 0.08s ease, opacity 0.15s;
+  box-shadow: 0 1px 2px rgba(15, 17, 23, 0.10), 0 6px 14px -6px color-mix(in srgb, var(--blue) 70%, transparent);
+  transition: transform 0.08s ease, opacity 0.15s, filter 0.15s;
+  -webkit-user-select: none; user-select: none;
 }
-.agent-app .btn:active { transform: scale(0.98); }
+.agent-app .btn:active { transform: scale(0.97); filter: brightness(0.94); }
 .agent-app .btn:disabled { opacity: 0.55; }
 .agent-app .btn svg { width: 20px; height: 20px; }
 .agent-app .btn.block { width: 100%; }
-.agent-app .btn.ghost { background: var(--surface); color: var(--text); border-color: var(--border); }
-.agent-app .btn.danger { background: var(--red-bg); color: var(--red); }
-.agent-app .btn.green { background: var(--green); color: var(--on-green); }
+.agent-app .btn.ghost {          /* secondary action: tinted fill so it reads as a button, not a card */
+  background: var(--blue-bg); color: var(--blue-ink);
+  border-color: color-mix(in srgb, var(--blue) 28%, transparent);
+  box-shadow: 0 1px 2px rgba(15, 17, 23, 0.06);
+}
+.agent-app .btn.danger { background: var(--red-bg); color: var(--red); border-color: color-mix(in srgb, var(--red) 28%, transparent); box-shadow: 0 1px 2px rgba(15, 17, 23, 0.06); }
+.agent-app .btn.green { background: var(--green); color: var(--on-green); box-shadow: 0 1px 2px rgba(15, 17, 23, 0.10), 0 6px 14px -6px color-mix(in srgb, var(--green) 70%, transparent); }
+.agent-app .btn:disabled { box-shadow: none; }
+.agent-app .btn.wa { background: var(--green-bg); color: var(--green); border-color: color-mix(in srgb, var(--green) 30%, transparent); box-shadow: 0 1px 2px rgba(15, 17, 23, 0.06); }
 .agent-app .btn, .agent-app .btn:hover { text-decoration: none; }
 .agent-app .btn.sm { min-height: 38px; padding: 0 14px; font-size: 14px; border-radius: var(--radius-s); }
 
@@ -168,13 +178,14 @@ html.dark body.agent-body { background: #0D0F14; }
   flex: none;
   min-height: 36px; padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border-strong);
   background: var(--surface);
-  color: var(--text-sec);
+  color: var(--text);
   font-size: 14px; font-weight: 600;
   display: inline-flex; align-items: center; gap: 6px;
 }
-.agent-app .chip.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+.agent-app .chip:active { background: var(--surface-alt); }
+.agent-app .chip.on { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 4px 10px -4px color-mix(in srgb, var(--blue) 70%, transparent); }
 .agent-app .chip-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .agent-app .tag {
@@ -228,6 +239,7 @@ html.dark body.agent-body { background: #0D0F14; }
 /* ── Stats strip ─────────────────────────────────────────────────────────── */
 .agent-app .stats { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--border); border-radius: var(--radius-m); background: var(--surface); }
 .agent-app .stat { padding: 12px 12px; text-align: left; border: 0; background: transparent; }
+.agent-app a.stat:active { background: var(--surface-alt); }
 .agent-app .stat + .stat { border-left: 1px solid var(--border); }
 .agent-app .stat b { display: block; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .agent-app .stat span { font-size: 13px; color: var(--text-sec); }
@@ -262,6 +274,24 @@ html.dark body.agent-body { background: #0D0F14; }
   background: var(--green-bg); color: var(--green); border: 0;
 }
 .agent-app .row-call svg { width: 21px; height: 21px; }
+.agent-app .row-call:active { filter: brightness(0.93); transform: scale(0.95); }
+/* chevron on every row that opens something */
+.agent-app .chev, .agent-app .row-link::after, .agent-app a.row::after {
+  content: ''; flex: none; width: 8px; height: 8px; margin: 0 4px 0 2px;
+  border-top: 2px solid var(--text-muted); border-right: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+}
+.agent-app a.row:active { background: var(--surface-alt); }
+.agent-app .row-note { display: block; margin-top: 6px; font-size: 14px; color: var(--text-sec); white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-app .tag svg { width: 12px; height: 12px; }
+/* tappable summary card (Home → Today's calls) */
+.agent-app .card-link { display: block; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 14px; color: inherit; box-shadow: 0 1px 2px rgba(15, 17, 23, 0.05); }
+.agent-app .card-link:active { background: var(--surface-alt); }
+.agent-app .card-link-head { display: flex; align-items: center; justify-content: space-between; font-size: 16px; }
+.agent-app .card-link-head .chev { border-color: var(--blue); }
+.agent-app .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.agent-app .mini-stats > span { display: flex; flex-direction: column; font-size: 13px; color: var(--text-sec); }
+.agent-app .mini-stats b { font-size: 20px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .agent-app .temp-mark { position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; }
 
 /* ── Lead detail ─────────────────────────────────────────────────────────── */
@@ -276,7 +306,7 @@ html.dark body.agent-body { background: #0D0F14; }
 .agent-app .kv-row dt { color: var(--text-sec); flex: none; }
 .agent-app .kv-row dd { margin: 0; text-align: right; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .agent-app .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; background: var(--surface-alt); padding: 4px; border-radius: var(--radius-m); }
-.agent-app .seg button { min-height: 40px; border: 0; border-radius: var(--radius-s); background: transparent; font-weight: 700; color: var(--text-sec); }
+.agent-app .seg button { min-height: 44px; border: 0; border-radius: var(--radius-s); background: transparent; font-weight: 700; color: var(--text-sec); }
 .agent-app .seg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(15, 17, 23, 0.12); }
 .agent-app .seg button.on.t-Hot { color: var(--red); }
 .agent-app .seg button.on.t-Warm { color: var(--amber); }
@@ -412,3 +442,14 @@ html.dark body.agent-body { background: #0D0F14; }
 .agent-app .attach-actions .btn.ghost { flex: 1 1 100px; }
 .agent-app .attach-done { display: flex; flex-direction: column; gap: 10px; }
 .agent-app .attach-done b { color: var(--green); font-size: 15px; }
+
+/* ── Settings rows with a second line, sub-options, confirm sheet ─────────── */
+.agent-app .setting-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.agent-app .setting-text .small { font-size: 13px; line-height: 1.35; }
+.agent-app .settings > .setting-sub { display: block; padding: 4px 14px 14px; border-top: 0; }
+.agent-app .setting-sub .seg { margin-top: 6px; }
+.agent-app .setting-sub .seg button { font-size: 14px; }
+.agent-app .section > .group-label { font-size: 14px; font-weight: 700; color: var(--text-sec); margin: 18px 2px 8px; }
+.agent-app .confirm-actions { display: grid; gap: 10px; }
+.agent-app .btn.danger-solid { background: var(--red); color: #fff; box-shadow: 0 1px 2px rgba(15, 17, 23, 0.10), 0 6px 14px -6px color-mix(in srgb, var(--red) 70%, transparent); }
+html.dark .agent-app .btn.danger-solid { color: #2D0A0A; }

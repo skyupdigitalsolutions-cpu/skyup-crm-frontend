@@ -275,6 +275,11 @@ export async function getCallLogsForDay(dateStr, tzOffset) {
   }
   return logs;
 }
+// Every logged call for one lead (newest first) — same endpoint the CRM's lead page uses.
+export async function getLeadCallLogs(leadId, limit = 30) {
+  const r = await api.get(`/call-logs/lead/${leadId}?limit=${limit}`);
+  return Array.isArray(r?.logs) ? r.logs : [];
+}
 export async function getUncalledLeads(dateStr, tzOffset, limit = 100) {
   const r = await api.get(`/call-logs/uncalled?date=${dateStr}&tzOffset=${tzOffset}&page=1&limit=${limit}`);
   return { leads: r?.leads || [], total: Number(r?.total) || (r?.leads || []).length };

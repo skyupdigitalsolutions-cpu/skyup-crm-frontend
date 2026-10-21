@@ -63,3 +63,12 @@ export function maskPhone(p) {
   if (d.length < 6) return '••••••';
   return d.slice(0, 2) + '•••••' + d.slice(-2);
 }
+
+/** Call length: 45s, 4m 5s, 1h 12m. */
+export function fmtTalk(secs) {
+  const s = Math.max(0, Math.round(secs || 0));
+  if (s < 60) return `${s}s`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m ${s % 60 ? `${s % 60}s` : ''}`.trim();
+}

@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { disablePhoneAlerts, enablePhoneAlerts, notificationPermission, phoneAlertsOn } from '../alerts.jsx';
-import { pushActive } from '../push.js';
+import { pushActive, savePushPrefs, sendTestPush } from '../push.js';
+import { LEAD_TIMES, setAlertPrefs, useAlertPrefs } from '../alertPrefs.js';
+import ConfirmSheet from '../components/ConfirmSheet.jsx';
+import { useToast } from '../components/Toast.jsx';
 import { isIOS, isStandalone } from '../pwa.js';
 import { useAttendance } from '../attendance.jsx';
 import { useAuth } from '../auth.jsx';
@@ -13,6 +16,7 @@ export default function Profile() {
   const { record } = useAttendance();
   // Same light/dark setting as the CRM (saved in this browser).
   const { dark, toggle } = useTheme();
+  const [askSignOut, setAskSignOut] = useState(false);
 
   return (
     <>
@@ -55,16 +59,38 @@ export default function Profile() {
         </div>
 
         <div className="section">
-          <button className="btn block danger" onClick={() => { if (window.confirm('Sign out of SkyUp CRM on this phone? You will need your email and password to sign in again.')) logout(); }}>
+          <button className="btn block danger" onClick={() => setAskSignOut(true)}>
             Sign out
           </button>
         </div>
       </div>
+      <ConfirmSheet
+        open={askSignOut}
+        title="Sign out of SkyUp CRM?"
+        body="You’ll stop getting notifications on this phone and need your email and password to sign in again."
+        confirmLabel="Sign out"
+        onConfirm={() => { setAskSignOut(false); logout(); }}
+        onClose={() => setAskSignOut(false)}
+      />
     </>
   );
 }
 
+function Switch({ label, sub, on, onToggle, disabled }) {
+  return (
+    <button onClick={onToggle} disabled={disabled} aria-pressed={on}>
+      <span className="setting-text"><span>{label}</span>{sub ? <span className="small muted">{sub}</span> : null}</span>
+      <span className={`switch${on ? ' on' : ''}`} aria-hidden="true"><i /></span>
+    </button>
+  );
+}
+
 function PhoneAlerts() {
+  const prefs = useAlertPrefs();
+  const toast = useToast();
+  const [testing, setTesting] = useState(false);
+  const change = (patch) => { setAlertPrefs(patch); savePushPrefs(); };
+  const test = async () => { setTesting(true); const r = await sendTestPush(); setTesting(false); toast(r.message); };
   const [on, setOn] = useState(phoneAlertsOn());
   const [perm, setPerm] = useState(notificationPermission());
   const needsInstall = isIOS() && !isStandalone();
@@ -86,12 +112,37 @@ function PhoneAlerts() {
     <div className="section">
       <div className="section-head"><h2>Alerts</h2></div>
       <div className="settings">
-        <button onClick={toggle} disabled={perm === 'unsupported' || perm === 'denied'} aria-pressed={on}>
-          <span>Phone notifications</span>
-          <span className={`switch${on ? ' on' : ''}`} aria-hidden="true"><i /></span>
-        </button>
+        <Switch label="Phone notifications" sub="Show alerts on the lock screen, even when the app is closed"
+          on={on} onToggle={toggle} disabled={perm === 'unsupported' || perm === 'denied'} />
       </div>
       <p className="small muted" style={{ margin: '8px 2px 0' }}>{note}</p>
+      {on && pushActive() ? (
+        <button className="btn block ghost sm" style={{ marginTop: 10 }} onClick={test} disabled={testing}>
+          {testing ? 'Sending…' : 'Send a test notification'}
+        </button>
+      ) : null}
+
+      <div className="group-label">What to alert me about</div>
+      <div className="settings">
+        <Switch label="New leads" sub="When a lead is assigned or moved to you"
+          on={prefs.newLeads} onToggle={() => change({ newLeads: !prefs.newLeads })} />
+        <Switch label="Follow-up reminders" sub="Before a follow-up call you scheduled"
+          on={prefs.followUps} onToggle={() => change({ followUps: !prefs.followUps })} />
+        {prefs.followUps ? (
+          <div className="setting-sub">
+            <span className="small muted">Remind me before the follow-up</span>
+            <div className="seg" role="group" aria-label="Remind me before a follow-up">
+              {LEAD_TIMES.map((m) => (
+                <button key={m} className={prefs.followUpLeadMin === m ? 'on' : ''} aria-pressed={prefs.followUpLeadMin === m}
+                  onClick={() => change({ followUpLeadMin: m })}>{m} min</button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <Switch label="Overdue follow-ups" sub="Summary of missed follow-ups and leads with no follow-up date"
+          on={prefs.followUpSummary} onToggle={() => change({ followUpSummary: !prefs.followUpSummary })} />
+      </div>
+      <p className="small muted" style={{ margin: '8px 2px 0' }}>Remote clock-in replies are always shown.</p>
     </div>
   );
 }
