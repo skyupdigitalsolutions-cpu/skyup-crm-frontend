@@ -32,6 +32,8 @@ export function appCallPayload(call, remarkInfo) {
   const body = { leadId: String(call.leadId), dialedAt: Math.round(call.dialedAt) };
   if (call.returnedAt) body.returnedAt = Math.round(call.returnedAt);
   if (call.phone) body.phoneNumber = String(call.phone);
+  if (call.callType) body.callType = call.callType;          // hand-logged calls (LogCallSheet): incoming | outgoing | missed
+  if (call.manual) body.manual = true;
   if (remarkInfo) {
     const outcome = String(remarkInfo.outcome || '');
     body.outcome = outcome;
@@ -47,7 +49,9 @@ export function appCallPayload(call, remarkInfo) {
 // dial time. Requests for the same call are merged, so the newest information wins. Cleared on sign-out.
 export const QUEUE_KEY = 'skyup_call_log_queue';
 const QUEUE_MAX = 50;
-const QUEUE_MAX_AGE_MS = 23 * 3600 * 1000;      // the server refuses calls older than 24 hours
+const QUEUE_MAX_AGE_MS = 23 * 3600 * 1000;      // the server refuses app calls older than 24 hours…
+const QUEUE_MAX_AGE_MANUAL_MS = (7 * 24 - 1) * 3600 * 1000;   // …and hand-logged calls older than 7 days
+const tooOld = (b, now) => now - Number(b.dialedAt) >= (b.manual ? QUEUE_MAX_AGE_MANUAL_MS : QUEUE_MAX_AGE_MS);
 
 const readQueue = () => { try { const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); return Array.isArray(q) ? q : []; } catch { return []; } };
 const writeQueue = (q) => { try { if (q.length) localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); else localStorage.removeItem(QUEUE_KEY); } catch { /* ignore */ } };
@@ -55,7 +59,7 @@ const sameCall = (a, b) => String(a.leadId) === String(b.leadId) && Number(a.dia
 const retryable = (e) => { const s = Number(e && e.status) || 0; return s === 0 || s === 408 || s === 429 || s >= 500; };
 
 export function queueAppCall(body, now = Date.now()) {
-  const q = readQueue().filter((x) => now - Number(x.dialedAt) < QUEUE_MAX_AGE_MS);
+  const q = readQueue().filter((x) => !tooOld(x, now));
   const i = q.findIndex((x) => sameCall(x, body));
   if (i >= 0) q[i] = { ...q[i], ...body }; else q.push(body);
   writeQueue(q.slice(-QUEUE_MAX));
@@ -74,7 +78,7 @@ export async function flushAppCallQueue(send, now = Date.now()) {
   flushing = true;
   try {
     for (const body of readQueue()) {
-      if (now - Number(body.dialedAt) >= QUEUE_MAX_AGE_MS) { writeQueue(readQueue().filter((x) => !sameCall(x, body))); continue; }
+      if (tooOld(body, now)) { writeQueue(readQueue().filter((x) => !sameCall(x, body))); continue; }
       const sent = JSON.stringify(body);
       try { await send(body); } catch (e) { if (retryable(e)) break; }       // still offline: try again later
       // remove only what was sent — a newer update for this call queued meanwhile stays for the next try

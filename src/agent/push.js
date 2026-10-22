@@ -40,7 +40,17 @@ function sameKey(buf, b64) {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
+// The server serves these at /api/call-logs/agent-push (current backend) — an earlier backend build used
+// /api/agent-push. Try the current address first and fall back on 404, so the app works with either.
 async function call(method, path, body, token = getToken()) {
+  if (path.startsWith('/agent-push/')) {
+    try { return await rawCall(method, `/call-logs${path}`, body, token); }
+    catch (e) { if (e && e.status === 404) return rawCall(method, path, body, token); throw e; }
+  }
+  return rawCall(method, path, body, token);
+}
+
+async function rawCall(method, path, body, token = getToken()) {
   if (!token) throw new Error('signed out');
   const res = await fetch(BASE + path, {
     method,
@@ -49,7 +59,7 @@ async function call(method, path, body, token = getToken()) {
     keepalive: method !== 'GET',
   });
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error((data && data.message) || `HTTP ${res.status}`);
+  if (!res.ok) { const err = new Error((data && data.message) || `HTTP ${res.status}`); err.status = res.status; throw err; }
   return data;
 }
 

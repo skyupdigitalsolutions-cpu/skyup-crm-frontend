@@ -167,14 +167,31 @@ export default function Home() {
         <InstallTip />
         <ShiftPanel />
 
+        {/* What needs doing first, then today's numbers, then the overview */}
+        <div className="section">
+          <div className="section-head">
+            <h2>Follow-ups due{due.length ? <span className="count-pill">{due.length}</span> : null}</h2>
+            <Link to="/agent/follow-ups">All follow-ups</Link>
+          </div>
+          {loading && !leads.length ? <div className="spinner" /> : due.length ? (
+            <div className="list">
+              {due.slice(0, 3).map((l) => <LeadRow key={l.id} lead={l} showFollowUp />)}
+            </div>
+          ) : (
+            <div className="list empty"><b>No follow-ups due</b>Follow-ups you set on a lead show up here on the day.</div>
+          )}
+          {due.length > 3 ? <Link to="/agent/follow-ups" className="see-more">See {due.length - 3} more</Link> : null}
+        </div>
+
         <div className="section">
           <TodayCalls />
         </div>
 
         <div className="section">
+          <div className="section-head"><h2>My leads</h2></div>
           <div className="stat-btns">
             <Link to="/agent/leads" className="stat-btn tile-blue" aria-label={`My leads: ${counts.total}. Open`}>
-              <b>{counts.total}</b><span>My leads</span><i className="chev" aria-hidden="true" />
+              <b>{counts.total}</b><span>All leads</span><i className="chev" aria-hidden="true" />
             </Link>
             <Link to="/agent/leads?status=New" className="stat-btn tile-amber" aria-label={`Not called: ${counts.fresh}. Open`}>
               <b>{counts.fresh}</b><span>Not called</span><i className="chev" aria-hidden="true" />
@@ -183,34 +200,26 @@ export default function Home() {
               <b>{counts.newToday}</b><span>New today</span><i className="chev" aria-hidden="true" />
             </Link>
           </div>
-        </div>
 
-        <div className="section">
-          <div className="section-head"><h2>Lead status</h2></div>
-          <div className="chips">
-            {STATUS_OPTIONS.map((st) => <Link key={st} className="chip" to={`/agent/leads?status=${encodeURIComponent(st)}`}>{st} ({stats.byStatus[st] || 0})</Link>)}
-          </div>
-          <div className="section-head" style={{ marginTop: 14 }}><h2>Lead temperature</h2></div>
-          <div className="chips">
-            {TEMPERATURES.map((t) => <Link key={t} className="chip" to={`/agent/leads?temp=${t}`}>{t} ({stats.byTemp[t] || 0})</Link>)}
-          </div>
-          <p className="small muted" style={{ margin: '10px 2px 0' }}>{stats.newThisWeek} new this week · {stats.inProgress} in progress · {stats.converted} converted</p>
-        </div>
-
-        <Link to="/agent/visits" className="btn block ghost"><IconPin />Log a client visit</Link>
-
-        <div className="section">
-          <div className="section-head">
-            <h2>Follow-ups due</h2>
-            <Link to="/agent/follow-ups">All follow-ups</Link>
-          </div>
-          {loading && !leads.length ? <div className="spinner" /> : due.length ? (
-            <div className="list">
-              {due.slice(0, 5).map((l) => <LeadRow key={l.id} lead={l} showFollowUp />)}
+          <div className="breakdown">
+            <div className="breakdown-row">
+              <span className="breakdown-label">By status</span>
+              <div className="chip-grid">
+                {STATUS_OPTIONS.map((st) => <Link key={st} className="chip" to={`/agent/leads?status=${encodeURIComponent(st)}`}>{st}<b>{stats.byStatus[st] || 0}</b></Link>)}
+              </div>
             </div>
-          ) : (
-            <div className="list empty"><b>No follow-ups due</b>Follow-ups you set on a lead show up here on the day.</div>
-          )}
+            <div className="breakdown-row">
+              <span className="breakdown-label">By temperature</span>
+              <div className="chip-grid">
+                {TEMPERATURES.map((t) => <Link key={t} className={`chip temp-${t}`} to={`/agent/leads?temp=${t}`}>{t}<b>{stats.byTemp[t] || 0}</b></Link>)}
+              </div>
+            </div>
+            <p className="breakdown-foot">{stats.newThisWeek} new this week · {stats.inProgress} in progress · {stats.converted} converted</p>
+          </div>
+        </div>
+
+        <div className="section">
+          <Link to="/agent/visits" className="btn block ghost"><IconPin />Log a client visit</Link>
         </div>
       </div>
     </>
