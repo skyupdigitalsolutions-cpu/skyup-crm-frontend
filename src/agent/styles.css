@@ -478,3 +478,47 @@ html.dark .agent-app .btn.danger-solid { color: #2D0A0A; }
 .agent-app .pick-list { border: 1px solid var(--border); border-radius: var(--radius-m); overflow: hidden; margin-top: 8px; }
 .agent-app .pick-list button { display: block; width: 100%; text-align: left; background: var(--surface); border: 0; border-bottom: 1px solid var(--border); padding: 10px 12px; font: inherit; color: inherit; }
 .agent-app .pick-list button:last-child { border-bottom: 0; }
+
+/* ── Tappable count tiles (Home: My leads / Not called / New today; Follow-ups: Overdue / Today / …) ── */
+.agent-app .tile-blue  { --tile: var(--blue);  --tile-bg: var(--blue-bg); }
+.agent-app .tile-amber { --tile: var(--amber); --tile-bg: var(--amber-bg); }
+.agent-app .tile-green { --tile: var(--green); --tile-bg: var(--green-bg); }
+.agent-app .tile-red   { --tile: var(--red);   --tile-bg: var(--red-bg); }
+.agent-app .tile-muted { --tile: var(--text-sec); --tile-bg: var(--surface-alt); }
+
+.agent-app .stat-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.agent-app .stat-btn {
+  position: relative; display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 12px 12px; min-height: 84px;
+  background: var(--tile-bg); color: var(--text);
+  border: 1.5px solid color-mix(in srgb, var(--tile) 30%, transparent);
+  border-radius: var(--radius-m);
+  box-shadow: 0 1px 2px rgba(15, 17, 23, 0.06), 0 4px 10px -6px color-mix(in srgb, var(--tile) 60%, transparent);
+  transition: transform 0.08s ease, filter 0.15s;
+}
+.agent-app .stat-btn:active { transform: scale(0.97); filter: brightness(0.95); }
+.agent-app .stat-btn b { font-size: 24px; font-weight: 800; line-height: 1.1; color: var(--tile); font-variant-numeric: tabular-nums; }
+.agent-app .stat-btn span { font-size: 13px; font-weight: 600; color: var(--text-sec); padding-right: 12px; }
+.agent-app .stat-btn .chev { position: absolute; right: 10px; bottom: 15px; border-color: var(--tile); margin: 0; }
+
+.agent-app .fu-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+.agent-app .fu-tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 10px 10px; min-height: 66px; text-align: left;
+  background: var(--surface); color: var(--text);
+  border: 1.5px solid var(--border-strong, var(--border)); border-radius: var(--radius-m);
+  box-shadow: 0 1px 2px rgba(15, 17, 23, 0.05);
+  transition: transform 0.08s ease;
+}
+.agent-app .fu-tile:active { transform: scale(0.96); }
+.agent-app .fu-tile b { font-size: 22px; font-weight: 800; line-height: 1.1; color: var(--tile); font-variant-numeric: tabular-nums; }
+.agent-app .fu-tile span { font-size: 12.5px; font-weight: 600; color: var(--text-sec); white-space: nowrap; }
+.agent-app .fu-tile.on { background: var(--tile-bg); border-color: var(--tile); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tile) 25%, transparent); }
+.agent-app .fu-tile.on span { color: var(--text); }
+
+.agent-app .fu-setby { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.agent-app .fu-setby .seg { flex: 1; }
+.agent-app .fu-setby .seg button { font-size: 13.5px; min-height: 40px; }
+.agent-app .fu-showing { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 2px 0; font-size: 14px; color: var(--text-sec); }
+.agent-app .fu-showing b { color: var(--text); }
+.agent-app .fu-showing button { flex: none; background: none; border: 0; padding: 4px 0; color: var(--blue); font-weight: 700; font-size: 14px; }

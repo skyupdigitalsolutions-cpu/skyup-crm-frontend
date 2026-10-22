@@ -7,15 +7,22 @@ import { TopBar } from '../components/Shell.jsx';
 import { IconPhone, IconRefresh, IconSearch } from '../components/icons.jsx';
 import { STATUS_TONE } from '../constants.js';
 import { URGENCY_CFG, countBySource, countByUrgency, filterItems, groupItems, normalizeReport } from '../followUps.js';
-import { fmtRelativeDay, fmtTime, maskPhone, telHref } from '../format.js';
+import { fmtRelativeDay, maskPhone, telHref } from '../format.js';
 import { savePendingCall } from '../pendingCall.js';
 
-const URGENCY_FILTERS = [['all', 'All'], ['overdue', 'Overdue'], ['today', 'Due today'], ['upcoming', 'Upcoming'], ['missing', 'No date']];
-const SOURCE_FILTERS = [['all', 'All'], ['employee', 'Set by me'], ['auto', 'Automatic']];
+// The four tiles at the top: each is a count AND a filter (tap again to show everything).
+const TILES = [
+  { k: 'overdue', label: 'Overdue', tone: 'red' },
+  { k: 'today', label: 'Today', tone: 'amber' },
+  { k: 'upcoming', label: 'Upcoming', tone: 'blue' },
+  { k: 'missing', label: 'No date', tone: 'muted' },
+];
+const TILE_TITLE = { all: 'All follow-ups', overdue: 'Overdue', today: 'Due today', upcoming: 'Upcoming', missing: 'Leads with no follow-up date' };
+const SOURCE_FILTERS = [['all', 'Anyone'], ['employee', 'Me'], ['auto', 'Auto']];   // Auto = created by the CRM (workflow / verification)
 
 function Card({ it }) {
   const tel = telHref(it.mobile);
-  const when = it.scheduledAt ? `${fmtRelativeDay(it.scheduledAt)}, ${fmtTime(it.scheduledAt)}` : '';
+  const when = it.scheduledAt ? fmtRelativeDay(it.scheduledAt) : '';          // already includes the time
   return (
     <div className="fu-card" data-testid="fu-card">
       <div className="fu-top">
@@ -28,12 +35,12 @@ function Card({ it }) {
         </div>
         <div style={{ display: 'grid', gap: 4, justifyItems: 'end' }}>
           {it.status ? <span className={`tag tone-${STATUS_TONE[it.status] || 'muted'}`}>{it.status}</span> : null}
-          {it.kind === 'followup' && it.origin === 'auto' ? <span className="tag tone-muted">Automatic</span> : null}
+          {it.kind === 'followup' && it.origin === 'auto' ? <span className="tag tone-muted" title="Created automatically by the CRM, not by you">Auto-scheduled</span> : null}
         </div>
       </div>
       {it.remark ? (
         <div className="fu-quote">
-          <b>Your remark:</b> {it.remark.text}
+          <b>Last remark:</b> {it.remark.text}
           {it.remark.at ? <small>{fmtRelativeDay(it.remark.at)}</small> : null}
         </div>
       ) : it.kind === 'followup' ? <div className="small muted" style={{ marginTop: 8 }}>No remark written on this lead yet.</div> : null}
@@ -86,20 +93,35 @@ export default function FollowUps() {
           <IconSearch />
           <input type="search" placeholder="Search name, number, note…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search follow-ups" />
         </label>
-        <div className="chips" style={{ marginTop: 12 }} role="group" aria-label="Filter by urgency">
-          {URGENCY_FILTERS.map(([k, label]) => (
-            <button key={k} className={`chip${urgency === k ? ' on' : ''}`} aria-pressed={urgency === k} onClick={() => setUrgency(k)}>
-              {label} ({k === 'all' ? counts.total : counts[k] || 0})
+        <div className="fu-tiles" role="group" aria-label="Show follow-ups">
+          {TILES.map((t) => (
+            <button key={t.k} className={`fu-tile tile-${t.tone}${urgency === t.k ? ' on' : ''}`} aria-pressed={urgency === t.k}
+              onClick={() => setUrgency(urgency === t.k ? 'all' : t.k)}>
+              <b>{report ? counts[t.k] || 0 : '–'}</b>
+              <span>{t.label}</span>
             </button>
           ))}
         </div>
+
         {bySource.auto > 0 ? (
-          <div className="chips" style={{ marginTop: 8 }} role="group" aria-label="Filter by who set the follow-up">
-            {SOURCE_FILTERS.map(([k, label]) => (
-              <button key={k} className={`chip${source === k ? ' on' : ''}`} aria-pressed={source === k} onClick={() => setSource(k)}>
-                {label}{k === 'all' ? '' : ` (${bySource[k] || 0})`}
-              </button>
-            ))}
+          <div className="fu-setby">
+            <span className="small muted">Set by</span>
+            <div className="seg" role="group" aria-label="Who set the follow-up">
+              {SOURCE_FILTERS.map(([k, label]) => (
+                <button key={k} className={source === k ? 'on' : ''} aria-pressed={source === k} onClick={() => setSource(k)}>
+                  {label}{k === 'all' ? '' : ` (${bySource[k] || 0})`}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {report ? (
+          <div className="fu-showing">
+            <span>Showing <b>{TILE_TITLE[urgency]}</b>{source !== 'all' ? <> set by <b>{source === 'auto' ? 'the CRM' : 'you'}</b></> : null} · {shown.length}</span>
+            {urgency !== 'all' || source !== 'all' || q ? (
+              <button onClick={() => { setUrgency('all'); setSource('all'); setQ(''); }}>Show all ({counts.total})</button>
+            ) : null}
           </div>
         ) : null}
 

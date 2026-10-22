@@ -172,10 +172,16 @@ export default function Home() {
         </div>
 
         <div className="section">
-          <div className="stats">
-            <Link to="/agent/leads" className="stat" style={{ color: 'inherit' }}><b>{counts.total}</b><span>My leads</span></Link>
-            <Link to="/agent/leads?status=New" className="stat" style={{ color: 'inherit' }}><b>{counts.fresh}</b><span>Not called</span></Link>
-            <Link to="/agent/leads" className="stat" style={{ color: 'inherit' }}><b>{counts.newToday}</b><span>New today</span></Link>
+          <div className="stat-btns">
+            <Link to="/agent/leads" className="stat-btn tile-blue" aria-label={`My leads: ${counts.total}. Open`}>
+              <b>{counts.total}</b><span>My leads</span><i className="chev" aria-hidden="true" />
+            </Link>
+            <Link to="/agent/leads?status=New" className="stat-btn tile-amber" aria-label={`Not called: ${counts.fresh}. Open`}>
+              <b>{counts.fresh}</b><span>Not called</span><i className="chev" aria-hidden="true" />
+            </Link>
+            <Link to="/agent/leads?date=today" className="stat-btn tile-green" aria-label={`New today: ${counts.newToday}. Open`}>
+              <b>{counts.newToday}</b><span>New today</span><i className="chev" aria-hidden="true" />
+            </Link>
           </div>
         </div>
 
