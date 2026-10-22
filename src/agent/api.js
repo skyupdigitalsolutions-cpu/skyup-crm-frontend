@@ -205,12 +205,39 @@ export const getLead = async (id) => formatLead(await api.get(`/lead/${id}`));
 export const updateLead = (id, data) => api.patch(`/lead/${id}`, data);
 export const markNotInterested = (id, remark) => api.patch(`/lead/${id}/not-interested`, { remark });
 
-export function addCallRemark(id, { remark, outcome, followUpDate, status }) {
+export function addCallRemark(id, { remark, outcome, followUpDate, status, industry, services }) {
   const payload = { remark, outcome };
   if (followUpDate) payload.followUpDate = followUpDate;
   if (status) payload.status = status;
+  if (industry !== undefined) payload.industry = industry;
+  if (Array.isArray(services)) { payload.services = services; payload.service = services[0] || ''; }   // same as the mobile app
   return api.patch(`/lead/${id}`, payload);
 }
+
+// ── Same server features as the mobile app ───────────────────────────────────
+// Follow-ups report (the Daily Report's lists): an employee gets only their own.
+export const getFollowUpsReport = () => api.get('/reports/follow-ups', { timeout: 30000 });
+// Invalid number / lead. Two steps: the first employee sends it for verification; a verifier confirms (reject=false)
+// or rejects it (reject=true, "it is not invalid").
+export const markLeadInvalid = (id, { remark, reject = false } = {}) => api.patch(`/lead/${id}/invalid`, { remark, reject });
+// AI summary + next action: { summary, nextAction, keyPoints[], sentiment, suggestedTemp, generatedAt, cached }
+export const getLeadActionSummary = (id, { refresh = false } = {}) => api.get(`/lead/${id}/action-summary${refresh ? '?refresh=1' : ''}`, { timeout: 60000, retries: 0 });   // no automatic retry: each try costs an AI call, and a busy answer is better shown at once
+// Client visit / meeting remark. A photo or document is sent as multipart (documents → "document", audio → "recording").
+export function postMeetingRemark(leadId, payload, file) {
+  if (!file) return api.post(`/lead/${leadId}/meeting-remark`, payload, { timeout: 30000 });
+  const form = new FormData();
+  Object.entries(payload).forEach(([k, v]) => { if (v !== null && v !== undefined) form.append(k, String(v)); });
+  form.append(String(file.type || '').startsWith('audio') ? 'recording' : 'document', file, file.name);
+  return api.post(`/lead/${leadId}/meeting-remark`, form, { timeout: 120000 });
+}
+export async function getMeetingRemarks(leadId) {
+  try { const r = await api.get(`/lead/${leadId}/meeting-remarks`); return Array.isArray(r?.meetingRemarks) ? r.meetingRemarks : []; } catch { return []; }
+}
+export async function createLead(body) {
+  const d = await api.post('/lead', body);
+  return d?._id || d?.id || d?.lead?._id || null;
+}
+export const saveIdleRemark = (remark, breakIndex) => api.post('/attendance/idle-remark', breakIndex != null ? { remark, breakIndex } : { remark });
 
 export function formatLead(lead) {
   const callHistory = Array.isArray(lead?.callHistory) ? lead.callHistory : [];
@@ -255,6 +282,7 @@ export function formatLead(lead) {
     lastOutcome: lastCall?.outcome || null,
     lastCalledAt: lastCall?.calledAt || null,
     isClosed: !!lead?.isClosed,
+    invalidStage: lead?.invalidStage || null,
   };
 }
 

@@ -11,6 +11,9 @@ import { TopBar } from '../components/Shell.jsx';
 import { useToast } from '../components/Toast.jsx';
 import InstallTip from '../components/InstallTip.jsx';
 import ConfirmSheet from '../components/ConfirmSheet.jsx';
+import { leadStats } from '../dashboardStats.js';
+import { IconPin } from '../components/icons.jsx';
+import { STATUS_OPTIONS, TEMPERATURES } from '../constants.js';
 
 const STATUS = {
   active: { label: 'Working', color: 'var(--green)' },
@@ -154,6 +157,7 @@ export default function Home() {
     };
   }, [leads]);
 
+  const stats = useMemo(() => leadStats(leads), [leads]);
   const first = (user?.name || '').split(' ')[0];
 
   return (
@@ -176,9 +180,23 @@ export default function Home() {
         </div>
 
         <div className="section">
+          <div className="section-head"><h2>Lead status</h2></div>
+          <div className="chips">
+            {STATUS_OPTIONS.map((st) => <Link key={st} className="chip" to={`/agent/leads?status=${encodeURIComponent(st)}`}>{st} ({stats.byStatus[st] || 0})</Link>)}
+          </div>
+          <div className="section-head" style={{ marginTop: 14 }}><h2>Lead temperature</h2></div>
+          <div className="chips">
+            {TEMPERATURES.map((t) => <Link key={t} className="chip" to={`/agent/leads?temp=${t}`}>{t} ({stats.byTemp[t] || 0})</Link>)}
+          </div>
+          <p className="small muted" style={{ margin: '10px 2px 0' }}>{stats.newThisWeek} new this week · {stats.inProgress} in progress · {stats.converted} converted</p>
+        </div>
+
+        <Link to="/agent/visits" className="btn block ghost"><IconPin />Log a client visit</Link>
+
+        <div className="section">
           <div className="section-head">
             <h2>Follow-ups due</h2>
-            {due.length > 5 ? <Link to="/agent/leads?view=followups">See all {due.length}</Link> : null}
+            <Link to="/agent/follow-ups">All follow-ups</Link>
           </div>
           {loading && !leads.length ? <div className="spinner" /> : due.length ? (
             <div className="list">

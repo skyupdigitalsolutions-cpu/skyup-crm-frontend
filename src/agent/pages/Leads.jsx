@@ -3,7 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import { useLeads } from '../leads.jsx';
 import LeadRow from '../components/LeadRow.jsx';
 import { TopBar } from '../components/Shell.jsx';
-import { IconRefresh, IconSearch } from '../components/icons.jsx';
+import { IconFilter, IconRefresh, IconSearch } from '../components/icons.jsx';
+import Sheet from '../components/Sheet.jsx';
+import { DATE_PRESETS, SORTS, activeFilterCount, applyLeadFilters, distinct, sortLeads } from '../leadFilters.js';
 
 const STATUS_FILTERS = ['All', 'New', 'In Progress', 'Interested', 'Converted', 'Not Interested'];
 const TEMP_FILTERS = ['Hot', 'Warm', 'Cold'];
@@ -15,37 +17,43 @@ export default function Leads() {
   const status = params.get('status') || 'All';
   const temp = params.get('temp') || '';
   const view = params.get('view') || '';
+  const date = params.get('date') || 'all';
+  const from = params.get('from') || '';
+  const to = params.get('to') || '';
+  const industry = params.get('industry') || '';
+  const source = params.get('source') || '';
+  const sort = params.get('sort') || 'recent';
+  const [sheet, setSheet] = useState(false);
   const [q, setQ] = useState(params.get('q') || '');
   const [limit, setLimit] = useState(PAGE);
   const sentinel = useRef(null);
 
+  // Functional update: two quick taps (for example "All time", then an industry) both apply, instead of the second
+  // one starting from a stale copy of the address.
   const setParam = (k, v) => {
-    const next = new URLSearchParams(params);
-    if (v) next.set(k, v); else next.delete(k);
-    setParams(next, { replace: true });
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (v) next.set(k, v); else next.delete(k);
+      return next;
+    }, { replace: true });
     setLimit(PAGE);
   };
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const digits = needle.replace(/\D/g, '');
     let list = leads;
     if (view === 'followups') {
       const end = new Date(); end.setHours(23, 59, 59, 999);
       list = list.filter((l) => l.followUpDate && new Date(l.followUpDate) <= end)
         .sort((a, b) => new Date(a.followUpDate) - new Date(b.followUpDate));
     }
-    if (status !== 'All') list = list.filter((l) => l.status === status);
-    if (temp) list = list.filter((l) => l.temperature === temp);
-    if (needle) {
-      list = list.filter((l) =>
-        l.name.toLowerCase().includes(needle) ||
-        (digits.length >= 3 && l.phone.replace(/\D/g, '').includes(digits)) ||
-        l.email.toLowerCase().includes(needle) ||
-        (l.source || '').toLowerCase().includes(needle));
-    }
-    return list;
-  }, [leads, q, status, temp, view]);
+    list = applyLeadFilters(list, { q: needle, status, temp, date, from, to, industry, source });
+    return view === 'followups' ? list : sortLeads(list, sort);
+  }, [leads, q, status, temp, view, date, from, to, industry, source, sort]);
+  const industries = useMemo(() => distinct(leads, 'industry'), [leads]);
+  const sources = useMemo(() => distinct(leads, 'source'), [leads]);
+  const filterCount = activeFilterCount({ status, temp, date, industry, source });
+  const clearAll = () => { setParams(new URLSearchParams(view ? { view } : {}), { replace: true }); setQ(''); setLimit(PAGE); };
 
   // Render 50 rows at a time; load more as the list end scrolls into view.
   useEffect(() => {
@@ -74,12 +82,15 @@ export default function Leads() {
           <IconSearch />
           <input
             type="search"
-            placeholder="Search name, phone or email"
+            placeholder="Search name, phone, email or campaign"
             value={q}
             onChange={(e) => { setQ(e.target.value); setLimit(PAGE); }}
             aria-label="Search leads"
           />
         </label>
+        <button className="btn block ghost" style={{ marginTop: 10 }} onClick={() => setSheet(true)} aria-label="Filter and sort">
+          <IconFilter />Filter &amp; sort{filterCount ? <span className="badge">{filterCount}</span> : null}
+        </button>
 
         <div className="chips" style={{ marginTop: 12 }} role="group" aria-label="Filter by status">
           {STATUS_FILTERS.map((s) => (
@@ -105,11 +116,46 @@ export default function Leads() {
         ) : (
           <div className="list empty">
             <b>No leads match</b>
-            {q || status !== 'All' || temp ? 'Clear the search or filters to see all your leads.' : 'New leads assigned to you appear here.'}
+            {q || filterCount ? 'Clear the search or filters to see all your leads.' : 'New leads assigned to you appear here.'}
           </div>
         )}
         {limit < filtered.length ? <div ref={sentinel} style={{ height: 1 }} /> : null}
       </div>
+
+      <Sheet open={sheet} onClose={() => setSheet(false)} label="Filter and sort leads">
+        <h3>Filter &amp; sort</h3>
+        <div className="group-label">Received</div>
+        <div className="chip-grid" role="group" aria-label="Received">
+          {DATE_PRESETS.map((d) => <button key={d.id} className={`chip${date === d.id ? ' on' : ''}`} aria-pressed={date === d.id} onClick={() => setParam('date', d.id === 'all' ? '' : d.id)}>{d.label}</button>)}
+        </div>
+        {date === 'custom' ? (
+          <div className="field-row" style={{ marginTop: 10 }}>
+            <label className="field"><span>From</span><input className="input" type="date" value={from} onChange={(e) => setParam('from', e.target.value)} aria-label="From date" /></label>
+            <label className="field"><span>To</span><input className="input" type="date" value={to} onChange={(e) => setParam('to', e.target.value)} aria-label="To date" /></label>
+          </div>
+        ) : null}
+        {industries.length ? (
+          <label className="field" style={{ marginTop: 14 }}><span>Industry</span>
+            <select className="select" value={industry} onChange={(e) => setParam('industry', e.target.value)} aria-label="Industry">
+              <option value="">All industries</option>{industries.map((i) => <option key={i} value={i}>{i}</option>)}
+            </select>
+          </label>
+        ) : null}
+        {sources.length ? (
+          <label className="field"><span>Source</span>
+            <select className="select" value={source} onChange={(e) => setParam('source', e.target.value)} aria-label="Source">
+              <option value="">All sources</option>{sources.map((i) => <option key={i} value={i}>{i}</option>)}
+            </select>
+          </label>
+        ) : null}
+        <label className="field"><span>Sort by</span>
+          <select className="select" value={sort} onChange={(e) => setParam('sort', e.target.value === 'recent' ? '' : e.target.value)} aria-label="Sort by">
+            {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        </label>
+        <button className="btn block" onClick={() => setSheet(false)} style={{ marginTop: 6 }}>Show {filtered.length} {filtered.length === 1 ? 'lead' : 'leads'}</button>
+        <button className="btn block ghost" onClick={clearAll} style={{ marginTop: 8 }}>Clear all filters</button>
+      </Sheet>
     </>
   );
 }

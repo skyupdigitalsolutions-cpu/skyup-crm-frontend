@@ -8,6 +8,9 @@
 import { useEffect, useRef } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AGENT_ROLES, logAppCall } from './api.js';
+import FollowUps from './pages/FollowUps.jsx';
+import Visits from './pages/Visits.jsx';
+import IdleRemark from './components/IdleRemark.jsx';
 import { COLD_START_MAX_MS, MIN_AWAY_MS, appCallPayload, flushAppCallQueue, sendAppCall, shouldLogAppCalls } from './appCallLog.js';
 import { AlertsProvider } from './alerts.jsx';
 import { AttendanceProvider } from './attendance.jsx';
@@ -81,12 +84,15 @@ function SignedInApp({ user }) {
         <ClockInGate>
           <LeadsProvider userId={user._id || user.email}>
             <PendingCallResumer />
+            <IdleRemark />
             <LiveEvents />
             <div className="frame">
               <Routes>
                 <Route index element={<Home />} />
                 <Route path="leads" element={<Leads />} />
                 <Route path="leads/:id" element={<LeadDetail />} />
+                <Route path="follow-ups" element={<FollowUps />} />
+                <Route path="visits" element={<Visits />} />
                 <Route path="calls" element={<Calls />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="*" element={<Navigate to="/agent" replace />} />

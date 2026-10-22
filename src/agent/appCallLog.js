@@ -35,7 +35,7 @@ export function appCallPayload(call, remarkInfo) {
   if (remarkInfo) {
     const outcome = String(remarkInfo.outcome || '');
     body.outcome = outcome;
-    body.answered = outcome ? !OUTCOMES_NOT_ANSWERED.includes(outcome) : undefined;
+    body.answered = outcome ? !OUTCOMES_NOT_ANSWERED.includes(outcome) && outcome !== 'Invalid' : undefined;   // an invalid number was never answered
     if (remarkInfo.remark) body.remark = String(remarkInfo.remark).slice(0, 500);
   }
   return body;
