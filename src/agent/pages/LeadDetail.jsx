@@ -4,17 +4,15 @@ import { getLead, getLeadActionSummary, getLeadCallLogs, getMeetingRemarks, upda
 import { downloadVCard } from '../contactCard.js';
 import { isIOS } from '../pwa.js';
 import CallLogList from '../components/CallLogList.jsx';
-import { STATUS_OPTIONS, STATUS_TONE, TEMPERATURES, TEMP_TONE } from '../constants.js';
-import { fmtDate, fmtRelativeDay, initials, maskPhone, telHref } from '../format.js';
+import { STATUS_OPTIONS, STATUS_TONE, TEMPERATURES } from '../constants.js';
+import { fmtDate, fmtRelativeDay, initials, maskPhone, telHref, whatsappHref } from '../format.js';
 import { useLeads } from '../leads.jsx';
 import { peekReturnedCall, savePendingCall } from '../pendingCall.js';
 import AttachRecording from '../components/AttachRecording.jsx';
 import RemarkSheet from '../components/RemarkSheet.jsx';
-import LogCallSheet from '../components/LogCallSheet.jsx';
-import FollowUpSheet from '../components/FollowUpSheet.jsx';
 import { TopBar } from '../components/Shell.jsx';
 import { useToast } from '../components/Toast.jsx';
-import { IconCalendar, IconDownload, IconEdit, IconPhone, IconSpark } from '../components/icons.jsx';
+import { IconChat, IconDownload, IconEdit, IconPhone, IconSpark } from '../components/icons.jsx';
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -29,9 +27,6 @@ export default function LeadDetail() {
   const [sheet, setSheet] = useState(false);
   const [afterCall, setAfterCall] = useState(false);
   const [call, setCall] = useState(null);           // the call just made to this lead (pendingCall.js), if any
-  const [logOpen, setLogOpen] = useState(false);     // iPhone: "Log a call" for calls the app couldn't see
-  const [askRec, setAskRec] = useState(false);       // iPhone: "Recorded this call? Attach it" after a remark
-  const [fuOpen, setFuOpen] = useState(false);       // Set / change follow-up
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -103,106 +98,55 @@ export default function LeadDetail() {
   }
 
   const tel = telHref(lead.phone);
+  const wa = whatsappHref(lead.phone);
   const history = [...(lead.callHistory || [])].reverse();
 
   return (
     <>
       <TopBar title={lead.name} back="/agent/leads" />
       <div className="page">
-        {/* 1 ─ Who: name, number, stage tags, and the four things you do with a lead */}
-        <section className="lead-hero" aria-label="Lead">
-          <div className="lead-hero-top">
-            <div className="avatar" aria-hidden="true">{initials(lead.name)}</div>
-            <div className="lead-hero-id">
-              <h2>{lead.name}</h2>
-              <div className="muted">{maskPhone(lead.phone)}{lead.source ? ` · ${lead.source}` : ''}</div>
-              <div className="lead-hero-tags">
-                <span className={`tag tone-${STATUS_TONE[lead.status] || 'muted'}`}>{lead.status}</span>
-                {lead.temperature ? <span className={`tag tone-${TEMP_TONE[lead.temperature] || 'muted'}`}>{lead.temperature}</span> : null}
-              </div>
-            </div>
+        <div className="lead-head">
+          <div className="avatar" aria-hidden="true">{initials(lead.name)}</div>
+          <h2>{lead.name}</h2>
+          <div className="muted">{maskPhone(lead.phone)}</div>
+          <div style={{ marginTop: 8 }}>
+            <span className={`tag tone-${STATUS_TONE[lead.status] || 'muted'}`}>{lead.status}</span>
           </div>
-          <div className="quick-actions">
-            {tel ? (
-              <a className="qa qa-call" href={tel} onClick={() => savePendingCall(lead)}><span className="qa-ic"><IconPhone /></span>Call</a>
-            ) : <button className="qa" disabled><span className="qa-ic"><IconPhone /></span>No number</button>}
-            <button className="qa" onClick={() => { setAfterCall(false); setCall(peekReturnedCall(id)); setSheet(true); }}><span className="qa-ic"><IconEdit /></span>Remark</button>
-            <button className="qa" onClick={() => { downloadVCard(lead); toast('Contact card ready. Open it to add to Contacts.'); }}><span className="qa-ic"><IconDownload /></span>Save contact</button>
-          </div>
-          {lead.secondaryPhone && telHref(lead.secondaryPhone) ? (
-            <a className="lead-hero-link" href={telHref(lead.secondaryPhone)}
-              onClick={() => savePendingCall({ ...lead, phone: lead.secondaryPhone })}><IconPhone />Call secondary number · {maskPhone(lead.secondaryPhone)}</a>
-          ) : null}
-        </section>
+        </div>
 
-        {/* 2 ─ When: the next follow-up */}
-        {lead.status !== 'Not Interested' ? (() => {
-          const fu = lead.followUpDate ? new Date(lead.followUpDate) : null;
-          const overdue = fu && fu.getTime() < Date.now();
-          return (
-            <button className={`fu-set${overdue ? ' overdue' : fu ? ' set' : ''}`} onClick={() => setFuOpen(true)} aria-label={fu ? 'Change follow-up' : 'Set follow-up'}>
-              <IconCalendar />
-              <span className="fu-set-text">
-                <span className="small">{fu ? (overdue ? 'Follow-up overdue' : 'Next follow-up') : 'No follow-up set'}</span>
-                <b>{fu ? fmtRelativeDay(fu) : 'Set a follow-up date & time'}</b>
-              </span>
-              <span className="fu-set-action">{fu ? 'Change' : 'Set'}</span>
-            </button>
-          );
-        })() : null}
+        <div className="lead-actions">
+          {tel ? (
+            <a className="btn green" href={tel} onClick={() => savePendingCall(lead)}><IconPhone />Call</a>
+          ) : <button className="btn" disabled>No number</button>}
+          {wa ? <a className="btn wa" href={wa} target="_blank" rel="noreferrer"><IconChat />WhatsApp</a> : null}
+        </div>
+        {lead.secondaryPhone && telHref(lead.secondaryPhone) ? (
+          <a className="btn block ghost" style={{ marginTop: 10 }} href={telHref(lead.secondaryPhone)}
+            onClick={() => savePendingCall({ ...lead, phone: lead.secondaryPhone })}><IconPhone />Call secondary number</a>
+        ) : null}
+        <button className="btn block ghost" style={{ marginTop: 10 }} onClick={() => { setAfterCall(false); setCall(peekReturnedCall(id)); setSheet(true); }}>
+          <IconEdit />Add remark
+        </button>
+        <button className="btn block ghost" style={{ marginTop: 10 }} onClick={() => { downloadVCard(lead); toast('Contact card ready. Open it to add to Contacts.'); }}>
+          <IconDownload />Save to contacts
+        </button>
+        <AttachRecording lead={lead} onAttached={() => { toast('Recording attached'); load(); loadCalls(); }} />
 
-        {/* 3 ─ Calls: the log, then the two call tools */}
         <div className="section">
           <div className="section-head">
-            <h2>Calls</h2>
+            <h2>Call log</h2>
             {calls && calls.length > 3 ? (
               <button onClick={() => setAllCalls((v) => !v)}>{allCalls ? 'Show less' : `Show all ${calls.length}`}</button>
             ) : null}
           </div>
-          {askRec ? (
-            <div className="ask-rec" role="status">
-              <b>Did you record this call?</b>
-              <span className="small muted">Attach the recording now to save the exact talk time and get an AI summary.</span>
-              <div className="ask-rec-actions">
-                <button className="btn sm" onClick={() => { setAskRec(false); const el = document.querySelector('[data-testid="recording-input"]'); if (el) el.click(); }}>Attach recording</button>
-                <button className="btn sm ghost" onClick={() => setAskRec(false)}>Not now</button>
-              </div>
-            </div>
-          ) : null}
           {calls === null ? <div className="spinner" /> : calls.length ? (
             <CallLogList logs={allCalls ? calls : calls.slice(0, 3)} />
           ) : (
             <div className="list empty">
               <b>No calls logged yet</b>
-              {isIOS() ? 'Use the Call button above — calls made from this app are logged here automatically.' : 'Calls appear here after the SkyUp Android app syncs them.'}
+              {isIOS() ? 'Tap Call above. Calls made from this app are logged here automatically.' : 'Calls appear here after the SkyUp Android app syncs them.'}
             </div>
           )}
-          <AttachRecording compact lead={lead} onAttached={() => { setAskRec(false); toast('Recording attached'); load(); loadCalls(); }}
-            extraAction={isIOS() ? <button className="btn sm ghost" onClick={() => setLogOpen(true)}><IconPhone />Log a call</button> : null} />
-        </div>
-
-        {/* 4 ─ Where it stands */}
-        <div className="section">
-          <div className="section-head"><h2>Lead stage</h2></div>
-          <div className="stage-card">
-            <label className="stage-row">
-              <span>Status</span>
-              <select className="select" value={lead.status}
-                onChange={(e) => change('status', e.target.value, 'Status')} aria-label="Lead status">
-                {[...new Set([...STATUS_OPTIONS, lead.status])].map((st) => <option key={st}>{st}</option>)}
-              </select>
-            </label>
-            <div className="stage-row">
-              <span>Temperature</span>
-              <div className="seg" role="group" aria-label="Lead temperature">
-                {TEMPERATURES.map((t) => (
-                  <button key={t} className={`t-${t}${lead.temperature === t ? ' on' : ''}`}
-                    aria-pressed={lead.temperature === t}
-                    onClick={() => lead.temperature !== t && change('temperature', t, 'Temperature')}>{t}</button>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
 
         <div className="section">
@@ -224,8 +168,28 @@ export default function LeadDetail() {
         </div>
 
         <div className="section">
+          <div className="section-head"><h2>Temperature</h2></div>
+          <div className="seg" role="group" aria-label="Lead temperature">
+            {TEMPERATURES.map((t) => (
+              <button key={t} className={`t-${t}${lead.temperature === t ? ' on' : ''}`}
+                aria-pressed={lead.temperature === t}
+                onClick={() => lead.temperature !== t && change('temperature', t, 'Temperature')}>{t}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="section">
+          <div className="section-head"><h2>Status</h2></div>
+          <select className="select" value={lead.status}
+            onChange={(e) => change('status', e.target.value, 'Status')} aria-label="Lead status">
+            {[...new Set([...STATUS_OPTIONS, lead.status])].map((s) => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+
+        <div className="section">
           <div className="section-head"><h2>Details</h2></div>
           <dl className="kv">
+            {lead.followUpDate ? <div className="kv-row"><dt>Next follow-up</dt><dd>{fmtRelativeDay(lead.followUpDate)}</dd></div> : null}
             {lead.email ? <div className="kv-row"><dt>Email</dt><dd><a href={`mailto:${lead.email}`}>{lead.email}</a></dd></div> : null}
             {lead.secondaryPhone ? <div className="kv-row"><dt>Secondary</dt><dd>{maskPhone(lead.secondaryPhone)}</dd></div> : null}
             <div className="kv-row"><dt>Source</dt><dd>{lead.source}</dd></div>
@@ -281,24 +245,8 @@ export default function LeadDetail() {
           patchLocal(id, changes); toast((info && info.message) || 'Remark saved');
           if (changes.isClosed) { nav('/agent/leads'); return; }          // an invalid lead that was verified and closed leaves the list
           load(); setTimeout(loadCalls, 800); getMeetingRemarks(id).then(setMeetings);
-          if (afterCall && isIOS()) setAskRec(true);
         }}
       />
-      {fuOpen ? <FollowUpSheet
-        lead={lead}
-        onClose={() => setFuOpen(false)}
-        onSaved={(d) => { setFuOpen(false); setLead((l) => ({ ...l, followUpDate: d.toISOString() })); patchLocal(id, { followUpDate: d.toISOString() }); toast(`Follow-up set for ${fmtRelativeDay(d)}`); load(); }}
-      /> : null}
-      {logOpen ? <LogCallSheet
-        onClose={() => setLogOpen(false)}
-        lead={lead}
-        onLogged={(c) => {
-          setLogOpen(false);
-          setTimeout(loadCalls, 800);
-          if (c.callType === 'missed') { toast('Missed call logged'); return; }
-          setCall(c); setAfterCall(true); setSheet(true);         // then the usual remark for the outcome
-        }}
-      /> : null}
     </>
   );
 }

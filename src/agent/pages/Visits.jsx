@@ -8,6 +8,7 @@ import { useToast } from '../components/Toast.jsx';
 import { IconPin } from '../components/icons.jsx';
 import { fmtDate, fmtTime, toLocalInput } from '../format.js';
 import { useLeads } from '../leads.jsx';
+import { checkPhoneInput } from '../phone.js';
 
 export const VISIT_TYPES = ['In-Person', 'Site Visit', 'Demo', 'Video Call', 'Phone Call'];
 export const VISIT_OUTCOMES = ['Interested', 'Follow-Up Required', 'Converted', 'Pending Decision', 'Not Interested', 'No Show'];
@@ -30,6 +31,8 @@ export default function Visits() {
   const [geoBusy, setGeoBusy] = useState(false);
   const [error, setError] = useState('');
   const [past, setPast] = useState(null);
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [duplicate, setDuplicate] = useState(null);          // { name, id } when the server says this number already belongs to a lead
   const fileRef = useRef(null); const camRef = useRef(null);
 
   const matches = useMemo(() => {
@@ -62,7 +65,8 @@ export default function Visits() {
     setError('');
     if (mode === 'existing' && !selected) return setError('Choose the client.');
     if (mode === 'new' && !nName.trim()) return setError('Enter the client name.');
-    if (mode === 'new' && nPhone.replace(/\D/g, '').length < 10) return setError('Enter a phone number with at least 10 digits.');
+    const phoneCheck = mode === 'new' ? checkPhoneInput(nPhone) : null;
+    if (mode === 'new' && !phoneCheck.ok) { setPhoneTouched(true); return setError(phoneCheck.message); }
     if (!outcome) return setError('Choose the visit outcome.');
     if (!notes.trim()) return setError('Enter the meeting notes.');
     const followUpDate = followUp ? new Date(followUp).toISOString() : null;
@@ -70,7 +74,17 @@ export default function Visits() {
     try {
       let target = selected;
       if (mode === 'new') {
-        const id = await createLead({ name: nName.trim(), mobile: nPhone.trim(), source: 'Client Meeting', status: 'New', ...(nEmail.trim() ? { email: nEmail.trim() } : {}), ...((nNote.trim() || notes.trim()) ? { remark: (nNote.trim() || notes.trim()) } : {}) });
+        let id;
+        try {
+          id = await createLead({ name: nName.trim(), mobile: phoneCheck.send, source: 'Client Meeting', status: 'New', ...(nEmail.trim() ? { email: nEmail.trim() } : {}), ...((nNote.trim() || notes.trim()) ? { remark: (nNote.trim() || notes.trim()) } : {}) });
+        } catch (e) {
+          if (e.status === 409 && e.data && e.data.duplicate) {            // the number already belongs to a lead of this company
+            const dup = e.data.lead || {};
+            const mine = leads.find((l) => l.id === String(dup._id));
+            setDuplicate({ name: dup.name || 'another lead', id: mine ? mine.id : null }); setBusy(false); return;
+          }
+          throw e;
+        }
         if (!id) throw new Error('The client could not be created.');
         target = { id: String(id), name: nName.trim() };
       }
@@ -117,7 +131,21 @@ export default function Visits() {
         ) : (
           <div style={{ marginTop: 12 }}>
             <label className="field"><span>Client name *</span><input className="input" value={nName} onChange={(e) => setNName(e.target.value)} /></label>
-            <label className="field"><span>Phone number *</span><input className="input" inputMode="tel" value={nPhone} onChange={(e) => setNPhone(e.target.value)} /></label>
+            <label className="field"><span>Phone number *</span>
+              <input className="input" inputMode="tel" autoComplete="tel" value={nPhone} aria-invalid={phoneTouched && nPhone.trim() ? !checkPhoneInput(nPhone).ok : undefined}
+                onChange={(e) => { setNPhone(e.target.value); setDuplicate(null); }} onBlur={() => setPhoneTouched(true)} placeholder="10-digit mobile number" />
+            </label>
+            {phoneTouched && nPhone.trim() ? (() => { const c = checkPhoneInput(nPhone); return c.ok
+              ? (c.warning ? <p className="small muted" style={{ margin: '-6px 2px 10px' }} data-testid="phone-warning">{c.warning}</p> : null)
+              : <p className="small" style={{ margin: '-6px 2px 10px', color: 'var(--red)' }} role="alert" data-testid="phone-error">{c.message}</p>; })() : null}
+            {duplicate ? (
+              <div className="alert error" role="alert" data-testid="phone-duplicate" style={{ marginBottom: 12 }}>
+                This number already belongs to <b>{duplicate.name}</b>.
+                {duplicate.id
+                  ? <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => { const dup = leads.find((l) => l.id === duplicate.id); setSelected({ id: duplicate.id, name: dup ? dup.name : duplicate.name }); setMode('existing'); setDuplicate(null); setError(''); }}>Log the visit on {duplicate.name}</button>
+                  : <span> It is assigned to someone else, so ask your admin.</span>}
+              </div>
+            ) : null}
             <label className="field"><span>Email (optional)</span><input className="input" type="email" value={nEmail} onChange={(e) => setNEmail(e.target.value)} /></label>
             <label className="field"><span>Initial note / lead source (optional)</span><input className="input" value={nNote} onChange={(e) => setNNote(e.target.value)} /></label>
           </div>

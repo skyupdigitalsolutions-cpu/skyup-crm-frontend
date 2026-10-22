@@ -47,19 +47,6 @@ function fmtTalk(secs) {
 
 const leadIdOf = (log) => String(log.matchedLead?._id || log.matchedLeadId || '');
 
-const TIP_KEY = 'agent_ios_call_tip_dismissed';
-function IPhoneTip() {
-  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(TIP_KEY) === '1'; } catch { return false; } });
-  if (!isIOS() || hidden) return null;
-  return (
-    <div className="ios-tip" role="note">
-      <b>On iPhone, always call from this app</b>
-      <span>Use the green Call button here so the call is logged. iPhone doesn’t show apps calls made from the Phone app or WhatsApp, or calls you receive — log those on the lead with “Log a call”.</span>
-      <button onClick={() => { setHidden(true); try { localStorage.setItem(TIP_KEY, '1'); } catch { /* ignore */ } }}>Got it</button>
-    </div>
-  );
-}
-
 export default function Calls() {
   const { leads } = useLeads();
   const [day, setDay] = useState(() => startOfDay(new Date()));
@@ -149,7 +136,6 @@ export default function Calls() {
         }
       />
       <div className="page">
-        <IPhoneTip />
         <div className="daybar">
           <button className="icon-btn" onClick={() => shiftDay(-1)} aria-label="Previous day"><IconBack /></button>
           <label className="daybar-label">

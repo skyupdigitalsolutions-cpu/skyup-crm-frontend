@@ -41,11 +41,7 @@ export function telHref(phone) {
   return digits ? `tel:${digits}` : null;
 }
 
-export function whatsappHref(phone) {
-  let d = String(phone || '').replace(/\D/g, '');
-  if (d.length === 10) d = '91' + d;
-  return d ? `https://wa.me/${d}` : null;
-}
+export { whatsappHref } from './phone.js';
 
 export function initials(name) {
   return String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';

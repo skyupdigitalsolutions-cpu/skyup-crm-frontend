@@ -10,6 +10,8 @@
 // Everything in this file is plain logic (no React) so it can be tested on its own.
 // ────────────────────────────────────────────
 
+import { normalizePhone } from './phone.js';
+
 export const MAX_BYTES = 50 * 1024 * 1024;      // the server's upload limit
 
 // The audio types the server accepts as sent (kept in step with allowedMimes in mobileCallLogController.js).
@@ -80,10 +82,7 @@ export function validateRecordingFile(file) {
 }
 
 /** Last 10 digits of a phone number (the server stores calls this way). '' when there are fewer than 10 digits. */
-export function phone10(phone) {
-  const d = String(phone || '').replace(/\D/g, '');
-  return d.length >= 10 ? d.slice(-10) : '';
-}
+export function phone10(phone) { return normalizePhone(phone) || ''; }   // the server's rule (phone.js): an invalid number gives ''
 
 /** Same idea as the Android app: one key per file, so attaching the same file twice is recognised. */
 export function makeFileKey(phone, file) {

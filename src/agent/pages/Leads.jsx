@@ -53,7 +53,6 @@ export default function Leads() {
   const industries = useMemo(() => distinct(leads, 'industry'), [leads]);
   const sources = useMemo(() => distinct(leads, 'source'), [leads]);
   const filterCount = activeFilterCount({ status, temp, date, industry, source });
-  const sheetCount = activeFilterCount({ temp, date, industry, source });   // filters inside the Filter sheet (status has its own chips)
   const clearAll = () => { setParams(new URLSearchParams(view ? { view } : {}), { replace: true }); setQ(''); setLimit(PAGE); };
 
   // Render 50 rows at a time; load more as the list end scrolls into view.
@@ -79,40 +78,36 @@ export default function Leads() {
         }
       />
       <div className="page">
-        <div className="search-row">
-          <label className="search">
-            <IconSearch />
-            <input
-              type="search"
-              placeholder="Search name, phone, campaign"
-              value={q}
-              onChange={(e) => { setQ(e.target.value); setLimit(PAGE); }}
-              aria-label="Search leads"
-            />
-          </label>
-          <button className={`filter-btn${sheetCount ? ' on' : ''}`} onClick={() => setSheet(true)} aria-label={`Filter and sort${sheetCount ? `, ${sheetCount} active` : ''}`}>
-            <IconFilter />{sheetCount ? <span className="badge">{sheetCount}</span> : null}
-          </button>
-        </div>
+        <label className="search">
+          <IconSearch />
+          <input
+            type="search"
+            placeholder="Search name, phone, email or campaign"
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setLimit(PAGE); }}
+            aria-label="Search leads"
+          />
+        </label>
+        <button className="btn block ghost" style={{ marginTop: 10 }} onClick={() => setSheet(true)} aria-label="Filter and sort">
+          <IconFilter />Filter &amp; sort{filterCount ? <span className="badge">{filterCount}</span> : null}
+        </button>
 
         <div className="chips" style={{ marginTop: 12 }} role="group" aria-label="Filter by status">
           {STATUS_FILTERS.map((s) => (
             <button key={s} className={`chip${status === s ? ' on' : ''}`} onClick={() => setParam('status', s === 'All' ? '' : s)}>{s}</button>
           ))}
         </div>
+        <div className="chips" style={{ marginTop: 8 }} role="group" aria-label="Filter by temperature">
+          {TEMP_FILTERS.map((t) => (
+            <button key={t} className={`chip${temp === t ? ' on' : ''}`} onClick={() => setParam('temp', temp === t ? '' : t)}>{t}</button>
+          ))}
+        </div>
 
         {error && !leads.length ? <div className="alert error" style={{ marginTop: 16 }}>{error}</div> : null}
 
-        <div className="result-line">
-          <span>
-            <b>{filtered.length}</b> {filtered.length === 1 ? 'lead' : 'leads'}
-            {temp ? <span className={`tag tone-${temp === 'Hot' ? 'red' : temp === 'Warm' ? 'amber' : 'blue'}`}>{temp}</span> : null}
-            {date && date !== 'all' ? <span className="tag tone-muted">{(DATE_PRESETS.find((d) => d.id === date) || {}).label}</span> : null}
-            {industry ? <span className="tag tone-muted">{industry}</span> : null}
-            {source ? <span className="tag tone-muted">{source}</span> : null}
-          </span>
-          {filterCount || q ? <button onClick={clearAll}>Clear</button> : null}
-        </div>
+        <p className="small muted" style={{ margin: '14px 2px 8px' }}>
+          {filtered.length} {filtered.length === 1 ? 'lead' : 'leads'}
+        </p>
 
         {loading && !leads.length ? <div className="spinner" /> : filtered.length ? (
           <div className="list">
@@ -129,10 +124,6 @@ export default function Leads() {
 
       <Sheet open={sheet} onClose={() => setSheet(false)} label="Filter and sort leads">
         <h3>Filter &amp; sort</h3>
-        <div className="group-label">Temperature</div>
-        <div className="chip-grid" role="group" aria-label="Temperature">
-          {TEMP_FILTERS.map((t) => <button key={t} className={`chip${temp === t ? ' on' : ''}`} aria-pressed={temp === t} onClick={() => setParam('temp', temp === t ? '' : t)}>{t}</button>)}
-        </div>
         <div className="group-label">Received</div>
         <div className="chip-grid" role="group" aria-label="Received">
           {DATE_PRESETS.map((d) => <button key={d.id} className={`chip${date === d.id ? ' on' : ''}`} aria-pressed={date === d.id} onClick={() => setParam('date', d.id === 'all' ? '' : d.id)}>{d.label}</button>)}

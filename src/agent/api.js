@@ -273,12 +273,10 @@ export function formatLead(lead) {
     remark: manual || (lead?.remark ? String(lead.remark).trim() : ''),
     lastManualRemarkAt: manualAt,
     initialRemark: lead?.initialRemark || '',
-    // Next follow-up: the earliest PENDING scheduled follow-up (what reminders use); the lead's older saved
-    // followUpDate field only when there is none — it can be stale after a newer follow-up was set.
-    followUpDate: (Array.isArray(lead?.scheduledCalls)
+    followUpDate: lead?.followUpDate || (Array.isArray(lead?.scheduledCalls)
       ? lead.scheduledCalls.filter((s) => s && !s.done && s.scheduledAt).map((s) => s.scheduledAt)
         .sort((a, b) => new Date(a) - new Date(b))[0] || null
-      : null) || lead?.followUpDate || null,
+      : null),
     temperature: lead?.temperature || lead?.Quality || null,
     callHistory,
     lastOutcome: lastCall?.outcome || null,

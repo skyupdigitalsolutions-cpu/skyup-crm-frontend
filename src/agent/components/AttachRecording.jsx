@@ -8,8 +8,7 @@ import {
 } from '../recordingUpload.js';
 import { IconMic } from './icons.jsx';
 
-// compact: a small button in a row of call tools (extraAction sits beside it) and a one-line tip — used on the lead page.
-export default function AttachRecording({ lead, onAttached, compact = false, extraAction = null }) {
+export default function AttachRecording({ lead, onAttached }) {
   const inputRef = useRef(null);
   const alive = useRef(true);
   const pickToken = useRef(0);
@@ -65,21 +64,7 @@ export default function AttachRecording({ lead, onAttached, compact = false, ext
       <input ref={inputRef} type="file" accept={ACCEPT} hidden onChange={onPick}
         data-testid="recording-input" aria-label="Choose a call recording file" />
 
-      {step === 'idle' && compact && (
-        <>
-          <div className="call-tools">
-            {extraAction}
-            <button className="btn sm ghost" onClick={() => inputRef.current && inputRef.current.click()} disabled={!usable}>
-              <IconMic />Attach recording
-            </button>
-          </div>
-          {usable
-            ? <p className="muted hint">Recording on iPhone: Notes → Call Recordings → ••• → Save Audio Files, then attach it here.</p>
-            : <p className="muted hint">This lead needs a valid phone number before a recording can be attached.</p>}
-          {error ? <p className="attach-error" role="alert" style={{ marginTop: 10 }}>{error}</p> : null}
-        </>
-      )}
-      {step === 'idle' && !compact && (
+      {step === 'idle' && (
         <>
           <button className="btn block ghost" onClick={() => inputRef.current && inputRef.current.click()} disabled={!usable}>
             <IconMic />Attach call recording
