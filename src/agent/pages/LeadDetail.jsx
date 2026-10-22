@@ -118,7 +118,6 @@ export default function LeadDetail() {
           {tel ? (
             <a className="btn green" href={tel} onClick={() => savePendingCall(lead)}><IconPhone />Call</a>
           ) : <button className="btn" disabled>No number</button>}
-          {wa ? <a className="btn wa" href={wa} target="_blank" rel="noreferrer"><IconChat />WhatsApp</a> : null}
         </div>
         {lead.secondaryPhone && telHref(lead.secondaryPhone) ? (
           <a className="btn block ghost" style={{ marginTop: 10 }} href={telHref(lead.secondaryPhone)}
