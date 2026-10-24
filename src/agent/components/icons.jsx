@@ -11,6 +11,7 @@ export const IconSearch = () => <S><circle cx="11" cy="11" r="7" /><path d="m20 
 export const IconBack = () => <S><path d="M15 5l-7 7 7 7" /></S>;
 export const IconRefresh = () => <S><path d="M20 11a8 8 0 0 0-14.7-4.4L3 9" /><path d="M3 4v5h5" /><path d="M4 13a8 8 0 0 0 14.7 4.4L21 15" /><path d="M21 20v-5h-5" /></S>;
 export const IconPin = () => <S><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></S>;
+export const IconPlus = () => <S><path d="M12 5v14M5 12h14" /></S>;
 export const IconMic = () => <S><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><path d="M12 18v3" /></S>;
 export const IconCalendar = () => <S><rect x="3.5" y="5" width="17" height="15" rx="3" /><path d="M8 3v4M16 3v4M3.5 10h17" /></S>;
 export const IconFilter = () => <S><path d="M4 6h16M7 12h10M10 18h4" /></S>;

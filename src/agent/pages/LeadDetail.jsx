@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { getLead, getLeadActionSummary, getLeadCallLogs, getMeetingRemarks, updateLead } from '../api.js';
+import { createRepeatEnquiry, getEnquiryHistory, getLead, getLeadActionSummary, getLeadCallLogs, getMeetingRemarks, updateLead } from '../api.js';
 import { downloadVCard } from '../contactCard.js';
 import { isIOS } from '../pwa.js';
 import CallLogList from '../components/CallLogList.jsx';
@@ -12,7 +12,8 @@ import AttachRecording from '../components/AttachRecording.jsx';
 import RemarkSheet from '../components/RemarkSheet.jsx';
 import { TopBar } from '../components/Shell.jsx';
 import { useToast } from '../components/Toast.jsx';
-import { IconChat, IconDownload, IconEdit, IconPhone, IconSpark } from '../components/icons.jsx';
+import Sheet from '../components/Sheet.jsx';
+import { IconPlus, IconChat, IconDownload, IconEdit, IconPhone, IconSpark } from '../components/icons.jsx';
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -49,7 +50,29 @@ export default function LeadDetail() {
 
   // Client meetings logged for this lead (Client Meeting outcome / Client visit log)
   const [meetings, setMeetings] = useState(null);
+  const [enquiries, setEnquiries] = useState([]);
+  const [showEnquiry, setShowEnquiry] = useState(false);
+  const [enqService, setEnqService] = useState('');
+  const [enqBusy, setEnqBusy] = useState(false);
+  const [enqErr, setEnqErr] = useState('');
   useEffect(() => { let on = true; getMeetingRemarks(id).then((m) => { if (on) setMeetings(m); }); return () => { on = false; }; }, [id]);
+  useEffect(() => { let on = true; getEnquiryHistory(id).then((e) => { if (on) setEnquiries(e); }); return () => { on = false; }; }, [id]);
+
+  const CLOSED = ['Converted', 'Won', 'Closed', 'Closed Won'];
+  const leadIsClosed = !!lead && (lead.isClosed === true || CLOSED.includes(lead.status));
+  const submitEnquiry = async () => {
+    if (!enqService.trim()) { setEnqErr('Enter the service they are enquiring about.'); return; }
+    setEnqBusy(true); setEnqErr('');
+    try {
+      const res = await createRepeatEnquiry(id, { service: enqService.trim() });
+      setShowEnquiry(false); setEnqService('');
+      toast('New enquiry created');
+      const newId = res && res.lead && (res.lead._id || res.lead.id);
+      if (newId) nav(`/agent/leads/${newId}`); else { getEnquiryHistory(id).then(setEnquiries); }
+    } catch (e) {
+      setEnqErr(e.status === 400 ? (e.message || 'This lead is not closed yet.') : (e.message || 'Could not create the enquiry.'));
+    } finally { setEnqBusy(false); }
+  };
 
   // AI summary + next action (same as the mobile app's "AI Action Summary")
   const [ai, setAi] = useState({ loading: false, data: null, error: '' });
@@ -186,6 +209,30 @@ export default function LeadDetail() {
           </select>
         </div>
 
+        {(leadIsClosed || enquiries.length > 1) ? (
+          <div className="section">
+            <div className="section-head"><h2>Enquiries{enquiries.length > 1 ? ` (${enquiries.length})` : ''}</h2></div>
+            {enquiries.length > 1 ? (
+              <ul className="timeline">
+                {enquiries.map((e) => (
+                  <li key={e._id}>
+                    <div className="t-when">Enquiry {e.enquiryNumber} · {fmtDate(e.date || e.createdAt)}</div>
+                    <div className="t-what">
+                      {String(e._id) === String(id) ? <b>This lead</b> : <a href={`/agent/leads/${e._id}`}>{e.status}</a>}
+                      {e.service ? ` · ${e.service}` : (e.services && e.services.length ? ` · ${e.services.join(', ')}` : '')}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="small muted" style={{ margin: '0 0 10px' }}>This customer is converted. If they ask about another service, log it as a new enquiry — the won deal stays as it is.</p>}
+            {leadIsClosed ? (
+              <button className="btn block ghost" onClick={() => { setShowEnquiry(true); setEnqErr(''); }}>
+                <IconPlus />Log new enquiry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="section">
           <div className="section-head"><h2>Details</h2></div>
           <dl className="kv">
@@ -234,6 +281,24 @@ export default function LeadDetail() {
           ) : <div className="list empty"><b>No calls yet</b>Call this lead, then add a remark to start the history.</div>}
         </div>
       </div>
+
+      <Sheet open={showEnquiry} onClose={enqBusy ? undefined : () => setShowEnquiry(false)} label="Log new enquiry">
+
+        <h3>Log a new enquiry</h3>
+
+        <p className="muted" style={{ margin: '4px 0 12px' }}>{lead.name} is a converted customer. This creates a new lead for the new service and keeps the original deal untouched.</p>
+
+        <label className="field"><span>Service they want</span>
+
+          <input className="input" value={enqService} onChange={(e) => setEnqService(e.target.value)} placeholder="e.g. SEO, Website, Ads" disabled={enqBusy} />
+
+        </label>
+
+        {enqErr ? <div className="alert error" role="alert" style={{ marginBottom: 10 }}>{enqErr}</div> : null}
+
+        <button className="btn block" disabled={enqBusy} onClick={submitEnquiry}>{enqBusy ? 'Creating…' : 'Create new enquiry'}</button>
+
+      </Sheet>
 
       <RemarkSheet
         open={sheet}

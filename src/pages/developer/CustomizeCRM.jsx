@@ -26,6 +26,8 @@ import {
 const META = getCustomizationMeta();
 
 // ── UI atoms ─────────────────────────────────────────────────────────────────
+let __rowSeq = 0;
+const _rowId = () => `row_${++__rowSeq}`;
 const INPUT = "w-full px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] bg-[#F8F9FC] dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-white placeholder:text-[#8B92A9] focus:outline-none focus:border-[#2563EB] transition";
 const SELECT = INPUT + " pr-8";
 const CARD = "rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27]";
@@ -224,6 +226,12 @@ const TAB_SECTIONS = {
 };
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
+// Remove UI-only fields (never send them to the server).
+const stripClientFields = (v) => {
+  const strip = (o) => { if (o && typeof o === "object") { delete o._uid; delete o._new; } return o; };
+  if (Array.isArray(v)) return v.map((x) => strip({ ...x }));
+  return v && typeof v === "object" ? strip({ ...v }) : v;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function CustomizeCRM({ companyId, embedded = false }) {
@@ -292,7 +300,7 @@ export default function CustomizeCRM({ companyId, embedded = false }) {
       let cust = saved;
       for (const section of TAB_SECTIONS[tab]) {
         if (!dirtySections.has(section)) continue;
-        const { data } = await api.put(`${base}/${section}`, { value: draft[section] });
+        const { data } = await api.put(`${base}/${section}`, { value: stripClientFields(draft[section]) });
         cust = data.customization;
       }
       afterSave(cust);
@@ -327,7 +335,7 @@ export default function CustomizeCRM({ companyId, embedded = false }) {
     const url = kind === "followUp"
       ? `${base}/automations/follow-up-reminder`
       : `${base}/automations/outcome/${encodeURIComponent(key)}`;
-    const { data } = await api.put(url, { value });
+    const { data } = await api.put(url, { value: stripClientFields(value) });
     setAutomations((a) => ({
       ...(a || {}),
       ...(data.followUpReminder ? { followUpReminder: data.followUpReminder } : {}),
@@ -484,7 +492,7 @@ function StatusesTab({ draft, set, ro }) {
   }));
   const add = () => set("statuses", [...list, {
     key: "", label: "", color: "slate", category: "open", order: list.length + 1, active: true,
-    isDefault: false, employeeSelectable: true, showInPipeline: true, metaEvent: "", aliases: [], system: false, _new: true,
+    isDefault: false, employeeSelectable: true, showInPipeline: true, metaEvent: "", aliases: [], system: false, _new: true, _uid: _rowId(),
   }]);
   return (
     <Section title="Lead statuses"
@@ -492,7 +500,7 @@ function StatusesTab({ draft, set, ro }) {
       right={!ro && <button type="button" onClick={add} className="px-3 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold flex items-center gap-1 shrink-0"><Plus className="w-3.5 h-3.5" /> Add status</button>}>
       <div className="space-y-2">
         {list.map((s, i) => (
-          <div key={s.key || `new-${i}`} className={`rounded-xl border border-[#E4E7EF] dark:border-[#262A38] p-3 ${!s.active ? "opacity-60" : ""}`}>
+          <div key={s._uid || s.key || `new-${i}`} className={`rounded-xl border border-[#E4E7EF] dark:border-[#262A38] p-3 ${!s.active ? "opacity-60" : ""}`}>
             <div className="grid grid-cols-[auto_auto_1fr] md:grid-cols-[auto_auto_1.2fr_1fr_150px_auto] gap-2 items-center">
               <OrderButtons index={i} length={list.length} onMove={(a, d) => !ro && set("statuses", moveItem(list, a, d))} />
               <ColorPicker value={s.color} onChange={(v) => !ro && upd(i, "color", v)} />
@@ -566,8 +574,8 @@ function OutcomesTab({ draft, set, ro, automations, saveAutomation }) {
   const add = () => {
     set("outcomes", [...list, {
       key: "", label: "", color: "slate", group: "answered", order: list.length + 1, active: true, system: false,
-      behavior: "none", followUp: "optional", autoFollowUpDays: 1, autoStatus: "", automationKey: "",
-      allowForManualLeads: false, countsAsConnected: true, automation: null, _new: true,
+      behavior: "none", followUp: "optional", autoFollowUpDays: 1, autoFollowUpHours: 0, autoStatus: "", automationKey: "",
+      allowForManualLeads: false, countsAsConnected: true, automation: null, _new: true, _uid: _rowId(),
     }]);
     setOpen(list.length);
   };
@@ -582,7 +590,7 @@ function OutcomesTab({ draft, set, ro, automations, saveAutomation }) {
           const isOpen = open === i;
           const builtIn = o.automationKey && automations?.outcomeAutomation?.[o.automationKey];
           return (
-            <div key={o.key || `new-${i}`} className={`rounded-xl border border-[#E4E7EF] dark:border-[#262A38] ${!o.active ? "opacity-60" : ""}`}>
+            <div key={o._uid || o.key || `new-${i}`} className={`rounded-xl border border-[#E4E7EF] dark:border-[#262A38] ${!o.active ? "opacity-60" : ""}`}>
               <div className="p-3 grid grid-cols-[auto_auto_1fr_auto] md:grid-cols-[auto_auto_1.2fr_140px_170px_auto] gap-2 items-center">
                 <OrderButtons index={i} length={list.length} onMove={(a, d) => !ro && set("outcomes", moveItem(list, a, d))} />
                 <ColorPicker value={o.color} onChange={(v) => !ro && upd(i, "color", v)} />
@@ -632,6 +640,10 @@ function OutcomesTab({ draft, set, ro, automations, saveAutomation }) {
                     <Field label="Auto follow-up after (days)">
                       <input type="number" min={0} max={365} value={o.autoFollowUpDays} disabled={ro || o.followUp !== "auto"}
                         onChange={(e) => upd(i, "autoFollowUpDays", Number(e.target.value))} className={INPUT} />
+                    </Field>
+                    <Field label="…plus hours" hint="e.g. 0 days + 3 hours = call back in 3 hours (same day)">
+                      <input type="number" min={0} max={23} value={o.autoFollowUpHours ?? 0} disabled={ro || o.followUp !== "auto"}
+                        onChange={(e) => upd(i, "autoFollowUpHours", Number(e.target.value))} className={INPUT} />
                     </Field>
                     <Field label="Move lead to status" hint="Only moves forward, never back">
                       <select value={o.autoStatus || ""} disabled={ro} onChange={(e) => upd(i, "autoStatus", e.target.value)} className={SELECT}>
@@ -701,11 +713,11 @@ function TemperaturesTab({ draft, set, ro }) {
   return (
     <Section title="Lead quality"
       desc="The quality buttons agents see (default Hot / Warm / Cold). A quality marked “Runs cold flow” sends the lead to the Cold verification workflow."
-      right={!ro && <button type="button" onClick={() => set("temperatures", [...list, { key: "", label: "", color: "slate", order: list.length + 1, active: true, system: false, triggersColdFlow: false, _new: true }])}
+      right={!ro && <button type="button" onClick={() => set("temperatures", [...list, { key: "", label: "", color: "slate", order: list.length + 1, active: true, _new: true, _uid: _rowId(), system: false, triggersColdFlow: false, _new: true }])}
         className="px-3 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold flex items-center gap-1 shrink-0"><Plus className="w-3.5 h-3.5" /> Add quality</button>}>
       <div className="space-y-2">
         {list.map((t, i) => (
-          <div key={t.key || `new-${i}`} className={`rounded-xl border border-[#E4E7EF] dark:border-[#262A38] p-3 grid grid-cols-[auto_auto_1fr_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-3 items-center ${!t.active ? "opacity-60" : ""}`}>
+          <div key={t._uid || t.key || `new-${i}`} className={`rounded-xl border border-[#E4E7EF] dark:border-[#262A38] p-3 grid grid-cols-[auto_auto_1fr_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-3 items-center ${!t.active ? "opacity-60" : ""}`}>
             <OrderButtons index={i} length={list.length} onMove={(a, d) => !ro && set("temperatures", moveItem(list, a, d))} />
             <ColorPicker value={t.color} onChange={(v) => !ro && upd(i, "color", v)} />
             <input value={t.label} disabled={ro} placeholder="Quality name"

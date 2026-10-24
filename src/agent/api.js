@@ -205,6 +205,14 @@ export const getLead = async (id) => formatLead(await api.get(`/lead/${id}`));
 export const updateLead = (id, data) => api.patch(`/lead/${id}`, data);
 export const markNotInterested = (id, remark) => api.patch(`/lead/${id}/not-interested`, { remark });
 
+// Repeat enquiry: a converted customer comes back for another service. Creates a NEW linked lead (the original is kept).
+export const createRepeatEnquiry = (id, { service, services, remark, source } = {}) =>
+  api.post(`/lead/${id}/repeat-enquiry`, { service, services, remark, source });
+// All enquiries (original + repeats) for a customer, for the history view.
+export async function getEnquiryHistory(id) {
+  try { const r = await api.get(`/lead/${id}/enquiries`); return r && Array.isArray(r.enquiries) ? r.enquiries : []; } catch { return []; }
+}
+
 export function addCallRemark(id, { remark, outcome, followUpDate, status, industry, services }) {
   const payload = { remark, outcome };
   if (followUpDate) payload.followUpDate = followUpDate;
