@@ -36,6 +36,15 @@ export function applyLeadFilters(leads, f = {}, now = new Date()) {
     if (f.temp && l.temperature !== f.temp) return false;
     if (f.industry && String(l.industry || '') !== f.industry) return false;
     if (f.source && String(l.source || '') !== f.source) return false;
+    if (f.custom) {
+      for (const [key, want] of Object.entries(f.custom)) {
+        if (!want) continue;
+        const cf = l.customFields || {};
+        const have = cf instanceof Map ? cf.get(key) : cf[key];
+        const hay = Array.isArray(have) ? have.map(String) : [String(have ?? '')];
+        if (!hay.some((v) => v === String(want))) return false;
+      }
+    }
     if (range) { const t = new Date(l.date).getTime(); if (!(t >= range[0] && t <= range[1])) return false; }
     if (needle) {
       const hit = String(l.name || '').toLowerCase().includes(needle) || String(l.email || '').toLowerCase().includes(needle)

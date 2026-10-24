@@ -6,6 +6,7 @@ import { TopBar } from '../components/Shell.jsx';
 import { IconFilter, IconRefresh, IconSearch } from '../components/icons.jsx';
 import Sheet from '../components/Sheet.jsx';
 import { DATE_PRESETS, SORTS, activeFilterCount, applyLeadFilters, distinct, sortLeads } from '../leadFilters.js';
+import { getFilterOptions } from '../api.js';
 
 const STATUS_FILTERS = ['All', 'New', 'In Progress', 'Interested', 'Converted', 'Not Interested'];
 const TEMP_FILTERS = ['Hot', 'Warm', 'Cold'];
@@ -14,6 +15,8 @@ const PAGE = 50;
 export default function Leads() {
   const { leads, loading, error, refresh } = useLeads();
   const [params, setParams] = useSearchParams();
+  const [customFilters, setCustomFilters] = useState([]);
+  useEffect(() => { let on = true; getFilterOptions().then((x) => { if (on) setCustomFilters(x); }); return () => { on = false; }; }, []);
   const status = params.get('status') || 'All';
   const temp = params.get('temp') || '';
   const view = params.get('view') || '';
@@ -47,12 +50,14 @@ export default function Leads() {
       list = list.filter((l) => l.followUpDate && new Date(l.followUpDate) <= end)
         .sort((a, b) => new Date(a.followUpDate) - new Date(b.followUpDate));
     }
-    list = applyLeadFilters(list, { q: needle, status, temp, date, from, to, industry, source });
+    list = applyLeadFilters(list, { q: needle, status, temp, date, from, to, industry, source, custom });
     return view === 'followups' ? list : sortLeads(list, sort);
-  }, [leads, q, status, temp, view, date, from, to, industry, source, sort]);
+  }, [leads, q, status, temp, view, date, from, to, industry, source, sort, customFilters, params]);
   const industries = useMemo(() => distinct(leads, 'industry'), [leads]);
   const sources = useMemo(() => distinct(leads, 'source'), [leads]);
-  const filterCount = activeFilterCount({ status, temp, date, industry, source });
+  const custom = {}; customFilters.forEach((cf) => { const v = params.get(`cf_${cf.key}`); if (v) custom[cf.key] = v; });
+  const customActive = Object.keys(custom).length;
+  const filterCount = activeFilterCount({ status, temp, date, industry, source }) + customActive;
   const clearAll = () => { setParams(new URLSearchParams(view ? { view } : {}), { replace: true }); setQ(''); setLimit(PAGE); };
 
   // Render 50 rows at a time; load more as the list end scrolls into view.
@@ -148,6 +153,15 @@ export default function Leads() {
             </select>
           </label>
         ) : null}
+        {customFilters.map((cf) => (
+          cf.values && cf.values.length ? (
+            <label className="field" key={cf.key}><span>{cf.label}</span>
+              <select className="select" value={params.get(`cf_${cf.key}`) || ''} onChange={(e) => setParam(`cf_${cf.key}`, e.target.value)} aria-label={cf.label}>
+                <option value="">All {cf.label.toLowerCase()}</option>{cf.values.map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </label>
+          ) : null
+        ))}
         <label className="field"><span>Sort by</span>
           <select className="select" value={sort} onChange={(e) => setParam('sort', e.target.value === 'recent' ? '' : e.target.value)} aria-label="Sort by">
             {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}

@@ -793,7 +793,7 @@ function FieldsTab({ draft, set, patch, ro }) {
 
       <Section title="Custom fields"
         desc="Add your own fields to every lead — budget, property type, course, vehicle model… They appear in add/edit forms and the lead details, and can be filled from CSV imports by matching the column name."
-        right={!ro && <button type="button" onClick={() => set("customFields", [...cf, { key: "", label: "", type: "text", options: [], required: false, active: true, showInList: false, showInForm: true, employeeVisible: true, employeeEditable: true, placeholder: "", helpText: "", order: cf.length + 1 }])}
+        right={!ro && <button type="button" onClick={() => set("customFields", [...cf, { key: "", label: "", type: "text", options: [], filterable: false, required: false, active: true, showInList: false, showInForm: true, employeeVisible: true, employeeEditable: true, placeholder: "", helpText: "", order: cf.length + 1 }])}
           className="px-3 py-2 rounded-xl bg-[#2563EB] text-white text-[12px] font-semibold flex items-center gap-1 shrink-0"><Plus className="w-3.5 h-3.5" /> Add field</button>}>
         {cf.length === 0 && <p className="text-[12px] text-[#8B92A9] italic">No custom fields yet.</p>}
         <div className="space-y-2">
@@ -825,6 +825,7 @@ function FieldsTab({ draft, set, patch, ro }) {
                 <Toggle small on={f.required} disabled={ro} onChange={(v) => updCf(i, "required", v)} label="Required" />
                 <Toggle small on={f.showInForm} disabled={ro} onChange={(v) => updCf(i, "showInForm", v)} label="Show in add-lead form" />
                 <Toggle small on={f.showInList} disabled={ro} onChange={(v) => updCf(i, "showInList", v)} label="Show as a column" />
+                <Toggle small on={f.filterable} disabled={ro} onChange={(v) => updCf(i, "filterable", v)} label="Use as filter" />
                 <Toggle small on={f.employeeVisible} disabled={ro} onChange={(v) => updCf(i, "employeeVisible", v)} label="Employees can see" />
                 <Toggle small on={f.employeeEditable} disabled={ro || !f.employeeVisible} onChange={(v) => updCf(i, "employeeEditable", v)} label="Employees can edit" />
                 {f.key && <span className="text-[11px] text-[#8B92A9]">CSV column: “{f.label}” or “{f.key}”</span>}

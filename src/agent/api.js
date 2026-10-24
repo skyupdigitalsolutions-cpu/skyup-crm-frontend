@@ -335,5 +335,9 @@ export const attendance = {
 
 // ── Misc ─────────────────────────────────────────────────────────────────────
 export const getCustomization = () => api.get('/customization');
+// Custom-field filters the company configured (developer panel → Use as filter). Each: { key, label, type, values[] }.
+export async function getFilterOptions() {
+  try { const r = await api.get('/lead/filter-options'); return r && Array.isArray(r.filters) ? r.filters : []; } catch { return []; }
+}
 export const getTerms = () => api.get('/terms/current');
 export const acceptTerms = (version) => api.post('/terms/accept', { version });
