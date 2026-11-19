@@ -9,7 +9,7 @@ import axios from "axios";
 import api from "../data/axiosConfig";
 import { getToken, getEntitlements } from "../data/sessionStore";
 import { sanitizeHtml } from "../utils/sanitizeHtml";
-import { AlertOctagon, Lightbulb, ClipboardList, BarChart3, RefreshCw, MessageCircle, Inbox, Smartphone, Target, FileText, Image as ImageIcon, Music, Video, MapPin, AlertTriangle, Zap, X, Check, Sparkles, Pencil, UserPlus, Link2 } from "lucide-react";
+import { AlertOctagon, Lightbulb, ClipboardList, BarChart3, RefreshCw, MessageCircle, Inbox, Smartphone, Target, FileText, Image as ImageIcon, Music, Video, MapPin, AlertTriangle, Zap, X, Check, Sparkles, Pencil, UserPlus, Link2, Download } from "lucide-react";
 import FestivalCampaignsModal from "./FestivalCampaigns";
 import usePlanFeatures from "../hooks/usePlanFeatures";
 
@@ -2111,6 +2111,7 @@ function WhatsAppPanel({ currentUser }) {
               Bulk WhatsApp
             </button>
           )}
+          <InboxChatReport compact />
         </div>
 
         {/* Sub-tabs: Chats | Leads */}
@@ -4430,6 +4431,118 @@ function todayIST() {
   }).format(new Date());
 }
 
+// ── Daily WhatsApp inbox report (every received + sent message) ────────────
+// Backend: GET /whatsapp/reports/inbox?from=&to=[&format=csv]
+// Phone numbers come back masked unless the caller is a super admin.
+async function downloadInboxCsv(from, to) {
+  try {
+    const res = await api.get("/whatsapp/reports/inbox", {
+      params: { from, to, format: "csv" },
+      responseType: "blob",
+      timeout: 120000,
+    });
+    const url = URL.createObjectURL(new Blob([res.data], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = from === to ? `whatsapp-inbox-${from}.csv` : `whatsapp-inbox-${from}_to_${to}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    let msg = "Couldn't download the report. Try again.";
+    const data = e?.response?.data;
+    if (data instanceof Blob) { try { msg = JSON.parse(await data.text()).error || msg; } catch { /* keep default */ } }
+    else if (data?.error) msg = data.error;
+    alert(msg);
+  }
+}
+
+// compact = date picker + button only (chat sidebar); full = summary card (Reports tab)
+function InboxChatReport({ compact = false }) {
+  const [from, setFrom]       = useState(todayIST);
+  const [to, setTo]           = useState(todayIST);
+  const [busy, setBusy]       = useState(false);
+  const [summary, setSummary] = useState(null);
+  const [byAgent, setByAgent] = useState([]);
+  const [loadErr, setLoadErr] = useState("");
+
+  useEffect(() => {
+    if (compact || !from || !to) return;
+    let cancelled = false;
+    setLoadErr("");
+    api.get("/whatsapp/reports/inbox", { params: { from, to } })
+      .then(r => { if (!cancelled) { setSummary(r.data.summary); setByAgent(r.data.byAgent || []); } })
+      .catch(e => { if (!cancelled) { setSummary(null); setLoadErr(e?.response?.data?.error || "Couldn't load inbox stats"); } });
+    return () => { cancelled = true; };
+  }, [compact, from, to]);
+
+  const onDownload = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await downloadInboxCsv(from, compact ? from : to); } finally { setBusy(false); }
+  };
+
+  const dateCls = "px-2 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] text-[11px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#25D366]";
+  const btnCls  = "flex items-center justify-center gap-1.5 rounded-lg border border-[#25D366] text-[#16A34A] hover:bg-[#f0fdf4] dark:hover:bg-[#052e1c] font-semibold transition disabled:opacity-60";
+
+  if (compact) {
+    return (
+      <div className="flex gap-1.5 mt-2">
+        <input type="date" value={from} max={todayIST()} onChange={e => setFrom(e.target.value)} className={`flex-1 min-w-0 ${dateCls}`} title="Report date" />
+        <button onClick={onDownload} disabled={busy || !from} className={`${btnCls} px-2.5 text-[11px]`} title="Download every WhatsApp message for this day as CSV">
+          <Download className="w-3.5 h-3.5" /> {busy ? "Preparing…" : "Chats CSV"}
+        </button>
+      </div>
+    );
+  }
+
+  const stat = (label, value, color) => (
+    <div className="bg-[#F8F9FC] dark:bg-[#13161E] rounded-lg py-2 text-center border border-[#E4E7EF] dark:border-[#262A38]">
+      <div className={`text-[18px] font-bold ${color || "text-[#0F1117] dark:text-[#F0F2FA]"}`}>{value ?? "–"}</div>
+      <div className="text-[10px] text-[#8B92A9] uppercase font-semibold">{label}</div>
+    </div>
+  );
+
+  return (
+    <div className="mb-5 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] p-3">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="flex items-center gap-1.5 mr-auto">
+          <MessageCircle className="w-4 h-4 text-[#25D366]" />
+          <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Inbox chats report</span>
+        </div>
+        <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} className={dateCls} />
+        <span className="text-[11px] text-[#8B92A9]">to</span>
+        <input type="date" value={to} min={from} max={todayIST()} onChange={e => setTo(e.target.value)} className={dateCls} />
+        <button onClick={onDownload} disabled={busy || !summary?.totalMessages} className={`${btnCls} px-3 py-1.5 text-[12px]`}>
+          <Download className="w-4 h-4" /> {busy ? "Preparing…" : `Download CSV${summary ? ` (${summary.totalMessages})` : ""}`}
+        </button>
+      </div>
+      {loadErr ? (
+        <div className="text-[11px] text-[#DC2626]">{loadErr}</div>
+      ) : (
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {stat("Received", summary?.received, "text-[#16A34A]")}
+          {stat("Sent", summary?.sent, "text-[#16A34A]")}
+          {stat("Chats", summary?.activeChats)}
+          {stat("New chats", summary?.newChats)}
+          {stat("Unanswered", summary?.unanswered, "text-[#D97706]")}
+          {stat("Failed", summary?.failed, "text-[#DC2626]")}
+        </div>
+      )}
+      {byAgent.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {byAgent.map(a => (
+            <span key={a.agent} className="text-[10px] text-[#4B5168] dark:text-[#9DA3BB] bg-[#F0F2FA] dark:bg-[#1E2130] px-2 py-0.5 rounded">
+              {a.agent}: {a.messagesSent} sent · {a.chatsHandled} chats
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function WhatsAppReportsPanel() {
   const [rows, setRows]           = useState([]);
   const [summary, setSummary]     = useState({ sent: 0, failed: 0, skipped: 0 });
@@ -4488,6 +4601,9 @@ function WhatsAppReportsPanel() {
 
   return (
     <div className="h-full overflow-y-auto rounded-2xl border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#1A1D27] p-4 sm:p-5">
+
+      {/* Daily inbox chats (received + sent) — CSV download */}
+      <InboxChatReport />
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3 mb-4">
