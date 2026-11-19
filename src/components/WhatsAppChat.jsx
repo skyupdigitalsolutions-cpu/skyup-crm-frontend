@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getToken } from '../data/sessionStore';
 import { io } from 'socket.io-client';
 import axios from 'axios';
-import { Users, MessageCircle, AlertTriangle, Image as ImageIcon, FileText, Music, Video, MapPin, ClipboardList, Send } from 'lucide-react';
+import { Download, Users, MessageCircle, AlertTriangle, Image as ImageIcon, FileText, Music, Video, MapPin, ClipboardList, Send } from 'lucide-react';
 
 const API_URL    = import.meta.env.VITE_API_URL;   // e.g. http://localhost:5000/api
 const SOCKET_URL = API_URL.replace('/api', '');     // e.g. http://localhost:5000
@@ -94,6 +94,38 @@ export default function WhatsAppChat({ currentUser }) {
   const getAuthHeaders = () => {
     const tok = getToken();
     return { headers: { Authorization: `Bearer ${tok}` } };
+  };
+
+  // ── Daily inbox report download (CSV of every message that day) ─────────
+  const todayStr = (() => { const d = new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; })();
+  const [reportDate,      setReportDate]      = useState(todayStr);
+  const [reportBusy,      setReportBusy]      = useState(false);
+
+  const downloadInboxReport = async () => {
+    setReportBusy(true);
+    try {
+      const res = await axios.get(`${API_URL}/whatsapp/reports/inbox`, {
+        ...getAuthHeaders(),
+        params: { from: reportDate, to: reportDate, format: 'csv' },
+        responseType: 'blob',
+        timeout: 120000,
+      });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `whatsapp-inbox-${reportDate}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      let msg = 'Could not download the report.';
+      const data = e?.response?.data;
+      if (data instanceof Blob) { try { msg = JSON.parse(await data.text()).error || msg; } catch { /* keep default */ } }
+      alert(msg);
+    } finally {
+      setReportBusy(false);
+    }
   };
 
   // ── Load conversations ────────────────────────────────────────────────────
@@ -369,6 +401,16 @@ export default function WhatsAppChat({ currentUser }) {
               </svg>
             </div>
             <span style={{ fontWeight: 500, fontSize: 15, color: 'var(--color-text-primary)' }}>WhatsApp</span>
+          </div>
+
+          {/* Daily inbox report — admin gets the whole company, agents their own chats */}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 12 }}>
+            <input type="date" value={reportDate} max={todayStr} onChange={e => setReportDate(e.target.value)}
+                   title="Report date" style={{ flex: 1, fontSize: 12, padding: '4px 6px' }} />
+            <button onClick={downloadInboxReport} disabled={reportBusy || !reportDate} title="Download that day's chats as CSV"
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '5px 10px', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-tertiary)', background: 'transparent', color: 'var(--color-text-primary)', cursor: reportBusy ? 'wait' : 'pointer' }}>
+              <Download size={14} /> {reportBusy ? 'Preparing…' : 'Daily report'}
+            </button>
           </div>
 
           {/* Tabs — visible to all users */}
