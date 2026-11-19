@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Wallet, Sun, Moon, LogOut } from "lucide-react";
-import FinanceDashboard from "../components/FinanceDashboard";
+import FinanceHome from "./FinanceHome";
 import InstallApp from "./InstallApp";
 import { useFinancePwa } from "./pwa";
 import financeApi from "./financeApi";
@@ -61,7 +61,7 @@ export default function FinancePanel() {
         </div>
       )}
       <main className="mx-auto max-w-[1440px] px-4 py-5 md:px-6">
-        <FinanceDashboard embedded basePath="" client={financeApi} />
+        <FinanceHome />
       </main>
     </div>
   );
