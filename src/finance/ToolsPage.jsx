@@ -14,16 +14,22 @@ const CYCLES = ["monthly", "quarterly", "half-yearly", "yearly", "one-time"];
 function Field({ label, children }) { return <label className="block"><span className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-300">{label}</span>{children}</label>; }
 
 function ToolForm({ initial, onClose, onSaved }) {
-  const [f, setF] = useState(() => ({ name: "", category: "", cost: "", billingCycle: "monthly", reason: "", description: "", projects: [], takenBy: "", usedBy: "", renewalDate: "", reminderDays: 7, note: "", ...(initial || {}), projects: Array.isArray(initial?.projects) ? initial.projects : [], renewalDate: initial?.renewalDate ? String(initial.renewalDate).slice(0, 10) : "" }));
+  const [f, setF] = useState(() => ({ name: "", category: "", cost: "", billingCycle: "monthly", reason: "", description: "", projects: [], pricingType: "flat", seats: "", perSeatCost: "", seatAssignees: [], takenBy: "", usedBy: "", renewalDate: "", reminderDays: 7, note: "", ...(initial || {}), projects: Array.isArray(initial?.projects) ? initial.projects : [], seatAssignees: Array.isArray(initial?.seatAssignees) ? initial.seatAssignees : [], renewalDate: initial?.renewalDate ? String(initial.renewalDate).slice(0, 10) : "" }));
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const perSeatTotal = (Number(f.seats) || 0) * (Number(f.perSeatCost) || 0);
   const setProject = (i, k, v) => setF((p) => ({ ...p, projects: p.projects.map((pr, j) => (j === i ? { ...pr, [k]: v } : pr)) }));
   const addProject = () => setF((p) => ({ ...p, projects: [...p.projects, { name: "", note: "" }] }));
   const removeProject = (i) => setF((p) => ({ ...p, projects: p.projects.filter((_, j) => j !== i) }));
   const save = async () => {
     if (!f.name.trim()) { toast.error("Tool / service name is required."); return; }
     setBusy(true);
-    try { const body = { ...f, cost: Number(f.cost) || 0, reminderDays: Number(f.reminderDays) || 0, renewalDate: f.renewalDate || null, projects: f.projects.filter((pr) => pr.name && pr.name.trim()) };
+    try {
+      const body = { ...f, cost: Number(f.cost) || 0, reminderDays: Number(f.reminderDays) || 0, renewalDate: f.renewalDate || null,
+        projects: f.projects.filter((pr) => pr.name && pr.name.trim()),
+        seats: Number(f.seats) || 0, perSeatCost: Number(f.perSeatCost) || 0,
+        seatAssignees: (f.seatAssignees || []).filter((x) => x && String(x).trim()),
+      };
       const res = initial?._id ? await updateTool(initial._id, body) : await createTool(body);
       toast.success(initial?._id ? "Updated" : "Added"); onSaved(res.tool); onClose();
     } catch (e) { toast.error(e?.response?.data?.message || "Could not save."); } finally { setBusy(false); }
@@ -36,7 +42,22 @@ function ToolForm({ initial, onClose, onSaved }) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Name *"><input className={inputCls} value={f.name} onChange={(e) => set("name", e.target.value)} /></Field>
           <Field label="Category"><input className={inputCls} value={f.category} onChange={(e) => set("category", e.target.value)} /></Field>
-          <Field label="Cost (per cycle)"><input type="number" className={inputCls} value={f.cost} onChange={(e) => set("cost", e.target.value)} /></Field>
+          <div className="sm:col-span-2">
+            <div className="mb-1.5 flex gap-2">
+              <button type="button" onClick={() => set("pricingType", "flat")} className={`rounded-lg px-3 py-1.5 text-[13px] font-medium ${f.pricingType !== "per_seat" ? "bg-emerald-600 text-white" : "border border-slate-300 dark:border-[#2A3040]"}`}>Flat price</button>
+              <button type="button" onClick={() => set("pricingType", "per_seat")} className={`rounded-lg px-3 py-1.5 text-[13px] font-medium ${f.pricingType === "per_seat" ? "bg-emerald-600 text-white" : "border border-slate-300 dark:border-[#2A3040]"}`}>Per seat (team)</button>
+            </div>
+          </div>
+          {f.pricingType === "per_seat" ? (
+            <>
+              <Field label="Seats (users)"><input type="number" min="0" className={inputCls} value={f.seats} onChange={(e) => set("seats", e.target.value)} /></Field>
+              <Field label="Price per seat / cycle"><input type="number" min="0" className={inputCls} value={f.perSeatCost} onChange={(e) => set("perSeatCost", e.target.value)} /></Field>
+              <div className="sm:col-span-2 rounded-lg bg-emerald-50 px-3 py-2 text-[13px] text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">Total: {(Number(f.seats)||0)} seats × ₹{(Number(f.perSeatCost)||0).toLocaleString("en-IN")} = <b>₹{perSeatTotal.toLocaleString("en-IN")}</b> / {f.billingCycle.replace("-"," ")}</div>
+              <div className="sm:col-span-2"><Field label="Seat assignees (comma-separated names)"><input className={inputCls} value={(f.seatAssignees || []).join(", ")} onChange={(e) => set("seatAssignees", e.target.value.split(",").map((x) => x.trim()))} placeholder="Pooja, Dev 1, Dev 2" /></Field></div>
+            </>
+          ) : (
+            <Field label="Cost (per cycle)"><input type="number" className={inputCls} value={f.cost} onChange={(e) => set("cost", e.target.value)} /></Field>
+          )}
           <Field label="Billing cycle"><select className={inputCls} value={f.billingCycle} onChange={(e) => set("billingCycle", e.target.value)}>{CYCLES.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
           <Field label="Renewal date"><input type="date" className={inputCls} value={f.renewalDate} onChange={(e) => set("renewalDate", e.target.value)} /></Field>
           <Field label="Remind days before"><input type="number" min="0" max="90" className={inputCls} value={f.reminderDays} onChange={(e) => set("reminderDays", e.target.value)} /></Field>
@@ -91,7 +112,7 @@ export default function ToolsPage() {
                 {shown.map((t) => (
                   <tr key={t._id} className="border-t border-slate-100 dark:border-[#1A2030]">
                     <td className="px-3 py-2"><div className="font-semibold">{t.name}</div><div className="text-[11px] text-slate-400">{t.category || t.billingCycle}</div></td>
-                    <td className="px-3 py-2">{inr(t.cost)} <span className="text-[11px] text-slate-400">/{t.billingCycle.replace("-", " ")}</span></td>
+                    <td className="px-3 py-2">{inr(t.cost)} <span className="text-[11px] text-slate-400">/{t.billingCycle.replace("-", " ")}</span>{t.pricingType === "per_seat" ? <div className="text-[11px] text-slate-400">{t.seats} seats × {inr(t.perSeatCost)}</div> : null}</td>
                     <td className="px-3 py-2">{fmtDate(t.renewalDate)}{t.daysToRenewal != null && <div className={`text-[11px] ${dueCls(t.daysToRenewal)}`}>{t.daysToRenewal < 0 ? `${-t.daysToRenewal}d overdue` : `in ${t.daysToRenewal}d`}{t.daysToRenewal <= 7 && <AlertTriangle className="ml-1 inline h-3 w-3" />}</div>}</td>
                     <td className="px-3 py-2">{(t.projects && t.projects.length) ? `${t.projects.length}` : "—"}</td><td className="px-3 py-2">{t.takenBy || "—"}</td>
                     <td className="px-3 py-2 max-w-[220px] truncate text-slate-500" title={t.reason}>{t.reason || "—"}</td>
