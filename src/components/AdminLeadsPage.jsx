@@ -23,6 +23,7 @@ import {
 import { fetchAllPages } from "../utils/fetchAllPages";
 import { LanguageFilter, LeadLanguageBadge } from "./LanguageControls";
 import RecordingAudio from "./RecordingAudio";
+import QuotationModal from "./QuotationModal";
 import { scrollPageTop } from "../utils/scrollTop";
 import {
   RefreshCw,
@@ -1979,6 +1980,7 @@ export default function AdminLeadsPage() {
   const clearSelected = useCallback(() => setSelectedIds(new Set()), []);
 
   const [recordingsLead, setRecordingsLead] = useState(null);
+  const [quotationLead,  setQuotationLead]  = useState(null);
 
   // ── Feature gate — show Industry/Service only when leadNurtureSequence is enabled
   const { hasFeature } = useEntitlements();
@@ -2851,6 +2853,15 @@ export default function AdminLeadsPage() {
                               AI
                             </button>
                             <button
+                              title="Quotations"
+                              aria-label={`Quotations for ${l.name}`}
+                              onClick={e => { e.stopPropagation(); setQuotationLead(l); }}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] hover:bg-[#DCE7FF] dark:hover:bg-[#1F2D4D] border border-[#DCE7FF] dark:border-[#24365C] transition whitespace-nowrap"
+                            >
+                              <FileText className="w-3 h-3" />
+                              Quote
+                            </button>
+                            <button
                               onClick={e => { e.stopPropagation(); setSelected(l); }}
                               className="w-6 h-6 rounded-lg bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
                             >
@@ -2929,6 +2940,16 @@ export default function AdminLeadsPage() {
           onClose={() => setRecordingsLead(null)}
           isSuperAdmin={isSuperAdmin}
           onLeadUpdated={handleLeadUpdated}
+          onToast={showToast}
+        />
+      )}
+
+      {/* Quotations for one lead */}
+      {quotationLead && (
+        <QuotationModal
+          lead={quotationLead}
+          isSuperAdmin={isSuperAdmin}
+          onClose={() => setQuotationLead(null)}
           onToast={showToast}
         />
       )}

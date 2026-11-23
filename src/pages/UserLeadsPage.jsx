@@ -15,6 +15,7 @@ import RecordingAudio from "../components/RecordingAudio";
 import IndustryServicePicker from "../components/IndustryServicePicker";
 import { leadServices } from "../utils/leadServices";
 import { scrollPageTop } from "../utils/scrollTop";
+import QuotationModal from "../components/QuotationModal";
 
 const BACKEND_ROOT = import.meta.env.VITE_API_URL.replace(/\/api$/, "")
  
@@ -1164,6 +1165,7 @@ export default function UserLeadsPage() {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState("");
   const [selected, setSelected] = useState(null);
+  const [quotationLead, setQuotationLead] = useState(null);
 
   const [search,     setSearch]     = useState("");
   const [filterSt,   setFilterSt]   = useState("All");
@@ -1648,6 +1650,16 @@ export default function UserLeadsPage() {
                             </svg>
                             Recordings
                           </button>
+                          <button
+                            title="Quotations"
+                            aria-label={`Quotations for ${l.name}`}
+                            onClick={e => { e.stopPropagation(); setQuotationLead(l); }}
+                            className="ml-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[16px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] hover:bg-[#DCE7FF] dark:hover:bg-[#1F2D4D] border border-[#DCE7FF] dark:border-[#24365C] transition">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            Quote
+                          </button>
                         </td>
                       </tr>
                     );
@@ -1689,6 +1701,10 @@ export default function UserLeadsPage() {
      
       {selected && (
         <UpdateDrawer lead={selected} onClose={() => setSelected(null)} onSaved={handleSaved} />
+      )}
+
+      {quotationLead && (
+        <QuotationModal lead={quotationLead} onClose={() => setQuotationLead(null)} />
       )}
     </div>
   );

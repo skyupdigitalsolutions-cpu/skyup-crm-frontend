@@ -1,4 +1,6 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import QuotationModal from '../../components/QuotationModal.jsx';
 import { STATUS_TONE, TEMP_TONE } from '../constants.js';
 import { fmtRelativeDay, initials, maskPhone, telHref } from '../format.js';
 import { savePendingCall } from '../pendingCall.js';
@@ -7,7 +9,7 @@ import { IconPhone, IconEdit } from './icons.jsx';
 const TEMP_COLOR = { Hot: 'var(--red)', Warm: 'var(--orange)', Cold: 'var(--blue)' };
 
 export default function LeadRow({ lead, showFollowUp }) {
-  const navigate = useNavigate();
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const tel = telHref(lead.phone);
   const sub = showFollowUp && lead.followUpDate
     ? `Follow-up ${fmtRelativeDay(lead.followUpDate)}`
@@ -33,7 +35,7 @@ export default function LeadRow({ lead, showFollowUp }) {
         className="row-quote"
         aria-label={`Create quotation for ${lead.name}`}
         title="Create quotation"
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/agent/quotation/new?leadId=${lead.id}`); }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQuoteOpen(true); }}
       >
         <IconEdit />
       </button>
@@ -47,6 +49,7 @@ export default function LeadRow({ lead, showFollowUp }) {
           <IconPhone />
         </a>
       ) : null}
+      {quoteOpen ? <QuotationModal lead={lead} onClose={() => setQuoteOpen(false)} /> : null}
     </div>
   );
 }
