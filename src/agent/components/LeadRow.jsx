@@ -1,12 +1,13 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { STATUS_TONE, TEMP_TONE } from '../constants.js';
 import { fmtRelativeDay, initials, maskPhone, telHref } from '../format.js';
 import { savePendingCall } from '../pendingCall.js';
-import { IconPhone } from './icons.jsx';
+import { IconPhone, IconEdit } from './icons.jsx';
 
 const TEMP_COLOR = { Hot: 'var(--red)', Warm: 'var(--orange)', Cold: 'var(--blue)' };
 
 export default function LeadRow({ lead, showFollowUp }) {
+  const navigate = useNavigate();
   const tel = telHref(lead.phone);
   const sub = showFollowUp && lead.followUpDate
     ? `Follow-up ${fmtRelativeDay(lead.followUpDate)}`
@@ -27,6 +28,15 @@ export default function LeadRow({ lead, showFollowUp }) {
         </span>
       </span>
       </Link>
+      <button
+        type="button"
+        className="row-quote"
+        aria-label={`Create quotation for ${lead.name}`}
+        title="Create quotation"
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/agent/quotation/new?leadId=${lead.id}`); }}
+      >
+        <IconEdit />
+      </button>
       {tel ? (
         <a
           className="row-call"
