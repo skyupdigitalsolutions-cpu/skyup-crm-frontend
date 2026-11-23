@@ -16,10 +16,11 @@ import { useState, useEffect, useCallback, useMemo, createContext, useContext } 
 import toast from "react-hot-toast";
 import {
   Search, Plus, X, Loader2, IndianRupee, CalendarClock, AlertTriangle, CheckCircle2,
-  Wallet, FileText, Trash2, Pencil, RefreshCw, Ban, RotateCcw, ChevronLeft, ChevronRight, UserPlus, Users, Hash, ExternalLink,
+  Wallet, FileText, Trash2, Pencil, RefreshCw, Ban, RotateCcw, ChevronLeft, ChevronRight, UserPlus, Users, Hash, ExternalLink, Download, Settings,
 } from "lucide-react";
 import defaultApi from "../data/axiosConfig";
 import { inr, fmtDay, fmtDateTime, toInputDay, todayInput, errMsg } from "../utils/financeFormat";
+import { printInvoice } from "../utils/invoicePrint";
 
 // The Finance Panel signs in separately from the CRM, so it passes its own axios
 // client; the Developer → Company → Finance tab uses the normal CRM session.
@@ -337,6 +338,7 @@ function QuotationPanel({ q, accepted }) {
 function InvoiceDrawer({ id, base, assignees, meta, onClose, onChanged, onAddService, onOpen }) {
   const api = useContext(ApiCtx);
   const [inv, setInv] = useState(null);
+  const [seller, setSeller] = useState(null);           // invoice "from" block for downloads
   const [siblings, setSiblings] = useState([]);
   const [busy, setBusy] = useState("");
   const [edit, setEdit] = useState(null);                 // null | draft object
@@ -346,7 +348,7 @@ function InvoiceDrawer({ id, base, assignees, meta, onClose, onChanged, onAddSer
   const [remark, setRemark] = useState("");
 
   const load = useCallback(async () => {
-    try { const { data } = await api.get(`${base}/${id}`); setInv(data.invoice); setFu({ date: toInputDay(data.invoice.nextFollowUpDate), remark: "" }); }
+    try { const { data } = await api.get(`${base}/${id}`); setInv(data.invoice); setSeller(data.seller || {}); setFu({ date: toInputDay(data.invoice.nextFollowUpDate), remark: "" }); }
     catch (e) { toast.error(errMsg(e, "Could not load invoice")); onClose(); }
   }, [api, base, id, onClose]);
   useEffect(() => { load(); }, [load]);
@@ -420,6 +422,12 @@ function InvoiceDrawer({ id, base, assignees, meta, onClose, onChanged, onAddSer
           <div className="flex items-center gap-2">
             <StatusBadge inv={inv} />
             <button className={btnGhost} onClick={openEdit}><Pencil className="w-3.5 h-3.5" />Edit</button>
+            <button className={btnGhost}
+                    disabled={!inv.invoiceNumber || !(inv.totalAmount > 0) || cancelled}
+                    title={!inv.invoiceNumber ? "Add the invoice number first" : !(inv.totalAmount > 0) ? "Add an amount first" : "Opens the invoice — choose Save as PDF"}
+                    onClick={() => printInvoice({ invoice: inv, seller: seller || {} })}>
+              <Download className="w-3.5 h-3.5" />Download
+            </button>
           </div>
         </div>
 
@@ -592,6 +600,52 @@ const STATUS_TABS = [
   ["overdue", "Overdue"], ["due_today", "Due today"], ["cancelled", "Cancelled"],
 ];
 
+// Company details printed in the "from" block of every downloaded invoice.
+function InvoiceSettingsModal({ base, onClose }) {
+  const api = useContext(ApiCtx);
+  const [f, setF] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    api.get(`${base}/settings`)
+      .then(({ data }) => { setF(data.settings); setPreview(data.preview); })
+      .catch((e) => { toast.error(errMsg(e, "Could not load invoice settings")); onClose(); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, base]);   // load once — onClose is a new function every render
+  const set = (k) => (e) => setF((p) => ({ ...p, [k]: k === "gstin" ? e.target.value.toUpperCase() : e.target.value }));
+  const save = async (e) => {
+    e.preventDefault(); setSaving(true);
+    try { await api.put(`${base}/settings`, f); toast.success("Invoice settings saved"); onClose(); }
+    catch (err) { toast.error(errMsg(err, "Could not save invoice settings")); }
+    finally { setSaving(false); }
+  };
+  return (
+    <Modal title="Invoice settings" onClose={onClose} wide>
+      {!f ? <div className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin text-blue-600 inline" /></div> : (
+        <form onSubmit={save} className="space-y-4">
+          <p className="text-[12px] text-[#8B92A9]">Printed on every downloaded invoice. Blank fields use your company profile{preview?.name ? ` (${preview.name})` : ""}.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Legal / business name"><input className={inputCls} value={f.legalName} onChange={set("legalName")} placeholder={preview?.name || "Acme Digital Pvt Ltd"} maxLength={120} /></Field>
+            <Field label="Your GSTIN"><input className={inputCls} value={f.gstin} onChange={set("gstin")} placeholder="29ABCDE1234F1Z5" maxLength={20} /></Field>
+            <Field label="Phone"><input className={inputCls} value={f.phone} onChange={set("phone")} placeholder={preview?.phone || ""} maxLength={40} /></Field>
+            <Field label="Email"><input className={inputCls} value={f.email} onChange={set("email")} placeholder={preview?.email || ""} maxLength={120} /></Field>
+          </div>
+          <Field label="Address"><textarea rows={2} className={inputCls} value={f.address} onChange={set("address")} placeholder={preview?.address || ""} maxLength={400} /></Field>
+          <Field label="Payment details" hint="Bank name, account number, IFSC, UPI ID — one per line.">
+            <textarea rows={4} className={inputCls} value={f.bankDetails} onChange={set("bankDetails")} placeholder={"HDFC Bank, Indiranagar\nA/C 50200012345678\nIFSC HDFC0001234\nUPI acme@hdfcbank"} maxLength={600} />
+          </Field>
+          <Field label="Terms"><textarea rows={3} className={inputCls} value={f.terms} onChange={set("terms")} placeholder="Payment due within 15 days. Late payments attract 1.5% interest per month." maxLength={1000} /></Field>
+          <Field label="Signature line"><input className={inputCls} value={f.signatory} onChange={set("signatory")} placeholder={`For ${preview?.name || "Acme Digital Pvt Ltd"}`} maxLength={120} /></Field>
+          <div className="flex justify-end gap-2">
+            <button type="button" className={btnGhost} onClick={onClose}>Cancel</button>
+            <button disabled={saving} className={btnPrimary}>{saving && <Loader2 className="w-4 h-4 animate-spin" />}Save settings</button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
 export default function FinanceDashboard({ basePath = "/finance", embedded = false, client = null }) {
   const api = client || defaultApi;
   const [data, setData] = useState(null);
@@ -603,6 +657,7 @@ export default function FinanceDashboard({ basePath = "/finance", embedded = fal
   const [f, setF] = useState({ status: "all", assignedTo: "", clientSource: "", from: "", to: "", sort: "conversion_desc", page: 1 });
   const [openId, setOpenId] = useState(null);
   const [creating, setCreating] = useState(null);   // null | { client?: existing client }
+  const [showSettings, setShowSettings] = useState(false);
 
   // debounce search
   const [dq, setDq] = useState("");
@@ -643,6 +698,7 @@ export default function FinanceDashboard({ basePath = "/finance", embedded = fal
           <p className="text-[12px] text-[#8B92A9]">Converted leads, invoices, services, part-payments and payment follow-ups.</p>
         </div>
         <div className="flex items-center gap-2">
+          <button className={btnGhost} onClick={() => setShowSettings(true)} title="Company details printed on invoices"><Settings className="w-3.5 h-3.5" />Invoice settings</button>
           <button className={btnGhost} onClick={load} title="Refresh"><RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /></button>
           <button className={btnPrimary} onClick={() => setCreating({})}><Plus className="w-4 h-4" />New invoice</button>
         </div>
@@ -729,6 +785,7 @@ export default function FinanceDashboard({ basePath = "/finance", embedded = fal
           onClose={() => setOpenId(null)} onChanged={load} onOpen={(id) => setOpenId(id)}
           onAddService={(c) => { setOpenId(null); setCreating({ client: c }); }} />
       )}
+      {showSettings && <InvoiceSettingsModal base={basePath} onClose={() => setShowSettings(false)} />}
       {creating && (
         <CreateInvoiceModal base={basePath} assignees={assignees} meta={meta} initialClient={creating.client || null}
           onClose={() => setCreating(null)} onCreated={(inv) => { setCreating(null); load(); setOpenId(inv._id); }} />
