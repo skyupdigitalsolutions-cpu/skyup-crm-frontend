@@ -16,7 +16,7 @@ import { useState, useEffect, useCallback, useMemo, createContext, useContext } 
 import toast from "react-hot-toast";
 import {
   Search, Plus, X, Loader2, IndianRupee, CalendarClock, AlertTriangle, CheckCircle2,
-  Wallet, FileText, Trash2, Pencil, RefreshCw, Ban, RotateCcw, ChevronLeft, ChevronRight, UserPlus, Users, Hash,
+  Wallet, FileText, Trash2, Pencil, RefreshCw, Ban, RotateCcw, ChevronLeft, ChevronRight, UserPlus, Users, Hash, ExternalLink,
 } from "lucide-react";
 import defaultApi from "../data/axiosConfig";
 import { inr, fmtDay, fmtDateTime, toInputDay, todayInput, errMsg } from "../utils/financeFormat";
@@ -278,6 +278,62 @@ function CreateInvoiceModal({ base, assignees, meta, initialClient, onClose, onC
 }
 
 // ── Invoice detail drawer ────────────────────────────────────────────────────
+// The CRM quotation this invoice was filled from (sent by GET /:id as quotationInfo).
+const Q_STATUS = {
+  accepted: "bg-emerald-100 text-emerald-700 dark:bg-[#052e1c] dark:text-emerald-300",
+  sent:     "bg-blue-100 text-blue-700 dark:bg-[#1A2540] dark:text-blue-300",
+  draft:    "bg-[#F0F2FA] text-[#4B5168] dark:bg-[#1E2130] dark:text-[#9DA3BB]",
+  rejected: "bg-red-100 text-red-700 dark:bg-[#2D0A0A] dark:text-red-300",
+};
+const Q_BILLING = { monthly: "/month", quarterly: "/quarter", half_yearly: "/half-year", yearly: "/year" };
+
+function QuotationPanel({ q, accepted }) {
+  if (!q) return null;
+  return (
+    <section>
+      <h4 className="text-[12px] font-bold uppercase tracking-wide text-[#6B7280] mb-2 flex items-center gap-2">
+        Quotation
+        {!accepted && <span className="normal-case font-semibold text-amber-600 tracking-normal">provisional, not accepted yet</span>}
+      </h4>
+      <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38] p-3">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <FileText className="w-4 h-4 text-blue-600" />
+          <span className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{q.number}</span>
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold capitalize ${Q_STATUS[q.status] || Q_STATUS.draft}`}>{q.status}</span>
+          <span className="text-[12px] text-[#8B92A9]">{fmtDay(q.createdAt)}{q.handledBy ? ` · by ${q.handledBy}` : ""}</span>
+          <span className="ml-auto text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{inr(q.grandTotal)}</span>
+        </div>
+        {q.title && <p className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB] mb-2">{q.title}</p>}
+        {q.source === "uploaded" ? (
+          q.fileUrl && (
+            <a href={q.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blue-600 hover:underline">
+              <ExternalLink className="w-3.5 h-3.5" /> Open {q.fileName || "quotation file"}
+            </a>
+          )
+        ) : (
+          <div className="text-[12px] divide-y divide-[#F0F2FA] dark:divide-[#1E2130]">
+            {(q.lineItems || []).map((li, i) => (
+              <div key={li._id || i} className="flex justify-between gap-3 py-1">
+                <span className="text-[#4B5168] dark:text-[#9DA3BB]">{li.description} <span className="text-[#9DA3BB]">× {li.quantity}</span></span>
+                <span className="whitespace-nowrap">{inr(li.lineTotal)}{Q_BILLING[li.billing] || ""}</span>
+              </div>
+            ))}
+            {q.discountAmount > 0 && (
+              <div className="flex justify-between py-1"><span className="text-[#4B5168] dark:text-[#9DA3BB]">Discount{q.discountedBy ? ` (approved by ${q.discountedBy})` : ""}</span><span className="text-red-600">− {inr(q.discountAmount)}</span></div>
+            )}
+            {q.gstAmount > 0 && (
+              <div className="flex justify-between py-1"><span className="text-[#4B5168] dark:text-[#9DA3BB]">GST ({q.gstPercent}%)</span><span>{inr(q.gstAmount)}</span></div>
+            )}
+            {q.recurringSubtotal > 0 && (
+              <div className="flex justify-between py-1 text-amber-700 dark:text-amber-300"><span>Recurring, not in this invoice</span><span>{inr(q.recurringSubtotal)} per period</span></div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function InvoiceDrawer({ id, base, assignees, meta, onClose, onChanged, onAddService, onOpen }) {
   const api = useContext(ApiCtx);
   const [inv, setInv] = useState(null);
@@ -327,6 +383,7 @@ function InvoiceDrawer({ id, base, assignees, meta, onClose, onChanged, onAddSer
 
   const openEdit = () => setEdit({
     invoiceNumber: inv.invoiceNumber || "", customerName: inv.customerName, businessName: inv.businessName || "",
+    clientGSTIN: inv.clientGSTIN || "", clientAddress: inv.clientAddress || "",
     clientSource: inv.clientSource || "", referredBy: inv.referredBy || "",
     installmentsPlanned: inv.installmentsPlanned || "", conversionDate: toInputDay(inv.conversionDate), assignedTo: inv.assignedTo || "",
     rows: inv.services && inv.services.length ? inv.services.map((s) => ({ name: s.name, amount: s.amount || "" })) : [{ name: inv.service || "", amount: inv.totalAmount || "" }],
@@ -336,6 +393,7 @@ function InvoiceDrawer({ id, base, assignees, meta, onClose, onChanged, onAddSer
     e.preventDefault();
     const body = {
       customerName: edit.customerName, businessName: edit.businessName,
+      clientGSTIN: edit.clientGSTIN, clientAddress: edit.clientAddress,
       clientSource: edit.clientSource, referredBy: edit.referredBy,
       installmentsPlanned: edit.installmentsPlanned === "" ? null : Number(edit.installmentsPlanned),
       conversionDate: edit.conversionDate, assignedTo: edit.assignedTo || null,
@@ -354,6 +412,9 @@ function InvoiceDrawer({ id, base, assignees, meta, onClose, onChanged, onAddSer
           <div>
             <p className="text-[16px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{inv.customerName}</p>
             <p className="text-[12px] text-[#8B92A9]">{inv.businessName || "—"}{sourceLine ? ` · ${sourceLine}` : ""}</p>
+            {(inv.clientGSTIN || inv.clientAddress) && (
+              <p className="text-[12px] text-[#8B92A9]">{[inv.clientGSTIN && `GSTIN ${inv.clientGSTIN}`, inv.clientAddress].filter(Boolean).join(" · ")}</p>
+            )}
             <p className="text-[12px] text-[#8B92A9] mt-0.5">Converted {fmtDay(inv.conversionDate)} · {inv.source === "lead" ? "from lead" : "manual"} · Follow-up: {inv.assignedToName || "unassigned"}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -374,6 +435,8 @@ function InvoiceDrawer({ id, base, assignees, meta, onClose, onChanged, onAddSer
             </div>
           </div>
         )}
+
+        <QuotationPanel q={inv.quotationInfo} accepted={inv.quotationAccepted} />
 
         {/* services */}
         <section>
@@ -499,9 +562,11 @@ function InvoiceDrawer({ id, base, assignees, meta, onClose, onChanged, onAddSer
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Customer name"><input required className={inputCls} value={edit.customerName} onChange={(e) => setEdit({ ...edit, customerName: e.target.value })} /></Field>
               <Field label="Business name"><input className={inputCls} value={edit.businessName} onChange={(e) => setEdit({ ...edit, businessName: e.target.value })} /></Field>
+              <Field label="GSTIN"><input className={inputCls} value={edit.clientGSTIN} onChange={(e) => setEdit({ ...edit, clientGSTIN: e.target.value.toUpperCase() })} placeholder="29ABCDE1234F1Z5" /></Field>
+              <Field label="Address"><input className={inputCls} value={edit.clientAddress} onChange={(e) => setEdit({ ...edit, clientAddress: e.target.value })} /></Field>
             </div>
             <SourceFields source={edit.clientSource} referredBy={edit.referredBy} sources={meta.sources} onChange={(v) => setEdit((p) => ({ ...p, ...v }))} />
-            <p className="text-[11px] text-[#9DA3BB] -mt-2">Name, business and source apply to all of this client's invoices.</p>
+            <p className="text-[11px] text-[#9DA3BB] -mt-2">Name, business, GSTIN, address and source apply to all of this client's invoices.</p>
             <Field label="Services" hint={inv.paidAmount ? `Total can't be lower than the ${inr(inv.paidAmount)} already paid.` : ""}>
               <ServicesEditor rows={edit.rows} setRows={(rows) => setEdit((p) => ({ ...p, rows }))} options={meta.services} />
             </Field>
@@ -632,7 +697,7 @@ export default function FinanceDashboard({ basePath = "/finance", embedded = fal
                   <td className="px-4 py-3 whitespace-nowrap">{inv.invoiceNumber ? <span className="font-semibold text-blue-600">{inv.invoiceNumber}</span> : <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-[#2D1F00] text-amber-700 dark:text-amber-300 text-[11px] font-semibold">Add number</span>}</td>
                   <td className="px-4 py-3">
                     <div className="font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{inv.customerName}</div>
-                    <div className="text-[11px] text-[#8B92A9]">{[inv.businessName, inv.clientSource ? `${inv.clientSource}${inv.referredBy ? `: ${inv.referredBy}` : ""}` : ""].filter(Boolean).join(" · ") || (inv.source === "manual" ? "Manual" : "")}</div>
+                    <div className="text-[11px] text-[#8B92A9]">{[inv.businessName, inv.clientSource ? `${inv.clientSource}${inv.referredBy ? `: ${inv.referredBy}` : ""}` : "", inv.quotationNumber ? `Quote ${inv.quotationNumber}` : ""].filter(Boolean).join(" · ") || (inv.source === "manual" ? "Manual" : "")}</div>
                   </td>
                   <td className="px-4 py-3 max-w-[200px]"><div className="truncate text-[#4B5163] dark:text-[#B5BAD3]" title={inv.service}>{inv.service || <span className="text-[#9DA3BB]">—</span>}</div></td>
                   <td className="px-4 py-3 whitespace-nowrap">{fmtDay(inv.conversionDate)}</td>

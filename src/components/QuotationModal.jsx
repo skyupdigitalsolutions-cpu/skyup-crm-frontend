@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
 import { getBrand, getUser } from "../data/sessionStore";
-import { X, Plus, Trash2, Printer, Pencil, FileText, Loader2, ArrowLeft } from "lucide-react";
+import { X, Plus, Trash2, Printer, Pencil, FileText, Loader2, ArrowLeft, Upload, ExternalLink } from "lucide-react";
 
 const BILLING = [
   { value: "one_time",    label: "One-time",    short: "" },
@@ -162,6 +162,8 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
   const [form, setForm]       = useState(() => blankForm(lead, isSuperAdmin));
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState("");
+  const [upFile, setUpFile]   = useState(null);
+  const [upForm, setUpForm]   = useState({ title: "", amount: "", status: "sent", remark: "" });
 
   const toast = (m, t = "success") => (onToast ? onToast(m, t) : null);
 
@@ -171,7 +173,6 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
       const r = await api.get("/quotations", { params: { leadId: lead._id || lead.id } });
       const list = r.data?.quotations || [];
       setItems(list);
-      if (list.length === 0) { setView("edit"); setEditId(null); }
     } catch (e) {
       setErr(e?.response?.data?.message || "Couldn't load quotations.");
     } finally { setLoading(false); }
@@ -217,6 +218,39 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
     } finally { setSaving(false); }
   };
 
+  const startUpload = () => {
+    setUpFile(null);
+    setUpForm({ title: blankForm(lead, isSuperAdmin).title, amount: "", status: "sent", remark: "" });
+    setErr(""); setView("upload");
+  };
+
+  const submitUpload = async () => {
+    if (!upFile) return setErr("Choose a PDF or image of the quotation.");
+    if (upFile.size > 15 * 1024 * 1024) return setErr("The file is larger than 15 MB.");
+    setSaving(true); setErr("");
+    const fd = new FormData();
+    fd.append("file", upFile);
+    fd.append("leadId", lead._id || lead.id);
+    fd.append("clientName", lead.name && lead.name !== "Unknown" ? lead.name : "");
+    fd.append("title", upForm.title.trim());
+    fd.append("amount", String(Number(upForm.amount) || 0));
+    fd.append("status", upForm.status);
+    fd.append("remark", upForm.remark.trim());
+    const handledBy = (lead.agent && lead.agent !== "Unassigned" ? lead.agent : "") || getUser()?.name || "";
+    if (handledBy) fd.append("handledBy", handledBy);
+    try {
+      const r = await api.post("/quotations/upload", fd, {
+        headers: { "Content-Type": "multipart/form-data" },   // stops axios turning FormData into JSON
+        timeout: 120000,
+      });
+      toast(`Quotation ${r.data?.quotation?.number || ""} uploaded`);
+      await load();
+      setView("list");
+    } catch (e) {
+      setErr(e?.response?.data?.message || "Couldn't upload the quotation.");
+    } finally { setSaving(false); }
+  };
+
   const remove = async (q) => {
     if (!window.confirm(`Delete quotation ${q.number}? Its number won't be reused.`)) return;
     try { await api.delete(`/quotations/${q._id}`); toast(`Quotation ${q.number} deleted`); load(); }
@@ -233,7 +267,7 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
       <div className="w-full max-w-3xl max-h-[92vh] flex flex-col rounded-2xl bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] shadow-xl" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
-          {view === "edit" && items.length > 0 && (
+          {view !== "list" && (
             <button onClick={() => setView("list")} className="p-1 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#1E2130]" title="Back to list">
               <ArrowLeft className="w-4 h-4 text-[#4B5168] dark:text-[#9DA3BB]" />
             </button>
@@ -241,7 +275,7 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
           <FileText className="w-4 h-4 text-[#2563EB]" />
           <div className="flex-1 min-w-0">
             <div className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-              {view === "list" ? "Quotations" : editId ? "Edit quotation" : "New quotation"}
+              {view === "list" ? "Quotations" : view === "upload" ? "Upload quotation" : editId ? "Edit quotation" : "New quotation"}
             </div>
             <div className="text-[11px] text-[#8B92A9] truncate">{lead.name}</div>
           </div>
@@ -255,11 +289,21 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
             <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-[#8B92A9]" /></div>
           ) : view === "list" ? (
             <>
-              <button onClick={startNew} className="mb-3 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2563EB] hover:bg-[#1d4fd8] text-white text-[12px] font-semibold">
-                <Plus className="w-4 h-4" /> New quotation
-              </button>
+              <div className="mb-3 flex flex-wrap gap-2">
+                <button onClick={startNew} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2563EB] hover:bg-[#1d4fd8] text-white text-[12px] font-semibold">
+                  <Plus className="w-4 h-4" /> New quotation
+                </button>
+                <button onClick={startUpload} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]">
+                  <Upload className="w-4 h-4" /> Upload PDF
+                </button>
+              </div>
               {err && <div className="mb-2 text-[12px] text-[#DC2626]">{err}</div>}
-              <div className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl">
+              {items.length === 0 && (
+                <div className="text-center py-8 text-[12px] text-[#8B92A9]">
+                  No quotations for this lead yet. Build one with the item form, or upload a PDF you already have.
+                </div>
+              )}
+              {items.length > 0 && <div className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl">
                 {items.map((q) => (
                   <div key={q._id} className="flex items-center gap-3 px-3 py-2.5">
                     <div className="flex-1 min-w-0">
@@ -273,11 +317,13 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{money(q.grandTotal, q.currency)}</div>
+                      <div className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{q.source === "uploaded" && !q.grandTotal ? "—" : money(q.grandTotal, q.currency)}</div>
                       {q.recurringSubtotal > 0 && <div className="text-[10px] text-[#8B92A9]">+ {money(q.recurringSubtotal, q.currency)} recurring</div>}
                     </div>
                     <div className="flex gap-1">
-                      <button title="Print / save as PDF" onClick={() => printQuotation(q)} className="p-1.5 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#1E2130]"><Printer className="w-4 h-4 text-[#4B5168] dark:text-[#9DA3BB]" /></button>
+                      <button title={q.source === "uploaded" ? "Open file" : "Print / save as PDF"} onClick={() => printQuotation(q)} className="p-1.5 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#1E2130]">
+                        {q.source === "uploaded" ? <ExternalLink className="w-4 h-4 text-[#4B5168] dark:text-[#9DA3BB]" /> : <Printer className="w-4 h-4 text-[#4B5168] dark:text-[#9DA3BB]" />}
+                      </button>
                       {q.source !== "uploaded" && (
                         <button title="Edit" onClick={() => startEdit(q)} className="p-1.5 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#1E2130]"><Pencil className="w-4 h-4 text-[#4B5168] dark:text-[#9DA3BB]" /></button>
                       )}
@@ -285,8 +331,38 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
                     </div>
                   </div>
                 ))}
-              </div>
+              </div>}
             </>
+          ) : view === "upload" ? (
+            <div className="space-y-4">
+              <label className="flex flex-col items-center justify-center gap-2 px-4 py-8 rounded-xl border-2 border-dashed border-[#C9D4EE] dark:border-[#2A3550] bg-[#F8FAFF] dark:bg-[#141A2A] cursor-pointer hover:border-[#2563EB] transition text-center">
+                <Upload className="w-6 h-6 text-[#2563EB]" />
+                {upFile ? (
+                  <>
+                    <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] break-all">{upFile.name}</span>
+                    <span className="text-[11px] text-[#8B92A9]">{(upFile.size / 1024 / 1024).toFixed(2)} MB · click to choose a different file</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">Choose the quotation file</span>
+                    <span className="text-[11px] text-[#8B92A9]">PDF, JPG, PNG or WEBP, up to 15 MB</span>
+                  </>
+                )}
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*" className="hidden"
+                       onChange={(e) => { setUpFile(e.target.files?.[0] || null); setErr(""); }} />
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2"><label className={lbl}>Subject</label><input className={inp} value={upForm.title} onChange={(e) => setUpForm((f) => ({ ...f, title: e.target.value }))} placeholder="Website redesign and SEO" /></div>
+                <div><label className={lbl}>Quotation total (₹, for reports)</label><input type="number" min="0" className={inp} value={upForm.amount} onChange={(e) => setUpForm((f) => ({ ...f, amount: e.target.value }))} placeholder="47790" /></div>
+                <div><label className={lbl}>Status</label>
+                  <select className={inp} value={upForm.status} onChange={(e) => setUpForm((f) => ({ ...f, status: e.target.value }))}>
+                    {STATUS.map((st) => <option key={st} value={st}>{st[0].toUpperCase() + st.slice(1)}</option>)}
+                  </select>
+                </div>
+                <div className="sm:col-span-2"><label className={lbl}>Note</label><input className={inp} value={upForm.remark} onChange={(e) => setUpForm((f) => ({ ...f, remark: e.target.value }))} placeholder="Sent on WhatsApp after the meeting" /></div>
+              </div>
+              <p className="text-[11px] text-[#8B92A9]">The file gets the next quotation number, the same as a built quotation.</p>
+            </div>
           ) : (
             <div className="space-y-4">
               {/* Client */}
@@ -375,6 +451,14 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
         </div>
 
         {/* Footer */}
+        {view === "upload" && !loading && (
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
+            {err && <span className="text-[12px] text-[#DC2626] mr-auto">{err}</span>}
+            <button onClick={submitUpload} disabled={saving} className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2563EB] hover:bg-[#1d4fd8] text-white text-[12px] font-semibold disabled:opacity-60">
+              <Upload className="w-4 h-4" /> {saving ? "Uploading…" : "Upload quotation"}
+            </button>
+          </div>
+        )}
         {view === "edit" && !loading && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
             {err && <span className="text-[12px] text-[#DC2626] mr-auto">{err}</span>}
