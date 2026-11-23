@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
 import { getBrand, getUser } from "../data/sessionStore";
-import { X, Plus, Trash2, Printer, Pencil, FileText, Loader2, ArrowLeft, Upload, ExternalLink } from "lucide-react";
+import { X, Plus, Trash2, Printer, Pencil, FileText, Loader2, ArrowLeft, Upload, ExternalLink, Eye, Stamp } from "lucide-react";
 
 const BILLING = [
   { value: "one_time",    label: "One-time",    short: "" },
@@ -86,7 +86,14 @@ function formFrom(q) {
 // ── Printable A4 page ──────────────────────────────────────────────────────
 // `win` = a window already opened during the click (pop-up blockers reject
 // window.open() called after an await).
-function printQuotation(q, win = null) {
+// preview: true → unsaved draft from the form. Shows a "not saved" banner
+// (printed too, so a draft can't pass as a real quotation) and skips the
+// automatic print dialog.
+// settings: the company's letterhead settings (GET /quotations/settings).
+//   With a letterhead image, it is printed full-bleed behind EVERY page, and
+//   thead/tfoot spacers (repeated by the browser on each printed page) keep
+//   the text inside the letterhead's blank area.
+function printQuotation(q, win = null, { preview = false, settings = null } = {}) {
   const brand = getBrand() || {};
   const user = getUser() || {};
   const companyName = brand.name || user.company?.name || user.companyName || "";
@@ -99,6 +106,12 @@ function printQuotation(q, win = null) {
     return;
   }
 
+  const lh = settings?.letterheadUrl ? settings : null;
+  const top = lh ? Number(lh.marginTopMm ?? 40) : 16;
+  const bottom = lh ? Number(lh.marginBottomMm ?? 25) : 16;
+  const side = lh ? Number(lh.marginSideMm ?? 15) : 16;
+  const showOwnHeader = !lh || !lh.hideBuiltInHeader;
+
   const rows = (q.lineItems || []).map((li, i) => `
     <tr><td>${i + 1}</td><td>${esc(li.description)}</td><td>${esc(billingLabel(li.billing))}</td>
     <td class="n">${esc(li.quantity)}</td><td class="n">${esc(money(li.unitPrice, cur))}</td><td class="n">${esc(money(li.lineTotal, cur))}</td></tr>`).join("");
@@ -106,27 +119,10 @@ function printQuotation(q, win = null) {
   const client = [q.clientCompany, q.clientAddress, q.clientGSTIN && `GSTIN: ${q.clientGSTIN}`, q.clientPhone, q.clientEmail]
     .filter(Boolean).map((x) => `<div>${esc(x)}</div>`).join("");
 
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(q.number)}</title>
-<style>
-  @page { size: A4; margin: 16mm; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 13px; margin: 0; }
-  .top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 12px; }
-  .top img { max-height: 54px; max-width: 200px; }
-  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: 1px; }
-  .muted { color: #555; }
-  .grid { display: flex; justify-content: space-between; gap: 24px; margin: 18px 0; }
-  .label { font-size: 11px; text-transform: uppercase; color: #555; margin-bottom: 4px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  th { background: #f2f2f2; text-align: left; font-size: 11px; text-transform: uppercase; }
-  th, td { border: 1px solid #ddd; padding: 7px 8px; vertical-align: top; }
-  .n { text-align: right; white-space: nowrap; }
-  .totals { margin-left: auto; width: 300px; margin-top: 12px; }
-  .totals td { border: none; padding: 4px 0; }
-  .grand td { border-top: 2px solid #111; font-weight: bold; font-size: 15px; padding-top: 8px; }
-  .note { margin-top: 22px; white-space: pre-wrap; }
-</style></head><body>
-  <div class="top">
-    <div>${logo ? `<img src="${esc(logo)}" alt="">` : ""}${companyName ? `<div style="font-weight:bold;font-size:16px;margin-top:6px">${esc(companyName)}</div>` : ""}</div>
+  const content = `
+  ${preview ? `<div class="draft"><b>Preview — not saved yet.</b> The quotation number is assigned when you save. Close this tab to go back and edit.</div>` : ""}
+  <div class="top${showOwnHeader ? "" : " slim"}">
+    <div>${showOwnHeader ? `${logo ? `<img src="${esc(logo)}" alt="">` : ""}${companyName ? `<div style="font-weight:bold;font-size:16px;margin-top:6px">${esc(companyName)}</div>` : ""}` : ""}</div>
     <div style="text-align:right"><h1>QUOTATION</h1>
       <div><b>${esc(q.number)}</b></div><div class="muted">Date: ${esc(fmtDate(q.createdAt))}</div>
       ${q.handledBy ? `<div class="muted">Prepared by: ${esc(q.handledBy)}</div>` : ""}</div>
@@ -135,7 +131,7 @@ function printQuotation(q, win = null) {
     <div><div class="label">Quotation for</div><div style="font-weight:bold;font-size:15px">${esc(q.clientName || "—")}</div>${client}</div>
     ${q.title ? `<div style="text-align:right"><div class="label">Subject</div><div>${esc(q.title)}</div></div>` : ""}
   </div>
-  <table><thead><tr><th>#</th><th>Description</th><th>Billing</th><th class="n">Qty</th><th class="n">Unit price</th><th class="n">Amount</th></tr></thead>
+  <table class="it"><thead><tr><th>#</th><th>Description</th><th>Billing</th><th class="n">Qty</th><th class="n">Unit price</th><th class="n">Amount</th></tr></thead>
   <tbody>${rows || `<tr><td colspan="6" class="muted">No items</td></tr>`}</tbody></table>
   <table class="totals">
     <tr><td>One-time subtotal</td><td class="n">${esc(money(q.oneTimeSubtotal, cur))}</td></tr>
@@ -144,8 +140,55 @@ function printQuotation(q, win = null) {
     <tr class="grand"><td>Total</td><td class="n">${esc(money(q.grandTotal, cur))}</td></tr>
     ${q.recurringSubtotal ? `<tr><td class="muted">Recurring charges</td><td class="n muted">${esc(money(q.recurringSubtotal, cur))} per period</td></tr>` : ""}
   </table>
-  ${q.remark ? `<div class="note"><div class="label">Terms and notes</div>${esc(q.remark)}</div>` : ""}
-  <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };</script>
+  ${q.remark ? `<div class="note"><div class="label">Terms and notes</div>${esc(q.remark)}</div>` : ""}`;
+
+  const body = lh
+    ? `<img class="lh-bg" src="${esc(lh.letterheadUrl)}" alt="">
+  <table class="lh-wrap">
+    <thead><tr><td class="lh-space" style="height:${top}mm"></td></tr></thead>
+    <tfoot><tr><td class="lh-space" style="height:${bottom}mm"></td></tr></tfoot>
+    <tbody><tr><td class="lh-body">${content}</td></tr></tbody>
+  </table>`
+    : content;
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${preview ? "Quotation preview" : esc(q.number)}</title>
+<style>
+  @page { size: A4; margin: ${lh ? "0" : "16mm"}; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 13px; margin: 0; }
+  .draft { background:#FEF3C7; border:1px solid #F59E0B; color:#92400E; padding:8px 12px; margin-bottom:14px; font-size:12px; border-radius:4px; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 12px; }
+  .top.slim { border-bottom-width: 1px; padding-bottom: 8px; }
+  .top img { max-height: 54px; max-width: 200px; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: 1px; }
+  .muted { color: #555; }
+  .grid { display: flex; justify-content: space-between; gap: 24px; margin: 18px 0; }
+  .label { font-size: 11px; text-transform: uppercase; color: #555; margin-bottom: 4px; }
+  table.it { width: 100%; border-collapse: collapse; margin-top: 8px; background: rgba(255,255,255,.85); }
+  table.it th { background: #f2f2f2; text-align: left; font-size: 11px; text-transform: uppercase; }
+  table.it th, table.it td { border: 1px solid #ddd; padding: 7px 8px; vertical-align: top; }
+  table.it tr { break-inside: avoid; }
+  .n { text-align: right; white-space: nowrap; }
+  .totals { margin-left: auto; width: 300px; margin-top: 12px; border-collapse: collapse; break-inside: avoid; }
+  .totals td { padding: 4px 0; }
+  .grand td { border-top: 2px solid #111; font-weight: bold; font-size: 15px; padding-top: 8px; }
+  .note { margin-top: 22px; white-space: pre-wrap; break-inside: avoid; }
+  /* letterhead */
+  .lh-bg { position: fixed; top: 0; left: 0; width: 210mm; height: 297mm; z-index: -1; object-fit: fill; }
+  table.lh-wrap { width: 100%; border-collapse: collapse; }
+  table.lh-wrap > thead > tr > td, table.lh-wrap > tfoot > tr > td { padding: 0; border: 0; }
+  table.lh-wrap > tbody > tr > td.lh-body { padding: 0 ${side}mm; border: 0; vertical-align: top; }
+  @media screen {
+    body { background: #e5e7eb; }
+    ${lh
+      ? `body > table.lh-wrap, body > .lh-bg { width: 210mm; }
+    body { width: 210mm; min-height: 297mm; margin: 16px auto; position: relative; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.25); }
+    .lh-bg { position: absolute; }`
+      : `body { max-width: 178mm; margin: 16px auto; padding: 16mm; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.25); }`}
+  }
+</style></head><body>
+  ${body}
+  ${preview ? "" : `<script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };</script>`}
 </body></html>`;
 
   const w = win || window.open("", "_blank");
@@ -164,6 +207,11 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
   const [err, setErr]         = useState("");
   const [upFile, setUpFile]   = useState(null);
   const [upForm, setUpForm]   = useState({ title: "", amount: "", status: "sent", remark: "" });
+  // Company letterhead for printing (everyone reads it; admins can change it).
+  const [lhSettings, setLhSettings] = useState(null);
+  const [lhCanEdit, setLhCanEdit]   = useState(false);
+  const [lhDraft, setLhDraft]       = useState(null);   // margins / toggle being edited
+  const [lhBusy, setLhBusy]         = useState("");
 
   const toast = (m, t = "success") => (onToast ? onToast(m, t) : null);
 
@@ -178,6 +226,11 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
     } finally { setLoading(false); }
   };
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [lead.id]);
+  useEffect(() => {
+    api.get("/quotations/settings")
+      .then((r) => { setLhSettings(r.data?.settings || null); setLhCanEdit(!!r.data?.canEdit); })
+      .catch(() => {});   // printing still works without a letterhead
+  }, []);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
@@ -191,6 +244,74 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
 
   const startNew  = () => { setForm(blankForm(lead, isSuperAdmin)); setEditId(null); setErr(""); setView("edit"); };
   const startEdit = (q) => { setForm(formFrom(q)); setEditId(q._id); setErr(""); setView("edit"); };
+
+  // Build what the saved quotation will look like from the current form —
+  // same maths as the backend — and open it without saving.
+  const previewDraft = () => {
+    const lineItems = form.lineItems
+      .filter((li) => String(li.description || "").trim())
+      .map((li) => ({ ...li, quantity: Number(li.quantity) || 0, unitPrice: Number(li.unitPrice) || 0,
+                      lineTotal: r2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)) }));
+    if (!lineItems.length) return setErr("Add at least one item with a description to preview.");
+    setErr("");
+    const existing = editId ? items.find((x) => x._id === editId) : null;
+    printQuotation({
+      ...form, lineItems, source: "created",
+      number: existing?.number || "Number assigned on save",
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      discountValue: Number(form.discountValue) || 0, gstPercent: Number(form.gstPercent) || 0,
+      oneTimeSubtotal: totals.oneTime, recurringSubtotal: totals.recurring,
+      discountAmount: totals.disc, gstAmount: totals.gst, grandTotal: totals.grand,
+    }, null, { preview: true, settings: lhSettings });
+  };
+
+  const openLetterhead = () => {
+    const st = lhSettings || {};
+    setLhDraft({ marginTopMm: st.marginTopMm ?? 40, marginBottomMm: st.marginBottomMm ?? 25, marginSideMm: st.marginSideMm ?? 15, hideBuiltInHeader: st.hideBuiltInHeader ?? true });
+    setErr(""); setView("letterhead");
+  };
+
+  const uploadLetterhead = async (file) => {
+    if (!file) return;
+    if (!/\.(png|jpe?g|webp)$/i.test(file.name)) return setErr("Upload the letterhead as a PNG, JPG or WEBP image. Export a PDF letterhead as an image first.");
+    if (file.size > 5 * 1024 * 1024) return setErr("The image is larger than 5 MB.");
+    setLhBusy("upload"); setErr("");
+    const fd = new FormData(); fd.append("file", file);
+    try {
+      const r = await api.post("/quotations/settings/letterhead", fd, { headers: { "Content-Type": "multipart/form-data" }, timeout: 120000 });
+      setLhSettings(r.data.settings);
+      const sz = r.data.size;
+      if (sz?.width && sz?.height && Math.abs(sz.height / sz.width - 297 / 210) > 0.08) {
+        toast("Letterhead uploaded. It isn't A4-shaped, so it will be stretched to fit the page — check the preview.", "error");
+      } else toast("Letterhead uploaded");
+    } catch (e) { setErr(e?.response?.data?.message || "Couldn't upload the letterhead."); }
+    finally { setLhBusy(""); }
+  };
+
+  const saveLetterhead = async (extra = {}) => {
+    setLhBusy(extra.removeLetterhead ? "remove" : "save"); setErr("");
+    try {
+      const r = await api.put("/quotations/settings", { ...lhDraft, ...extra });
+      setLhSettings(r.data.settings);
+      toast(extra.removeLetterhead ? "Letterhead removed" : "Letterhead settings saved");
+      if (!extra.removeLetterhead) setView("list");
+    } catch (e) { setErr(e?.response?.data?.message || "Couldn't save the letterhead settings."); }
+    finally { setLhBusy(""); }
+  };
+
+  // Sample quotation on the letterhead, using the margins being edited.
+  const previewLetterhead = () => {
+    const sample = blankForm(lead, isSuperAdmin);
+    const lineItems = [
+      { description: sample.lineItems[0]?.description || "Website design and development", quantity: 1, unitPrice: 50000, billing: "one_time", lineTotal: 50000 },
+      { description: "Social media management", quantity: 1, unitPrice: 10000, billing: "monthly", lineTotal: 10000 },
+    ];
+    printQuotation({
+      ...sample, lineItems, source: "created", number: "SAMPLE", createdAt: new Date().toISOString(),
+      gstPercent: 18, oneTimeSubtotal: 50000, recurringSubtotal: 10000, discountAmount: 0, gstAmount: 9000, grandTotal: 59000,
+      remark: "This is a sample to check the letterhead layout.",
+    }, null, { preview: true, settings: { ...(lhSettings || {}), ...lhDraft } });
+  };
 
   const save = async (andPrint = false) => {
     const lineItems = form.lineItems
@@ -209,7 +330,7 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
       const r = editId ? await api.put(`/quotations/${editId}`, body) : await api.post("/quotations", body);
       const q = r.data?.quotation;
       toast(editId ? `Quotation ${q?.number || ""} updated` : `Quotation ${q?.number || ""} created`);
-      if (andPrint && q) printQuotation(q, printWin);
+      if (andPrint && q) printQuotation(q, printWin, { settings: lhSettings });
       await load();
       setView("list");
     } catch (e) {
@@ -275,7 +396,7 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
           <FileText className="w-4 h-4 text-[#2563EB]" />
           <div className="flex-1 min-w-0">
             <div className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-              {view === "list" ? "Quotations" : view === "upload" ? "Upload quotation" : editId ? "Edit quotation" : "New quotation"}
+              {view === "list" ? "Quotations" : view === "upload" ? "Upload quotation" : view === "letterhead" ? "Quotation letterhead" : editId ? "Edit quotation" : "New quotation"}
             </div>
             <div className="text-[11px] text-[#8B92A9] truncate">{lead.name}</div>
           </div>
@@ -296,6 +417,14 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
                 <button onClick={startUpload} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]">
                   <Upload className="w-4 h-4" /> Upload PDF
                 </button>
+                {lhCanEdit && (
+                  <button onClick={openLetterhead} className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]" title="Company letterhead used for every quotation">
+                    <Stamp className="w-4 h-4" /> Letterhead
+                  </button>
+                )}
+              </div>
+              <div className="mb-3 text-[11px] text-[#8B92A9]">
+                {lhSettings?.letterheadUrl ? "Quotations print on your company letterhead." : lhCanEdit ? "No letterhead set — quotations print with your logo and name. Add one with Letterhead." : ""}
               </div>
               {err && <div className="mb-2 text-[12px] text-[#DC2626]">{err}</div>}
               {items.length === 0 && (
@@ -321,7 +450,7 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
                       {q.recurringSubtotal > 0 && <div className="text-[10px] text-[#8B92A9]">+ {money(q.recurringSubtotal, q.currency)} recurring</div>}
                     </div>
                     <div className="flex gap-1">
-                      <button title={q.source === "uploaded" ? "Open file" : "Print / save as PDF"} onClick={() => printQuotation(q)} className="p-1.5 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#1E2130]">
+                      <button title={q.source === "uploaded" ? "Open file" : "Print / save as PDF"} onClick={() => printQuotation(q, null, { settings: lhSettings })} className="p-1.5 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#1E2130]">
                         {q.source === "uploaded" ? <ExternalLink className="w-4 h-4 text-[#4B5168] dark:text-[#9DA3BB]" /> : <Printer className="w-4 h-4 text-[#4B5168] dark:text-[#9DA3BB]" />}
                       </button>
                       {q.source !== "uploaded" && (
@@ -333,6 +462,53 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
                 ))}
               </div>}
             </>
+          ) : view === "letterhead" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-5">
+              <div>
+                <div className="w-[180px] aspect-[210/297] rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white overflow-hidden relative">
+                  {lhSettings?.letterheadUrl ? (
+                    <>
+                      <img src={lhSettings.letterheadUrl} alt="Current letterhead" className="absolute inset-0 w-full h-full object-fill" />
+                      {lhDraft && (
+                        <div className="absolute border-2 border-dashed border-[#2563EB] bg-[#2563EB]/10"
+                             style={{ top: `${(lhDraft.marginTopMm / 297) * 100}%`, bottom: `${(lhDraft.marginBottomMm / 297) * 100}%`,
+                                      left: `${(lhDraft.marginSideMm / 210) * 100}%`, right: `${(lhDraft.marginSideMm / 210) * 100}%` }}
+                             title="Quotation text goes inside this area" />
+                      )}
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-center p-3 text-[11px] text-[#8B92A9]">No letterhead yet</div>
+                  )}
+                </div>
+                {lhSettings?.letterheadUrl && <p className="mt-1.5 text-[10px] text-[#8B92A9]">Blue box = where the quotation text goes.</p>}
+              </div>
+              <div className="space-y-4">
+                <label className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-[#C9D4EE] dark:border-[#2A3550] bg-[#F8FAFF] dark:bg-[#141A2A] cursor-pointer hover:border-[#2563EB] text-[12px] font-semibold text-[#2563EB] ${lhBusy ? "opacity-60 pointer-events-none" : ""}`}>
+                  {lhBusy === "upload" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {lhSettings?.letterheadUrl ? "Replace letterhead image" : "Upload letterhead image"}
+                  <input type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" className="hidden"
+                         onChange={(e) => { uploadLetterhead(e.target.files?.[0]); e.target.value = ""; }} />
+                </label>
+                <p className="text-[11px] text-[#8B92A9] -mt-2">A full A4 page image (PNG or JPG, up to 5 MB) with your header and footer on it. If your letterhead is a PDF or Word file, export it as an image first.</p>
+                {lhDraft && (
+                  <>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[["marginTopMm", "Top space (mm)", 0, 150], ["marginBottomMm", "Bottom space (mm)", 0, 150], ["marginSideMm", "Side space (mm)", 5, 60]].map(([k, label, min, max]) => (
+                        <div key={k}><label className={lbl}>{label}</label>
+                          <input type="number" min={min} max={max} className={inp} value={lhDraft[k]}
+                                 onChange={(e) => setLhDraft((d) => ({ ...d, [k]: Math.min(max, Math.max(min, Number(e.target.value) || 0)) }))} />
+                        </div>
+                      ))}
+                    </div>
+                    <label className="flex items-center gap-2 text-[12px] text-[#0F1117] dark:text-[#F0F2FA]">
+                      <input type="checkbox" checked={lhDraft.hideBuiltInHeader} onChange={(e) => setLhDraft((d) => ({ ...d, hideBuiltInHeader: e.target.checked }))} />
+                      Hide our logo and company name (the letterhead already has them)
+                    </label>
+                  </>
+                )}
+                {lhSettings?.updatedByName && <p className="text-[11px] text-[#8B92A9]">Last changed by {lhSettings.updatedByName}{lhSettings.updatedAt ? ` on ${fmtDate(lhSettings.updatedAt)}` : ""}.</p>}
+              </div>
+            </div>
           ) : view === "upload" ? (
             <div className="space-y-4">
               <label className="flex flex-col items-center justify-center gap-2 px-4 py-8 rounded-xl border-2 border-dashed border-[#C9D4EE] dark:border-[#2A3550] bg-[#F8FAFF] dark:bg-[#141A2A] cursor-pointer hover:border-[#2563EB] transition text-center">
@@ -451,6 +627,25 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
         </div>
 
         {/* Footer */}
+        {view === "letterhead" && !loading && (
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
+            {err && <span className="text-[12px] text-[#DC2626] w-full">{err}</span>}
+            {lhSettings?.letterheadUrl && (
+              <button onClick={() => { if (window.confirm("Remove the letterhead? Quotations will print with your logo and name again.")) saveLetterhead({ removeLetterhead: true }); }}
+                      disabled={!!lhBusy} className="px-3 py-2 rounded-xl text-[12px] font-semibold text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#2D0A0A] disabled:opacity-60">
+                Remove letterhead
+              </button>
+            )}
+            <div className="flex gap-2 ml-auto">
+              <button onClick={previewLetterhead} disabled={!lhSettings?.letterheadUrl || !!lhBusy} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] disabled:opacity-60" title="Sample quotation on your letterhead">
+                <Eye className="w-4 h-4" /> Preview
+              </button>
+              <button onClick={() => saveLetterhead()} disabled={!!lhBusy} className="px-3 py-2 rounded-xl bg-[#2563EB] hover:bg-[#1d4fd8] text-white text-[12px] font-semibold disabled:opacity-60">
+                {lhBusy === "save" ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        )}
         {view === "upload" && !loading && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
             {err && <span className="text-[12px] text-[#DC2626] mr-auto">{err}</span>}
@@ -463,6 +658,9 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
           <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
             {err && <span className="text-[12px] text-[#DC2626] mr-auto">{err}</span>}
             <div className="flex gap-2 ml-auto">
+              <button onClick={previewDraft} disabled={saving} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] disabled:opacity-60" title="See the finished quotation before saving">
+                <Eye className="w-4 h-4" /> Preview
+              </button>
               <button onClick={() => save(false)} disabled={saving} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] disabled:opacity-60">
                 {saving ? "Saving…" : "Save"}
               </button>
