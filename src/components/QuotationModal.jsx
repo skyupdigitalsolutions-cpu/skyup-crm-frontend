@@ -1,22 +1,23 @@
 // components/QuotationModal.jsx
-// Quotations for one lead, opened from the Lead Management table.
-//   list view → this lead's quotations (print / edit / delete) + "New quotation"
-//   edit view → line items (qty × price, billing period), discount, GST, live totals
-// Backend: /api/quotations (numbering, totals and scoping are done server-side).
-// Print opens a clean A4 page; the browser's "Save as PDF" makes the PDF.
+// Quotations for one lead (Lead Management, employee Leads, agent app).
+//   list     → this lead's quotations (print / edit / delete), New, Upload PDF, Template settings (admins)
+//   edit     → items (with details + module), saved-service picker, discount, GST, live totals,
+//              and the extra sections: scope, optional add-ons, payment schedule (module-wise),
+//              timeline, service info, suggestions, additional info, payment terms, T&C, notes
+//   upload   → a ready-made PDF / image, still gets the next number
+//   settings → company template (quotation/QuotationSettingsPanel.jsx), admins only
+// The look comes from the company's settings (quotation/quotationTemplate.js).
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import api from "../data/axiosConfig";
-import { getBrand, getUser } from "../data/sessionStore";
-import { X, Plus, Trash2, Printer, Pencil, FileText, Loader2, ArrowLeft, Upload, ExternalLink, Eye, Stamp } from "lucide-react";
+import { getUser } from "../data/sessionStore";
+import { X, Plus, Trash2, Printer, Pencil, FileText, Loader2, ArrowLeft, Upload, ExternalLink, Eye, Settings2, ChevronDown, ChevronRight, ChevronUp, Split, Minus, Search, BookmarkPlus, Check, Package } from "lucide-react";
+import {
+  BILLING, TABLE_PRESETS, SUBJECT_PRESETS, r2, money, fmtDate, resolveTemplate, computeTotals, buildModuleSchedule, scheduleAmount, printQuotation,
+  itemFromCatalog, groupCatalog,
+} from "./quotation/quotationTemplate";
+import QuotationSettingsPanel from "./quotation/QuotationSettingsPanel";
 
-const BILLING = [
-  { value: "one_time",    label: "One-time",    short: "" },
-  { value: "monthly",     label: "Monthly",     short: "/month" },
-  { value: "quarterly",   label: "Quarterly",   short: "/quarter" },
-  { value: "half_yearly", label: "Half-yearly", short: "/half-year" },
-  { value: "yearly",      label: "Yearly",      short: "/year" },
-];
 const STATUS = ["draft", "sent", "accepted", "rejected"];
 const STATUS_STYLE = {
   draft:    "bg-[#F0F2FA] text-[#4B5168] dark:bg-[#1E2130] dark:text-[#9DA3BB]",
@@ -25,202 +26,127 @@ const STATUS_STYLE = {
   rejected: "bg-[#FEF2F2] text-[#DC2626] dark:bg-[#2D0A0A] dark:text-[#F87171]",
 };
 
-const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-const money = (n, cur = "INR") => {
-  try { return new Intl.NumberFormat("en-IN", { style: "currency", currency: cur, maximumFractionDigits: 2 }).format(n || 0); }
-  catch { return `${cur} ${r2(n).toLocaleString("en-IN")}`; }
-};
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "");
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const emptyItem = (description = "") => ({ description, details: "", module: "", priceLabel: "", chargeNote: "", quantity: 1, unitPrice: 0, billing: "one_time" });
+const tableRows = (t) => (t.rows || []).map((r) => (Array.isArray(r) ? r : r.cells || []));
+const toDateInput = (d) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+const addDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return toDateInput(d); };
 
-// Same maths as Quotation.recalc() on the backend, for the live preview.
-function computeTotals(q) {
-  let oneTime = 0, recurring = 0;
-  for (const li of q.lineItems) {
-    const t = r2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0));
-    if (li.billing && li.billing !== "one_time") recurring += t; else oneTime += t;
-  }
-  let disc = 0;
-  if (q.discountType === "percent") disc = oneTime * (Number(q.discountValue) || 0) / 100;
-  else if (q.discountType === "amount") disc = Number(q.discountValue) || 0;
-  disc = r2(Math.min(disc, oneTime));
-  const gst = r2((oneTime - disc) * (Number(q.gstPercent) || 0) / 100);
-  return { oneTime: r2(oneTime), recurring: r2(recurring), disc, gst, grand: r2(oneTime - disc + gst) };
-}
-
-const emptyItem = (description = "") => ({ description, quantity: 1, unitPrice: 0, billing: "one_time" });
-
-function blankForm(lead, isSuperAdmin) {
+function blankForm(lead, isSuperAdmin, st = {}) {
   const services = [...new Set([...(lead.services || []), lead.service].filter(Boolean))];
+  const cat = st.catalog || [];
+  const fromCatalog = (name) => {
+    const c = cat.find((x) => x.name.toLowerCase() === String(name).toLowerCase());
+    return c ? itemFromCatalog(c) : emptyItem(name);
+  };
   return {
-    title: services.length ? `Quotation for ${services.join(", ")}` : "",
+    title: services.length ? `${st.documentTitle || "Quotation"} for ${services.join(", ")}` : "",
     clientName: lead.name && lead.name !== "Unknown" ? lead.name : "",
     clientCompany: "", clientGSTIN: "", clientAddress: "",
-    // Admins only ever see masked contact details in the CRM, so don't
-    // prefill them here — super admins (who see full details) get them.
+    // Admins only see masked contact details in the CRM, so don't prefill them —
+    // super admins (who see full details) get them.
     clientPhone: isSuperAdmin && lead.phone ? lead.phone : "",
     clientEmail: isSuperAdmin && lead.email ? lead.email : "",
-    lineItems: services.length ? services.map((s) => emptyItem(s)) : [emptyItem()],
+    lineItems: services.length ? services.map(fromCatalog) : [emptyItem()],
     optedServices: services,
-    currency: "INR",
+    currency: st.currency || "INR",
     discountType: "none", discountValue: 0, discountedBy: "",
-    gstPercent: 18,
+    gstPercent: st.defaultGstPercent ?? 18,
     status: "draft", remark: "",
-    // Admin page: the lead's agent. Employee screens: the logged-in employee.
     handledBy: (lead.agent && lead.agent !== "Unassigned" ? lead.agent : "") || getUser()?.name || "",
+    validUntil: (st.validityDays ?? 15) > 0 ? addDays(st.validityDays ?? 15) : "",
+    optionalItems: [], scopeOfWork: "", timeline: [], paymentSchedule: [],
+    serviceInfo: st.defaultServiceInfo || "", suggestions: "", customBlocks: [],
+    paymentTerms: st.defaultPaymentTerms || "", terms: st.defaultTerms || "",
+    introduction: "", aboutUs: st.defaultAboutUs || "", highlights: [], customTables: [],
+    coverPage: !!st.coverPageDefault, coverSubtitle: "", showTotals: true,
   };
 }
 
 function formFrom(q) {
+  const items = (list) => (list || []).map((li) => ({ description: li.description, details: li.details || "", module: li.module || "", priceLabel: li.priceLabel || "", chargeNote: li.chargeNote || "", quantity: li.quantity, unitPrice: li.unitPrice, billing: li.billing || "one_time" }));
   return {
     title: q.title || "", clientName: q.clientName || "", clientCompany: q.clientCompany || "",
     clientGSTIN: q.clientGSTIN || "", clientAddress: q.clientAddress || "",
     clientPhone: q.clientPhone || "", clientEmail: q.clientEmail || "",
-    lineItems: (q.lineItems || []).map((li) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, billing: li.billing || "one_time" })),
+    lineItems: items(q.lineItems), optionalItems: items(q.optionalItems),
     optedServices: q.optedServices || [], currency: q.currency || "INR",
     discountType: q.discountType || "none", discountValue: q.discountValue || 0, discountedBy: q.discountedBy || "",
     gstPercent: q.gstPercent ?? 0, status: q.status || "draft", remark: q.remark || "", handledBy: q.handledBy || "",
+    validUntil: toDateInput(q.validUntil),
+    scopeOfWork: q.scopeOfWork || "", serviceInfo: q.serviceInfo || "", suggestions: q.suggestions || "",
+    paymentTerms: q.paymentTerms || "", terms: q.terms || "",
+    timeline: (q.timeline || []).map((t) => ({ phase: t.phase, duration: t.duration || "", details: t.details || "" })),
+    paymentSchedule: (q.paymentSchedule || []).map((p) => ({ label: p.label, percent: p.percent || 0, amount: p.amount || 0, due: p.due || "" })),
+    customBlocks: (q.customBlocks || []).map((c) => ({ title: c.title, body: c.body || "" })),
+    introduction: q.introduction || "", aboutUs: q.aboutUs || "",
+    highlights: (q.highlights || []).map((h) => ({ label: h.label, value: h.value || "", note: h.note || "" })),
+    customTables: (q.customTables || []).map((t) => ({ title: t.title || "", note: t.note || "", columns: [...(t.columns || [])], rows: tableRows(t).map((r) => [...r]) })),
+    coverPage: !!q.coverPage, coverSubtitle: q.coverSubtitle || "", showTotals: q.showTotals !== false,
   };
 }
 
-// ── Printable A4 page ──────────────────────────────────────────────────────
-// `win` = a window already opened during the click (pop-up blockers reject
-// window.open() called after an await).
-// preview: true → unsaved draft from the form. Shows a "not saved" banner
-// (printed too, so a draft can't pass as a real quotation) and skips the
-// automatic print dialog.
-// settings: the company's letterhead settings (GET /quotations/settings).
-//   With a letterhead image, it is printed full-bleed behind EVERY page, and
-//   thead/tfoot spacers (repeated by the browser on each printed page) keep
-//   the text inside the letterhead's blank area.
-function printQuotation(q, win = null, { preview = false, settings = null } = {}) {
-  const brand = getBrand() || {};
-  const user = getUser() || {};
-  const companyName = brand.name || user.company?.name || user.companyName || "";
-  const logo = brand.logoUrl || brand.headerLogoUrl || "";
-  const cur = q.currency || "INR";
-  const billingLabel = (b) => BILLING.find((x) => x.value === b)?.label || "One-time";
+// The saved quotation as it will look, from the form (for Preview).
+function draftQuotation(form, totals, extra = {}) {
+  const withTotal = (list) => (list || []).filter((li) => String(li.description || "").trim())
+    .map((li) => ({ ...li, quantity: Number(li.quantity) || 0, unitPrice: Number(li.unitPrice) || 0, lineTotal: r2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)) }));
+  return {
+    ...form, source: "created", lineItems: withTotal(form.lineItems), optionalItems: withTotal(form.optionalItems),
+    discountValue: Number(form.discountValue) || 0, gstPercent: Number(form.gstPercent) || 0,
+    oneTimeSubtotal: totals.oneTime, recurringSubtotal: totals.recurring, discountAmount: totals.disc, gstAmount: totals.gst, grandTotal: totals.grand,
+    ...extra,
+  };
+}
 
-  if (q.source === "uploaded" && q.fileUrl) {
-    if (win) win.location.href = q.fileUrl; else window.open(q.fileUrl, "_blank", "noopener");
-    return;
-  }
+// ── small UI pieces ─────────────────────────────────────────────────────────
+const inp = "w-full px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]";
+const lbl = "block text-[11px] font-semibold text-[#8B92A9] mb-1";
+const btnGhost = "flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] disabled:opacity-60";
+const linkBtn = "flex items-center gap-1 text-[12px] font-semibold text-[#2563EB] hover:underline";
+const iconDel = "flex justify-center items-center p-1.5 rounded-lg hover:bg-[#FEF2F2] dark:hover:bg-[#2D0A0A]";
 
-  const lh = settings?.letterheadUrl ? settings : null;
-  const top = lh ? Number(lh.marginTopMm ?? 40) : 16;
-  const bottom = lh ? Number(lh.marginBottomMm ?? 25) : 16;
-  const side = lh ? Number(lh.marginSideMm ?? 15) : 16;
-  const showOwnHeader = !lh || !lh.hideBuiltInHeader;
-
-  const rows = (q.lineItems || []).map((li, i) => `
-    <tr><td>${i + 1}</td><td>${esc(li.description)}</td><td>${esc(billingLabel(li.billing))}</td>
-    <td class="n">${esc(li.quantity)}</td><td class="n">${esc(money(li.unitPrice, cur))}</td><td class="n">${esc(money(li.lineTotal, cur))}</td></tr>`).join("");
-
-  const client = [q.clientCompany, q.clientAddress, q.clientGSTIN && `GSTIN: ${q.clientGSTIN}`, q.clientPhone, q.clientEmail]
-    .filter(Boolean).map((x) => `<div>${esc(x)}</div>`).join("");
-
-  const content = `
-  ${preview ? `<div class="draft"><b>Preview — not saved yet.</b> The quotation number is assigned when you save. Close this tab to go back and edit.</div>` : ""}
-  <div class="top${showOwnHeader ? "" : " slim"}">
-    <div>${showOwnHeader ? `${logo ? `<img src="${esc(logo)}" alt="">` : ""}${companyName ? `<div style="font-weight:bold;font-size:16px;margin-top:6px">${esc(companyName)}</div>` : ""}` : ""}</div>
-    <div style="text-align:right"><h1>QUOTATION</h1>
-      <div><b>${esc(q.number)}</b></div><div class="muted">Date: ${esc(fmtDate(q.createdAt))}</div>
-      ${q.handledBy ? `<div class="muted">Prepared by: ${esc(q.handledBy)}</div>` : ""}</div>
-  </div>
-  <div class="grid">
-    <div><div class="label">Quotation for</div><div style="font-weight:bold;font-size:15px">${esc(q.clientName || "—")}</div>${client}</div>
-    ${q.title ? `<div style="text-align:right"><div class="label">Subject</div><div>${esc(q.title)}</div></div>` : ""}
-  </div>
-  <table class="it"><thead><tr><th>#</th><th>Description</th><th>Billing</th><th class="n">Qty</th><th class="n">Unit price</th><th class="n">Amount</th></tr></thead>
-  <tbody>${rows || `<tr><td colspan="6" class="muted">No items</td></tr>`}</tbody></table>
-  <table class="totals">
-    <tr><td>One-time subtotal</td><td class="n">${esc(money(q.oneTimeSubtotal, cur))}</td></tr>
-    ${q.discountAmount ? `<tr><td>Discount${q.discountType === "percent" ? ` (${esc(q.discountValue)}%)` : ""}</td><td class="n">− ${esc(money(q.discountAmount, cur))}</td></tr>` : ""}
-    ${q.gstPercent ? `<tr><td>GST (${esc(q.gstPercent)}%)</td><td class="n">${esc(money(q.gstAmount, cur))}</td></tr>` : ""}
-    <tr class="grand"><td>Total</td><td class="n">${esc(money(q.grandTotal, cur))}</td></tr>
-    ${q.recurringSubtotal ? `<tr><td class="muted">Recurring charges</td><td class="n muted">${esc(money(q.recurringSubtotal, cur))} per period</td></tr>` : ""}
-  </table>
-  ${q.remark ? `<div class="note"><div class="label">Terms and notes</div>${esc(q.remark)}</div>` : ""}`;
-
-  const body = lh
-    ? `<img class="lh-bg" src="${esc(lh.letterheadUrl)}" alt="">
-  <table class="lh-wrap">
-    <thead><tr><td class="lh-space" style="height:${top}mm"></td></tr></thead>
-    <tfoot><tr><td class="lh-space" style="height:${bottom}mm"></td></tr></tfoot>
-    <tbody><tr><td class="lh-body">${content}</td></tr></tbody>
-  </table>`
-    : content;
-
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${preview ? "Quotation preview" : esc(q.number)}</title>
-<style>
-  @page { size: A4; margin: ${lh ? "0" : "16mm"}; }
-  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 13px; margin: 0; }
-  .draft { background:#FEF3C7; border:1px solid #F59E0B; color:#92400E; padding:8px 12px; margin-bottom:14px; font-size:12px; border-radius:4px; }
-  .top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 12px; }
-  .top.slim { border-bottom-width: 1px; padding-bottom: 8px; }
-  .top img { max-height: 54px; max-width: 200px; }
-  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: 1px; }
-  .muted { color: #555; }
-  .grid { display: flex; justify-content: space-between; gap: 24px; margin: 18px 0; }
-  .label { font-size: 11px; text-transform: uppercase; color: #555; margin-bottom: 4px; }
-  table.it { width: 100%; border-collapse: collapse; margin-top: 8px; background: rgba(255,255,255,.85); }
-  table.it th { background: #f2f2f2; text-align: left; font-size: 11px; text-transform: uppercase; }
-  table.it th, table.it td { border: 1px solid #ddd; padding: 7px 8px; vertical-align: top; }
-  table.it tr { break-inside: avoid; }
-  .n { text-align: right; white-space: nowrap; }
-  .totals { margin-left: auto; width: 300px; margin-top: 12px; border-collapse: collapse; break-inside: avoid; }
-  .totals td { padding: 4px 0; }
-  .grand td { border-top: 2px solid #111; font-weight: bold; font-size: 15px; padding-top: 8px; }
-  .note { margin-top: 22px; white-space: pre-wrap; break-inside: avoid; }
-  /* letterhead */
-  .lh-bg { position: fixed; top: 0; left: 0; width: 210mm; height: 297mm; z-index: -1; object-fit: fill; }
-  table.lh-wrap { width: 100%; border-collapse: collapse; }
-  table.lh-wrap > thead > tr > td, table.lh-wrap > tfoot > tr > td { padding: 0; border: 0; }
-  table.lh-wrap > tbody > tr > td.lh-body { padding: 0 ${side}mm; border: 0; vertical-align: top; }
-  @media screen {
-    body { background: #e5e7eb; }
-    ${lh
-      ? `body > table.lh-wrap, body > .lh-bg { width: 210mm; }
-    body { width: 210mm; min-height: 297mm; margin: 16px auto; position: relative; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.25); }
-    .lh-bg { position: absolute; }`
-      : `body { max-width: 178mm; margin: 16px auto; padding: 16mm; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.25); }`}
-  }
-</style></head><body>
-  ${body}
-  ${preview ? "" : `<script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };</script>`}
-</body></html>`;
-
-  const w = win || window.open("", "_blank");
-  if (!w) { alert("Allow pop-ups for this site to print the quotation."); return; }
-  w.document.open(); w.document.write(html); w.document.close();
+function Fold({ title, hint, hidden, count, open, onToggle, children }) {
+  return (
+    <div className="rounded-xl border border-[#E4E7EF] dark:border-[#262A38]">
+      <button type="button" onClick={onToggle} className="w-full flex items-center gap-2 px-3 py-2.5 text-left">
+        {open ? <ChevronDown className="w-4 h-4 text-[#8B92A9]" /> : <ChevronRight className="w-4 h-4 text-[#8B92A9]" />}
+        <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{title}</span>
+        {count ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] font-semibold">{count}</span> : null}
+        {hidden && <span className="text-[10px] text-[#D97706] font-semibold" title="Turned off in Template settings">hidden on print</span>}
+        {hint && <span className="ml-auto text-[11px] text-[#8B92A9] hidden sm:inline">{hint}</span>}
+      </button>
+      {open && <div className="px-3 pb-3 space-y-2">{children}</div>}
+    </div>
+  );
 }
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 export default function QuotationModal({ lead, isSuperAdmin = false, onClose, onToast }) {
-  const [view, setView]       = useState("list");   // "list" | "edit"
+  const [view, setView]       = useState("list");   // list | edit | upload | settings
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId]   = useState(null);
+  const [settings, setSettings] = useState(null);
+  const [canEditSettings, setCanEditSettings] = useState(false);
   const [form, setForm]       = useState(() => blankForm(lead, isSuperAdmin));
+  const [open, setOpen]       = useState({});        // which extra sections are expanded
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState("");
   const [upFile, setUpFile]   = useState(null);
+  const [prefill, setPrefill] = useState(null);       // { from: {field: source}, lastQuotation } for the hints
+  const [prefilling, setPrefilling] = useState(false);
+  const [libOpen, setLibOpen]   = useState(false);     // service library panel
+  const [libSearch, setLibSearch] = useState("");
   const [upForm, setUpForm]   = useState({ title: "", amount: "", status: "sent", remark: "" });
-  // Company letterhead for printing (everyone reads it; admins can change it).
-  const [lhSettings, setLhSettings] = useState(null);
-  const [lhCanEdit, setLhCanEdit]   = useState(false);
-  const [lhDraft, setLhDraft]       = useState(null);   // margins / toggle being edited
-  const [lhBusy, setLhBusy]         = useState("");
 
   const toast = (m, t = "success") => (onToast ? onToast(m, t) : null);
+  const tpl = useMemo(() => resolveTemplate(settings || {}), [settings]);
+  const sec = (key) => tpl.sections.find((s) => s.key === key) || { label: key, show: true };
 
   const load = async () => {
     setLoading(true);
     try {
       const r = await api.get("/quotations", { params: { leadId: lead._id || lead.id } });
-      const list = r.data?.quotations || [];
-      setItems(list);
+      setItems(r.data?.quotations || []);
     } catch (e) {
       setErr(e?.response?.data?.message || "Couldn't load quotations.");
     } finally { setLoading(false); }
@@ -228,10 +154,9 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [lead.id]);
   useEffect(() => {
     api.get("/quotations/settings")
-      .then((r) => { setLhSettings(r.data?.settings || null); setLhCanEdit(!!r.data?.canEdit); })
-      .catch(() => {});   // printing still works without a letterhead
+      .then((r) => { setSettings(r.data?.settings || {}); setCanEditSettings(!!r.data?.canEdit); })
+      .catch(() => setSettings({}));   // still works with built-in defaults
   }, []);
-
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -240,97 +165,159 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
 
   const totals = useMemo(() => computeTotals(form), [form]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const setItem = (i, k, v) => setForm((f) => ({ ...f, lineItems: f.lineItems.map((li, j) => (j === i ? { ...li, [k]: v } : li)) }));
+  const setRow = (list, i, patch) => setForm((f) => ({ ...f, [list]: f[list].map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
+  const addRow = (list, row) => setForm((f) => ({ ...f, [list]: [...(f[list] || []), row] }));
+  const delRow = (list, i) => setForm((f) => ({ ...f, [list]: f[list].filter((_, j) => j !== i) }));
+  const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
 
-  const startNew  = () => { setForm(blankForm(lead, isSuperAdmin)); setEditId(null); setErr(""); setView("edit"); };
-  const startEdit = (q) => { setForm(formFrom(q)); setEditId(q._id); setErr(""); setView("edit"); };
+  const CLIENT_FIELDS = ["clientName", "clientCompany", "clientGSTIN", "clientAddress", "clientPhone", "clientEmail"];
 
-  // Build what the saved quotation will look like from the current form —
-  // same maths as the backend — and open it without saving.
+  // Pull the best-known client details for this lead (latest quotation >
+  // finance invoice > lead > lead custom fields). `force` = the "Fill again"
+  // button: overwrite the client fields; otherwise only fill fields that are
+  // still as they started, so nothing typed meanwhile is lost.
+  const loadPrefill = async (base, { force = false } = {}) => {
+    setPrefilling(true);
+    try {
+      const r = await api.get(`/quotations/lead/${lead._id || lead.id}/prefill`);
+      const { details = {}, from = {}, services = [], lastQuotation = null } = r.data || {};
+      setPrefill({ from, lastQuotation, details });
+      setForm((f) => {
+        const next = { ...f };
+        for (const k of CLIENT_FIELDS) {
+          if (!details[k]) continue;
+          if (force || !String(f[k] || "").trim() || f[k] === base?.[k]) next[k] = details[k];
+        }
+        // Lead objects on some screens carry no services — use the server's list.
+        const untouchedItems = f.lineItems.length === 1 && !String(f.lineItems[0].description).trim() && !Number(f.lineItems[0].unitPrice);
+        if (!force && untouchedItems && services.length) {
+          const withServices = blankForm({ ...lead, services, service: "" }, isSuperAdmin, settings || {});
+          next.lineItems = withServices.lineItems; next.optedServices = services;
+          if (!String(f.title || "").trim()) next.title = withServices.title;
+        }
+        return next;
+      });
+    } catch (e) {
+      if (force) setErr(e?.response?.data?.message || "Couldn't load the lead's details.");
+    } finally { setPrefilling(false); }
+  };
+
+  const startNew = () => {
+    const f = blankForm(lead, isSuperAdmin, settings || {});
+    setForm(f); setEditId(null); setErr(""); setPrefill(null);
+    setOpen({ cover: f.coverPage });
+    setView("edit");
+    loadPrefill(f);
+  };
+  const startEdit = (q) => {
+    const f = formFrom(q);
+    setForm(f); setEditId(q._id); setErr(""); setPrefill(null);
+    // open every section that already has content
+    setOpen({ scope: !!f.scopeOfWork, optionalItems: f.optionalItems.length > 0, paymentSchedule: f.paymentSchedule.length > 0,
+      timeline: f.timeline.length > 0, suggestions: !!f.suggestions, customBlocks: f.customBlocks.length > 0,
+      cover: f.coverPage, introduction: !!f.introduction, customTables: f.customTables.length > 0 });
+    setView("edit");
+  };
+
+  // Add services from the library. Replaces the single empty starter row.
+  const addServices = (list) => {
+    if (!list.length) return;
+    setForm((f) => {
+      const rows = list.map(itemFromCatalog);
+      const onlyBlank = f.lineItems.length === 1 && !String(f.lineItems[0].description).trim() && !Number(f.lineItems[0].unitPrice);
+      return { ...f, lineItems: onlyBlank ? rows : [...f.lineItems, ...rows] };
+    });
+    toast(list.length === 1 ? `Added ${list[0].name}` : `Added ${list.length} services`);
+  };
+  const moveItem = (list, i, dir) => setForm((f) => {
+    const arr = [...f[list]]; const j = i + dir;
+    if (j < 0 || j >= arr.length) return f;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    return { ...f, [list]: arr };
+  });
+  // Admins: keep an item for next time in Template settings → Saved services.
+  const saveToLibrary = async (li) => {
+    if (!String(li.description || "").trim()) return setErr("Give the item a description first.");
+    const cat = settings?.catalog || [];
+    const existing = cat.findIndex((c) => c.name.trim().toLowerCase() === li.description.trim().toLowerCase());
+    const categories = [...new Set(cat.map((c) => c.category).filter(Boolean))];
+    const category = window.prompt(`Category for "${li.description}"${categories.length ? ` (e.g. ${categories.slice(0, 3).join(", ")})` : ""}:`,
+      existing >= 0 ? cat[existing].category || "" : (li.module || categories[0] || ""));
+    if (category === null) return;
+    const entry = { name: li.description.trim(), details: li.details || "", unitPrice: Number(li.unitPrice) || 0, billing: li.billing || "one_time",
+      module: li.module || "", category: category.trim(), note: li.priceLabel || li.chargeNote || "" };
+    const next = existing >= 0 ? cat.map((c, j) => (j === existing ? entry : c)) : [...cat, entry];
+    try {
+      const r = await api.put("/quotations/settings", { catalog: next });
+      setSettings(r.data.settings);
+      toast(existing >= 0 ? `Updated "${entry.name}" in saved services` : `Saved "${entry.name}" to services`);
+    } catch (e) { setErr(e?.response?.data?.message || "Couldn't save the service."); }
+  };
+
+  const splitByModule = () => {
+    const rows = buildModuleSchedule(form.lineItems).map((r) => ({ ...r, due: "On delivery" }));
+    if (!rows.length) return setErr("Add one-time items (with a module name) to split the payment by module.");
+    setErr(""); set("paymentSchedule", rows); setOpen((o) => ({ ...o, paymentSchedule: true }));
+  };
+
+  // ── tables section helpers ──
+  const setTable = (ti, patch) => setForm((f) => ({ ...f, customTables: f.customTables.map((t, j) => (j === ti ? { ...t, ...patch } : t)) }));
+  const addTable = (presetIdx) => {
+    const p = TABLE_PRESETS[presetIdx]; if (!p) return;
+    setForm((f) => ({ ...f, customTables: [...f.customTables, { title: p.title, note: p.note || "", columns: [...p.columns], rows: p.rows.map((r) => [...r]) }] }));
+    setOpen((o) => ({ ...o, customTables: true }));
+  };
+  const setCell = (ti, ri, ci, v) => setTable(ti, { rows: form.customTables[ti].rows.map((r, j) => (j === ri ? r.map((c, k) => (k === ci ? v : c)) : r)) });
+  const addColumn = (ti) => { const t = form.customTables[ti]; if (t.columns.length >= 6) return; setTable(ti, { columns: [...t.columns, `Column ${t.columns.length + 1}`], rows: t.rows.map((r) => [...r, ""]) }); };
+  const delColumn = (ti) => { const t = form.customTables[ti]; if (t.columns.length <= 1) return; setTable(ti, { columns: t.columns.slice(0, -1), rows: t.rows.map((r) => r.slice(0, t.columns.length - 1)) }); };
+
+  const scheduleSum = r2((form.paymentSchedule || []).filter((p) => String(p.label || "").trim()).reduce((a, p) => a + scheduleAmount(p, totals.grand), 0));
+  const schedulePct = r2((form.paymentSchedule || []).reduce((a, p) => a + (Number(p.percent) || 0), 0));
+
+  const cleanBody = () => {
+    const keep = (list) => (list || []).filter((li) => String(li.description || "").trim())
+      .map((li) => ({ ...li, description: li.description.trim(), quantity: Number(li.quantity) || 0, unitPrice: Number(li.unitPrice) || 0 }));
+    return {
+      ...form,
+      lineItems: keep(form.lineItems), optionalItems: keep(form.optionalItems),
+      timeline: (form.timeline || []).filter((t) => String(t.phase || "").trim()),
+      paymentSchedule: (form.paymentSchedule || []).filter((p) => String(p.label || "").trim()).map((p) => ({ ...p, percent: Number(p.percent) || 0, amount: Number(p.amount) || 0 })),
+      customBlocks: (form.customBlocks || []).filter((c) => String(c.title || "").trim()),
+      highlights: (form.highlights || []).filter((h) => String(h.label || "").trim()),
+      customTables: (form.customTables || []).map((t) => ({ ...t, rows: t.rows.filter((r) => r.some((c) => String(c || "").trim())).map((cells) => ({ cells })) }))
+        .filter((t) => String(t.title || "").trim() || t.rows.length),
+      discountValue: Number(form.discountValue) || 0, gstPercent: Number(form.gstPercent) || 0,
+      validUntil: form.validUntil || null,
+      leadId: lead._id || lead.id,
+    };
+  };
+
   const previewDraft = () => {
-    const lineItems = form.lineItems
-      .filter((li) => String(li.description || "").trim())
-      .map((li) => ({ ...li, quantity: Number(li.quantity) || 0, unitPrice: Number(li.unitPrice) || 0,
-                      lineTotal: r2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)) }));
-    if (!lineItems.length) return setErr("Add at least one item with a description to preview.");
+    const body = cleanBody();
+    if (!body.lineItems.length) return setErr("Add at least one item with a description to preview.");
     setErr("");
     const existing = editId ? items.find((x) => x._id === editId) : null;
-    printQuotation({
-      ...form, lineItems, source: "created",
+    printQuotation(draftQuotation(body, totals, {
       number: existing?.number || "Number assigned on save",
       createdAt: existing?.createdAt || new Date().toISOString(),
-      discountValue: Number(form.discountValue) || 0, gstPercent: Number(form.gstPercent) || 0,
-      oneTimeSubtotal: totals.oneTime, recurringSubtotal: totals.recurring,
-      discountAmount: totals.disc, gstAmount: totals.gst, grandTotal: totals.grand,
-    }, null, { preview: true, settings: lhSettings });
-  };
-
-  const openLetterhead = () => {
-    const st = lhSettings || {};
-    setLhDraft({ marginTopMm: st.marginTopMm ?? 40, marginBottomMm: st.marginBottomMm ?? 25, marginSideMm: st.marginSideMm ?? 15, hideBuiltInHeader: st.hideBuiltInHeader ?? true });
-    setErr(""); setView("letterhead");
-  };
-
-  const uploadLetterhead = async (file) => {
-    if (!file) return;
-    if (!/\.(png|jpe?g|webp)$/i.test(file.name)) return setErr("Upload the letterhead as a PNG, JPG or WEBP image. Export a PDF letterhead as an image first.");
-    if (file.size > 5 * 1024 * 1024) return setErr("The image is larger than 5 MB.");
-    setLhBusy("upload"); setErr("");
-    const fd = new FormData(); fd.append("file", file);
-    try {
-      const r = await api.post("/quotations/settings/letterhead", fd, { headers: { "Content-Type": "multipart/form-data" }, timeout: 120000 });
-      setLhSettings(r.data.settings);
-      const sz = r.data.size;
-      if (sz?.width && sz?.height && Math.abs(sz.height / sz.width - 297 / 210) > 0.08) {
-        toast("Letterhead uploaded. It isn't A4-shaped, so it will be stretched to fit the page — check the preview.", "error");
-      } else toast("Letterhead uploaded");
-    } catch (e) { setErr(e?.response?.data?.message || "Couldn't upload the letterhead."); }
-    finally { setLhBusy(""); }
-  };
-
-  const saveLetterhead = async (extra = {}) => {
-    setLhBusy(extra.removeLetterhead ? "remove" : "save"); setErr("");
-    try {
-      const r = await api.put("/quotations/settings", { ...lhDraft, ...extra });
-      setLhSettings(r.data.settings);
-      toast(extra.removeLetterhead ? "Letterhead removed" : "Letterhead settings saved");
-      if (!extra.removeLetterhead) setView("list");
-    } catch (e) { setErr(e?.response?.data?.message || "Couldn't save the letterhead settings."); }
-    finally { setLhBusy(""); }
-  };
-
-  // Sample quotation on the letterhead, using the margins being edited.
-  const previewLetterhead = () => {
-    const sample = blankForm(lead, isSuperAdmin);
-    const lineItems = [
-      { description: sample.lineItems[0]?.description || "Website design and development", quantity: 1, unitPrice: 50000, billing: "one_time", lineTotal: 50000 },
-      { description: "Social media management", quantity: 1, unitPrice: 10000, billing: "monthly", lineTotal: 10000 },
-    ];
-    printQuotation({
-      ...sample, lineItems, source: "created", number: "SAMPLE", createdAt: new Date().toISOString(),
-      gstPercent: 18, oneTimeSubtotal: 50000, recurringSubtotal: 10000, discountAmount: 0, gstAmount: 9000, grandTotal: 59000,
-      remark: "This is a sample to check the letterhead layout.",
-    }, null, { preview: true, settings: { ...(lhSettings || {}), ...lhDraft } });
+    }), null, { preview: true, settings });
   };
 
   const save = async (andPrint = false) => {
-    const lineItems = form.lineItems
-      .filter((li) => String(li.description || "").trim())
-      .map((li) => ({ ...li, description: li.description.trim(), quantity: Number(li.quantity) || 0, unitPrice: Number(li.unitPrice) || 0 }));
+    const body = cleanBody();
     if (!form.clientName.trim()) return setErr("Enter the client's name.");
-    if (!lineItems.length) return setErr("Add at least one item with a description.");
-    if (form.discountType !== "none" && form.discountValue > 0 && !form.discountedBy.trim())
+    if (!body.lineItems.length) return setErr("Add at least one item with a description.");
+    if (form.discountType !== "none" && Number(form.discountValue) > 0 && !form.discountedBy.trim())
       return setErr("Enter who approved the discount.");
+    if (body.paymentSchedule.length && schedulePct > 100.001) return setErr(`The payment schedule adds up to ${schedulePct}% — it can't be more than 100%.`);
 
     const printWin = andPrint ? window.open("", "_blank") : null;
     setSaving(true); setErr("");
-    const body = { ...form, lineItems, leadId: lead._id || lead.id,
-      discountValue: Number(form.discountValue) || 0, gstPercent: Number(form.gstPercent) || 0 };
     try {
       const r = editId ? await api.put(`/quotations/${editId}`, body) : await api.post("/quotations", body);
       const q = r.data?.quotation;
       toast(editId ? `Quotation ${q?.number || ""} updated` : `Quotation ${q?.number || ""} created`);
-      if (andPrint && q) printQuotation(q, printWin, { settings: lhSettings });
+      if (andPrint && q) printQuotation(q, printWin, { settings });
       await load();
       setView("list");
     } catch (e) {
@@ -341,10 +328,9 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
 
   const startUpload = () => {
     setUpFile(null);
-    setUpForm({ title: blankForm(lead, isSuperAdmin).title, amount: "", status: "sent", remark: "" });
+    setUpForm({ title: blankForm(lead, isSuperAdmin, settings || {}).title, amount: "", status: "sent", remark: "" });
     setErr(""); setView("upload");
   };
-
   const submitUpload = async () => {
     if (!upFile) return setErr("Choose a PDF or image of the quotation.");
     if (upFile.size > 15 * 1024 * 1024) return setErr("The file is larger than 15 MB.");
@@ -360,13 +346,9 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
     const handledBy = (lead.agent && lead.agent !== "Unassigned" ? lead.agent : "") || getUser()?.name || "";
     if (handledBy) fd.append("handledBy", handledBy);
     try {
-      const r = await api.post("/quotations/upload", fd, {
-        headers: { "Content-Type": "multipart/form-data" },   // stops axios turning FormData into JSON
-        timeout: 120000,
-      });
+      const r = await api.post("/quotations/upload", fd, { headers: { "Content-Type": "multipart/form-data" }, timeout: 120000 });
       toast(`Quotation ${r.data?.quotation?.number || ""} uploaded`);
-      await load();
-      setView("list");
+      await load(); setView("list");
     } catch (e) {
       setErr(e?.response?.data?.message || "Couldn't upload the quotation.");
     } finally { setSaving(false); }
@@ -378,58 +360,168 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
     catch (e) { toast(e?.response?.data?.message || "Couldn't delete the quotation.", "error"); }
   };
 
-  const inp = "w-full px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]";
-  const lbl = "block text-[11px] font-semibold text-[#8B92A9] mb-1";
+  const cur = form.currency || settings?.currency || "INR";
+  const catalog = settings?.catalog || [];
+  const title = view === "list" ? "Quotations" : view === "upload" ? "Upload quotation" : view === "settings" ? "Quotation template" : editId ? "Edit quotation" : "New quotation";
 
-  // Portal to <body> so a transformed/animated parent (agent app lists) can't
-  // trap the fixed overlay inside itself.
+  // ── service library panel (plain function, see note below) ──
+  const renderLibrary = () => {
+    const q = libSearch.trim().toLowerCase();
+    const added = new Set(form.lineItems.map((li) => String(li.description || "").trim().toLowerCase()));
+    const groups = groupCatalog(catalog)
+      .map(([cat, list]) => [cat, list.filter((c) => !q || `${c.name} ${c.category} ${c.details}`.toLowerCase().includes(q))])
+      .filter(([, list]) => list.length);
+    const priceText = (c) => (Number(c.unitPrice) > 0 ? `${money(c.unitPrice, cur).replace(/\.00$/, "")}${BILLING.find((b) => b.value === c.billing)?.short || ""}` : (c.note || "As per requirement"));
+    return (
+      <div className="mb-3 rounded-xl border border-[#C9D4EE] dark:border-[#2A3550] bg-[#F8FAFF] dark:bg-[#141A2A] p-3">
+        {catalog.length === 0 ? (
+          <div className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">
+            No saved services yet.{canEditSettings
+              ? <> Open <button className="font-semibold text-[#2563EB] hover:underline" onClick={() => { setErr(""); setView("settings"); }}>Template settings → Saved services</button> and click "Load Skyup standard packages", or save any item with the <BookmarkPlus className="inline w-3.5 h-3.5 text-[#2563EB]" /> button.</>
+              : " Ask an admin to add them in Template settings."}
+          </div>
+        ) : (
+          <>
+            <div className="relative mb-2">
+              <Search className="w-4 h-4 text-[#8B92A9] absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input className={`${inp} pl-8`} value={libSearch} onChange={(e) => setLibSearch(e.target.value)} placeholder="Search services…" autoFocus />
+            </div>
+            <div className="max-h-[320px] overflow-y-auto space-y-3 pr-1">
+              {groups.length === 0 && <div className="text-[12px] text-[#8B92A9] py-3 text-center">No service matches "{libSearch}".</div>}
+              {groups.map(([cat, list]) => (
+                <div key={cat}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-[#4B5168] dark:text-[#9DA3BB]">{cat}</span>
+                    <span className="text-[10px] text-[#8B92A9]">{list.length}</span>
+                    <button className="ml-auto text-[11px] font-semibold text-[#2563EB] hover:underline" onClick={() => addServices(list.filter((c) => !added.has(c.name.trim().toLowerCase())))}
+                            disabled={list.every((c) => added.has(c.name.trim().toLowerCase()))}>
+                      {list.every((c) => added.has(c.name.trim().toLowerCase())) ? "All added" : "Add all"}
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    {list.map((c) => {
+                      const isAdded = added.has(c.name.trim().toLowerCase());
+                      const preview = String(c.details || "").split("\n").map((l) => l.replace(/^[•\-*]\s*/, "").trim()).filter((l) => l && !/:$/.test(l)).slice(0, 3).join(" · ");
+                      return (
+                        <div key={c.index} className="flex items-start gap-2 rounded-lg bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] px-2.5 py-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{c.name}</span>
+                              <span className="text-[12px] font-semibold text-[#E07B12] whitespace-nowrap">{priceText(c)}</span>
+                            </div>
+                            {preview && <div className="text-[11px] text-[#8B92A9] truncate">{preview}</div>}
+                          </div>
+                          <button onClick={() => addServices([c])}
+                                  className={`shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold ${isAdded ? "text-[#16A34A] bg-[#f0fdf4] dark:bg-[#052e1c]" : "text-white bg-[#2563EB] hover:bg-[#1d4fd8]"}`}
+                                  title={isAdded ? "Already in this quotation — click to add another" : "Add to this quotation"}>
+                            {isAdded ? <><Check className="w-3.5 h-3.5" /> Added</> : <><Plus className="w-3.5 h-3.5" /> Add</>}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // ── reusable row editor (a plain function, NOT a component: a component
+  // defined in render would remount on every keystroke and drop focus) ──
+  const renderItemRows = (list, withModule) => (
+    <div className="space-y-2">
+      {form[list].map((li, i) => (
+        <div key={i} className="rounded-lg border border-[#F0F2FA] dark:border-[#1E2130] p-2 space-y-1.5">
+          <div className="grid grid-cols-12 gap-2 items-center">
+            <input className={`${inp} col-span-12 sm:col-span-5`} value={li.description} onChange={(e) => setRow(list, i, { description: e.target.value })} placeholder="Description" />
+            <select className={`${inp} col-span-4 sm:col-span-2`} value={li.billing} onChange={(e) => setRow(list, i, { billing: e.target.value })}>
+              {BILLING.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
+            </select>
+            <input type="number" min="0" className={`${inp} col-span-3 sm:col-span-1 text-right`} value={li.quantity} onChange={(e) => setRow(list, i, { quantity: e.target.value })} title="Quantity" />
+            <input type="number" min="0" className={`${inp} col-span-5 sm:col-span-2 text-right`} value={li.unitPrice} onChange={(e) => setRow(list, i, { unitPrice: e.target.value })} title="Unit price" />
+            <div className="col-span-10 sm:col-span-1 text-right text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">
+              {money(r2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)), cur).replace(/\.00$/, "")}
+            </div>
+            <div className="col-span-2 sm:col-span-1 flex items-center justify-end">
+              <div className="flex flex-col">
+                <button className="p-0.5 disabled:opacity-25" disabled={i === 0} onClick={() => moveItem(list, i, -1)} title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>
+                <button className="p-0.5 disabled:opacity-25" disabled={i === form[list].length - 1} onClick={() => moveItem(list, i, 1)} title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>
+              </div>
+              <button className={`${iconDel} disabled:opacity-30`} disabled={list === "lineItems" && form.lineItems.length === 1}
+                      onClick={() => delRow(list, i)} title="Remove"><Trash2 className="w-4 h-4 text-[#DC2626]" /></button>
+            </div>
+          </div>
+          <textarea rows={Math.min(8, Math.max(1, String(li.details || "").split("\n").length))} className={`${inp} text-[12px]`} value={li.details}
+                    onChange={(e) => setRow(list, i, { details: e.target.value })} placeholder={"Key deliverables (optional) — one per line\n• or - at the start makes a bullet; a line ending in : is a heading"} />
+          <div className="grid grid-cols-12 gap-2 items-center">
+            {withModule && <input className={`${inp} col-span-6 sm:col-span-3 text-[12px]`} value={li.module} list="q-modules"
+                                  onChange={(e) => setRow(list, i, { module: e.target.value })} placeholder="Module (optional)" />}
+            <input className={`${inp} col-span-6 ${withModule ? "sm:col-span-3" : "sm:col-span-5"} text-[12px]`} value={li.priceLabel || ""} maxLength={80}
+                   onChange={(e) => setRow(list, i, { priceLabel: e.target.value })} placeholder="Price text instead of amount" title='Shown instead of the amount, e.g. "Included", "Custom Pricing", "₹199 per product"' />
+            <input className={`${inp} col-span-10 ${withModule ? "sm:col-span-5" : "sm:col-span-6"} text-[12px]`} value={li.chargeNote || ""} maxLength={120}
+                   onChange={(e) => setRow(list, i, { chargeNote: e.target.value })} placeholder="Note under the price, e.g. (5 - 6 pages)" />
+            {canEditSettings && list === "lineItems" ? (
+              <button className="col-span-2 sm:col-span-1 flex justify-center p-1.5 rounded-lg hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540]" onClick={() => saveToLibrary(li)} title="Save to saved services (for next time)">
+                <BookmarkPlus className="w-4 h-4 text-[#2563EB]" />
+              </button>
+            ) : <span className="col-span-2 sm:col-span-1" />}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const modules = [...new Set([...(form.lineItems || []).map((l) => l.module), ...catalog.map((c) => c.module)].filter(Boolean))];
+
   return createPortal(
     <div className="fixed inset-0 z-[1000] bg-black/40 flex items-center justify-center p-3" onClick={onClose}>
-      <div className="w-full max-w-3xl max-h-[92vh] flex flex-col rounded-2xl bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-4xl max-h-[94vh] flex flex-col rounded-2xl bg-white dark:bg-[#1A1D27] border border-[#E4E7EF] dark:border-[#262A38] shadow-xl" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-[#E4E7EF] dark:border-[#262A38]">
           {view !== "list" && (
-            <button onClick={() => setView("list")} className="p-1 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#1E2130]" title="Back to list">
+            <button onClick={() => { setErr(""); setView("list"); }} className="p-1 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#1E2130]" title="Back to list">
               <ArrowLeft className="w-4 h-4 text-[#4B5168] dark:text-[#9DA3BB]" />
             </button>
           )}
           <FileText className="w-4 h-4 text-[#2563EB]" />
           <div className="flex-1 min-w-0">
-            <div className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">
-              {view === "list" ? "Quotations" : view === "upload" ? "Upload quotation" : view === "letterhead" ? "Quotation letterhead" : editId ? "Edit quotation" : "New quotation"}
-            </div>
-            <div className="text-[11px] text-[#8B92A9] truncate">{lead.name}</div>
+            <div className="text-[14px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{title}</div>
+            <div className="text-[11px] text-[#8B92A9] truncate">{view === "settings" ? "Applies to every quotation in your company" : lead.name}</div>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#1E2130]" title="Close">
             <X className="w-4 h-4 text-[#8B92A9]" />
           </button>
         </div>
 
+        {view === "settings" ? (
+          <QuotationSettingsPanel api={api} settings={settings || {}} toast={toast}
+            onClose={() => setView("list")}
+            onSaved={(st, opts) => { setSettings(st); if (!opts?.keepOpen) setView("list"); }} />
+        ) : (
+        <>
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
             <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-[#8B92A9]" /></div>
           ) : view === "list" ? (
             <>
               <div className="mb-3 flex flex-wrap gap-2">
-                <button onClick={startNew} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2563EB] hover:bg-[#1d4fd8] text-white text-[12px] font-semibold">
-                  <Plus className="w-4 h-4" /> New quotation
+                <button onClick={startNew} disabled={!settings} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2563EB] hover:bg-[#1d4fd8] text-white text-[12px] font-semibold disabled:opacity-60">
+                  <Plus className="w-4 h-4" /> New {tpl.title.toLowerCase()}
                 </button>
-                <button onClick={startUpload} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]">
-                  <Upload className="w-4 h-4" /> Upload PDF
-                </button>
-                {lhCanEdit && (
-                  <button onClick={openLetterhead} className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E]" title="Company letterhead used for every quotation">
-                    <Stamp className="w-4 h-4" /> Letterhead
+                <button onClick={startUpload} className={btnGhost}><Upload className="w-4 h-4" /> Upload PDF</button>
+                {canEditSettings && (
+                  <button onClick={() => { setErr(""); setView("settings"); }} className={`${btnGhost} ml-auto`} title="Look, columns, sections, defaults and saved services for every quotation">
+                    <Settings2 className="w-4 h-4" /> Template settings
                   </button>
                 )}
-              </div>
-              <div className="mb-3 text-[11px] text-[#8B92A9]">
-                {lhSettings?.letterheadUrl ? "Quotations print on your company letterhead." : lhCanEdit ? "No letterhead set — quotations print with your logo and name. Add one with Letterhead." : ""}
               </div>
               {err && <div className="mb-2 text-[12px] text-[#DC2626]">{err}</div>}
               {items.length === 0 && (
                 <div className="text-center py-8 text-[12px] text-[#8B92A9]">
-                  No quotations for this lead yet. Build one with the item form, or upload a PDF you already have.
+                  No quotations for this lead yet. Build one, or upload a PDF you already have.
                 </div>
               )}
               {items.length > 0 && <div className="divide-y divide-[#F0F2FA] dark:divide-[#1E2130] border border-[#E4E7EF] dark:border-[#262A38] rounded-xl">
@@ -446,11 +538,11 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{q.source === "uploaded" && !q.grandTotal ? "—" : money(q.grandTotal, q.currency)}</div>
+                      <div className="text-[13px] font-bold text-[#0F1117] dark:text-[#F0F2FA]">{q.showTotals === false ? "Rate card" : q.source === "uploaded" && !q.grandTotal ? "—" : money(q.grandTotal, q.currency)}</div>
                       {q.recurringSubtotal > 0 && <div className="text-[10px] text-[#8B92A9]">+ {money(q.recurringSubtotal, q.currency)} recurring</div>}
                     </div>
                     <div className="flex gap-1">
-                      <button title={q.source === "uploaded" ? "Open file" : "Print / save as PDF"} onClick={() => printQuotation(q, null, { settings: lhSettings })} className="p-1.5 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#1E2130]">
+                      <button title={q.source === "uploaded" ? "Open file" : "Print / save as PDF"} onClick={() => printQuotation(q, null, { settings })} className="p-1.5 rounded-lg hover:bg-[#F0F2FA] dark:hover:bg-[#1E2130]">
                         {q.source === "uploaded" ? <ExternalLink className="w-4 h-4 text-[#4B5168] dark:text-[#9DA3BB]" /> : <Printer className="w-4 h-4 text-[#4B5168] dark:text-[#9DA3BB]" />}
                       </button>
                       {q.source !== "uploaded" && (
@@ -462,53 +554,6 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
                 ))}
               </div>}
             </>
-          ) : view === "letterhead" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-5">
-              <div>
-                <div className="w-[180px] aspect-[210/297] rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white overflow-hidden relative">
-                  {lhSettings?.letterheadUrl ? (
-                    <>
-                      <img src={lhSettings.letterheadUrl} alt="Current letterhead" className="absolute inset-0 w-full h-full object-fill" />
-                      {lhDraft && (
-                        <div className="absolute border-2 border-dashed border-[#2563EB] bg-[#2563EB]/10"
-                             style={{ top: `${(lhDraft.marginTopMm / 297) * 100}%`, bottom: `${(lhDraft.marginBottomMm / 297) * 100}%`,
-                                      left: `${(lhDraft.marginSideMm / 210) * 100}%`, right: `${(lhDraft.marginSideMm / 210) * 100}%` }}
-                             title="Quotation text goes inside this area" />
-                      )}
-                    </>
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-center p-3 text-[11px] text-[#8B92A9]">No letterhead yet</div>
-                  )}
-                </div>
-                {lhSettings?.letterheadUrl && <p className="mt-1.5 text-[10px] text-[#8B92A9]">Blue box = where the quotation text goes.</p>}
-              </div>
-              <div className="space-y-4">
-                <label className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-[#C9D4EE] dark:border-[#2A3550] bg-[#F8FAFF] dark:bg-[#141A2A] cursor-pointer hover:border-[#2563EB] text-[12px] font-semibold text-[#2563EB] ${lhBusy ? "opacity-60 pointer-events-none" : ""}`}>
-                  {lhBusy === "upload" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {lhSettings?.letterheadUrl ? "Replace letterhead image" : "Upload letterhead image"}
-                  <input type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" className="hidden"
-                         onChange={(e) => { uploadLetterhead(e.target.files?.[0]); e.target.value = ""; }} />
-                </label>
-                <p className="text-[11px] text-[#8B92A9] -mt-2">A full A4 page image (PNG or JPG, up to 5 MB) with your header and footer on it. If your letterhead is a PDF or Word file, export it as an image first.</p>
-                {lhDraft && (
-                  <>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[["marginTopMm", "Top space (mm)", 0, 150], ["marginBottomMm", "Bottom space (mm)", 0, 150], ["marginSideMm", "Side space (mm)", 5, 60]].map(([k, label, min, max]) => (
-                        <div key={k}><label className={lbl}>{label}</label>
-                          <input type="number" min={min} max={max} className={inp} value={lhDraft[k]}
-                                 onChange={(e) => setLhDraft((d) => ({ ...d, [k]: Math.min(max, Math.max(min, Number(e.target.value) || 0)) }))} />
-                        </div>
-                      ))}
-                    </div>
-                    <label className="flex items-center gap-2 text-[12px] text-[#0F1117] dark:text-[#F0F2FA]">
-                      <input type="checkbox" checked={lhDraft.hideBuiltInHeader} onChange={(e) => setLhDraft((d) => ({ ...d, hideBuiltInHeader: e.target.checked }))} />
-                      Hide our logo and company name (the letterhead already has them)
-                    </label>
-                  </>
-                )}
-                {lhSettings?.updatedByName && <p className="text-[11px] text-[#8B92A9]">Last changed by {lhSettings.updatedByName}{lhSettings.updatedAt ? ` on ${fmtDate(lhSettings.updatedAt)}` : ""}.</p>}
-              </div>
-            </div>
           ) : view === "upload" ? (
             <div className="space-y-4">
               <label className="flex flex-col items-center justify-center gap-2 px-4 py-8 rounded-xl border-2 border-dashed border-[#C9D4EE] dark:border-[#2A3550] bg-[#F8FAFF] dark:bg-[#141A2A] cursor-pointer hover:border-[#2563EB] transition text-center">
@@ -528,8 +573,8 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
                        onChange={(e) => { setUpFile(e.target.files?.[0] || null); setErr(""); }} />
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2"><label className={lbl}>Subject</label><input className={inp} value={upForm.title} onChange={(e) => setUpForm((f) => ({ ...f, title: e.target.value }))} placeholder="Website redesign and SEO" /></div>
-                <div><label className={lbl}>Quotation total (₹, for reports)</label><input type="number" min="0" className={inp} value={upForm.amount} onChange={(e) => setUpForm((f) => ({ ...f, amount: e.target.value }))} placeholder="47790" /></div>
+                <div className="sm:col-span-2"><label className={lbl}>Subject</label><input className={inp} value={upForm.title} onChange={(e) => setUpForm((f) => ({ ...f, title: e.target.value }))} /></div>
+                <div><label className={lbl}>Quotation total (for reports)</label><input type="number" min="0" className={inp} value={upForm.amount} onChange={(e) => setUpForm((f) => ({ ...f, amount: e.target.value }))} placeholder="47790" /></div>
                 <div><label className={lbl}>Status</label>
                   <select className={inp} value={upForm.status} onChange={(e) => setUpForm((f) => ({ ...f, status: e.target.value }))}>
                     {STATUS.map((st) => <option key={st} value={st}>{st[0].toUpperCase() + st.slice(1)}</option>)}
@@ -541,42 +586,55 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Client */}
+              <datalist id="q-modules">{modules.map((m) => <option key={m} value={m} />)}</datalist>
+              <datalist id="q-subjects">{SUBJECT_PRESETS.map((t) => <option key={t} value={t} />)}</datalist>
+
+              {/* Client — filled from the lead, all editable */}
+              <div className="flex flex-wrap items-center gap-2 -mb-1">
+                <span className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">Client</span>
+                <span className="text-[11px] text-[#8B92A9]">
+                  {prefilling ? "Fetching the lead's details…"
+                    : prefill ? `Filled from the lead${prefill.lastQuotation ? `, its last quotation ${prefill.lastQuotation}` : ""} and finance records — change anything below.`
+                    : "Type the client's details, or fetch them from the lead."}
+                </span>
+                <button type="button" onClick={() => loadPrefill(null, { force: true })} disabled={prefilling}
+                        className={`${linkBtn} ml-auto disabled:opacity-50`} title="Replace the client fields with the lead's saved details">
+                  {prefilling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowLeft className="w-3.5 h-3.5 rotate-180" />} Fill again from lead
+                </button>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><label className={lbl}>Client name *</label><input className={inp} value={form.clientName} onChange={(e) => set("clientName", e.target.value)} /></div>
-                <div><label className={lbl}>Client company</label><input className={inp} value={form.clientCompany} onChange={(e) => set("clientCompany", e.target.value)} /></div>
-                <div><label className={lbl}>Phone</label><input className={inp} value={form.clientPhone} onChange={(e) => set("clientPhone", e.target.value)} placeholder="+91 98765 43210" /></div>
-                <div><label className={lbl}>Email</label><input className={inp} value={form.clientEmail} onChange={(e) => set("clientEmail", e.target.value)} placeholder="client@company.com" /></div>
-                <div><label className={lbl}>GSTIN</label><input className={inp} value={form.clientGSTIN} onChange={(e) => set("clientGSTIN", e.target.value.toUpperCase())} placeholder="29ABCDE1234F1Z5" /></div>
-                <div><label className={lbl}>Address</label><input className={inp} value={form.clientAddress} onChange={(e) => set("clientAddress", e.target.value)} /></div>
-                <div className="sm:col-span-2"><label className={lbl}>Subject</label><input className={inp} value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Website redesign and SEO" /></div>
+                {[
+                  ["clientName", "Client name *", ""],
+                  ["clientCompany", "Client company", "Business / company name"],
+                  ["clientPhone", "Phone", "+91 98765 43210"],
+                  ["clientEmail", "Email", "client@company.com"],
+                  ["clientGSTIN", "GSTIN", "29ABCDE1234F1Z5"],
+                  ["clientAddress", "Address", "Street, area, city"],
+                ].map(([k, label, ph]) => (
+                  <div key={k}>
+                    <label className={lbl}>{label}{prefill?.from?.[k] && form[k] && form[k] === prefill.details?.[k] ? <span className="font-normal normal-case text-[#16A34A]"> · from {prefill.from[k]}</span> : null}</label>
+                    <input className={inp} value={form[k]} placeholder={ph}
+                           onChange={(e) => set(k, k === "clientGSTIN" ? e.target.value.toUpperCase() : e.target.value)} />
+                  </div>
+                ))}
+                <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-[1fr_170px] gap-3">
+                  <div><label className={lbl}>{sec("subject").label}</label><input className={inp} list="q-subjects" value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Proposal for … Services-reg (pick a suggestion or type)" /></div>
+                  <div><label className={lbl}>Valid until</label><input type="date" className={inp} value={form.validUntil || ""} onChange={(e) => set("validUntil", e.target.value)} /></div>
+                </div>
               </div>
 
               {/* Items */}
               <div>
-                <label className={lbl}>Items</label>
-                <div className="space-y-2">
-                  {form.lineItems.map((li, i) => (
-                    <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                      <input className={`${inp} col-span-12 sm:col-span-5`} value={li.description} onChange={(e) => setItem(i, "description", e.target.value)} placeholder="Description" />
-                      <select className={`${inp} col-span-4 sm:col-span-2`} value={li.billing} onChange={(e) => setItem(i, "billing", e.target.value)}>
-                        {BILLING.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
-                      </select>
-                      <input type="number" min="0" className={`${inp} col-span-3 sm:col-span-1 text-right`} value={li.quantity} onChange={(e) => setItem(i, "quantity", e.target.value)} title="Quantity" />
-                      <input type="number" min="0" className={`${inp} col-span-5 sm:col-span-2 text-right`} value={li.unitPrice} onChange={(e) => setItem(i, "unitPrice", e.target.value)} title="Unit price" />
-                      <div className="col-span-10 sm:col-span-1 text-right text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] whitespace-nowrap">
-                        {money(r2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)), form.currency).replace(/\.00$/, "")}
-                      </div>
-                      <button className="col-span-2 sm:col-span-1 flex justify-center p-1.5 rounded-lg hover:bg-[#FEF2F2] dark:hover:bg-[#2D0A0A] disabled:opacity-30"
-                              onClick={() => set("lineItems", form.lineItems.filter((_, j) => j !== i))} disabled={form.lineItems.length === 1} title="Remove item">
-                        <Trash2 className="w-4 h-4 text-[#DC2626]" />
-                      </button>
-                    </div>
-                  ))}
+                <div className="flex flex-wrap items-end gap-2 mb-1.5">
+                  <label className={`${lbl} mb-0`}>{sec("items").label}</label>
+                  <button onClick={() => { setLibOpen((o) => !o); setLibSearch(""); }}
+                          className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold border ${libOpen ? "bg-[#2563EB] text-white border-[#2563EB]" : "border-[#C9D4EE] dark:border-[#2A3550] text-[#2563EB] hover:bg-[#EEF3FF] dark:hover:bg-[#1A2540]"}`}>
+                    <Package className="w-4 h-4" /> Add services{catalog.length ? ` (${catalog.length})` : ""}
+                  </button>
                 </div>
-                <button onClick={() => set("lineItems", [...form.lineItems, emptyItem()])} className="mt-2 flex items-center gap-1 text-[12px] font-semibold text-[#2563EB] hover:underline">
-                  <Plus className="w-3.5 h-3.5" /> Add item
-                </button>
+                {libOpen && renderLibrary()}
+                {renderItemRows("lineItems", true)}
+                <button onClick={() => addRow("lineItems", emptyItem())} className={`${linkBtn} mt-2`}><Plus className="w-3.5 h-3.5" /> Add item</button>
               </div>
 
               {/* Discount / GST / totals */}
@@ -585,7 +643,7 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
                   <div className="grid grid-cols-2 gap-2">
                     <div><label className={lbl}>Discount</label>
                       <select className={inp} value={form.discountType} onChange={(e) => set("discountType", e.target.value)}>
-                        <option value="none">None</option><option value="percent">Percent (%)</option><option value="amount">Amount (₹)</option>
+                        <option value="none">None</option><option value="percent">Percent (%)</option><option value="amount">Amount</option>
                       </select>
                     </div>
                     <div><label className={lbl}>Value</label>
@@ -611,41 +669,188 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
                 </div>
 
                 <div className="rounded-xl bg-[#F8F9FC] dark:bg-[#13161E] border border-[#E4E7EF] dark:border-[#262A38] p-3 text-[13px] space-y-1.5 self-start">
-                  <div className="flex justify-between"><span className="text-[#4B5168] dark:text-[#9DA3BB]">One-time subtotal</span><span>{money(totals.oneTime)}</span></div>
-                  {totals.disc > 0 && <div className="flex justify-between"><span className="text-[#4B5168] dark:text-[#9DA3BB]">Discount</span><span className="text-[#DC2626]">− {money(totals.disc)}</span></div>}
-                  {Number(form.gstPercent) > 0 && <div className="flex justify-between"><span className="text-[#4B5168] dark:text-[#9DA3BB]">GST ({form.gstPercent}%)</span><span>{money(totals.gst)}</span></div>}
-                  <div className="flex justify-between pt-1.5 border-t border-[#E4E7EF] dark:border-[#262A38] font-bold text-[15px] text-[#0F1117] dark:text-[#F0F2FA]"><span>Total</span><span>{money(totals.grand)}</span></div>
-                  {totals.recurring > 0 && <div className="flex justify-between text-[11px] text-[#8B92A9]"><span>Recurring (not in total)</span><span>{money(totals.recurring)}</span></div>}
+                  <div className="flex justify-between"><span className="text-[#4B5168] dark:text-[#9DA3BB]">One-time subtotal</span><span>{money(totals.oneTime, cur)}</span></div>
+                  {totals.disc > 0 && <div className="flex justify-between"><span className="text-[#4B5168] dark:text-[#9DA3BB]">Discount</span><span className="text-[#DC2626]">− {money(totals.disc, cur)}</span></div>}
+                  {Number(form.gstPercent) > 0 && <div className="flex justify-between"><span className="text-[#4B5168] dark:text-[#9DA3BB]">GST ({form.gstPercent}%)</span><span>{money(totals.gst, cur)}</span></div>}
+                  <div className="flex justify-between pt-1.5 border-t border-[#E4E7EF] dark:border-[#262A38] font-bold text-[15px] text-[#0F1117] dark:text-[#F0F2FA]"><span>Total</span><span>{money(totals.grand, cur)}</span></div>
+                  {totals.recurringByPeriod.map((p) => (
+                    <div key={p.billing} className="pt-1.5 border-t border-dashed border-[#E4E7EF] dark:border-[#262A38] text-[12px]">
+                      <div className="flex justify-between"><span className="text-[#4B5168] dark:text-[#9DA3BB]">{p.period} subtotal</span><span>{money(p.subtotal, cur)}</span></div>
+                      {Number(form.gstPercent) > 0 && <div className="flex justify-between"><span className="text-[#4B5168] dark:text-[#9DA3BB]">GST</span><span>{money(p.gst, cur)}</span></div>}
+                      <div className="flex justify-between font-semibold"><span>{p.period} total</span><span>{money(p.total, cur)}</span></div>
+                    </div>
+                  ))}
+                  <label className="flex items-center gap-2 pt-1.5 text-[11px] text-[#4B5168] dark:text-[#9DA3BB]">
+                    <input type="checkbox" checked={form.showTotals !== false} onChange={(e) => set("showTotals", e.target.checked)} />
+                    Print totals (untick for a rate card)
+                  </label>
                 </div>
               </div>
 
-              <div><label className={lbl}>Terms and notes (printed on the quotation)</label>
-                <textarea rows={3} className={inp} value={form.remark} onChange={(e) => set("remark", e.target.value)} placeholder="50% advance, balance on delivery. Valid for 15 days." />
+              {/* Extra sections */}
+              <div className="space-y-2">
+                <div className="text-[11px] font-semibold text-[#8B92A9] uppercase tracking-wide">More sections <span className="normal-case font-normal">— fill only what you need; empty sections are left out</span></div>
+
+                <Fold title="Cover page and highlights" hint="big title page + boxes like ₹7,08,000 · 10–14 weeks" open={open.cover} onToggle={() => toggle("cover")} count={form.coverPage ? "on" : form.highlights.length}>
+                  <label className="flex items-center gap-2 text-[12px] text-[#0F1117] dark:text-[#F0F2FA]">
+                    <input type="checkbox" checked={form.coverPage} onChange={(e) => set("coverPage", e.target.checked)} /> Start with a cover page
+                  </label>
+                  {form.coverPage && <input className={inp} value={form.coverSubtitle} maxLength={300} onChange={(e) => set("coverSubtitle", e.target.value)} placeholder="Subtitle under the title, e.g. AI-Powered Business Intelligence & Automation Platform" />}
+                  <p className="text-[11px] text-[#8B92A9]">Highlights (up to 4) show on the cover, or as a section when there's no cover.</p>
+                  {form.highlights.map((h, i) => (
+                    <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                      <input className={`${inp} col-span-4`} value={h.label} maxLength={40} onChange={(e) => setRow("highlights", i, { label: e.target.value })} placeholder="Project investment" />
+                      <input className={`${inp} col-span-3`} value={h.value} maxLength={40} onChange={(e) => setRow("highlights", i, { value: e.target.value })} placeholder="₹7,08,000" />
+                      <input className={`${inp} col-span-4`} value={h.note} maxLength={60} onChange={(e) => setRow("highlights", i, { note: e.target.value })} placeholder="Incl. 18% GST" />
+                      <button className={`${iconDel} col-span-1`} onClick={() => delRow("highlights", i)} title="Remove"><Trash2 className="w-4 h-4 text-[#DC2626]" /></button>
+                    </div>
+                  ))}
+                  <div className="flex flex-wrap gap-3">
+                    {form.highlights.length < 4 && <button onClick={() => addRow("highlights", { label: "", value: "", note: "" })} className={linkBtn}><Plus className="w-3.5 h-3.5" /> Add highlight</button>}
+                    {form.highlights.length === 0 && (
+                      <button className={linkBtn} onClick={() => set("highlights", [
+                        { label: "Project investment", value: money(totals.grand, cur).replace(/\.00$/, ""), note: Number(form.gstPercent) ? `Incl. ${form.gstPercent}% GST` : "" },
+                        ...(totals.recurringByPeriod[0] ? [{ label: `${totals.recurringByPeriod[0].period} retainer`, value: money(totals.recurringByPeriod[0].total, cur).replace(/\.00$/, ""), note: Number(form.gstPercent) ? "Incl. GST" : "" }] : []),
+                        { label: "Delivery timeline", value: "", note: "" },
+                      ])}>Fill from totals</button>
+                    )}
+                  </div>
+                </Fold>
+
+                <Fold title={sec("introduction").label} hidden={!sec("introduction").show} open={open.introduction} onToggle={() => toggle("introduction")} count={form.introduction ? "✓" : 0}>
+                  <textarea rows={4} className={inp} value={form.introduction} onChange={(e) => set("introduction", e.target.value)} placeholder={"What the client needs and what you propose.\n- Lines starting with - become bullets\n## A line starting with ## becomes a sub-heading"} />
+                </Fold>
+
+                <Fold title={sec("aboutUs").label} hidden={!sec("aboutUs").show} open={open.aboutUs} onToggle={() => toggle("aboutUs")} count={form.aboutUs ? "✓" : 0}>
+                  <textarea rows={3} className={inp} value={form.aboutUs} onChange={(e) => set("aboutUs", e.target.value)} placeholder="Who you are — filled from Template settings" />
+                </Fold>
+
+                <Fold title={sec("scope").label} hidden={!sec("scope").show} open={open.scope} onToggle={() => toggle("scope")} count={form.scopeOfWork ? "✓" : 0}>
+                  <textarea rows={4} className={inp} value={form.scopeOfWork} onChange={(e) => set("scopeOfWork", e.target.value)} placeholder="What's included, deliverables, number of revisions…" />
+                </Fold>
+
+                <Fold title={sec("optionalItems").label} hint="shown, not added to the total" hidden={!sec("optionalItems").show} open={open.optionalItems} onToggle={() => toggle("optionalItems")} count={form.optionalItems.length}>
+                  {renderItemRows("optionalItems", false)}
+                  <button onClick={() => addRow("optionalItems", emptyItem())} className={linkBtn}><Plus className="w-3.5 h-3.5" /> Add optional item</button>
+                </Fold>
+
+                <Fold title={sec("customTables").label} hint="running costs, rate cards, comparisons, fees" hidden={!sec("customTables").show} open={open.customTables} onToggle={() => toggle("customTables")} count={form.customTables.length}>
+                  {form.customTables.map((t, ti) => (
+                    <div key={ti} className="rounded-lg border border-[#E4E7EF] dark:border-[#262A38] p-2 space-y-2">
+                      <div className="flex gap-2">
+                        <input className={inp} value={t.title} maxLength={120} onChange={(e) => setTable(ti, { title: e.target.value })} placeholder="Table heading, e.g. Monthly infrastructure & running costs" />
+                        <button className={iconDel} onClick={() => delRow("customTables", ti)} title="Remove table"><Trash2 className="w-4 h-4 text-[#DC2626]" /></button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead><tr>
+                            {t.columns.map((c, ci) => (
+                              <th key={ci} className="p-0.5 min-w-[110px]"><input className={`${inp} font-semibold text-[12px]`} value={c} maxLength={60}
+                                onChange={(e) => setTable(ti, { columns: t.columns.map((x, k) => (k === ci ? e.target.value : x)) })} /></th>
+                            ))}
+                            <th className="p-0.5 w-[64px] whitespace-nowrap">
+                              <button className="p-1 disabled:opacity-30" disabled={t.columns.length >= 6} onClick={() => addColumn(ti)} title="Add column"><Plus className="w-3.5 h-3.5" /></button>
+                              <button className="p-1 disabled:opacity-30" disabled={t.columns.length <= 1} onClick={() => delColumn(ti)} title="Remove last column"><Minus className="w-3.5 h-3.5" /></button>
+                            </th>
+                          </tr></thead>
+                          <tbody>
+                            {t.rows.map((r, ri) => (
+                              <tr key={ri}>
+                                {t.columns.map((_, ci) => (
+                                  <td key={ci} className="p-0.5"><input className={`${inp} text-[12px]`} value={r[ci] || ""} onChange={(e) => setCell(ti, ri, ci, e.target.value)} /></td>
+                                ))}
+                                <td className="p-0.5"><button className={iconDel} onClick={() => setTable(ti, { rows: t.rows.filter((_, j) => j !== ri) })} title="Remove row"><Trash2 className="w-3.5 h-3.5 text-[#DC2626]" /></button></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <button onClick={() => setTable(ti, { rows: [...t.rows, t.columns.map(() => "")] })} className={linkBtn}><Plus className="w-3.5 h-3.5" /> Add row</button>
+                      <textarea rows={1} className={`${inp} text-[12px]`} value={t.note} onChange={(e) => setTable(ti, { note: e.target.value })} placeholder="Note under the table (optional), e.g. Paid directly by the client" />
+                    </div>
+                  ))}
+                  <select className={`${inp} !w-auto text-[12px]`} value="" onChange={(e) => { addTable(Number(e.target.value)); e.target.value = ""; }}>
+                    <option value="">+ Add a table…</option>
+                    {TABLE_PRESETS.map((p, i) => <option key={i} value={i}>{p.name}</option>)}
+                  </select>
+                </Fold>
+
+                <Fold title={sec("paymentSchedule").label} hint="milestones or module-wise" hidden={!sec("paymentSchedule").show} open={open.paymentSchedule} onToggle={() => toggle("paymentSchedule")} count={form.paymentSchedule.length}>
+                  {form.paymentSchedule.map((p, i) => (
+                    <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                      <input className={`${inp} col-span-12 sm:col-span-4`} value={p.label} onChange={(e) => setRow("paymentSchedule", i, { label: e.target.value })} placeholder="Advance / Module 1: Website" />
+                      <div className="col-span-3 sm:col-span-2 relative">
+                        <input type="number" min="0" max="100" className={`${inp} text-right pr-6`} value={p.percent} onChange={(e) => setRow("paymentSchedule", i, { percent: e.target.value })} title="Percent of the total" />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-[#8B92A9]">%</span>
+                      </div>
+                      <input type="number" min="0" className={`${inp} col-span-4 sm:col-span-2 text-right`} value={Number(p.percent) > 0 ? scheduleAmount(p, totals.grand) : p.amount}
+                             disabled={Number(p.percent) > 0} title={Number(p.percent) > 0 ? "Worked out from the %" : "Fixed amount"} onChange={(e) => setRow("paymentSchedule", i, { amount: e.target.value })} />
+                      <input className={`${inp} col-span-3 sm:col-span-3`} value={p.due} onChange={(e) => setRow("paymentSchedule", i, { due: e.target.value })} placeholder="When due" />
+                      <button className={`${iconDel} col-span-2 sm:col-span-1`} onClick={() => delRow("paymentSchedule", i)} title="Remove"><Trash2 className="w-4 h-4 text-[#DC2626]" /></button>
+                    </div>
+                  ))}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={() => addRow("paymentSchedule", { label: "", percent: 0, amount: 0, due: "" })} className={linkBtn}><Plus className="w-3.5 h-3.5" /> Add row</button>
+                    <button onClick={splitByModule} className={linkBtn} title="One row per module, in proportion to its items"><Split className="w-3.5 h-3.5" /> Split by module</button>
+                    {form.paymentSchedule.length > 0 && (
+                      <span className={`ml-auto text-[11px] font-semibold ${Math.abs(scheduleSum - totals.grand) < 0.05 ? "text-[#16A34A]" : "text-[#D97706]"}`}>
+                        Schedule {money(scheduleSum, cur)} of {money(totals.grand, cur)}{schedulePct ? ` · ${schedulePct}%` : ""}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[#8B92A9]">Use % so amounts follow the total, or leave % at 0 to type a fixed amount. Give items a module name to split by module.</p>
+                </Fold>
+
+                <Fold title={sec("timeline").label} hidden={!sec("timeline").show} open={open.timeline} onToggle={() => toggle("timeline")} count={form.timeline.length}>
+                  {form.timeline.map((t, i) => (
+                    <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                      <input className={`${inp} col-span-12 sm:col-span-4`} value={t.phase} onChange={(e) => setRow("timeline", i, { phase: e.target.value })} placeholder="Phase" />
+                      <input className={`${inp} col-span-4 sm:col-span-2`} value={t.duration} onChange={(e) => setRow("timeline", i, { duration: e.target.value })} placeholder="Week 1–2" />
+                      <input className={`${inp} col-span-6 sm:col-span-5`} value={t.details} onChange={(e) => setRow("timeline", i, { details: e.target.value })} placeholder="Details (optional)" />
+                      <button className={`${iconDel} col-span-2 sm:col-span-1`} onClick={() => delRow("timeline", i)} title="Remove"><Trash2 className="w-4 h-4 text-[#DC2626]" /></button>
+                    </div>
+                  ))}
+                  <button onClick={() => addRow("timeline", { phase: "", duration: "", details: "" })} className={linkBtn}><Plus className="w-3.5 h-3.5" /> Add phase</button>
+                </Fold>
+
+                <Fold title={sec("serviceInfo").label} hidden={!sec("serviceInfo").show} open={open.serviceInfo} onToggle={() => toggle("serviceInfo")} count={form.serviceInfo ? "✓" : 0}>
+                  <textarea rows={4} className={inp} value={form.serviceInfo} onChange={(e) => set("serviceInfo", e.target.value)} placeholder="Support hours, response times, what maintenance covers…" />
+                </Fold>
+
+                <Fold title={sec("suggestions").label} hidden={!sec("suggestions").show} open={open.suggestions} onToggle={() => toggle("suggestions")} count={form.suggestions ? "✓" : 0}>
+                  <textarea rows={3} className={inp} value={form.suggestions} onChange={(e) => set("suggestions", e.target.value)} placeholder="What you recommend for this client and why" />
+                </Fold>
+
+                <Fold title={sec("customBlocks").label} hint="your own headings" hidden={!sec("customBlocks").show} open={open.customBlocks} onToggle={() => toggle("customBlocks")} count={form.customBlocks.length}>
+                  {form.customBlocks.map((c, i) => (
+                    <div key={i} className="rounded-lg border border-[#F0F2FA] dark:border-[#1E2130] p-2 space-y-1.5">
+                      <div className="flex gap-2">
+                        <input className={inp} value={c.title} onChange={(e) => setRow("customBlocks", i, { title: e.target.value })} placeholder="Heading, e.g. What we need from you" />
+                        <button className={iconDel} onClick={() => delRow("customBlocks", i)} title="Remove"><Trash2 className="w-4 h-4 text-[#DC2626]" /></button>
+                      </div>
+                      <textarea rows={3} className={inp} value={c.body} onChange={(e) => setRow("customBlocks", i, { body: e.target.value })} placeholder="Text" />
+                    </div>
+                  ))}
+                  <button onClick={() => addRow("customBlocks", { title: "", body: "" })} className={linkBtn}><Plus className="w-3.5 h-3.5" /> Add block</button>
+                </Fold>
+
+                <Fold title={sec("paymentTerms").label} hidden={!sec("paymentTerms").show} open={open.paymentTerms} onToggle={() => toggle("paymentTerms")} count={form.paymentTerms ? "✓" : 0}>
+                  <textarea rows={3} className={inp} value={form.paymentTerms} onChange={(e) => set("paymentTerms", e.target.value)} placeholder="50% advance, balance on delivery. Bank transfer or UPI." />
+                </Fold>
+
+                <Fold title={sec("terms").label} hidden={!sec("terms").show} open={open.terms} onToggle={() => toggle("terms")} count={form.terms ? "✓" : 0}>
+                  <textarea rows={5} className={inp} value={form.terms} onChange={(e) => set("terms", e.target.value)} placeholder="1. Prices are valid until the date shown." />
+                </Fold>
+
+                <Fold title={sec("notes").label} hidden={!sec("notes").show} open={open.notes} onToggle={() => toggle("notes")} count={form.remark ? "✓" : 0}>
+                  <textarea rows={2} className={inp} value={form.remark} onChange={(e) => set("remark", e.target.value)} placeholder="Anything else for the client" />
+                </Fold>
               </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        {view === "letterhead" && !loading && (
-          <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
-            {err && <span className="text-[12px] text-[#DC2626] w-full">{err}</span>}
-            {lhSettings?.letterheadUrl && (
-              <button onClick={() => { if (window.confirm("Remove the letterhead? Quotations will print with your logo and name again.")) saveLetterhead({ removeLetterhead: true }); }}
-                      disabled={!!lhBusy} className="px-3 py-2 rounded-xl text-[12px] font-semibold text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#2D0A0A] disabled:opacity-60">
-                Remove letterhead
-              </button>
-            )}
-            <div className="flex gap-2 ml-auto">
-              <button onClick={previewLetterhead} disabled={!lhSettings?.letterheadUrl || !!lhBusy} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] disabled:opacity-60" title="Sample quotation on your letterhead">
-                <Eye className="w-4 h-4" /> Preview
-              </button>
-              <button onClick={() => saveLetterhead()} disabled={!!lhBusy} className="px-3 py-2 rounded-xl bg-[#2563EB] hover:bg-[#1d4fd8] text-white text-[12px] font-semibold disabled:opacity-60">
-                {lhBusy === "save" ? "Saving…" : "Save"}
-              </button>
-            </div>
-          </div>
-        )}
         {view === "upload" && !loading && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
             {err && <span className="text-[12px] text-[#DC2626] mr-auto">{err}</span>}
@@ -658,19 +863,18 @@ export default function QuotationModal({ lead, isSuperAdmin = false, onClose, on
           <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t border-[#E4E7EF] dark:border-[#262A38]">
             {err && <span className="text-[12px] text-[#DC2626] mr-auto">{err}</span>}
             <div className="flex gap-2 ml-auto">
-              <button onClick={previewDraft} disabled={saving} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] disabled:opacity-60" title="See the finished quotation before saving">
-                <Eye className="w-4 h-4" /> Preview
-              </button>
-              <button onClick={() => save(false)} disabled={saving} className="px-3 py-2 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] text-[12px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] hover:bg-[#F8F9FC] dark:hover:bg-[#13161E] disabled:opacity-60">
-                {saving ? "Saving…" : "Save"}
-              </button>
+              <button onClick={previewDraft} disabled={saving} className={btnGhost} title="See the finished quotation before saving"><Eye className="w-4 h-4" /> Preview</button>
+              <button onClick={() => save(false)} disabled={saving} className={btnGhost}>{saving ? "Saving…" : "Save"}</button>
               <button onClick={() => save(true)} disabled={saving} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2563EB] hover:bg-[#1d4fd8] text-white text-[12px] font-semibold disabled:opacity-60">
                 <Printer className="w-4 h-4" /> Save and print
               </button>
             </div>
           </div>
         )}
+        </>
+        )}
       </div>
-    </div>
-  , document.body);
+    </div>,
+    document.body
+  );
 }
