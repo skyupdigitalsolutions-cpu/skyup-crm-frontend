@@ -4,11 +4,11 @@
 //   Columns & sections — show / hide / rename columns; show / hide / rename / reorder sections
 //   Defaults          — number prefix, currency, GST %, validity, default terms / payment terms / service info
 //   Saved services    — services with prices to pick from in the quotation form
-import { useState } from "react";
-import { Upload, Loader2, Eye, ChevronUp, ChevronDown, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Upload, Loader2, Eye, ChevronUp, ChevronDown, Plus, Trash2, Copy, Pencil } from "lucide-react";
 import {
   SECTION_DEFS, COLUMN_DEFS, FONTS, LAYOUTS, BILLING, resolveTemplate, printQuotation, sampleQuotation, fmtDate,
-  SKYUP_SERVICE_LIBRARY,
+  SKYUP_SERVICE_LIBRARY, DESIGN_KEYS,
 } from "./quotationTemplate";
 
 const TABS = [
@@ -17,6 +17,7 @@ const TABS = [
   ["layout", "Columns & sections"],
   ["defaults", "Defaults"],
   ["catalog", "Saved services"],
+  ["templates", "Templates"],
 ];
 
 const inp = "w-full px-2.5 py-1.5 rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white dark:bg-[#13161E] text-[13px] text-[#0F1117] dark:text-[#F0F2FA] focus:outline-none focus:border-[#2563EB]";
@@ -26,6 +27,23 @@ const btnPrimary = "px-3 py-2 rounded-xl bg-[#2563EB] hover:bg-[#1d4fd8] text-wh
 const sub = "text-[11px] text-[#8B92A9]";
 
 // Everything editable, from the server's settings (fills defaults for old records).
+// A design's look in the same editable shape as the Standard one.
+function lookDraft(look = {}) {
+  const t = resolveTemplate(look);
+  return {
+    ...Object.fromEntries(DESIGN_KEYS.map((k) => [k, look[k]])),
+    documentTitle: look.documentTitle || "Quotation", layoutStyle: t.layout, accentColor: t.accent,
+    fontFamily: FONTS[look.fontFamily] ? look.fontFamily : "arial",
+    marginTopMm: look.marginTopMm ?? 40, marginBottomMm: look.marginBottomMm ?? 25, marginSideMm: look.marginSideMm ?? 15,
+    hideBuiltInHeader: look.hideBuiltInHeader ?? true, showFooterBar: look.showFooterBar ?? true, clientSignature: look.clientSignature ?? true,
+    numberedHeadings: !!look.numberedHeadings, showGstSuffix: !!look.showGstSuffix, coverPageDefault: !!look.coverPageDefault,
+    signatoryName: look.signatoryName || "", signatoryTitle: look.signatoryTitle || "",
+    letterheadUrl: look.letterheadUrl || "", stampUrl: look.stampUrl || "",
+    columns: Object.fromEntries(t.columns.map((c) => [c.key, { show: c.show, label: c.label === c.defaultLabel ? "" : c.label }])),
+    sections: t.sections.map((x) => ({ key: x.key, show: x.show, label: x.label === x.defaultLabel ? "" : x.label })),
+  };
+}
+
 function draftFrom(st = {}) {
   const t = resolveTemplate(st);
   return {
@@ -45,6 +63,8 @@ function draftFrom(st = {}) {
     defaultAboutUs: st.defaultAboutUs || "", bankDetails: st.bankDetails || "", qrCaption: st.qrCaption || "",
     showFooterBar: st.showFooterBar ?? true, numberedHeadings: !!st.numberedHeadings, clientSignature: st.clientSignature ?? true,
     showGstSuffix: !!st.showGstSuffix, coverPageDefault: !!st.coverPageDefault,
+    standardDesignName: st.standardDesignName || "Standard",
+    designs: (st.designs || []).map((x) => ({ _id: x._id, name: x.name, look: lookDraft(x.look || {}) })),
   };
 }
 
@@ -53,12 +73,65 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
   const [d, setD]         = useState(() => draftFrom(settings));
   const [busy, setBusy]   = useState("");
   const [catFilter, setCatFilter] = useState("");
+  const [templates, setTemplates] = useState(null);
+  useEffect(() => {
+    if (tab !== "templates" || templates !== null) return;
+    api.get("/quotations/templates").then((r) => setTemplates(r.data?.templates || [])).catch(() => setTemplates([]));
+  }, [tab, templates, api]);
+  const editTemplateInfo = async (t) => {
+    const name = window.prompt("Template name:", t.name); if (name === null || !name.trim()) return;
+    const description = window.prompt("Short description (optional):", t.description || ""); if (description === null) return;
+    try {
+      const r = await api.put(`/quotations/templates/${t._id}`, { name: name.trim(), description: description.trim() });
+      setTemplates((list) => list.map((x) => (x._id === t._id ? { ...x, ...r.data.template } : x)));
+      toast?.("Template updated");
+    } catch (e) { setErr(e?.response?.data?.message || "Couldn't update the template."); }
+  };
+  const removeTemplate = async (t) => {
+    if (!window.confirm(`Delete the template "${t.name}"? Quotations made from it are not affected.`)) return;
+    try { await api.delete(`/quotations/templates/${t._id}`); setTemplates((list) => list.filter((x) => x._id !== t._id)); toast?.("Template deleted"); }
+    catch (e) { setErr(e?.response?.data?.message || "Couldn't delete the template."); }
+  };
   const [err, setErr]     = useState("");
   const [images, setImages] = useState({ letterheadUrl: settings?.letterheadUrl || "", stampUrl: settings?.stampUrl || "", qrUrl: settings?.qrUrl || "" });
   const imagesFrom = (st) => ({ letterheadUrl: st.letterheadUrl || "", stampUrl: st.stampUrl || "", qrUrl: st.qrUrl || "" });
 
   const set = (k, v) => setD((x) => ({ ...x, [k]: v }));
-  const merged = { ...(settings || {}), ...d, ...images };   // what the preview shows
+
+  // Which design the Look / Columns & sections tabs edit: "std" or an index in d.designs.
+  const [target, setTarget] = useState("std");
+  const tIdx = target === "std" ? -1 : Number(target);
+  const tDesign = tIdx >= 0 ? d.designs[tIdx] : null;
+  const L = tDesign ? tDesign.look : d;
+  const setL = (k, v) => (tDesign
+    ? setD((x) => ({ ...x, designs: x.designs.map((g, j) => (j === tIdx ? { ...g, look: { ...g.look, [k]: v } } : g)) }))
+    : set(k, v));
+  const Limg = tDesign ? { letterheadUrl: tDesign.look.letterheadUrl, stampUrl: tDesign.look.stampUrl } : images;
+
+  // what the preview shows: shared settings + the selected design's look
+  const merged = { ...(settings || {}), ...d, ...images, ...(tDesign ? { ...tDesign.look, designs: [] } : {}) };
+
+  const newDesign = () => {
+    const name = window.prompt("Name for the new design (it starts as a copy of the one you're looking at):", "");
+    if (!name || !name.trim()) return;
+    const look = JSON.parse(JSON.stringify(tDesign ? tDesign.look : Object.fromEntries(DESIGN_KEYS.map((k) => [k, k === "letterheadUrl" || k === "stampUrl" ? images[k] : d[k]]))));
+    setD((x) => ({ ...x, designs: [...x.designs, { name: name.trim().slice(0, 40), look }] }));
+    setTarget(String(d.designs.length));
+    toast?.(`Design "${name.trim()}" added — change it, then Save settings`);
+  };
+  const renameDesign = () => {
+    const cur = tDesign ? tDesign.name : d.standardDesignName;
+    const name = window.prompt("Design name:", cur);
+    if (!name || !name.trim()) return;
+    if (tDesign) setD((x) => ({ ...x, designs: x.designs.map((g, j) => (j === tIdx ? { ...g, name: name.trim().slice(0, 40) } : g)) }));
+    else set("standardDesignName", name.trim().slice(0, 40));
+  };
+  const deleteDesign = () => {
+    if (!tDesign) return;
+    if (!window.confirm(`Delete the design "${tDesign.name}"? Quotations that use it will print with "${d.standardDesignName}" instead.`)) return;
+    setD((x) => ({ ...x, designs: x.designs.filter((_, j) => j !== tIdx) }));
+    setTarget("std");
+  };
 
   const upload = async (kind, file) => {
     if (!file) return;
@@ -67,7 +140,17 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
     setBusy(kind); setErr("");
     const fd = new FormData(); fd.append("file", file);
     try {
-      const r = await api.post(`/quotations/settings/image/${kind}`, fd, { headers: { "Content-Type": "multipart/form-data" }, timeout: 120000 });
+      if (tDesign && kind !== "qr" && !tDesign._id) { setBusy(""); return setErr(`Save settings first — then upload the ${kind === "stamp" ? "signature / stamp" : "letterhead"} for "${tDesign.name}".`); }
+      const q = tDesign && kind !== "qr" ? `?design=${tDesign._id}` : "";
+      const r = await api.post(`/quotations/settings/image/${kind}${q}`, fd, { headers: { "Content-Type": "multipart/form-data" }, timeout: 120000 });
+      if (q) {   // this design's own image: copy just that URL into the draft
+        const saved = (r.data.settings.designs || []).find((g) => String(g._id) === String(tDesign._id));
+        const field = kind === "stamp" ? "stampUrl" : "letterheadUrl";
+        setL(field, saved?.look?.[field] || "");
+        onSaved?.(r.data.settings, { keepOpen: true });
+        toast?.(kind === "stamp" ? "Signature / stamp uploaded for this design" : "Letterhead uploaded for this design");
+        return;
+      }
       setImages(imagesFrom(r.data.settings));
       onSaved?.(r.data.settings, { keepOpen: true });
       const sz = r.data.size;
@@ -81,6 +164,7 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
   const removeImage = async (kind) => {
     const ask = { stamp: "Remove the signature / stamp image?", qr: "Remove the payment QR?" }[kind] || "Remove the letterhead? Quotations will print with your logo and name again.";
     if (!window.confirm(ask)) return;
+    if (tDesign && kind !== "qr") { setL(kind === "stamp" ? "stampUrl" : "letterheadUrl", ""); return; }   // saved with "Save settings"
     setBusy(`rm-${kind}`); setErr("");
     try {
       const r = await api.put("/quotations/settings", { stamp: { removeStamp: true }, qr: { removeQr: true } }[kind] || { removeLetterhead: true });
@@ -103,14 +187,14 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
     finally { setBusy(""); }
   };
 
-  const moveSection = (i, dir) => setD((x) => {
-    const list = [...x.sections]; const j = i + dir;
-    if (j < 0 || j >= list.length) return x;
+  const moveSection = (i, dir) => {
+    const list = [...L.sections]; const j = i + dir;
+    if (j < 0 || j >= list.length) return;
     [list[i], list[j]] = [list[j], list[i]];
-    return { ...x, sections: list };
-  });
-  const setSection = (i, patch) => setD((x) => ({ ...x, sections: x.sections.map((s, j) => (j === i ? { ...s, ...patch } : s)) }));
-  const setColumn = (k, patch) => setD((x) => ({ ...x, columns: { ...x.columns, [k]: { ...x.columns[k], ...patch } } }));
+    setL("sections", list);
+  };
+  const setSection = (i, patch) => setL("sections", L.sections.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const setColumn = (k, patch) => setL("columns", { ...L.columns, [k]: { ...L.columns[k], ...patch } });
   const setCat = (i, patch) => setD((x) => ({ ...x, catalog: x.catalog.map((c, j) => (j === i ? { ...c, ...patch } : c)) }));
 
   return (
@@ -162,20 +246,34 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
 
         {tab === "look" && (
           <div className="space-y-5">
+            <div className="rounded-xl border border-[#C9D4EE] dark:border-[#2A3550] bg-[#F8FAFF] dark:bg-[#141A2A] p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">Design</span>
+                <select className={`${inp} !w-auto`} value={target} onChange={(e) => setTarget(e.target.value)}>
+                  <option value="std">{d.standardDesignName} (standard)</option>
+                  {d.designs.map((g, i) => <option key={g._id || i} value={String(i)}>{g.name}{g._id ? "" : " (not saved yet)"}</option>)}
+                </select>
+                <button className={btn} onClick={newDesign} disabled={d.designs.length >= 10}><Copy className="w-4 h-4" />New design (copy)</button>
+                <button className={btn} onClick={renameDesign}><Pencil className="w-4 h-4" />Rename</button>
+                {tDesign && <button className={`${btn} text-[#DC2626]`} onClick={deleteDesign}><Trash2 className="w-4 h-4" />Delete</button>}
+              </div>
+              <p className={`${sub} mt-1.5`}>Each quotation picks a design. This tab is editing <b>{tDesign ? tDesign.name : d.standardDesignName}</b>.
+                Company details, defaults and saved services are shared by every design.</p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><label className={lbl}>Document title</label>
-                <input className={inp} value={d.documentTitle} maxLength={40} onChange={(e) => set("documentTitle", e.target.value)} placeholder="Quotation, Proposal, Estimate…" /></div>
+                <input className={inp} value={L.documentTitle} maxLength={40} onChange={(e) => setL("documentTitle", e.target.value)} placeholder="Quotation, Proposal, Estimate…" /></div>
               <div><label className={lbl}>Layout style</label>
-                <select className={inp} value={d.layoutStyle} onChange={(e) => set("layoutStyle", e.target.value)}>
+                <select className={inp} value={L.layoutStyle} onChange={(e) => setL("layoutStyle", e.target.value)}>
                   {Object.entries(LAYOUTS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select></div>
               <div><label className={lbl}>Accent colour</label>
                 <div className="flex gap-2">
-                  <input type="color" value={d.accentColor} onChange={(e) => set("accentColor", e.target.value)} className="h-[34px] w-12 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-transparent" />
-                  <input className={inp} value={d.accentColor} maxLength={7} onChange={(e) => set("accentColor", e.target.value)} />
+                  <input type="color" value={L.accentColor} onChange={(e) => setL("accentColor", e.target.value)} className="h-[34px] w-12 rounded border border-[#E4E7EF] dark:border-[#262A38] bg-transparent" />
+                  <input className={inp} value={L.accentColor} maxLength={7} onChange={(e) => setL("accentColor", e.target.value)} />
                 </div></div>
               <div><label className={lbl}>Font</label>
-                <select className={inp} value={d.fontFamily} onChange={(e) => set("fontFamily", e.target.value)}>
+                <select className={inp} value={L.fontFamily} onChange={(e) => setL("fontFamily", e.target.value)}>
                   {Object.entries(FONTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select></div>
             </div>
@@ -187,7 +285,7 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
                 ["showGstSuffix", "Show \"+ GST\" after item prices"],
                 ["coverPageDefault", "New quotations start with a cover page"]].map(([k, label]) => (
                 <label key={k} className="flex items-start gap-2 text-[12px] text-[#0F1117] dark:text-[#F0F2FA]">
-                  <input type="checkbox" className="mt-0.5" checked={!!d[k]} onChange={(e) => set(k, e.target.checked)} />{label}
+                  <input type="checkbox" className="mt-0.5" checked={!!L[k]} onChange={(e) => setL(k, e.target.checked)} />{label}
                 </label>
               ))}
             </div>
@@ -197,11 +295,11 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
               <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mb-2">Letterhead</div>
               <div className="grid grid-cols-1 sm:grid-cols-[130px_1fr] gap-4">
                 <div className="w-[130px] aspect-[210/297] rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white overflow-hidden relative">
-                  {images.letterheadUrl ? (
+                  {Limg.letterheadUrl ? (
                     <>
-                      <img src={images.letterheadUrl} alt="Letterhead" className="absolute inset-0 w-full h-full object-fill" />
+                      <img src={Limg.letterheadUrl} alt="Letterhead" className="absolute inset-0 w-full h-full object-fill" />
                       <div className="absolute border-2 border-dashed border-[#2563EB] bg-[#2563EB]/10" title="The quotation text goes inside this area"
-                           style={{ top: `${(d.marginTopMm / 297) * 100}%`, bottom: `${(d.marginBottomMm / 297) * 100}%`, left: `${(d.marginSideMm / 210) * 100}%`, right: `${(d.marginSideMm / 210) * 100}%` }} />
+                           style={{ top: `${(L.marginTopMm / 297) * 100}%`, bottom: `${(L.marginBottomMm / 297) * 100}%`, left: `${(L.marginSideMm / 210) * 100}%`, right: `${(L.marginSideMm / 210) * 100}%` }} />
                     </>
                   ) : <div className="absolute inset-0 flex items-center justify-center p-2 text-center text-[11px] text-[#8B92A9]">No letterhead</div>}
                 </div>
@@ -209,22 +307,22 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
                   <div className="flex flex-wrap gap-2">
                     <label className={`${btn} cursor-pointer ${busy ? "pointer-events-none opacity-60" : ""}`}>
                       {busy === "letterhead" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                      {images.letterheadUrl ? "Replace letterhead" : "Upload letterhead"}
+                      {Limg.letterheadUrl ? "Replace letterhead" : "Upload letterhead"}
                       <input type="file" accept=".png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => { upload("letterhead", e.target.files?.[0]); e.target.value = ""; }} />
                     </label>
-                    {images.letterheadUrl && <button className={`${btn} text-[#DC2626]`} disabled={!!busy} onClick={() => removeImage("letterhead")}>Remove</button>}
+                    {Limg.letterheadUrl && <button className={`${btn} text-[#DC2626]`} disabled={!!busy} onClick={() => removeImage("letterhead")}>Remove</button>}
                   </div>
                   <p className={sub}>A full A4 page image (PNG/JPG, up to 5 MB). Printed behind every page. Blue box = where the text goes.</p>
-                  {images.letterheadUrl && (
+                  {Limg.letterheadUrl && (
                     <>
                       <div className="grid grid-cols-3 gap-2">
                         {[["marginTopMm", "Top (mm)", 0, 150], ["marginBottomMm", "Bottom (mm)", 0, 150], ["marginSideMm", "Sides (mm)", 5, 60]].map(([k, l, min, max]) => (
                           <div key={k}><label className={lbl}>{l}</label>
-                            <input type="number" min={min} max={max} className={inp} value={d[k]} onChange={(e) => set(k, Math.min(max, Math.max(min, Number(e.target.value) || 0)))} /></div>
+                            <input type="number" min={min} max={max} className={inp} value={L[k]} onChange={(e) => setL(k, Math.min(max, Math.max(min, Number(e.target.value) || 0)))} /></div>
                         ))}
                       </div>
                       <label className="flex items-center gap-2 text-[12px] text-[#0F1117] dark:text-[#F0F2FA]">
-                        <input type="checkbox" checked={d.hideBuiltInHeader} onChange={(e) => set("hideBuiltInHeader", e.target.checked)} />
+                        <input type="checkbox" checked={L.hideBuiltInHeader} onChange={(e) => setL("hideBuiltInHeader", e.target.checked)} />
                         Hide our logo and company name (the letterhead has them)
                       </label>
                     </>
@@ -238,21 +336,21 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
               <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mb-2">Signature and stamp</div>
               <div className="grid grid-cols-1 sm:grid-cols-[130px_1fr] gap-4">
                 <div className="w-[130px] h-[80px] rounded-lg border border-[#E4E7EF] dark:border-[#262A38] bg-white flex items-center justify-center overflow-hidden">
-                  {images.stampUrl ? <img src={images.stampUrl} alt="Signature / stamp" className="max-w-full max-h-full object-contain" /> : <span className="text-[11px] text-[#8B92A9]">No image</span>}
+                  {Limg.stampUrl ? <img src={Limg.stampUrl} alt="Signature / stamp" className="max-w-full max-h-full object-contain" /> : <span className="text-[11px] text-[#8B92A9]">No image</span>}
                 </div>
                 <div className="space-y-3">
                   <div className="flex flex-wrap gap-2">
                     <label className={`${btn} cursor-pointer ${busy ? "pointer-events-none opacity-60" : ""}`}>
                       {busy === "stamp" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                      {images.stampUrl ? "Replace image" : "Upload signature / stamp"}
+                      {Limg.stampUrl ? "Replace image" : "Upload signature / stamp"}
                       <input type="file" accept=".png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => { upload("stamp", e.target.files?.[0]); e.target.value = ""; }} />
                     </label>
-                    {images.stampUrl && <button className={`${btn} text-[#DC2626]`} disabled={!!busy} onClick={() => removeImage("stamp")}>Remove</button>}
+                    {Limg.stampUrl && <button className={`${btn} text-[#DC2626]`} disabled={!!busy} onClick={() => removeImage("stamp")}>Remove</button>}
                   </div>
                   <p className={sub}>A PNG with a transparent background looks best.</p>
                   <div className="grid grid-cols-2 gap-2">
-                    <div><label className={lbl}>Signatory name</label><input className={inp} value={d.signatoryName} maxLength={80} onChange={(e) => set("signatoryName", e.target.value)} placeholder="Authorised signatory" /></div>
-                    <div><label className={lbl}>Designation</label><input className={inp} value={d.signatoryTitle} maxLength={80} onChange={(e) => set("signatoryTitle", e.target.value)} placeholder="Director" /></div>
+                    <div><label className={lbl}>Signatory name</label><input className={inp} value={L.signatoryName} maxLength={80} onChange={(e) => setL("signatoryName", e.target.value)} placeholder="Authorised signatory" /></div>
+                    <div><label className={lbl}>Designation</label><input className={inp} value={L.signatoryTitle} maxLength={80} onChange={(e) => setL("signatoryTitle", e.target.value)} placeholder="Director" /></div>
                   </div>
                 </div>
               </div>
@@ -262,15 +360,29 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
 
         {tab === "layout" && (
           <div className="space-y-5">
+            <div className="rounded-xl border border-[#C9D4EE] dark:border-[#2A3550] bg-[#F8FAFF] dark:bg-[#141A2A] p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[12px] font-semibold text-[#4B5168] dark:text-[#9DA3BB]">Design</span>
+                <select className={`${inp} !w-auto`} value={target} onChange={(e) => setTarget(e.target.value)}>
+                  <option value="std">{d.standardDesignName} (standard)</option>
+                  {d.designs.map((g, i) => <option key={g._id || i} value={String(i)}>{g.name}{g._id ? "" : " (not saved yet)"}</option>)}
+                </select>
+                <button className={btn} onClick={newDesign} disabled={d.designs.length >= 10}><Copy className="w-4 h-4" />New design (copy)</button>
+                <button className={btn} onClick={renameDesign}><Pencil className="w-4 h-4" />Rename</button>
+                {tDesign && <button className={`${btn} text-[#DC2626]`} onClick={deleteDesign}><Trash2 className="w-4 h-4" />Delete</button>}
+              </div>
+              <p className={`${sub} mt-1.5`}>Each quotation picks a design. This tab is editing <b>{tDesign ? tDesign.name : d.standardDesignName}</b>.
+                Company details, defaults and saved services are shared by every design.</p>
+            </div>
             <div>
               <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Item table columns</div>
               <p className={`${sub} mb-2`}>Untick to hide. Type a new name to rename. Description and Amount are always shown.</p>
               <div className="space-y-1.5">
                 {COLUMN_DEFS.map((c) => (
                   <div key={c.key} className="flex items-center gap-2">
-                    <input type="checkbox" disabled={c.fixed} checked={c.fixed || d.columns[c.key]?.show !== false} onChange={(e) => setColumn(c.key, { show: e.target.checked })} />
+                    <input type="checkbox" disabled={c.fixed} checked={c.fixed || L.columns[c.key]?.show !== false} onChange={(e) => setColumn(c.key, { show: e.target.checked })} />
                     <span className="w-24 text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{c.label}</span>
-                    <input className={inp} value={d.columns[c.key]?.label || ""} maxLength={40} placeholder={c.label} onChange={(e) => setColumn(c.key, { label: e.target.value })} />
+                    <input className={inp} value={L.columns[c.key]?.label || ""} maxLength={40} placeholder={c.label} onChange={(e) => setColumn(c.key, { label: e.target.value })} />
                   </div>
                 ))}
               </div>
@@ -279,13 +391,13 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
               <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA] mb-1">Sections</div>
               <p className={`${sub} mb-2`}>Order, show or hide, and rename. Sections with no content are skipped automatically on each quotation.</p>
               <div className="space-y-1.5">
-                {d.sections.map((s, i) => {
+                {L.sections.map((s, i) => {
                   const def = SECTION_DEFS.find((x) => x.key === s.key);
                   return (
                     <div key={s.key} className="flex items-center gap-2">
                       <div className="flex flex-col">
                         <button className="p-0.5 disabled:opacity-30" disabled={i === 0} onClick={() => moveSection(i, -1)} title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>
-                        <button className="p-0.5 disabled:opacity-30" disabled={i === d.sections.length - 1} onClick={() => moveSection(i, 1)} title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>
+                        <button className="p-0.5 disabled:opacity-30" disabled={i === L.sections.length - 1} onClick={() => moveSection(i, 1)} title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>
                       </div>
                       <input type="checkbox" disabled={def?.fixed} checked={def?.fixed || s.show} onChange={(e) => setSection(i, { show: e.target.checked })} title={def?.fixed ? "Always shown" : "Show on quotations"} />
                       <span className={`w-36 text-[12px] ${s.show || def?.fixed ? "text-[#4B5168] dark:text-[#9DA3BB]" : "text-[#B5BAC9] line-through"}`}>{def?.label}</span>
@@ -371,6 +483,32 @@ export default function QuotationSettingsPanel({ api, settings, onSaved, onClose
             <button className={btn} onClick={() => setD((x) => ({ ...x, catalog: [...x.catalog, { name: "", details: "", unitPrice: 0, billing: "one_time", module: "", category: "", note: "" }] }))}>
               <Plus className="w-4 h-4" /> Add service
             </button>
+          </div>
+        )}
+
+        {tab === "templates" && (
+          <div className="space-y-2">
+            <p className={sub}>Reusable quotation content — items, deliverables, tables, milestones, terms, discount, GST and design (never the client).
+              To make or update one: open a quotation and click <b>Save as template</b>. People pick them with <b>Start from template</b>.</p>
+            {templates === null ? <div className="py-6 text-center"><Loader2 className="w-5 h-5 animate-spin inline text-[#8B92A9]" /></div>
+              : templates.length === 0 ? <div className="text-center py-6 text-[12px] text-[#8B92A9]">No templates yet.</div>
+              : templates.map((t) => {
+                const c = t.content || {};
+                const dn = c.designId ? (d.designs.find((g) => String(g._id) === String(c.designId))?.name || "a deleted design") : d.standardDesignName;
+                return (
+                  <div key={t._id} className="flex items-start gap-3 rounded-xl border border-[#E4E7EF] dark:border-[#262A38] p-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold text-[#0F1117] dark:text-[#F0F2FA]">{t.name}</div>
+                      {t.description && <div className="text-[12px] text-[#4B5168] dark:text-[#9DA3BB]">{t.description}</div>}
+                      <div className={sub}>{(c.lineItems || []).length} item{(c.lineItems || []).length === 1 ? "" : "s"} · design: {dn}
+                        {(c.paymentSchedule || []).length ? ` · ${c.paymentSchedule.length} milestones` : ""}{c.terms ? " · terms" : ""}
+                        {t.updatedByName ? ` · updated by ${t.updatedByName}` : ""}{t.updatedAt ? ` on ${fmtDate(t.updatedAt)}` : ""}</div>
+                    </div>
+                    <button className={btn} onClick={() => editTemplateInfo(t)}><Pencil className="w-4 h-4" />Rename</button>
+                    <button className={`${btn} text-[#DC2626]`} onClick={() => removeTemplate(t)}><Trash2 className="w-4 h-4" />Delete</button>
+                  </div>
+                );
+              })}
           </div>
         )}
 

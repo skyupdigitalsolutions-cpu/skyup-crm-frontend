@@ -30,3 +30,20 @@ export const listNotes       = () => unwrap(financeApi.get("/hr/notes"));
 export const createNote      = (body) => unwrap(financeApi.post("/hr/notes", body));
 export const updateNote      = (id, body) => unwrap(financeApi.put(`/hr/notes/${id}`, body));
 export const deleteNote      = (id) => unwrap(financeApi.delete(`/hr/notes/${id}`));
+
+// Payment vouchers
+export const listVouchers   = (params) => unwrap(financeApi.get("/hr/vouchers", { params }));
+export const getVoucher     = (id) => unwrap(financeApi.get(`/hr/vouchers/${id}`));
+export const createVoucher  = (body) => unwrap(financeApi.post("/hr/vouchers", body));
+export const updateVoucher  = (id, body) => unwrap(financeApi.put(`/hr/vouchers/${id}`, body));
+export const cancelVoucher  = (id, reason) => unwrap(financeApi.post(`/hr/vouchers/${id}/cancel`, { reason }));
+// Company header (name, logo, address, GSTIN) — same "from" block as invoices
+export const getCompanyDetails = () => unwrap(financeApi.get("/settings")).then((d) => d.preview || {});
+
+// Credentials vault (secrets are encrypted server-side; reveal is logged)
+export const listCredentials  = (params) => unwrap(financeApi.get("/hr/credentials", { params }));
+export const createCredential = (body) => unwrap(financeApi.post("/hr/credentials", body));
+export const updateCredential = (id, body) => unwrap(financeApi.put(`/hr/credentials/${id}`, body));
+export const deleteCredential = (id) => unwrap(financeApi.delete(`/hr/credentials/${id}`));
+export const revealCredential = (id, field) => unwrap(financeApi.post(`/hr/credentials/${id}/reveal`, { field }));
+export const credentialLog    = (id) => unwrap(financeApi.get(`/hr/credentials/${id}/log`));

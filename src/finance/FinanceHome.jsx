@@ -1,19 +1,23 @@
 // src/finance/FinanceHome.jsx — the Finance Panel's tabbed home: Invoices (existing) + Employees, Salary, Tools, Notes.
 // Keeps the working FinanceDashboard (invoices) untouched and adds the new HR pages as sibling tabs.
 import { useState } from "react";
-import { Receipt, Users, Wallet, Wrench, StickyNote } from "lucide-react";
+import { Receipt, Users, Wallet, Wrench, StickyNote, FileText, KeyRound } from "lucide-react";
 import FinanceDashboard from "../components/FinanceDashboard";
 import EmployeesPage from "./EmployeesPage";
 import SalaryPage from "./SalaryPage";
 import ToolsPage from "./ToolsPage";
 import NotesPage from "./NotesPage";
+import VouchersPage from "./VouchersPage";
+import CredentialsPage from "./CredentialsPage";
 import financeApi from "./financeApi";
 
 const TABS = [
   { key: "invoices", label: "Invoices", icon: Receipt },
+  { key: "vouchers", label: "Payment vouchers", icon: FileText },
   { key: "employees", label: "Employees", icon: Users },
   { key: "salary", label: "Salary slips", icon: Wallet },
   { key: "tools", label: "Tools & Services", icon: Wrench },
+  { key: "credentials", label: "Credentials", icon: KeyRound },
   { key: "notes", label: "Notes", icon: StickyNote },
 ];
 
@@ -38,6 +42,8 @@ export default function FinanceHome() {
       {tab === "salary" && <SalaryPage prefillEmployee={salaryPrefill} clearPrefill={() => setSalaryPrefill(null)} />}
       {tab === "tools" && <ToolsPage />}
       {tab === "notes" && <NotesPage />}
+      {tab === "vouchers" && <VouchersPage />}
+      {tab === "credentials" && <CredentialsPage />}
     </div>
   );
 }

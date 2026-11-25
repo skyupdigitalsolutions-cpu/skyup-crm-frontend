@@ -275,6 +275,23 @@ export function richText(text) {
   return html;
 }
 
+// ── Designs ────────────────────────────────────────────────────────────────
+// The top-level look in settings is the "Standard" design; settings.designs
+// holds extra named looks. A quotation's designId picks one; everything not
+// part of a look (company, bank, defaults, saved services) is shared.
+export const DESIGN_KEYS = ["documentTitle", "layoutStyle", "accentColor", "fontFamily", "columns", "sections",
+  "letterheadUrl", "letterheadName", "marginTopMm", "marginBottomMm", "marginSideMm", "hideBuiltInHeader",
+  "stampUrl", "signatoryName", "signatoryTitle", "showFooterBar", "numberedHeadings", "clientSignature", "showGstSuffix", "coverPageDefault"];
+
+export function settingsForDesign(settings, designId) {
+  const st = settings || {};
+  if (!designId) return st;
+  const d = (st.designs || []).find((x) => String(x._id) === String(designId));
+  return d ? { ...st, ...(d.look || {}) } : st;
+}
+export const designName = (settings, designId) =>
+  (designId && (settings?.designs || []).find((x) => String(x._id) === String(designId))?.name) || settings?.standardDesignName || "Standard";
+
 // Settings (possibly partial / older) → a complete template.
 export function resolveTemplate(settings = {}) {
   const st = settings || {};
@@ -548,7 +565,7 @@ export function renderQuotationHtml(q, settings, { preview = false, autoPrint = 
       <div><span class="muted">No.</span> <b>${esc(q.number)}</b></div>
       <div><span class="muted">Date:</span> ${esc(fmtDate(q.createdAt))}</div>
       ${q.validUntil ? `<div><span class="muted">Valid until:</span> ${esc(fmtDate(q.validUntil))}</div>` : ""}
-      ${q.handledBy ? `<div><span class="muted">Prepared by:</span> ${esc(q.handledBy)}</div>` : ""}
+      ${/* "Prepared by" (handledBy) is internal — kept in the CRM, never printed */ ""}
     </div>
   </div>`;
 
@@ -570,7 +587,7 @@ export function renderQuotationHtml(q, settings, { preview = false, autoPrint = 
     ${q.validUntil ? `<div class="cv-foot">Valid until ${esc(fmtDate(q.validUntil))} · Confidential — prepared for client evaluation</div>` : ""}
   </section>` : "";
 
-  const content = `${preview ? `<div class="draft"><b>Preview — not saved yet.</b> The number is assigned when you save. Close this tab to go back and edit.</div>` : ""}
+  const content = `${preview ? `<div class="draft"><b>Preview — not saved yet.</b> The number is assigned when you save. Close this tab to go back and edit.${lh ? " On screen only the letterhead's top shows; every printed page gets the full letterhead." : ""}</div>` : ""}
   ${cover}
   ${q.coverPage ? "" : companyHeader}
   ${docMeta}
@@ -713,11 +730,18 @@ export function renderQuotationHtml(q, settings, { preview = false, autoPrint = 
   .layout-minimal .grand td { border-top: 1px solid #111; color: var(--accent); }
 
   /* letterhead */
-  .lh-bg { position: fixed; top: 0; left: 0; width: 210mm; height: 297mm; z-index: -1; object-fit: fill; }
+  /* The letterhead sits IN the page (z-index 0) with the content lifted above
+     it — never behind the page (negative z-index): a page background, like the
+     white sheet in the on-screen preview, would paint over it and hide it. */
+  .lh-bg { position: fixed; top: 0; left: 0; width: 210mm; height: 297mm; z-index: 0; object-fit: fill; pointer-events: none; }
+  table.frame { position: relative; z-index: 1; }
+  .pfoot { z-index: 2; }
   @media screen {
     html { background: #e5e7eb; }
     body { width: 210mm; min-height: 297mm; margin: 16px auto; position: relative; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.25); }
-    .lh-bg { position: absolute; }
+    /* on screen the sheet doesn't break into pages, so show only the
+       letterhead's top — its footer band would sit across the content */
+    .lh-bg { position: absolute; clip-path: inset(0 0 ${lh ? lh.bottom : 0}mm 0); }
     .pfoot { position: absolute; }
     .cover { border-bottom: 2px dashed #ccc; margin-bottom: 16px; padding-bottom: 12px; }
   }
@@ -736,7 +760,7 @@ export function printQuotation(q, win = null, { preview = false, settings = null
     if (win) win.location.href = q.fileUrl; else window.open(q.fileUrl, "_blank", "noopener");
     return;
   }
-  const html = renderQuotationHtml(q, settings, { preview, autoPrint: !preview });
+  const html = renderQuotationHtml(q, settingsForDesign(settings, q.designId), { preview, autoPrint: !preview });
   const w = win || window.open("", "_blank");
   if (!w) { alert("Allow pop-ups for this site to print the quotation."); return; }
   w.document.open(); w.document.write(html); w.document.close();

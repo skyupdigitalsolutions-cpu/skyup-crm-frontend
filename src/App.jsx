@@ -87,6 +87,7 @@ const FinanceLogin = lazy(() => import("./finance/FinanceLogin"));   // standalo
 const FinancePanel = lazy(() => import("./finance/FinancePanel"));   // standalone Finance Panel
 const AgentApp     = lazy(() => import("./agent/App"));             // Agent app (installable PWA for sales employees) — /agent
 const UserPaymentFollowUps = lazy(() => import("./pages/UserPaymentFollowUps"));
+const QuotationsPage = lazy(() => import("./pages/QuotationsPage"));
 const InvoiceTest     = lazy(() => import("./pages/InvoiceTest"));
 
 // ── Page loader ───────────────────────────────────────────────────────────────
@@ -670,6 +671,9 @@ function AppInner() {
 
             {/* ── Leads — role-aware ── */}
             <Route path="/leads" element={<FeatureGate featureKey="leads"><LeadsRoleSwitch /></FeatureGate>} />
+
+            {/* ── Quotations — admins see the company, employees their own + their leads' ── */}
+            <Route path="/quotations" element={<FeatureGate featureKey="leads"><QuotationsPage /></FeatureGate>} />
 
             {/* ── Daily report — role-aware ── */}
             <Route path="/daily-report" element={

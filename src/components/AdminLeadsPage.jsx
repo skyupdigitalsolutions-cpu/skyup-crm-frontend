@@ -13,7 +13,7 @@ import { getLeadDisplayStatus, statusConfigFor, statusDisplayLabel, temperatureS
 import useCustomization from "../hooks/useCustomization";
 import { ImportAssignmentChooser, UnassignedLeadsModal, AssignmentSettingsModal, useAssignmentOptions, EmployeePickerModal } from "./LeadAssignment";
 import { AdminExportButton, ExportRequestsModal, usePendingExportCount } from "./LeadExport";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import CustomFieldsEditor from "./CustomFieldsEditor";
 import { missingRequiredCustomFields } from "../utils/customFields";
 import {
@@ -1948,6 +1948,7 @@ const PER_PAGE = 15;
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function AdminLeadsPage() {
+  const navigate = useNavigate();   // Quote → /quotations with this lead linked
   const cz = useCustomization(); // re-render when the company customization loads / changes
   const catLabel = (cat, fallback) => {
     const l = cz.c.statuses.filter(x => x.category === cat && x.active);
@@ -2855,7 +2856,7 @@ export default function AdminLeadsPage() {
                             <button
                               title="Quotations"
                               aria-label={`Quotations for ${l.name}`}
-                              onClick={e => { e.stopPropagation(); setQuotationLead(l); }}
+                              onClick={e => { e.stopPropagation(); navigate(`/quotations?lead=${encodeURIComponent(l._id || l.id)}&name=${encodeURIComponent(l.name || "")}`); }}
                               className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] hover:bg-[#DCE7FF] dark:hover:bg-[#1F2D4D] border border-[#DCE7FF] dark:border-[#24365C] transition whitespace-nowrap"
                             >
                               <FileText className="w-3 h-3" />

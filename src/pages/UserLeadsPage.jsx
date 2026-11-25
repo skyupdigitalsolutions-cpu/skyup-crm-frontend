@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../data/axiosConfig";
 import ColdReassignModal from "../components/ColdReassignModal";
 import ClientMeetingTab from "../components/ClientMeetingTab";
@@ -1161,6 +1162,7 @@ function KpiPill({ label, value, color, bg, text, active, onClick }) {
 const PER_PAGE = 15;
 
 export default function UserLeadsPage() {
+  const navigate = useNavigate();   // Quote → /quotations with this lead linked
   const [leads,    setLeads]    = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState("");
@@ -1653,7 +1655,7 @@ export default function UserLeadsPage() {
                           <button
                             title="Quotations"
                             aria-label={`Quotations for ${l.name}`}
-                            onClick={e => { e.stopPropagation(); setQuotationLead(l); }}
+                            onClick={e => { e.stopPropagation(); navigate(`/quotations?lead=${encodeURIComponent(l._id || l.id)}&name=${encodeURIComponent(l.name || "")}`); }}
                             className="ml-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[16px] font-semibold bg-[#EEF3FF] dark:bg-[#1A2540] text-[#2563EB] dark:text-[#4F8EF7] hover:bg-[#DCE7FF] dark:hover:bg-[#1F2D4D] border border-[#DCE7FF] dark:border-[#24365C] transition">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
